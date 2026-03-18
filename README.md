@@ -145,6 +145,18 @@ N1KO MUSIC 的诞生离不开以下优秀开源项目的启发与支持，特此
 
 ---
 
+## Star 趋势
+
+<a href="https://star-history.com/#baogutang/N1KO-MUSIC&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=baogutang/N1KO-MUSIC&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=baogutang/N1KO-MUSIC&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=baogutang/N1KO-MUSIC&type=Date" />
+ </picture>
+</a>
+
+---
+
 <div align="center">
 
 用 ❤️ 打造，作者 [N1KO](https://github.com/baogutang)
