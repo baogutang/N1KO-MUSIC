@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/logo.png" alt="N1KO MUSIC Logo" width="100" height="100" />
+<img src="frontend/src-tauri/icons/icon.png" alt="N1KO MUSIC Logo" width="100" height="100" />
 
 # N1KO MUSIC
 
@@ -103,7 +103,7 @@ N1KO MUSIC 的基础功能完全免费。开通会员可解锁以下高级功能
 
 ### 如何开通
 
-1. 使用支付宝扫描下方收款码，转账 **¥9.9**（永久会员）
+1. 使用支付宝扫描下方收款码，转账 **¥59.9**（永久会员）
 2. 转账时请在备注中留下你的 **支付宝账号** 或 **联系方式**
 3. 支付完成后，通过支付宝联系收款方（Nikooh）获取 **激活码**
 4. 在 N1KO MUSIC 客户端「设置」页面输入激活码即可激活

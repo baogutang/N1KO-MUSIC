@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/logo.png" alt="N1KO MUSIC Logo" width="100" height="100" />
+<img src="frontend/src-tauri/icons/icon.png" alt="N1KO MUSIC Logo" width="100" height="100" />
 
 # N1KO MUSIC
 
