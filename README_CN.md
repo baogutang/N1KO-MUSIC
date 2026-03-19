@@ -11,7 +11,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=for-the-badge&color=gold)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/baogutang/N1KO-MUSIC?style=for-the-badge&color=blue)](https://github.com/baogutang/N1KO-MUSIC/network)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=for-the-badge)](LICENSE)
-[![版本](https://img.shields.io/badge/版本-1.0.13-green?style=for-the-badge)](https://github.com/baogutang/N1KO-MUSIC/releases)
+[![版本](https://img.shields.io/badge/版本-1.0.14-green?style=for-the-badge)](https://github.com/baogutang/N1KO-MUSIC/releases)
 
 **[English](README.md)** · **[中文](README_CN.md)**
 
@@ -167,8 +167,15 @@ N1KO MUSIC 的诞生离不开以下优秀开源项目的启发与支持，特此
 
 ## Star 趋势
 
-[![Star History Chart](https://api.star-history.com/svg?repos=baogutang/N1KO-MUSIC&type=Date)](https://star-history.com/#baogutang/N1KO-MUSIC&Date)
+## Star History
 
+<a href="https://www.star-history.com/?repos=baogutang%2FN1KO-MUSIC&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=baogutang/N1KO-MUSIC&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=baogutang/N1KO-MUSIC&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=baogutang/N1KO-MUSIC&type=date&legend=top-left" />
+ </picture>
+</a>
 ---
 
 <div align="center">
