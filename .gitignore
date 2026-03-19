@@ -23,6 +23,3 @@ dist-ssr
 *.sln
 *.sw?
 
-# Core source code - not published
-backend/
-frontend/
