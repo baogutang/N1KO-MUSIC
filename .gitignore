@@ -1,3 +1,7 @@
+# Source code directories (private)
+frontend
+backend
+
 # Logs
 logs
 *.log
