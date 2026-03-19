@@ -1,166 +1,180 @@
 <div align="center">
 
-<img src="docs/logo.png" alt="N1KO MUSIC Logo" width="100" height="100" />
+<img src="docs/logo.png" alt="N1KO MUSIC - Music Player for Navidrome Subsonic Jellyfin Emby" width="100" height="100" />
 
 # N1KO MUSIC
 
-**这可能是你用过的最好用的 NAS 音乐播放器。**
+### A Modern Desktop Music Player for Navidrome, Subsonic, Jellyfin & Emby
+
+**The best self-hosted NAS music streaming client you'll ever use.**
 
 [![GitHub Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=for-the-badge&color=gold)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/baogutang/N1KO-MUSIC?style=for-the-badge&color=blue)](https://github.com/baogutang/N1KO-MUSIC/network)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=for-the-badge)](LICENSE)
-[![版本](https://img.shields.io/badge/版本-1.0.10-green?style=for-the-badge)](https://github.com/baogutang/N1KO-MUSIC/releases)
+[![Version](https://img.shields.io/badge/version-1.0.10-green?style=for-the-badge)](https://github.com/baogutang/N1KO-MUSIC/releases)
+
+**[English](README.md)** · **[中文](README_CN.md)**
 
 </div>
 
 ---
 
-## 界面预览
+## What is N1KO MUSIC?
 
-### 连接服务器
+N1KO MUSIC is a **cross-platform desktop music player** designed for self-hosted music servers. It connects to **Navidrome**, **Subsonic**, **Jellyfin**, and **Emby** — turning your private music library into a beautiful, Spotify-like streaming experience.
 
-支持 Navidrome、Subsonic、Jellyfin、Emby 四种主流音乐服务器，一键连接你的私人音乐库。
+Built with **Tauri 2 + React + TypeScript**, it offers a native macOS desktop app with Hi-Fi lossless playback (FLAC/WAV/ALAC), real-time synced lyrics, and a stunning fullscreen player.
 
-| 选择服务器 | 登录连接 |
+> **Looking for a Navidrome desktop client? A Subsonic music player? A Jellyfin or Emby music streaming app?**
+> N1KO MUSIC is built exactly for that.
+
+---
+
+## Screenshots
+
+### Server Connection
+
+Connect to **Navidrome**, **Subsonic**, **Jellyfin**, or **Emby** servers with one click.
+
+| Select Server | Login |
 |:---------:|:-------:|
-| ![选择服务器](docs/screenshots/connect.png) | ![登录连接](docs/screenshots/login.png) |
+| ![Navidrome Subsonic Jellyfin Emby Server Selection](docs/screenshots/connect.png) | ![Server Login](docs/screenshots/login.png) |
 
-### 首页
+### Home
 
-精美的首页设计，最新专辑推荐、最近添加、热门歌手一览无余。支持深色 / 浅色双主题。
+Beautiful home page with album recommendations, recently added, and popular artists. Supports dark & light themes.
 
-| 深色模式 | 浅色模式 |
+| Dark Mode | Light Mode |
 |:-------:|:-------:|
-| ![深色模式](docs/screenshots/home-dark.png) | ![浅色模式](docs/screenshots/home-light.png) |
+| ![Dark Mode](docs/screenshots/home-dark.png) | ![Light Mode](docs/screenshots/home-light.png) |
 
-### 全屏播放器
+### Fullscreen Player
 
-沉浸式全屏播放体验，专辑封面动态模糊渐变背景，实时同步滚动歌词，支持点击歌词跳转。
+Immersive fullscreen experience with dynamic blurred album art background and real-time synced scrolling lyrics.
 
-![全屏播放器](docs/screenshots/player.png)
+![Fullscreen Music Player with Lyrics](docs/screenshots/player.png)
 
-### 听歌统计
+### Listening Stats
 
-你的音乐数据报告：总播放次数、总时长、最爱歌曲、最爱歌手、最爱专辑，一目了然。
+Your music data report: total plays, listening time, top songs, top artists, and top albums.
 
-![听歌统计](docs/screenshots/stats.png)
+![Music Listening Statistics](docs/screenshots/stats.png)
 
-### 设置
+### Settings
 
-服务器管理、主题外观、音频质量（无损/高质量/标准/省流）、自定义 API 等丰富的设置选项。
+Server management, theme customization, audio quality (Lossless/High/Standard/Low), custom API integration, and more.
 
-![设置](docs/screenshots/settings.png)
-
----
-
-## 核心功能
-
-### 🎵 音乐体验
-- **全屏播放器** — 专辑封面模糊渐变背景，实时同步歌词，流畅动画效果
-- **智能歌词** — 实时滚动高亮，点击歌词跳转，支持自定义远程歌词接口
-- **Hi-Fi 音质** — 支持无损（FLAC / WAV / ALAC）、高音质（320kbps）、省流多档可选
-- **播放队列** — 随机 / 循环 / 单曲循环，拖拽排序，下一首插队
-
-### 📚 音乐库与发现
-- **音乐库** — 歌曲、专辑、歌手、歌单一体化浏览
-- **为你推荐** — 基于你的音乐库随机发现好音乐
-- **全局搜索** — 跨所有内容的全文搜索
-- **最近播放** — 本地播放历史，精美时间轴展示
-- **听歌统计** — 可视化数据：最常播放、活跃时段、最爱歌手
-
-### 🎨 自定义 API 集成
-- **自定义封面** — 用自己的 API 替换专辑封面（支持 `{artist}`、`{album}`、`{title}` 占位符）
-- **自定义歌词** — 从任意外部来源获取歌词（URL 模板配置）
-- **优先级控制** — 选择优先使用服务器数据还是自定义接口
-
-### 🖥️ 桌面应用
-- **macOS** — 原生窗口样式，Apple Silicon (arm64) + Intel (x64) 支持
-- **深色 / 浅色主题** — 跟随系统或手动切换，多种强调色可选
+![Settings](docs/screenshots/settings.png)
 
 ---
 
-## 服务器兼容性
+## Features
 
-N1KO MUSIC 实现了 **Subsonic API** 协议，兼容以下服务器：
+### 🎵 Music Playback
+- **Fullscreen Player** — Album art with dynamic blur gradient background, smooth animations
+- **Real-time Lyrics** — Synced scrolling & highlighting, click-to-seek, custom remote lyrics API support
+- **Hi-Fi Lossless Audio** — FLAC / WAV / ALAC original format playback, plus 320kbps & low bitrate options
+- **Playback Queue** — Shuffle / repeat / single loop, drag to reorder, play next
 
-- [Navidrome](https://www.navidrome.org/) ✅ 推荐
-- [Subsonic](http://www.subsonic.org/) ✅
-- [Airsonic](https://airsonic.github.io/) ✅
-- [Airsonic-Advanced](https://github.com/airsonic-advanced/airsonic-advanced) ✅
-- [Jellyfin](https://jellyfin.org/) ✅（需 Subsonic 插件）
-- [Emby](https://emby.media/) ✅
+### 📚 Music Library & Discovery
+- **Music Library** — Browse songs, albums, artists, and playlists in one place
+- **Recommendations** — Discover music from your library with smart random picks
+- **Global Search** — Full-text search across all content
+- **Play History** — Local playback history with beautiful timeline UI
+- **Listening Stats** — Visual data: most played, active hours, favorite artists
+
+### 🎨 Custom API Integration
+- **Custom Cover Art** — Replace album covers with your own API (supports `{artist}`, `{album}`, `{title}` placeholders)
+- **Custom Lyrics** — Fetch lyrics from any external source via URL template
+- **Priority Control** — Choose server data or custom API first
+
+### 🖥️ Desktop App
+- **macOS** — Native window style, Apple Silicon (arm64) + Intel (x64)
+- **Dark / Light Theme** — Follow system or switch manually, multiple accent colors
+- **Built with Tauri 2** — Lightweight, fast, native performance
 
 ---
 
-## 开通会员
+## Compatible Servers
 
-N1KO MUSIC 的基础功能完全免费。开通会员可解锁以下高级功能：
+N1KO MUSIC implements the **Subsonic API** protocol and is compatible with the following music servers:
 
-- 🎶 **无损音质** — 解锁 FLAC / WAV / ALAC 原始格式播放
-- ✨ **为你推荐** — 基于音乐库的智能推荐
-- ❤️ **我的收藏** — 收藏喜欢的歌曲
-- 📊 **听歌统计** — 详细的播放数据可视化报告
+| Server | Status | Notes |
+|--------|--------|-------|
+| [**Navidrome**](https://www.navidrome.org/) | ✅ Recommended | Best experience, fully tested |
+| [**Subsonic**](http://www.subsonic.org/) | ✅ Supported | Full Subsonic API compatibility |
+| [**Airsonic**](https://airsonic.github.io/) | ✅ Supported | Subsonic-compatible fork |
+| [**Airsonic-Advanced**](https://github.com/airsonic-advanced/airsonic-advanced) | ✅ Supported | Enhanced Airsonic fork |
+| [**Jellyfin**](https://jellyfin.org/) | ✅ Supported | Via Subsonic plugin |
+| [**Emby**](https://emby.media/) | ✅ Supported | Native support |
 
-### 如何开通
+> **Keywords:** Navidrome client, Navidrome desktop app, Navidrome music player, Subsonic client, Subsonic desktop player, Jellyfin music player, Jellyfin music client, Emby music player, Emby music client, NAS music player, self-hosted music player, music streaming client, Airsonic client
 
-1. 使用支付宝扫描下方收款码，转账 **¥59.9**（永久会员）
-2. 转账时请在备注中留下你的 **支付宝账号** 或 **联系方式**
-3. 支付完成后，通过支付宝联系收款方（Nikooh）获取 **激活码**
-4. 在 N1KO MUSIC 客户端「设置」页面输入激活码即可激活
+---
+
+## Premium
+
+N1KO MUSIC is free for basic features. Upgrade to Premium to unlock:
+
+- 🎶 **Lossless Audio** — FLAC / WAV / ALAC original format playback
+- ✨ **Recommendations** — Smart music discovery from your library
+- ❤️ **Favorites** — Save your favorite songs
+- 📊 **Listening Stats** — Detailed playback data visualization
+
+### How to Upgrade
+
+1. Scan the QR code below with Alipay and transfer **¥59.9** (lifetime membership)
+2. Leave your **Alipay account** or **contact info** in the transfer note
+3. Contact the payee (Nikooh) via Alipay to get the **activation code**
+4. Enter the activation code in N1KO MUSIC Settings page
 
 <div align="center">
 
-<img src="docs/screenshots/alipay.jpg" alt="支付宝收款码" width="300" />
+<img src="docs/screenshots/alipay.jpg" alt="Alipay QR Code" width="300" />
 
-**支付宝扫码转账 · 联系获取激活码**
+**Scan with Alipay · Contact for activation code**
 
 </div>
 
 ---
 
-## 技术栈
+## Tech Stack
 
-| 模块 | 技术 |
-|------|-----|
-| 前端框架 | React 18, TypeScript, Vite 5 |
-| UI 组件 | Radix UI, Tailwind CSS, shadcn/ui |
-| 状态管理 | Zustand |
-| 数据获取 | TanStack Query v5 |
-| 音频引擎 | 原生 HTML5 Audio API |
-| 桌面框架 | Tauri 2 |
-| 许可证后端 | Spring Boot 3, JPA, H2/MySQL |
-
----
-
-## 鸣谢
-
-N1KO MUSIC 的诞生离不开以下优秀开源项目的启发与支持，特此致谢：
-
-- **[StreamMusic](https://github.com/gitbobobo/StreamMusic)** — 一款优秀的基于 Flutter 的移动端 NAS 音乐播放器，精良的 UI 设计和 UX 体验给了本项目很多灵感 🫡
-- [Navidrome](https://www.navidrome.org/) — 出色的开源 Subsonic 服务端
-- [Radix UI](https://www.radix-ui.com/) — 无样式、无障碍的 UI 基础组件
-- [shadcn/ui](https://ui.shadcn.com/) — 精美的 React UI 组件库
-- [TanStack Query](https://tanstack.com/query) — 强大的异步状态管理
-- [Zustand](https://github.com/pmndrs/zustand) — 轻量高效的全局状态管理
+| Module | Technology |
+|--------|-----------|
+| Frontend | React 18, TypeScript, Vite 5 |
+| UI Components | Radix UI, Tailwind CSS, shadcn/ui |
+| State Management | Zustand |
+| Data Fetching | TanStack Query v5 |
+| Audio Engine | Native HTML5 Audio API |
+| Desktop Framework | Tauri 2 (Rust) |
+| License Backend | Spring Boot 3, JPA, H2/MySQL |
 
 ---
 
-## Star 趋势
+## Acknowledgments
 
-<a href="https://star-history.com/#baogutang/N1KO-MUSIC&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=baogutang/N1KO-MUSIC&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=baogutang/N1KO-MUSIC&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=baogutang/N1KO-MUSIC&type=Date" />
- </picture>
-</a>
+N1KO MUSIC is inspired by and built upon these amazing open-source projects:
+
+- **[StreamMusic](https://github.com/gitbobobo/StreamMusic)** — An excellent Flutter-based mobile NAS music player. Its refined UI/UX design inspired this project 🫡
+- [Navidrome](https://www.navidrome.org/) — Outstanding open-source Subsonic server
+- [Radix UI](https://www.radix-ui.com/) — Unstyled, accessible UI primitives
+- [shadcn/ui](https://ui.shadcn.com/) — Beautiful React UI components
+- [TanStack Query](https://tanstack.com/query) — Powerful async state management
+- [Zustand](https://github.com/pmndrs/zustand) — Lightweight global state management
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=baogutang/N1KO-MUSIC&type=Date)](https://star-history.com/#baogutang/N1KO-MUSIC&Date)
 
 ---
 
 <div align="center">
 
-用 ❤️ 打造，作者 [N1KO](https://github.com/baogutang)
+Made with ❤️ by [N1KO](https://github.com/baogutang)
 
-如果 N1KO MUSIC 对你有帮助，请给个 ⭐ — 这对我来说意义非凡！
+If N1KO MUSIC helps you, please give it a ⭐ — it means a lot!
 
 </div>
