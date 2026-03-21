@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d0d0d"/>
+      <stop offset="100%" style="stop-color:#1a1a1a"/>
+    </linearGradient>
+    <linearGradient id="note" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#22c55e"/>
+      <stop offset="100%" style="stop-color:#16a34a"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.3"/>
+      <stop offset="50%" style="stop-color:#22c55e;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#22c55e;stop-opacity:0.3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景圆角矩形 -->
+  <rect width="1024" height="1024" rx="230" ry="230" fill="url(#bg)"/>
+
+  <!-- 内层光晕 -->
+  <rect x="60" y="60" width="904" height="904" rx="185" ry="185" fill="none" stroke="#22c55e" stroke-width="1.5" opacity="0.12"/>
+
+  <!-- 音符主体 (单音符，大号居中) -->
+  <!-- 音符头 (椭圆) -->
+  <ellipse cx="420" cy="680" rx="95" ry="72" fill="url(#note)" transform="rotate(-18 420 680)"/>
+  <!-- 音符茎 -->
+  <rect x="505" y="280" width="52" height="415" rx="26" fill="url(#note)"/>
+  <!-- 音符旗 1 -->
+  <path d="M557 280 Q720 310 730 460 Q660 390 557 395 Z" fill="url(#note)"/>
+  <!-- 音符旗 2 -->
+  <path d="M557 360 Q700 395 710 530 Q645 460 557 470 Z" fill="url(#note)" opacity="0.8"/>
+
+  <!-- 底部音波线条 -->
+  <rect x="170" y="795" width="40" height="55" rx="20" fill="url(#wave)"/>
+  <rect x="230" y="770" width="40" height="80" rx="20" fill="url(#wave)"/>
+  <rect x="290" y="750" width="40" height="100" rx="20" fill="url(#wave)"/>
+  <rect x="350" y="780" width="40" height="70" rx="20" fill="url(#wave)"/>
+
+  <rect x="640" y="775" width="40" height="70" rx="20" fill="url(#wave)"/>
+  <rect x="700" y="750" width="40" height="100" rx="20" fill="url(#wave)"/>
+  <rect x="760" y="768" width="40" height="82" rx="20" fill="url(#wave)"/>
+  <rect x="820" y="792" width="40" height="58" rx="20" fill="url(#wave)"/>
+</svg>

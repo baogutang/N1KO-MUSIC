@@ -1,0 +1,253 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===================================================
+   全局 CSS 变量 - 深色主题 (默认 Spotify 风格)
+   =================================================== */
+:root {
+  --radius: 0.75rem;
+
+  /* 深色主题 */
+  --background: 0 0% 4%;
+  --foreground: 0 0% 95%;
+
+  --card: 0 0% 7%;
+  --card-foreground: 0 0% 95%;
+
+  --popover: 0 0% 7%;
+  --popover-foreground: 0 0% 95%;
+
+  --primary: 141 69% 52%;
+  --primary-foreground: 0 0% 4%;
+
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 95%;
+
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 55%;
+
+  --accent: 0 0% 15%;
+  --accent-foreground: 0 0% 95%;
+
+  --destructive: 354 70% 58%;
+  --destructive-foreground: 0 0% 95%;
+
+  --border: 0 0% 14%;
+  --input: 0 0% 14%;
+  --ring: 141 69% 52%;
+
+  --surface: 0 0% 9%;
+  --surface-hover: 0 0% 13%;
+
+  /* 播放器渐变高度 */
+  --player-height: 80px;
+  --sidebar-width: 240px;
+}
+
+/* ===================================================
+   浅色主题 (Apple Music 风格 - class 切换)
+   =================================================== */
+.light {
+  --background: 0 0% 99%;
+  --foreground: 0 0% 5%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 5%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 5%;
+
+  --primary: 354 96% 57%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 0% 94%;
+  --secondary-foreground: 0 0% 5%;
+
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 45%;
+
+  --accent: 0 0% 90%;
+  --accent-foreground: 0 0% 5%;
+
+  --destructive: 354 70% 50%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 0 0% 88%;
+  --input: 0 0% 88%;
+  --ring: 354 96% 57%;
+
+  --surface: 0 0% 96%;
+  --surface-hover: 0 0% 90%;
+}
+
+/* ===================================================
+   基础重置
+   =================================================== */
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ===================================================
+   滚动条样式
+   =================================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* ===================================================
+   工具类
+   =================================================== */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* 玻璃拟态效果 */
+  .glass {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: hsl(var(--background) / 0.8);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
+
+  .glass-card {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: hsl(var(--card) / 0.9);
+  }
+
+  /* 文字截断 */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  /* 隐藏滚动条但保留功能 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 播放动画 - 音频波形 */
+  .playing-bar {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+  }
+
+  .playing-bar span {
+    display: inline-block;
+    width: 3px;
+    background: hsl(var(--primary));
+    border-radius: 2px;
+    animation: equalize 1.2s ease-in-out infinite;
+  }
+
+  .playing-bar span:nth-child(1) { animation-delay: 0s; }
+  .playing-bar span:nth-child(2) { animation-delay: 0.2s; }
+  .playing-bar span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes equalize {
+    0%, 100% { height: 4px; }
+    50% { height: 14px; }
+  }
+
+  /* 黑胶唱片旋转动画 */
+  @keyframes spin-vinyl {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+}
+
+/* ===================================================
+   组件层 - 通用样式
+   =================================================== */
+@layer components {
+  /* 卡片悬停效果 */
+  .music-card {
+    @apply rounded-xl overflow-hidden transition-all duration-300 cursor-pointer
+           bg-card hover:bg-accent;
+  }
+
+  .music-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px hsl(var(--background) / 0.5);
+  }
+
+  /* 歌曲行 */
+  .song-row {
+    @apply flex items-center gap-4 px-4 py-2 rounded-lg cursor-pointer
+           transition-colors duration-150 hover:bg-accent;
+  }
+
+  /* 侧边栏导航项 */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
+           text-muted-foreground transition-all duration-150 cursor-pointer
+           hover:text-foreground hover:bg-accent;
+  }
+
+  .nav-item.active {
+    @apply text-foreground bg-accent;
+  }
+
+  /* 封面图片容器 */
+  .cover-container {
+    @apply relative overflow-hidden rounded-lg flex-shrink-0;
+    background: hsl(var(--muted));
+  }
+
+  /* 渐变遮罩 */
+  .gradient-overlay {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      hsl(var(--background) / 0.8) 70%,
+      hsl(var(--background)) 100%
+    );
+  }
+}

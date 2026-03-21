@@ -23,7 +23,3 @@ dist-ssr
 *.sln
 *.sw?
 
-# Source code (not published to remote)
-backend/
-frontend/
-
