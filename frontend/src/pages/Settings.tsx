@@ -20,7 +20,7 @@ import { getAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
 import { useMemberStore } from '@/store/memberStore'
 
-const VERSION = '1.0.16'
+const VERSION = '1.0.17'
 
 export default function Settings() {
   const navigate = useNavigate()

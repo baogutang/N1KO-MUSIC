@@ -67,9 +67,17 @@ export function CoverImage({
   const [isVisible, setIsVisible] = useState(!!eager)
   const [serverError, setServerError] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
+  /**
+   * imgLoadKey — eager 模式下每次 primary 变化或 streamBuffering 恢复时自增，
+   * 作为 <img key> 强制 React 重建 img 元素，保证浏览器一定发出新请求。
+   * 解决问题：abortPendingImageLoads 可能在 React 更新 DOM 之前清空 img.src，
+   * 而 React 因 src prop 值未变不会重设 DOM，导致 img 永久空白。
+   */
+  const [imgLoadKey, setImgLoadKey] = useState(0)
   const coverRemoteTemplate = useSettingsStore(s => s.coverRemoteTemplate)
   const apiPreferServer = useSettingsStore(s => s.apiPreferServer)
   const streamBuffering = usePlayerStore(s => s.streamBuffering)
+  const streamBufferingPrevRef = useRef(streamBuffering)
 
   // IntersectionObserver: 只在元素接近可视区域时才开始加载封面
   useEffect(() => {
@@ -96,10 +104,23 @@ export function CoverImage({
   )
 
   // primary 变化时重置错误和加载状态（切歌时保证先显示黑胶再显示新封面）
+  // eager 模式下同时自增 imgLoadKey，强制重建 img 元素
   useEffect(() => {
     setServerError(false)
     setIsLoaded(false)
-  }, [primary])
+    if (eager) setImgLoadKey(k => k + 1)
+  }, [primary, eager])
+
+  // eager 模式下：streamBuffering 从 true→false 时再次强制重建 img
+  // 作为兜底：即使 img.src 曾被 abortPendingImageLoads 意外清除，也能自动修复
+  useEffect(() => {
+    const prevBuffering = streamBufferingPrevRef.current
+    streamBufferingPrevRef.current = streamBuffering
+    if (eager && prevBuffering && !streamBuffering) {
+      setIsLoaded(false)
+      setImgLoadKey(k => k + 1)
+    }
+  }, [streamBuffering, eager])
 
   // 根据优先级决定展示的 URL（只在可见后才有实际 src）
   let displaySrc: string | undefined
@@ -162,6 +183,7 @@ export function CoverImage({
         <VinylPlaceholder className="absolute inset-0" />
       )}
       <img
+        key={eager ? imgLoadKey : undefined}
         src={(streamBuffering && !eager) ? undefined : displaySrc}
         alt={alt}
         className={cn('w-full h-full object-cover', !isLoaded && 'opacity-0')}
