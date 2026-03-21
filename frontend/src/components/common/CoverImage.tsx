@@ -126,7 +126,9 @@ export function CoverImage({
   let displaySrc: string | undefined
   if (isVisible) {
     if (apiPreferServer || !hasCustomConfig) {
-      if (serverError) {
+      // 服务器优先：仅在服务器地址有效且未报错时使用服务器，否则回退到自定义
+      const serverAvailable = !!(primary || fallback)
+      if (!serverAvailable || serverError) {
         displaySrc = customCoverDataUrl ?? fallback
       } else {
         displaySrc = primary ?? fallback

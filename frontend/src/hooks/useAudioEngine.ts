@@ -372,8 +372,8 @@ export function useAudioEngine() {
       // ── 释放连接池：确保 audio stream 获得最高优先级 ──
       // 第 1 层：DOM 层 — 立即中止所有未完成的 <img> HTTP 请求（0 延迟）
       abortPendingImageLoads()
-      // 第 2 层：TanStack Query 层 — 取消 pending 的封面 fetch() 请求
-      queryClient.cancelQueries({ queryKey: ['custom-cover'] }).catch(() => {})
+      // 第 2 层：TanStack Query 层 — 仅取消非活跃封面请求，避免误杀当前详情页正在加载的封面
+      queryClient.cancelQueries({ queryKey: ['custom-cover'], type: 'inactive' }).catch(() => {})
       // 第 3 层：React 状态层 — 阻止后续 React 渲染重新发起图片请求
       usePlayerStore.getState().setStreamBuffering(true)
 

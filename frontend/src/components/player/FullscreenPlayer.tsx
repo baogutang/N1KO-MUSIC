@@ -148,10 +148,11 @@ export function FullscreenPlayer() {
   const { primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 512 })
   const toggleStar = useToggleStar()
 
-  // 已解析的实际封面 URL（可能来自服务器或自定义 API）
+  // 已解析的实际封面 URL（用于背景模糊/取色）。不在切歌时立即清空，避免背景闪跳。
   const [resolvedCoverUrl, setResolvedCoverUrl] = useState<string | undefined>(undefined)
 
-  useEffect(() => { setCoverLoaded(false) }, [coverUrl])
+  // 不在切歌时强制把背景层 opacity 置 0，避免视觉闪断
+  useEffect(() => { setCoverLoaded(true) }, [currentSong?.id])
 
   useEffect(() => {
     const url = resolvedCoverUrl || coverUrl
@@ -322,6 +323,7 @@ export function FullscreenPlayer() {
             } : undefined}
           >
             <CoverImage
+              key={currentSong.id}
               primary={coverUrl}
               fallback={coverFallback}
               alt={currentSong.album}
@@ -447,17 +449,19 @@ export function FullscreenPlayer() {
 
         </div>
 
-        {/* 右侧：歌词 */}
-        {lyrics && lyrics.lines.length > 0 && (
-          <div className="hidden lg:flex flex-1 max-w-md">
+        {/* 右侧：歌词（始终保留布局宽度，避免歌词异步返回时界面跳动） */}
+        <div className="hidden lg:flex flex-1 max-w-md">
+          {lyrics && lyrics.lines.length > 0 ? (
             <LyricDisplay
               lines={lyrics.lines}
               variant="fullscreen"
               baseColor="white"
               className="flex-1"
             />
-          </div>
-        )}
+          ) : (
+            <div className="flex-1" />
+          )}
+        </div>
       </div>
 
       {/* 底部播放控制栏 */}

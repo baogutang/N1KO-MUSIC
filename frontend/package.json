@@ -1,6 +1,6 @@
 {
   "name": "n1ko-music",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "A modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby",
   "private": true,
   "type": "module",

@@ -14,6 +14,7 @@ interface CoverTarget {
   album?: string
   title?: string
   id?: string
+  path?: string
 }
 
 interface UseCoverUrlOptions {
@@ -53,7 +54,7 @@ export function useCoverUrl(
       default:
         return { primary: serverUrl, fallback: remoteUrl }
     }
-  }, [target?.coverArt, target?.artist, target?.album, target?.id, coverSource, coverRemoteTemplate, size])
+  }, [target?.coverArt, target?.artist, target?.album, target?.title, target?.id, target?.path, coverSource, coverRemoteTemplate, size])
 }
 
 /** 单值版本：只返回最终 URL（primary 优先，无则 fallback）*/
