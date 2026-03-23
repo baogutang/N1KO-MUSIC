@@ -160,7 +160,7 @@ export function ImageWithFallback({
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
         fetchPriority={eager ? 'auto' : 'low'}
-        className={cn('w-full h-full object-cover', !isLoaded && 'opacity-0', className)}
+        className={cn('block w-full h-full object-cover', !isLoaded && 'opacity-0', className)}
         onLoad={() => setIsLoaded(true)}
         onError={() => {
           if (!serverError) {

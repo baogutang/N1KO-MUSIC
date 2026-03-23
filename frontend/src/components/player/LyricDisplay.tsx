@@ -107,7 +107,7 @@ export const LyricDisplay = memo(function LyricDisplay({
 
   if (!hasLyrics) {
     return (
-      <div className={cn('flex items-center justify-center h-full', className)}>
+      <div className={cn('flex h-full min-h-0 items-center justify-center bg-transparent', className)}>
         <p className="text-muted-foreground text-sm">暂无歌词</p>
       </div>
     )
@@ -117,11 +117,11 @@ export const LyricDisplay = memo(function LyricDisplay({
     <div
       ref={containerRef}
       className={cn(
-        'overflow-y-auto scrollbar-hide py-12',
-        variant === 'fullscreen' ? 'h-full' : 'h-64',
+        'overflow-y-auto scrollbar-hide bg-transparent py-12',
+        variant === 'fullscreen' ? 'h-full min-h-0' : 'h-64',
         className
       )}
-      style={{ scrollBehavior: 'smooth' }}
+      style={{ scrollBehavior: 'smooth', backgroundColor: 'transparent' }}
     >
       <div className={cn(
         'space-y-4 px-6',

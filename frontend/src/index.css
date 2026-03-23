@@ -197,9 +197,10 @@ body {
   }
 
   /* 黑胶唱片旋转动画 */
+  /* translateZ(0) 强制 GPU 层，减轻 WebKit 圆角裁剪在右下角的灰边/阴影伪影 */
   @keyframes spin-vinyl {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from { transform: translateZ(0) rotate(0deg); }
+    to { transform: translateZ(0) rotate(360deg); }
   }
 }
 

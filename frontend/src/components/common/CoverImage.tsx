@@ -188,7 +188,7 @@ export function CoverImage({
         key={eager ? imgLoadKey : undefined}
         src={(streamBuffering && !eager) ? undefined : displaySrc}
         alt={alt}
-        className={cn('w-full h-full object-cover', !isLoaded && 'opacity-0')}
+        className={cn('block w-full h-full object-cover', !isLoaded && 'opacity-0')}
         onLoad={() => setIsLoaded(true)}
         onError={() => {
           if (!serverError) {
