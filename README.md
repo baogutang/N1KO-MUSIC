@@ -21,12 +21,16 @@
 
 ## What is N1KO MUSIC?
 
-N1KO MUSIC is a **cross-platform desktop music player** designed for self-hosted music servers. It connects to **Navidrome**, **Subsonic**, **Jellyfin**, and **Emby** — turning your private music library into a beautiful, Spotify-like streaming experience.
+N1KO MUSIC is a **complete cross-platform music player ecosystem** for self-hosted music servers, with both **desktop** and **mobile** versions. It connects to **Navidrome**, **Subsonic**, **Jellyfin**, and **Emby** — turning your private music library into a beautiful, Spotify-like streaming experience.
 
+### 🖥️ Desktop App
 Built with **Tauri 2 + React + TypeScript**, it offers a native macOS desktop app with Hi-Fi lossless playback (FLAC/WAV/ALAC), real-time synced lyrics, and a stunning fullscreen player.
 
+### 📱 Mobile App (NEW!)
+Built with **React Native + Expo**, now featuring full iOS and Android support with feature parity to the desktop version. Same powerful music player on your phone!
+
 > **Looking for a Navidrome desktop client? A Subsonic music player? A Jellyfin or Emby music streaming app?**
-> N1KO MUSIC is built exactly for that.
+> N1KO MUSIC is built exactly for that — and now on mobile too!
 
 ---
 
