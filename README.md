@@ -11,7 +11,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=for-the-badge&color=gold)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/baogutang/N1KO-MUSIC?style=for-the-badge&color=blue)](https://github.com/baogutang/N1KO-MUSIC/network)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.17-green?style=for-the-badge)](https://github.com/baogutang/N1KO-MUSIC/releases)
+[![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=for-the-badge&color=green)](https://github.com/baogutang/N1KO-MUSIC/releases)
 
 **[English](README.md)** · **[中文](README_CN.md)**
 
@@ -27,6 +27,22 @@ Built with **Tauri 2 + React + TypeScript**, it offers a native macOS desktop ap
 
 > **Looking for a Navidrome desktop client? A Subsonic music player? A Jellyfin or Emby music streaming app?**
 > N1KO MUSIC is built exactly for that.
+
+---
+
+## Download
+
+Head to **[GitHub Releases](https://github.com/baogutang/N1KO-MUSIC/releases/latest)** to download the latest version:
+
+| Platform | Installer |
+|----------|-----------|
+| macOS Apple Silicon (M1/M2/M3) | `N1KO-MUSIC_x.x.x_aarch64.dmg` |
+| macOS Intel | `N1KO-MUSIC_x.x.x_x64.dmg` |
+
+> ⚠️ **macOS "unidentified developer" warning**: Go to **System Settings → Privacy & Security** and click **Open Anyway**. Or run in Terminal:
+> ```bash
+> xattr -cr /Applications/N1KO\ MUSIC.app
+> ```
 
 ---
 
@@ -50,7 +66,7 @@ Beautiful home page with album recommendations, recently added, and popular arti
 
 ### Fullscreen Player
 
-Immersive fullscreen experience with dynamic blurred album art background and real-time synced scrolling lyrics.
+Immersive fullscreen experience with dynamic blurred album art background, smooth color transitions, and real-time synced scrolling lyrics. Supports both square cover and rotating vinyl disc styles.
 
 ![Fullscreen Music Player with Lyrics](docs/screenshots/player.png)
 
@@ -71,13 +87,17 @@ Server management, theme customization, audio quality (Lossless/High/Standard/Lo
 ## Features
 
 ### 🎵 Music Playback
-- **Fullscreen Player** — Album art with dynamic blur gradient background, smooth animations
+- **Fullscreen Player** — Dynamic blurred album art background with smooth color transitions, immersive visual experience
+- **Two Cover Styles** — Square cover or rotating vinyl disc — switch freely in Settings
 - **Real-time Lyrics** — Synced scrolling & highlighting, click-to-seek, custom remote lyrics API support
 - **Hi-Fi Lossless Audio** — FLAC / WAV / ALAC original format playback, plus 320kbps & low bitrate options
-- **Playback Queue** — Shuffle / repeat / single loop, drag to reorder, play next
+- **Playback Queue** — Shuffle / repeat / single loop, slide-out queue drawer, drag to reorder, play next
 
 ### 📚 Music Library & Discovery
 - **Music Library** — Browse songs, albums, artists, and playlists in one place
+- **Song Detail Page** — Full tag info: bitrate, format, duration, year, genre, and more
+- **Album / Artist Detail** — Full track listings, play entire album or all works in one click
+- **Playlist Management** — Browse and play server-side playlists
 - **Recommendations** — Discover music from your library with smart random picks
 - **Global Search** — Full-text search across all content
 - **Play History** — Local playback history with beautiful timeline UI
@@ -89,9 +109,9 @@ Server management, theme customization, audio quality (Lossless/High/Standard/Lo
 - **Priority Control** — Choose server data or custom API first
 
 ### 🖥️ Desktop App
-- **macOS** — Native window style, Apple Silicon (arm64) + Intel (x64)
+- **macOS** — Native window style, Apple Silicon (arm64) + Intel (x64) support
 - **Dark / Light Theme** — Follow system or switch manually, multiple accent colors
-- **Built with Tauri 2** — Lightweight, fast, native performance
+- **Built with Tauri 2** — Lightweight, fast, native performance, small installer size
 
 ---
 
