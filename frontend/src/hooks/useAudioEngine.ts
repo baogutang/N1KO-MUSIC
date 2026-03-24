@@ -20,7 +20,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePlayerStore } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
 import { useSettingsStore, QUALITY_MAX_BITRATE } from '@/store/settingsStore'
-import { useMemberStore } from '@/store/memberStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
 
@@ -144,10 +143,8 @@ export function useAudioEngine() {
   const isConnected = useServerStore(s => s.isConnected)
   const audioQuality = useSettingsStore(s => s.audioQuality)
   const playVersion  = usePlayerStore(s => s.playVersion)
-  const isPremium    = useMemberStore(s => s.isPremium)
-
-  // 免费用户强制使用省流音质（128kbps）
-  const effectiveQuality = isPremium ? audioQuality : 'low'
+  // 非会员同样可以选择无损音质
+  const effectiveQuality = audioQuality
 
   // TanStack Query 客户端 — 用于在加载音频时取消 pending 的封面请求，释放连接池
   const queryClient = useQueryClient()

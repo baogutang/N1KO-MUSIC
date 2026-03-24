@@ -4,7 +4,7 @@ import {
   Server, Plus, Trash2, CheckCircle2, RefreshCw,
   Sun, Moon, Volume2, Palette, Info, LogOut, ChevronRight, Wifi,
   Music2, Radio, Link, KeyRound, Image as ImageIcon,
-  FileText, ArrowLeftRight, Globe, Languages, Crown, Lock, Disc3
+  FileText, ArrowLeftRight, Globe, Languages, Disc3
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
@@ -18,9 +18,8 @@ import {
 } from '@/store/settingsStore'
 import { getAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
-import { useMemberStore } from '@/store/memberStore'
 
-const VERSION = '1.0.17'
+const VERSION = '1.1.0'
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -42,7 +41,6 @@ export default function Settings() {
     setTranslateTargetLang, setTranslateType,
     setAudioQuality,
   } = useSettingsStore()
-  const isPremium = useMemberStore(s => s.isPremium)
   const [pinging, setPinging] = useState<string | null>(null)
 
   const activeServer = servers.find(s => s.id === activeServerId)
@@ -285,44 +283,25 @@ export default function Settings() {
               <div className="flex items-center gap-2 mb-3">
                 <Radio className="w-4 h-4 text-muted-foreground" />
                 <p className="font-medium">流媒体音质</p>
-                {!isPremium && (
-                  <span className="ml-auto flex items-center gap-1 text-[11px] text-amber-500/80">
-                    <Crown className="w-3 h-3" />
-                    会员解锁高音质
-                  </span>
-                )}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => {
-                  // 非会员只允许省流（low），其余选项锁定
-                  const locked = !isPremium && q !== 'low'
-                  return (
-                    <button
-                      key={q}
-                      disabled={locked}
-                      onClick={() => !locked && setAudioQuality(q)}
-                      title={locked ? '升级会员后可使用此音质' : undefined}
-                      className={cn(
-                        'relative px-3 py-2.5 rounded-lg border text-sm text-left transition-colors',
-                        locked
-                          ? 'border-border/30 bg-muted/30 text-muted-foreground/30 cursor-not-allowed select-none'
-                          : audioQuality === q
-                            ? 'border-primary bg-primary/10 text-primary font-medium'
-                            : 'border-border hover:border-primary/40 hover:bg-muted text-muted-foreground'
-                      )}
-                    >
-                      <span className="flex items-center justify-between gap-1">
-                        {QUALITY_LABELS[q]}
-                        {locked && <Lock className="w-3 h-3 text-amber-500/50 flex-shrink-0" />}
-                      </span>
-                    </button>
-                  )
-                })}
+                {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => (
+                  <button
+                    key={q}
+                    onClick={() => setAudioQuality(q)}
+                    className={cn(
+                      'relative px-3 py-2.5 rounded-lg border text-sm text-left transition-colors',
+                      audioQuality === q
+                        ? 'border-primary bg-primary/10 text-primary font-medium'
+                        : 'border-border hover:border-primary/40 hover:bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {QUALITY_LABELS[q]}
+                  </button>
+                ))}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                {isPremium
-                  ? '无损将请求服务器原始歌曲格式；其他选项将要求服务器转码为指定码率'
-                  : '当前为省流模式（128kbps）；升级会员后可解锁无损、高质量等更多音质选项'}
+                无损将请求服务器原始歌曲格式；其他选项将要求服务器转码为指定码率
               </p>
             </div>
           </div>
