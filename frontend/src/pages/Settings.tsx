@@ -4,12 +4,14 @@ import {
   Server, Plus, Trash2, CheckCircle2, RefreshCw,
   Sun, Moon, Volume2, Palette, Info, LogOut, ChevronRight, Wifi,
   Music2, Radio, Link, KeyRound, Image as ImageIcon,
-  FileText, ArrowLeftRight, Globe, Languages, Disc3
+  FileText, ArrowLeftRight, Globe, Languages, Disc3,
+  Crown, Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { useThemeStore, type AccentColor } from '@/store/themeStore'
 import { usePlayerStore } from '@/store/playerStore'
+import { useMemberStore } from '@/store/memberStore'
 import {
   useSettingsStore,
   QUALITY_LABELS,
@@ -18,11 +20,14 @@ import {
 } from '@/store/settingsStore'
 import { getAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
+import { MemberUpgradeDialog } from '@/components/member/MemberUpgradeDialog'
 
 const VERSION = '1.1.0'
 
 export default function Settings() {
   const navigate = useNavigate()
+  const isPremium = useMemberStore(s => s.isPremium)
+  const [memberUpgradeOpen, setMemberUpgradeOpen] = useState(false)
   const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
   const { resolvedTheme, toggleTheme, accentColor, setAccentColor } = useThemeStore()
   const volume    = usePlayerStore(s => s.volume)
@@ -307,13 +312,20 @@ export default function Settings() {
           </div>
         </section>
 
-        {/* 自定义 API */}
+        {/* 自定义 API（仅会员） */}
         <section className="mb-8">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Globe className="w-5 h-5 text-primary" />
             自定义 API
+            {!isPremium && (
+              <span className="ml-auto flex items-center gap-1 text-[11px] text-amber-500/80">
+                <Crown className="w-3 h-3" />
+                会员专属
+              </span>
+            )}
           </h2>
 
+          {isPremium ? (
           <div className="bg-card rounded-xl border border-border overflow-hidden space-y-px">
 
             {/* 优先使用音乐服务接口 */}
@@ -555,6 +567,19 @@ export default function Settings() {
             </div>
 
           </div>
+          ) : (
+            <div className="bg-card rounded-xl border border-border p-8 text-center">
+              <Lock className="w-8 h-8 mx-auto mb-3 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground mb-1">自定义 API 仅对会员开放</p>
+              <p className="text-xs text-muted-foreground/60 mb-4">升级会员后解锁封面搜索、歌词搜索、歌曲详情等高级配置</p>
+              <button
+                onClick={() => setMemberUpgradeOpen(true)}
+                className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                <Crown className="w-4 h-4 inline mr-1.5" />升级会员
+              </button>
+            </div>
+          )}
         </section>
 
         {/* 歌词外观设置 */}
@@ -729,6 +754,11 @@ export default function Settings() {
           </section>
         )}
       </div>
+
+      <MemberUpgradeDialog
+        open={memberUpgradeOpen}
+        onOpenChange={setMemberUpgradeOpen}
+      />
     </div>
   )
 }
