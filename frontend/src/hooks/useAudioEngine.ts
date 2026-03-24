@@ -220,7 +220,8 @@ export function useAudioEngine() {
       let streamUrl: string
       try {
         const maxBitrate = QUALITY_MAX_BITRATE[effectiveQuality]
-        streamUrl = getAdapter().getStreamUrl(capturedSongId, maxBitrate, '')
+        const contentType = capturedSong.contentType
+        streamUrl = getAdapter().getStreamUrl(capturedSongId, maxBitrate, '', contentType)
       } catch (e) {
         console.error('[AudioEngine] getStreamUrl failed:', e)
         return

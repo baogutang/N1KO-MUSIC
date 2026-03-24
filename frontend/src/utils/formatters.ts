@@ -118,3 +118,29 @@ export function getInitials(name: string): string {
   if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
+
+/**
+ * 清理文件名中的音轨号前缀（如 "01-06 - 安妮.dsf" -> "安妮.dsf"）
+ * 支持常见格式：01-06、01.06、01-06、01_06 等
+ */
+export function cleanFileName(path: string): string {
+  if (!path) return path
+
+  // 从路径中提取文件名
+  const fileName = path.split('/').pop() || path
+
+  // 匹配音轨号模式：数字-数字 或 数字.数字 或 数字_数字 后跟分隔符
+  // 例如：01-06 - 安妮、01.06 - 安妮、01_06 - 安妮、01 - 安妮
+  const trackPrefixPattern = /^\d{1,2}[-._]\d{1,2}\s*[-–—.]\s+/
+
+  // 移除音轨号前缀
+  const cleaned = fileName.replace(trackPrefixPattern, '')
+
+  // 如果没有匹配到，尝试匹配单数字格式：01 - 安妮
+  const singleTrackPattern = /^\d{1,2}\s*[-–—.]\s+/
+  if (cleaned === fileName) {
+    return fileName.replace(singleTrackPattern, '')
+  }
+
+  return cleaned
+}

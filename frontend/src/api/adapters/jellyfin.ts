@@ -83,6 +83,18 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
+  /**
+   * 封面用哪个 ItemId 请求 /Images/Primary。
+   * 音轨常有专辑图而无独立 Primary，用 track Id 会 404；有 ImageTags.Primary 时用本曲，否则用专辑。
+   */
+  private resolveSongCoverArtId(item: Record<string, unknown>): string | undefined {
+    const tags = item.ImageTags as Record<string, string> | undefined
+    if (tags?.Primary && item.Id) return String(item.Id)
+    if (item.AlbumId) return String(item.AlbumId)
+    if (item.Id) return String(item.Id)
+    return undefined
+  }
+
   /** Jellyfin 歌曲字段映射 */
   private mapSong(item: Record<string, unknown>): Song {
     const albumArtist = (item.AlbumArtists as Array<Record<string, string>> | undefined)?.[0]
@@ -97,7 +109,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       artistId: albumArtist?.Id,
       album: String(item.Album || ''),
       albumId: item.AlbumId ? String(item.AlbumId) : undefined,
-      coverArt: item.Id ? String(item.Id) : undefined,
+      coverArt: this.resolveSongCoverArtId(item),
       duration: Math.floor((Number(item.RunTimeTicks) || 0) / 10_000_000),
       bitRate: item.MediaStreams
         ? Math.floor(
@@ -162,7 +174,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
     const resp = await this.client.get('/Items', {
       params: this.itemsParams({
         IncludeItemTypes: 'Audio',
-        Fields: 'MediaStreams,RunTimeTicks,UserData,Genres',
+        Fields: 'MediaStreams,RunTimeTicks,UserData,Genres,ImageTags',
         SortBy: 'Random',
         Limit: params.size ?? 50,
         StartIndex: params.offset ?? 0,
@@ -183,7 +195,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
         params: this.itemsParams({
           SearchTerm: query,
           IncludeItemTypes: 'Audio',
-          Fields: 'MediaStreams,RunTimeTicks,UserData',
+          Fields: 'MediaStreams,RunTimeTicks,UserData,ImageTags',
           Limit: 20,
         }),
       }),
@@ -211,7 +223,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
-  getStreamUrl(songId: string, _maxBitrate: number, _format: string = ''): string {
+  getStreamUrl(songId: string, _maxBitrate: number, _format: string = '', _contentType?: string): string {
     return `${this.baseUrl}/Audio/${songId}/universal?UserId=${this.userId}&api_key=${this.token}&Container=opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac`
   }
 
@@ -289,7 +301,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
         params: this.itemsParams({
           ParentId: albumId,
           IncludeItemTypes: 'Audio',
-          Fields: 'MediaStreams,RunTimeTicks,UserData',
+          Fields: 'MediaStreams,RunTimeTicks,UserData,ImageTags',
           SortBy: 'IndexNumber,SortName',
         }),
       }),
@@ -341,7 +353,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
         params: this.itemsParams({
           ArtistIds: artistId,
           IncludeItemTypes: 'Audio',
-          Fields: 'RunTimeTicks,UserData',
+          Fields: 'RunTimeTicks,UserData,ImageTags',
           SortBy: 'Album,IndexNumber',
           SortOrder: 'Ascending',
           Limit: 500,
@@ -383,7 +395,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
     const [plResp, songsResp] = await Promise.all([
       this.client.get(`/Items/${playlistId}`, { params: { UserId: this.userId } }),
       this.client.get(`/Playlists/${playlistId}/Items`, {
-        params: { UserId: this.userId, Fields: 'MediaStreams,RunTimeTicks,UserData', MediaType: 'Audio' },
+        params: { UserId: this.userId, Fields: 'MediaStreams,RunTimeTicks,UserData,ImageTags', MediaType: 'Audio' },
       }),
     ])
     const songs = ((songsResp.data.Items ?? []) as Record<string, unknown>[]).map(
@@ -438,7 +450,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
         params: this.itemsParams({
           IncludeItemTypes: 'Audio',
           Filters: 'IsFavorite',
-          Fields: 'MediaStreams,RunTimeTicks,UserData',
+          Fields: 'MediaStreams,RunTimeTicks,UserData,ImageTags',
           Recursive: true,
         }),
       }),
@@ -467,6 +479,14 @@ export class JellyfinAdapter implements MusicServerAdapter {
 
   async unstar(id: string): Promise<void> {
     await this.client.delete(`/Users/${this.userId}/FavoriteItems/${id}`)
+  }
+
+  async updateSongMetadata(_songId: string, _metadata: { title?: string; album?: string; artist?: string; year?: number; genre?: string; track?: number }): Promise<void> {
+    throw new Error('Jellyfin: updateSongMetadata not implemented')
+  }
+
+  async setLyrics(_songId: string, _lyrics: string): Promise<void> {
+    throw new Error('Jellyfin: setLyrics not implemented')
   }
 
   async getGenres(): Promise<Array<{ name: string; songCount: number; albumCount: number }>> {

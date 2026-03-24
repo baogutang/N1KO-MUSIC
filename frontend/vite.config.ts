@@ -31,6 +31,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // 避免 workbox-build 在某些 Node/terser 组合下构建阶段挂起（Unexpected early exit）
+        // 代价：SW 不做 terser 压缩，但功能不受影响
+        mode: 'development',
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         runtimeCaching: [
           {

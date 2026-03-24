@@ -146,7 +146,7 @@ export function FullscreenPlayer() {
   const coverShape = useSettingsStore(s => s.coverShape)
   const isCircle = coverShape === 'circle'
 
-  const { primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 512 })
+  const { cached: coverCached, primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 512 })
   const toggleStar = useToggleStar()
 
   const debugCover = import.meta.env.DEV
@@ -172,12 +172,12 @@ export function FullscreenPlayer() {
     }
     setResolvedCoverUrl(undefined)
     setCoverLoaded(false)
-  }, [currentSong?.id]) // coverUrl / coverFallback 由外层计算，切歌时读取即可
+  }, [currentSong?.id]) // coverCached / coverUrl / coverFallback 由外层计算，切歌时读取即可
 
   useEffect(() => {
     // 只在封面真正加载完成后才取色，避免切歌瞬间用旧 URL 取色导致颜色突跳
     if (!coverLoaded) return
-    const url = resolvedCoverUrl || coverUrl || coverFallback
+    const url = resolvedCoverUrl || coverCached || coverUrl || coverFallback
     if (!url) return
     getCachedColors(url).then(colors => {
       setBgColors({ primary: colors.primary, secondary: colors.secondary })
@@ -185,7 +185,7 @@ export function FullscreenPlayer() {
     if (debugCover) {
       console.debug('[CoverDebug] blur src choose', { songId: currentSong?.id, url })
     }
-  }, [coverLoaded, resolvedCoverUrl, coverUrl, coverFallback])
+  }, [coverLoaded, resolvedCoverUrl, coverCached, coverUrl, coverFallback])
 
   // bgColors 更新后延一帧再同步到 displayBgColors，让 CSS transition 有时间接手
   useEffect(() => {
@@ -267,10 +267,10 @@ export function FullscreenPlayer() {
       }}
     >
       {/* 封面图模糊背景层 */}
-      {(resolvedCoverUrl || coverUrl || coverFallback) && (
+      {(resolvedCoverUrl || coverCached || coverUrl || coverFallback) && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {(() => {
-            const blurSrc = resolvedCoverUrl || coverUrl || coverFallback
+            const blurSrc = resolvedCoverUrl || coverCached || coverUrl || coverFallback
             return (
               <img
                 src={blurSrc}
@@ -398,7 +398,7 @@ export function FullscreenPlayer() {
             >
               <CoverImage
                 key={currentSong.id}
-                primary={coverUrl}
+                primary={coverCached ?? coverUrl}
                 fallback={coverFallback}
                 alt={currentSong.album}
                 className="w-full h-full"

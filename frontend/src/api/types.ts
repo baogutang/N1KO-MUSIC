@@ -250,7 +250,7 @@ export interface MusicServerAdapter {
   // --- 歌曲 ---
   getSongs(params?: ListParams): Promise<PageResult<Song>>
   searchAll(query: string): Promise<SearchResult>
-  getStreamUrl(songId: string, maxBitrate: number, format: string): string
+  getStreamUrl(songId: string, maxBitrate: number, format: string, contentType?: string): string
   getLyrics(songId: string, title?: string, artist?: string): Promise<Lyrics | null>
   scrobble(songId: string, submission?: boolean): Promise<void>
 
@@ -277,6 +277,10 @@ export interface MusicServerAdapter {
   getStarred(): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }>
   star(id: string, type: 'song' | 'album' | 'artist'): Promise<void>
   unstar(id: string, type: 'song' | 'album' | 'artist'): Promise<void>
+
+  // --- 元数据编辑 ---
+  updateSongMetadata(songId: string, metadata: { title?: string; album?: string; artist?: string; year?: number; genre?: string; track?: number }): Promise<void>
+  setLyrics(songId: string, lyrics: string): Promise<void>
 
   // --- 封面 ---
   getCoverUrl(id: string, size?: number): string

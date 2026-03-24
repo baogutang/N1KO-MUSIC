@@ -1,12 +1,13 @@
 /**
  * useCoverUrl - 统一封面图 URL 解析
  *
- * 根据用户设置的 coverSource 决定优先使用服务器封面还是远程 API 封面
+ * 优先级：本地缓存（用户手动搜索保存的） > 用户配置的封面来源 > 服务器封面
  */
 
 import { useMemo } from 'react'
 import { useSettingsStore, buildRemoteCoverUrl } from '@/store/settingsStore'
 import { getAdapter, hasAdapter } from '@/api'
+import { useCoverCacheStore } from '@/store/coverCacheStore'
 
 interface CoverTarget {
   coverArt?: string
@@ -23,45 +24,67 @@ interface UseCoverUrlOptions {
 }
 
 /**
- * 返回最终要加载的封面 URL 数组（按优先级排列，前者加载失败则用后者）
+ * 返回最终要加载的封面 URL
+ * - cached: 本地缓存（用户手动搜索保存的），优先级最高
+ * - primary: 用户设置的来源（服务器或远程 API）
+ * - fallback: 降级备选
  */
 export function useCoverUrl(
   target: CoverTarget | null | undefined,
   options: UseCoverUrlOptions = {}
-): { primary: string | undefined; fallback: string | undefined } {
+): { cached: string | undefined; primary: string | undefined; fallback: string | undefined } {
   const { coverSource, coverRemoteTemplate } = useSettingsStore()
+  const getCachedCover = useCoverCacheStore(s => s.getCover)
   const { size = 300 } = options
 
   return useMemo(() => {
-    if (!target) return { primary: undefined, fallback: undefined }
+    if (!target) return { cached: undefined, primary: undefined, fallback: undefined }
 
+    // 最高优先级：本地手动缓存的封面（用户通过详情页搜索保存的）
+    const cached = target.id ? (getCachedCover(target.id) ?? undefined) : undefined
+
+    // 服务器封面（需要带鉴权的 URL）
     const serverUrl = target.coverArt && hasAdapter()
       ? getAdapter().getCoverUrl(target.coverArt, size)
       : undefined
 
+    // 远程 API 封面（每次实时请求，不带鉴权）
     const remoteUrl = coverRemoteTemplate
       ? buildRemoteCoverUrl(coverRemoteTemplate, target)
       : undefined
 
+    let primary: string | undefined
+    let fallback: string | undefined
+
     switch (coverSource) {
       case 'server_only':
-        return { primary: serverUrl, fallback: undefined }
+        primary = serverUrl
+        fallback = remoteUrl
+        break
       case 'remote_only':
-        return { primary: remoteUrl, fallback: undefined }
+        primary = remoteUrl
+        fallback = serverUrl
+        break
       case 'remote_first':
-        return { primary: remoteUrl, fallback: serverUrl }
+        primary = remoteUrl
+        fallback = serverUrl
+        break
       case 'server_first':
       default:
-        return { primary: serverUrl, fallback: remoteUrl }
+        primary = serverUrl
+        fallback = remoteUrl
+        break
     }
-  }, [target?.coverArt, target?.artist, target?.album, target?.title, target?.id, target?.path, coverSource, coverRemoteTemplate, size])
+
+    return { cached, primary, fallback }
+  }, [target?.coverArt, target?.artist, target?.album, target?.title, target?.id, target?.path, coverSource, coverRemoteTemplate, size, getCachedCover])
 }
 
-/** 单值版本：只返回最终 URL（primary 优先，无则 fallback）*/
+/** 单值版本：返回最终要使用的 URL（cached > primary > fallback）*/
 export function useSingleCoverUrl(
   target: CoverTarget | null | undefined,
   options: UseCoverUrlOptions = {}
 ): string | undefined {
-  const { primary, fallback } = useCoverUrl(target, options)
-  return primary ?? fallback
+  const { cached, primary, fallback } = useCoverUrl(target, options)
+  return cached ?? primary ?? fallback
 }

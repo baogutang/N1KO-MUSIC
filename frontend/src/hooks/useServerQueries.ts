@@ -8,6 +8,7 @@
 import { useQuery, useMutation, useInfiniteQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { getAdapter } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
+import { useLyricCacheStore } from '@/store/o3icCacheStore'
 import { parseLrc } from '@/hooks/useLyrics'
 import type { ListParams, Lyrics } from '@/api/types'
 
@@ -27,7 +28,7 @@ export const queryKeys = {
   playlistDetail: (id: string) => ['playlists', id] as const,
   starred: () => ['starred'] as const,
   genres: () => ['genres'] as const,
-  lyrics: (songId: string) => ['lyrics', songId] as const,
+  o3ics: (songId: string) => ['o3ics', songId] as const,
 }
 
 // ===================================================
@@ -63,7 +64,7 @@ export function useSearch(query: string) {
   })
 }
 
-/** 获取歌词（支持远程歌词源 + 服务器内置歌词双降级）*/
+/** 获取歌词（优先本地缓存 > 远程歌词 > 服务器歌词）*/
 export function useLyricsQuery(
   songId: string,
   title?: string,
@@ -74,12 +75,23 @@ export function useLyricsQuery(
   enabled = true
 ) {
   const { lyricsRemoteTemplate, apiAuthToken, apiPreferServer } = useSettingsStore()
+  const { getLyrics: getCachedLyrics } = useLyricCacheStore()
 
   const hasRemoteTemplate = !!lyricsRemoteTemplate
 
+  // 1. 优先检查本地缓存
+  const cachedLyrics = getCachedLyrics(songId)
+  if (cachedLyrics) {
+    const lines = parseLrc(cachedLyrics)
+    return {
+      data: { songId, lines, synced: lines.some(l => l.time > 0) } as Lyrics | null,
+    }
+  }
+
+  // 2. 没有本地缓存，继续使用服务器和远程歌词
   // 服务器歌词（有配置时始终并行请求）
   const serverQuery = useQuery({
-    queryKey: queryKeys.lyrics(songId),
+    queryKey: queryKeys.o3ics(songId),
     queryFn: () => getAdapter().getLyrics(songId, title, artist),
     enabled: enabled && !!songId,
     staleTime: 30 * 60 * 1000,
@@ -104,7 +116,7 @@ export function useLyricsQuery(
 
   // 远程歌词（配置了模板就请求，不需要单独开关）
   const remoteQuery = useQuery({
-    queryKey: ['lyrics-remote', songId, remoteUrl],
+    queryKey: ['o3ics-remote', songId, remoteUrl],
     queryFn: async (): Promise<Lyrics | null> => {
       if (!remoteUrl) return null
       const headers: Record<string, string> = {}
@@ -120,7 +132,8 @@ export function useLyricsQuery(
           const list = Array.isArray(json) ? json : [json]
           if (!list.length) return null
           const item = list[0]
-          const lrcText: string = item?.lyrics || item?.lrc || item?.lyric || item?.content || ''
+          const lrcText: string =
+            item?.lyrics || item?.o3ics || item?.lrc || item?.o3ic || item?.content || item?.text || ''
           if (!lrcText) return null
           const lines = parseLrc(lrcText)
           return { songId, lines, synced: lines.some(l => l.time > 0) }

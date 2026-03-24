@@ -67,9 +67,21 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
   }
 
-  /** 发送 Subsonic API 请求 */
+  /** 发送 Subsonic API 请求（GET） */
   private async request<T>(endpoint: string, params: Record<string, unknown> = {}): Promise<T> {
     const response = await this.client.get<SubsonicResponse<T>>(endpoint, {
+      params: this.buildParams(params),
+    })
+    const data = response.data['subsonic-response']
+    if (data.status === 'failed') {
+      throw new Error(data.error?.message || 'Subsonic API error')
+    }
+    return data as T
+  }
+
+  /** 发送 Subsonic API 请求（POST，用于修改类操作） */
+  private async postRequest<T>(endpoint: string, params: Record<string, unknown> = {}): Promise<T> {
+    const response = await this.client.post<SubsonicResponse<T>>(endpoint, null, {
       params: this.buildParams(params),
     })
     const data = response.data['subsonic-response']
@@ -200,7 +212,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
   }
 
-  getStreamUrl(songId: string, maxBitrate: number, format: string = ''): string {
+  getStreamUrl(songId: string, maxBitrate: number, format: string = '', contentType?: string): string {
     // stream / getCoverArt 返回二进制数据，不需要 f（API 响应格式）参数
     const { f: _, ...authParams } = this.buildParams()
     const authEntries = Object.fromEntries(
@@ -214,11 +226,15 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
 
     // 优先使用调用方指定的格式（如 opus 回退）
-    // 否则：有损(maxBitrate>0)转码 mp3，无损(maxBitrate=0)不指定格式返回原文件
+    // 否则：有损(maxBitrate>0)转码 mp3
+    // 无损(maxBitrate=0)对 DSF/DSD 格式转码为 flac，其他格式返回原文件
     if (format) {
       streamParams.format = format
     } else if (maxBitrate > 0) {
       streamParams.format = 'mp3'
+    } else if (contentType === 'audio/dsf' || contentType === 'audio/x-dsd') {
+      // DSF/DSD 格式需要转码为 FLAC 才能被浏览器播放
+      streamParams.format = 'flac'
     }
 
     const params = new URLSearchParams(streamParams)
@@ -242,7 +258,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
     // 优先使用 OpenSubsonic 扩展接口 getLyricsBySongId（返回带时间戳的结构化歌词）
     try {
       const extData = await this.request<{
-        lyricsList?: {
+        o3icsList?: {
           structuredLyrics?: Array<{
             displayArtist?: string
             displayTitle?: string
@@ -254,7 +270,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
         }
       }>('/getLyricsBySongId', { id: songId })
 
-      const list = extData.lyricsList?.structuredLyrics ?? []
+      const list = extData.o3icsList?.structuredLyrics ?? []
       if (list.length > 0) {
         // 优先取 synced=true 的歌词，否则取第一个
         const preferred = list.find(l => l.synced) ?? list[0]
@@ -279,15 +295,15 @@ export class SubsonicAdapter implements MusicServerAdapter {
     // 降级：使用旧版 getLyrics（返回纯文本，无时间戳）
     try {
       const data = await this.request<{
-        lyrics?: { value?: string; title?: string; artist?: string }
+        o3ics?: { value?: string; title?: string; artist?: string }
       }>('/getLyrics', { id: songId, title, artist })
-      const raw = (data.lyrics as Record<string, unknown> | undefined)?.value as string | undefined
+      const raw = (data.o3ics as Record<string, unknown> | undefined)?.value as string | undefined
       if (!raw) return null
       const lines = parseLrcText(raw)
       return {
         songId,
-        title: (data.lyrics as Record<string, unknown> | undefined)?.title as string | undefined,
-        artist: (data.lyrics as Record<string, unknown> | undefined)?.artist as string | undefined,
+        title: (data.o3ics as Record<string, unknown> | undefined)?.title as string | undefined,
+        artist: (data.o3ics as Record<string, unknown> | undefined)?.artist as string | undefined,
         lines,
         synced: lines.some(l => l.time > 0),
       }
@@ -441,7 +457,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
   }
 
   async updatePlaylist(playlistId: string, name?: string, comment?: string): Promise<void> {
-    await this.request('/updatePlaylist', { playlistId, name, comment })
+    await this.postRequest('/updatePlaylist', { playlistId, name, comment })
   }
 
   async deletePlaylist(playlistId: string): Promise<void> {
@@ -449,11 +465,11 @@ export class SubsonicAdapter implements MusicServerAdapter {
   }
 
   async addSongsToPlaylist(playlistId: string, songIds: string[]): Promise<void> {
-    await this.request('/updatePlaylist', { playlistId, songIdToAdd: songIds })
+    await this.postRequest('/updatePlaylist', { playlistId, songIdToAdd: songIds })
   }
 
   async removeSongsFromPlaylist(playlistId: string, songIndexes: number[]): Promise<void> {
-    await this.request('/updatePlaylist', { playlistId, songIndexToRemove: songIndexes })
+    await this.postRequest('/updatePlaylist', { playlistId, songIndexToRemove: songIndexes })
   }
 
   async getStarred(): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }> {
@@ -482,6 +498,42 @@ export class SubsonicAdapter implements MusicServerAdapter {
     await this.request('/unstar', { [paramKey]: id })
   }
 
+  async updateSongMetadata(songId: string, metadata: { title?: string; album?: string; artist?: string; year?: number; genre?: string; track?: number }): Promise<void> {
+    const params: Record<string, unknown> = { id: songId }
+
+    // Navidrome /updateMediaAnnotation 对歌曲只支持以下字段：
+    // title（标题）、year（年代）、genre（流派）、track（音轨号）
+    // album / artist 参数会被静默忽略（它们是实体关联，不是元数据），
+    // 若用户确实需要修改专辑/歌手，需通过专辑详情页或歌手详情页操作。
+    if (metadata.title !== undefined) {
+      params.title = metadata.title
+    }
+    if (metadata.year !== undefined) {
+      params.year = metadata.year
+    }
+    if (metadata.genre !== undefined) {
+      params.genre = metadata.genre
+    }
+    if (metadata.track !== undefined) {
+      params.track = metadata.track
+    }
+
+    console.debug('[Subsonic] updateMediaAnnotation params:', params)
+    const result = await this.postRequest('/updateMediaAnnotation', params)
+    console.debug('[Subsonic] updateMediaAnnotation result:', result)
+  }
+
+  async setLyrics(songId: string, o3ics: string): Promise<void> {
+    console.debug('[Subsonic] setLyrics for song:', songId)
+    try {
+      const result = await this.postRequest('/setLyrics', { id: songId, o3ics })
+      console.debug('[Subsonic] setLyrics result:', result)
+    } catch (err) {
+      console.error('[Subsonic] setLyrics failed:', err)
+      throw err
+    }
+  }
+
   async getGenres(): Promise<Array<{ name: string; songCount: number; albumCount: number }>> {
     const data = await this.request<{
       genres?: { genre?: unknown[] }
@@ -498,17 +550,31 @@ export class SubsonicAdapter implements MusicServerAdapter {
 /**
  * 解析 LRC 格式歌词文本
  * 支持标准 LRC 和增强 LRC 格式
+ *
+ * LRC 元数据标签格式：`[tag:value]` 或 `[tag]`
+ * 支持的标签：id, ar, ti, al, by, hash, sign, qq, total, offset, lang, length 等
+ * 这些标签会被过滤掉，不作为歌词文本输出
  */
 export function parseLrcText(text: string): LyricLine[] {
   if (!text?.trim()) return []
 
   const lines: LyricLine[] = []
+
+  // LRC 元数据标签正则：匹配 [tag] 或 [tag:value] 格式
+  const metaTagRegex = /^\[(?:id|ar|ti|al|by|hash|sign|qq|total|offset|lang|length|desc|album|artist|title|author|maker|version|re|ve|encoding|file|rcv|usr|uid|msid|msas|mscv|msp|msu|cap|cta|cla|cla2|com|tag|instrument|role|track|lrcx)\s*(?::[^]]*)?\]$/i
+
+  // 标准时间戳正则
   const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g
   const rows = text.split('\n')
 
   for (const row of rows) {
     const trimmed = row.trim()
     if (!trimmed) continue
+
+    // 跳过 LRC 元数据标签行（如 [id:xxx], [ar:歌手], [ti:标题] 等）
+    if (metaTagRegex.test(trimmed)) {
+      continue
+    }
 
     // 提取时间戳
     const times: number[] = []
@@ -530,7 +596,7 @@ export function parseLrcText(text: string): LyricLine[] {
     }
 
     // 无时间戳的纯文本行
-    if (times.length === 0 && !trimmed.startsWith('[')) {
+    if (times.length === 0) {
       lines.push({ time: 0, text: lyricText })
     }
   }
