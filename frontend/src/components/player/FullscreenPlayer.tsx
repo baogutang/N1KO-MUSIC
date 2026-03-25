@@ -58,7 +58,22 @@ const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolea
 
   const progressRef = useRef<HTMLDivElement>(null)
   const safeDurationRef = useRef(safeDuration)
+  const dragMoveRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
+  const dragUpRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
   safeDurationRef.current = safeDuration
+
+  const clearDragListeners = useCallback(() => {
+    if (dragMoveRef.current) {
+      document.removeEventListener('mousemove', dragMoveRef.current)
+      dragMoveRef.current = null
+    }
+    if (dragUpRef.current) {
+      document.removeEventListener('mouseup', dragUpRef.current)
+      dragUpRef.current = null
+    }
+  }, [])
+
+  useEffect(() => clearDragListeners, [clearDragListeners])
 
   const handleMouseDown = useCallback((e: MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -75,12 +90,14 @@ const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolea
     const onUp = (me: globalThis.MouseEvent) => {
       // 松开时才实际 seek 音频
       seekHowl(getR(me.clientX) * safeDurationRef.current)
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
+      clearDragListeners()
     }
+    clearDragListeners()
+    dragMoveRef.current = onMove
+    dragUpRef.current = onUp
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [])
+  }, [clearDragListeners])
 
   return (
     <div className="w-full space-y-1.5">

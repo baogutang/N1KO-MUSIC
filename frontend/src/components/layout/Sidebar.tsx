@@ -15,6 +15,7 @@ import { usePlaylists } from '@/hooks/useServerQueries'
 import { useMemberStore } from '@/store/memberStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { prefetchRoute } from '@/routes/lazyRoutes'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +46,11 @@ export function Sidebar() {
   const isPremium = useMemberStore(s => s.isPremium)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
   const [upgradeName, setUpgradeName] = useState<string | undefined>()
+  const bindPrefetch = (to: string) => ({
+    onMouseEnter: () => prefetchRoute(to),
+    onFocus: () => prefetchRoute(to),
+    onTouchStart: () => prefetchRoute(to),
+  })
 
   return (
     <aside className="flex flex-col h-full w-60 bg-background border-r border-border/50 flex-shrink-0">
@@ -138,6 +144,7 @@ export function Sidebar() {
                     <NavLink
                       to={to}
                       end={to === '/'}
+                      {...bindPrefetch(to)}
                       className={({ isActive }) =>
                         cn('nav-item', isActive && 'active text-foreground bg-accent')
                       }
@@ -184,6 +191,7 @@ export function Sidebar() {
                   <li key={to}>
                     <NavLink
                       to={to}
+                      {...bindPrefetch(to)}
                       className={({ isActive }) =>
                         cn('nav-item', isActive && 'active text-foreground bg-accent')
                       }
@@ -206,6 +214,8 @@ export function Sidebar() {
                 </p>
                 <button
                   onClick={() => navigate('/playlists')}
+                  onMouseEnter={() => prefetchRoute('/playlists')}
+                  onFocus={() => prefetchRoute('/playlists')}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   全部
@@ -216,6 +226,7 @@ export function Sidebar() {
                   <li key={playlist.id}>
                     <NavLink
                       to={`/playlists/${playlist.id}`}
+                      {...bindPrefetch(`/playlists/${playlist.id}`)}
                       className={({ isActive }) =>
                         cn('nav-item', isActive && 'active text-foreground bg-accent')
                       }
@@ -253,6 +264,7 @@ export function Sidebar() {
         )}
         <NavLink
           to="/settings"
+          {...bindPrefetch('/settings')}
           className={({ isActive }) =>
             cn('nav-item', isActive && 'active text-foreground bg-accent')
           }

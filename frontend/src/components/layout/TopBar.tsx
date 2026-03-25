@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { prefetchRoute } from '@/routes/lazyRoutes'
 
 interface TopBarProps {
   title?: string
@@ -64,6 +65,8 @@ export function TopBar({ title, className }: TopBarProps) {
       {/* 搜索快捷键提示 */}
       <button
         onClick={() => navigate('/search')}
+        onMouseEnter={() => prefetchRoute('/search')}
+        onFocus={() => prefetchRoute('/search')}
         className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary text-muted-foreground text-sm hover:bg-accent hover:text-foreground transition-colors"
       >
         <Search className="w-3.5 h-3.5" />
@@ -104,7 +107,11 @@ export function TopBar({ title, className }: TopBarProps) {
               <DropdownMenuSeparator />
             </>
           )}
-          <DropdownMenuItem onClick={() => navigate('/settings')}>
+          <DropdownMenuItem
+            onMouseEnter={() => prefetchRoute('/settings')}
+            onFocus={() => prefetchRoute('/settings')}
+            onClick={() => navigate('/settings')}
+          >
             设置
           </DropdownMenuItem>
           <DropdownMenuSeparator />

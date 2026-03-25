@@ -20,6 +20,8 @@
  *   属于预期现象，不代表播放失败。
  * - 即使全是 206，仍可能出现 MediaError code 4（MEDIA_ERR_SRC_NOT_SUPPORTED）：表示解码器不接受
  *   该字节流。Safari 对服务端实时转码的 FLAC 分段流尤易如此，此时会再试 MP3 转码流。
+ * 5. 元数据时长 > 实际可播时长：播放到真实结尾后缓冲耗尽，currentTime 卡住且不触发 ended。
+ *    用「近结尾 + 缓冲已到尾 + 时间久不前进」检测并调用 next()，避免 UI 假死、也不自动下一首。
  */
 
 import { useEffect, useRef } from 'react'
@@ -142,6 +144,17 @@ function getFiniteDuration(audio: HTMLAudioElement): number | null {
   return null
 }
 
+/** 缓冲是否已覆盖到当前播放时间附近（后面几乎无数据）*/
+function isAtBufferedTail(audio: HTMLAudioElement, currentTime: number, gapSec = 0.45): boolean {
+  try {
+    if (audio.buffered.length === 0) return true
+    const end = audio.buffered.end(audio.buffered.length - 1)
+    return end - currentTime < gapSec
+  } catch {
+    return true
+  }
+}
+
 export function useAudioEngine() {
   const currentSong = usePlayerStore(s => s.currentSong)
   const isPlaying   = usePlayerStore(s => s.isPlaying)
@@ -174,16 +187,20 @@ export function useAudioEngine() {
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
       audioEl.pause()
       audioEl.src = ''
+      usePlayerStore.getState().setStreamBuffering(false)
       loadedKey = null
       return
     }
 
     if (!isConnected || !hasAdapter()) {
+      usePlayerStore.getState().setStreamBuffering(false)
       return
     }
 
     const currentKey = `${songId}@${effectiveQuality}@${playVersion}`
-    if (loadedKey === currentKey && audioEl) {
+    // 只有“当前 key 已加载 且 监听仍然存活”时才跳过；
+    // 否则（例如依赖变化触发过 cleanup）需要重新绑定监听。
+    if (loadedKey === currentKey && audioEl && cleanupPrev) {
       return
     }
 
@@ -332,9 +349,78 @@ export function useAudioEngine() {
         }
       }
 
+      /**
+       * 转码流 / 错误 duration：真实样本已播完但 duration 偏大 → 不触发 ended、进度卡住。
+       * 仅在「接近曲目结尾 + 缓冲已到尾 + currentTime 连续约 3s 不变」时视为自然结束。
+       */
+      let stallWatchInterval: ReturnType<typeof setInterval> | null = null
+      let stallPrevT = -1
+      let stallSinceMs: number | null = null
+      const STALL_ADVANCE_MS = 2800
+      const NEAR_END_RATIO = 0.82
+
+      const clearStallWatch = () => {
+        if (stallWatchInterval !== null) {
+          clearInterval(stallWatchInterval)
+          stallWatchInterval = null
+        }
+        stallPrevT = -1
+        stallSinceMs = null
+      }
+
       const onEnded = () => {
+        clearStallWatch()
         usePlayerStore.getState().next()
       }
+
+      stallWatchInterval = setInterval(() => {
+        const st = usePlayerStore.getState()
+        if (!st.isPlaying || audio.paused || audio.ended) {
+          stallPrevT = -1
+          stallSinceMs = null
+          return
+        }
+        if (st.currentSong?.id !== capturedSongId) return
+
+        const t = audio.currentTime
+        if (stallPrevT < 0) {
+          stallPrevT = t
+          stallSinceMs = null
+          return
+        }
+        if (Math.abs(t - stallPrevT) > 0.04) {
+          stallPrevT = t
+          stallSinceMs = null
+          return
+        }
+        if (stallSinceMs === null) {
+          stallSinceMs = performance.now()
+          return
+        }
+        if (performance.now() - stallSinceMs < STALL_ADVANCE_MS) return
+
+        if (!isAtBufferedTail(audio, t)) {
+          stallSinceMs = null
+          return
+        }
+
+        const songDur = capturedSong.duration || 0
+        const audioDur = getFiniteDuration(audio) ?? st.duration ?? 0
+        const refDur = Math.max(songDur, audioDur, t + 0.01)
+        const nearEnd =
+          t >= refDur - 12 || (refDur > 45 && t / refDur >= NEAR_END_RATIO)
+        if (!nearEnd) {
+          stallSinceMs = null
+          return
+        }
+
+        console.warn(
+          '[AudioEngine] Stalled at buffer tail near end (metadata longer than stream); advancing next()',
+          { currentTime: t, songDur, audioDur }
+        )
+        clearStallWatch()
+        st.next()
+      }, 900)
 
       const onError = () => {
         const err = audio.error
@@ -415,6 +501,7 @@ export function useAudioEngine() {
           description: `错误码=${rawCode} ${err?.message || ''}\nURL: ${streamUrl.substring(0, 120)}...`,
           variant: 'destructive',
         })
+        usePlayerStore.getState().setStreamBuffering(false)
         usePlayerStore.getState().pause()
       }
 
@@ -475,6 +562,7 @@ export function useAudioEngine() {
       }
 
       const cleanup = () => {
+        clearStallWatch()
         audio.removeEventListener('loadedmetadata', onLoadedMetadata)
         audio.removeEventListener('durationchange', onDurationChange)
         audio.removeEventListener('timeupdate', onTimeUpdate)

@@ -1,11 +1,20 @@
-import { useState, useEffect } from 'react'
+import { Suspense, lazy, useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { PlayerBar } from './PlayerBar'
-import { FullscreenPlayer } from '@/components/player/FullscreenPlayer'
 import { useAudioEngine } from '@/hooks/useAudioEngine'
 import { usePlayerStore } from '@/store/playerStore'
+import { Toaster } from '@/components/ui/toaster'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import {
+  prefetchCommonAuthenticatedRoutes,
+  prefetchFullscreenPlayer,
+} from '@/routes/lazyRoutes'
+
+const FullscreenPlayer = lazy(() =>
+  import('@/components/player/FullscreenPlayer').then(mod => ({ default: mod.FullscreenPlayer }))
+)
 
 /** macOS 检测（hiddenInset 模式下需要为红黄绿按钮预留安全区域）*/
 const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
@@ -36,48 +45,69 @@ export default function MainLayout() {
     }
   }, [isFullscreen])
 
+  // 登录后空闲预热高频页面和全屏播放器，降低首次跳转等待
+  useEffect(() => {
+    const warmup = () => {
+      prefetchCommonAuthenticatedRoutes()
+      prefetchFullscreenPlayer()
+    }
+    if (typeof window === 'undefined') return
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(warmup, { timeout: 2200 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const timer = window.setTimeout(warmup, 1200)
+    return () => window.clearTimeout(timer)
+  }, [])
+
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-      {/* macOS: 标题栏安全区域，为红黄绿按钮留空 + 窗口拖拽区域 */}
-      {isMac && (
-        <div
-          className="h-9 flex-shrink-0"
-          data-tauri-drag-region
-          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-        />
-      )}
+    <TooltipProvider>
+      <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+        {/* macOS: 标题栏安全区域，为红黄绿按钮留空 + 窗口拖拽区域 */}
+        {isMac && (
+          <div
+            className="h-9 flex-shrink-0"
+            data-tauri-drag-region
+            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+          />
+        )}
 
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Sidebar */}
-        <Sidebar />
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* Sidebar */}
+          <Sidebar />
 
-        {/* Main content area */}
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-          {/* Top bar */}
-          <TopBar />
+          {/* Main content area */}
+          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+            {/* Top bar */}
+            <TopBar />
 
-          {/* Page content */}
-          <main className="flex-1 overflow-y-auto">
-            <Outlet />
-          </main>
+            {/* Page content */}
+            <main className="flex-1 overflow-y-auto">
+              <Outlet />
+            </main>
+          </div>
         </div>
+
+        {/* Bottom player bar */}
+        <PlayerBar />
+
+        {/* 全屏播放器（覆盖层）— 带过渡动画 */}
+        {shouldMount && (
+          <div
+            className="fixed inset-0 z-50 transition-all duration-300 ease-out"
+            style={{
+              opacity: animateIn ? 1 : 0,
+              transform: animateIn ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
+            }}
+          >
+            <Suspense fallback={<div className="absolute inset-0 bg-background/70" />}>
+              <FullscreenPlayer />
+            </Suspense>
+          </div>
+        )}
+
+        <Toaster />
       </div>
-
-      {/* Bottom player bar */}
-      <PlayerBar />
-
-      {/* 全屏播放器（覆盖层）— 带过渡动画 */}
-      {shouldMount && (
-        <div
-          className="fixed inset-0 z-50 transition-all duration-300 ease-out"
-          style={{
-            opacity: animateIn ? 1 : 0,
-            transform: animateIn ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
-          }}
-        >
-          <FullscreenPlayer />
-        </div>
-      )}
-    </div>
+    </TooltipProvider>
   )
 }

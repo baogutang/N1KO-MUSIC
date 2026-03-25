@@ -5,7 +5,15 @@
  * 提供缓存、加载状态、错误处理
  */
 
-import { useQuery, useMutation, useInfiniteQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import {
+  useQuery,
+  useMutation,
+  useInfiniteQuery,
+  useQueryClient,
+  keepPreviousData,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { getAdapter } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useLyricCacheStore } from '@/store/o3icCacheStore'
@@ -29,6 +37,25 @@ export const queryKeys = {
   starred: () => ['starred'] as const,
   genres: () => ['genres'] as const,
   o3ics: (songId: string) => ['o3ics', songId] as const,
+}
+
+/**
+ * 自定义封面 query 缓存移除时回收 blob URL，避免长期会话内内存累积。
+ * 通过 WeakSet 保证每个 QueryClient 只绑定一次监听。
+ */
+const customCoverRevokeBoundClients = new WeakSet<QueryClient>()
+function bindCustomCoverRevokeOnQueryRemoved(queryClient: QueryClient) {
+  if (customCoverRevokeBoundClients.has(queryClient)) return
+  customCoverRevokeBoundClients.add(queryClient)
+  queryClient.getQueryCache().subscribe(event => {
+    if (event.type !== 'removed') return
+    const key0 = Array.isArray(event.query.queryKey) ? event.query.queryKey[0] : undefined
+    if (key0 !== 'custom-cover') return
+    const data = event.query.state.data
+    if (typeof data === 'string' && data.startsWith('blob:')) {
+      URL.revokeObjectURL(data)
+    }
+  })
 }
 
 // ===================================================
@@ -79,21 +106,21 @@ export function useLyricsQuery(
 
   const hasRemoteTemplate = !!lyricsRemoteTemplate
 
-  // 1. 优先检查本地缓存
+  // 1. 优先检查本地缓存（注意：不能提前 return，需保持 hooks 调用顺序稳定）
   const cachedLyrics = getCachedLyrics(songId)
-  if (cachedLyrics) {
-    const lines = parseLrc(cachedLyrics)
-    return {
-      data: { songId, lines, synced: lines.some(l => l.time > 0) } as Lyrics | null,
-    }
-  }
+  const cachedLines = cachedLyrics ? parseLrc(cachedLyrics) : null
+  const cachedLyricsData = cachedLines
+    ? ({ songId, lines: cachedLines, synced: cachedLines.some(l => l.time > 0) } as Lyrics | null)
+    : null
 
   // 2. 没有本地缓存，继续使用服务器和远程歌词
+  const fetchEnabled = enabled && !!songId && !cachedLyricsData
+
   // 服务器歌词（有配置时始终并行请求）
   const serverQuery = useQuery({
     queryKey: queryKeys.o3ics(songId),
     queryFn: () => getAdapter().getLyrics(songId, title, artist),
-    enabled: enabled && !!songId,
+    enabled: fetchEnabled,
     staleTime: 30 * 60 * 1000,
   })
 
@@ -143,10 +170,24 @@ export function useLyricsQuery(
       if (!lines.length) return null
       return { songId, lines, synced: lines.some(l => l.time > 0) }
     },
-    enabled: enabled && !!songId && hasRemoteTemplate && !!remoteUrl,
+    enabled: fetchEnabled && hasRemoteTemplate && !!remoteUrl,
     staleTime: 30 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   })
+
+  if (cachedLyricsData) {
+    return {
+      ...serverQuery,
+      data: cachedLyricsData,
+      error: null,
+      status: 'success',
+      fetchStatus: 'idle',
+      isPending: false,
+      isLoading: false,
+      isFetching: false,
+      isSuccess: true,
+    }
+  }
 
   // 没有配置自定义模板，只用服务器歌词
   if (!hasRemoteTemplate) {
@@ -211,7 +252,12 @@ function buildCoverUrl(base: string, params: CustomCoverParams): string {
  * - gcTime=24h 确保导航离开再返回时仍可从内存缓存命中
  */
 export function useCustomCoverUrl(params: CustomCoverParams | null) {
+  const queryClient = useQueryClient()
   const { coverRemoteTemplate, apiAuthToken, coverLoadAlbum, coverLoadArtist } = useSettingsStore()
+
+  useEffect(() => {
+    bindCustomCoverRevokeOnQueryRemoved(queryClient)
+  }, [queryClient])
 
   // 根据类型和开关判断是否应该请求
   const typeAllowed = !params ? false : (

@@ -2,8 +2,7 @@
  * CoverImage - 带 fallback 的封面图组件
  * - 使用 IntersectionObserver 实现视口懒加载：只有元素接近可见区域时才发起封面请求
  * - 配置了自定义封面 API 时，与服务器封面并发请求
- * - apiPreferServer=true：优先服务器，服务器失败才用自定义
- * - apiPreferServer=false：优先自定义，自定义不可用才用服务器
+ * - 与设置「封面来源」(coverSource) 一致
  * - 所有来源都失败时显示黑胶唱片占位图
  */
 
@@ -75,7 +74,7 @@ export function CoverImage({
    */
   const [imgLoadKey, setImgLoadKey] = useState(0)
   const coverRemoteTemplate = useSettingsStore(s => s.coverRemoteTemplate)
-  const apiPreferServer = useSettingsStore(s => s.apiPreferServer)
+  const coverSource = useSettingsStore(s => s.coverSource)
   const streamBuffering = usePlayerStore(s => s.streamBuffering)
   const streamBufferingPrevRef = useRef(streamBuffering)
 
@@ -122,19 +121,29 @@ export function CoverImage({
     }
   }, [streamBuffering, eager])
 
-  // 根据优先级决定展示的 URL（只在可见后才有实际 src）
   let displaySrc: string | undefined
   if (isVisible) {
-    if (apiPreferServer || !hasCustomConfig) {
-      // 服务器优先：仅在服务器地址有效且未报错时使用服务器，否则回退到自定义
-      const serverAvailable = !!(primary || fallback)
-      if (!serverAvailable || serverError) {
-        displaySrc = customCoverDataUrl ?? fallback
-      } else {
-        displaySrc = primary ?? fallback
-      }
+    const serverSrc = primary ?? fallback
+    const serverOk = !!serverSrc && !serverError
+
+    if (!hasCustomConfig) {
+      displaySrc = serverOk ? serverSrc : fallback
     } else {
-      displaySrc = customCoverDataUrl ?? primary ?? fallback
+      switch (coverSource) {
+        case 'server_only':
+          displaySrc = serverOk ? serverSrc : undefined
+          break
+        case 'remote_only':
+          displaySrc = customCoverDataUrl ?? undefined
+          break
+        case 'remote_first':
+          displaySrc = customCoverDataUrl ?? (serverOk ? serverSrc : undefined)
+          break
+        case 'server_first':
+        default:
+          displaySrc = serverOk ? serverSrc : (customCoverDataUrl ?? undefined)
+          break
+      }
     }
   }
 
@@ -198,7 +207,7 @@ export function CoverImage({
         }}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        fetchpriority={eager ? 'auto' : 'low'}
+        fetchPriority={eager ? 'auto' : 'low'}
         data-no-abort={eager ? 'true' : undefined}
       />
     </div>

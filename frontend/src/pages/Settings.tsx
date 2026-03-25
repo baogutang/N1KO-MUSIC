@@ -565,7 +565,7 @@ export default function Settings() {
                 onChange={e => setTranslateType(e.target.value)}
                 className="text-sm bg-transparent border-none outline-none text-muted-foreground cursor-pointer"
               >
-                {['无', '没有内置山误', '不内置'].map(t => (
+                {['无', '没有内置', '不内置'].map(t => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>

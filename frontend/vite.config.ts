@@ -64,4 +64,21 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (/node_modules\/(react|react-dom|scheduler|use-sync-external-store|react-is)\//.test(id)) {
+            return 'react-core'
+          }
+          if (id.includes('react-router-dom')) return 'router'
+          if (id.includes('@tanstack/react-query')) return 'react-query'
+          if (id.includes('@radix-ui')) return 'radix-ui'
+          if (id.includes('lucide-react')) return 'icons'
+          return 'vendor'
+        },
+      },
+    },
+  },
 })

@@ -2,8 +2,7 @@
  * 带占位符的图片组件
  * - 使用 IntersectionObserver 实现视口懒加载：只有元素接近可见区域时才发起封面请求
  * - 配置了自定义封面 API 时，与服务器封面并发请求
- * - apiPreferServer=true：优先展示服务器封面，服务器无数据时展示自定义
- * - apiPreferServer=false：优先展示自定义封面，自定义无数据时展示服务器
+ * - 与设置「封面来源」(coverSource) 一致；勿使用 apiPreferServer（那是歌词 API 优先级）
  * - 所有来源都失败时显示黑胶唱片占位图
  */
 
@@ -11,6 +10,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCustomCoverUrl, type CoverQueryType } from '@/hooks/useServerQueries'
+import { pickMergedCoverDisplaySrc } from '@/hooks/useCoverUrl'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 
@@ -75,9 +75,15 @@ export function ImageWithFallback({
   const [isVisible, setIsVisible] = useState(!!eager)
   const [serverError, setServerError] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
+  /**
+   * eager 模式下用于强制重建 <img>，确保浏览器一定重新发起请求。
+   * 避免在快速切歌时 img.src 被底层中止后，React 因 src prop 未变而不重设 DOM。
+   */
+  const [imgLoadKey, setImgLoadKey] = useState(0)
   const coverRemoteTemplate = useSettingsStore(s => s.coverRemoteTemplate)
-  const apiPreferServer = useSettingsStore(s => s.apiPreferServer)
+  const coverSource = useSettingsStore(s => s.coverSource)
   const streamBuffering = usePlayerStore(s => s.streamBuffering)
+  const streamBufferingPrevRef = useRef(streamBuffering)
 
   // IntersectionObserver: 只在元素接近可视区域时才开始加载封面
   // eager 模式（PlayerBar / FullscreenPlayer）跳过观察，立即加载
@@ -98,11 +104,25 @@ export function ImageWithFallback({
     return () => observer.disconnect()
   }, [eager])
 
-  // src 变化时重置所有状态（切歌时避免残留旧状态导致破碎图标）
+  // src 或自定义查询参数变化时重置（避免切歌后仍短暂显示上一张自定义封面）
+  const customKey = customCoverParams
+    ? `${customCoverParams.title ?? ''}|${customCoverParams.artist ?? ''}|${customCoverParams.album ?? ''}|${customCoverParams.path ?? ''}`
+    : ''
   useEffect(() => {
     setServerError(false)
     setIsLoaded(false)
-  }, [src])
+    if (eager) setImgLoadKey(k => k + 1)
+  }, [src, customKey, eager])
+
+  // eager 模式兜底：streamBuffering 从 true->false 时强制重建 img
+  useEffect(() => {
+    const prevBuffering = streamBufferingPrevRef.current
+    streamBufferingPrevRef.current = streamBuffering
+    if (eager && prevBuffering && !streamBuffering) {
+      setIsLoaded(false)
+      setImgLoadKey(k => k + 1)
+    }
+  }, [streamBuffering, eager])
 
   // 只在进入视口后才请求自定义封面（避免 461 首歌同时发起请求）
   const hasCustomConfig = !!coverRemoteTemplate && !!customCoverParams
@@ -110,16 +130,15 @@ export function ImageWithFallback({
     hasCustomConfig && isVisible ? customCoverParams : null
   )
 
-  // 根据优先级决定要展示的图片 URL（只在可见后才有实际 src）
   let displaySrc: string | undefined
   if (isVisible) {
-    if (apiPreferServer || !hasCustomConfig) {
-      displaySrc = (!src || serverError)
-        ? (customCoverDataUrl ?? undefined)
-        : src
-    } else {
-      displaySrc = customCoverDataUrl ?? (src ?? undefined)
-    }
+    displaySrc = pickMergedCoverDisplaySrc(
+      coverSource,
+      src,
+      serverError,
+      customCoverDataUrl,
+      hasCustomConfig
+    )
   }
 
   // 判断是否应该显示占位图：未进入视口 或 所有来源都无数据
@@ -155,11 +174,13 @@ export function ImageWithFallback({
         <VinylPlaceholder className="absolute inset-0 animate-pulse" />
       )}
       <img
+        key={eager ? imgLoadKey : undefined}
         src={(streamBuffering && !isLoaded && !eager) ? undefined : displaySrc}
         alt={alt}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        fetchpriority={eager ? 'auto' : 'low'}
+        fetchPriority={eager ? 'auto' : 'low'}
+        data-no-abort={eager ? 'true' : undefined}
         className={cn('block w-full h-full object-cover', !isLoaded && 'opacity-0', className)}
         onLoad={() => setIsLoaded(true)}
         onError={() => {

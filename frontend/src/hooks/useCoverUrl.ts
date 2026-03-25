@@ -5,7 +5,7 @@
  */
 
 import { useMemo } from 'react'
-import { useSettingsStore, buildRemoteCoverUrl } from '@/store/settingsStore'
+import { useSettingsStore, buildRemoteCoverUrl, type CoverSource } from '@/store/settingsStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
 
@@ -21,6 +21,33 @@ interface CoverTarget {
 interface UseCoverUrlOptions {
   /** 图片尺寸（服务器端封面使用）*/
   size?: number
+}
+
+/**
+ * 服务器封面 URL 与自定义封面（blob）合并时的展示顺序，须与 useCoverUrl 中 coverSource 一致。
+ * ImageWithFallback / CoverImage 应用此逻辑，勿再用 apiPreferServer（那是歌词设置）。
+ */
+export function pickMergedCoverDisplaySrc(
+  coverSource: CoverSource,
+  serverSrc: string | undefined,
+  serverFailed: boolean,
+  customBlobUrl: string | null | undefined,
+  hasCustom: boolean
+): string | undefined {
+  const serverOk = !!serverSrc && !serverFailed
+  const custom = customBlobUrl ?? undefined
+  if (!hasCustom) return serverOk ? serverSrc : undefined
+  switch (coverSource) {
+    case 'server_only':
+      return serverOk ? serverSrc : undefined
+    case 'remote_only':
+      return custom
+    case 'remote_first':
+      return custom ?? (serverOk ? serverSrc : undefined)
+    case 'server_first':
+    default:
+      return serverOk ? serverSrc : custom
+  }
 }
 
 /**
@@ -59,11 +86,11 @@ export function useCoverUrl(
     switch (coverSource) {
       case 'server_only':
         primary = serverUrl
-        fallback = remoteUrl
+        fallback = undefined
         break
       case 'remote_only':
         primary = remoteUrl
-        fallback = serverUrl
+        fallback = undefined
         break
       case 'remote_first':
         primary = remoteUrl
