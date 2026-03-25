@@ -74,7 +74,7 @@ export function useLyricsQuery(
   duration?: number,
   enabled = true
 ) {
-  const { lyricsRemoteTemplate, apiAuthToken, apiPreferServer } = useSettingsStore()
+  const { o3icsRemoteTemplate: lyricsRemoteTemplate, apiAuthToken, apiPreferServer } = useSettingsStore()
   const { getLyrics: getCachedLyrics } = useLyricCacheStore()
 
   const hasRemoteTemplate = !!lyricsRemoteTemplate

@@ -31,45 +31,10 @@ const QUALITY_MAX_BITRATE: Record<AudioQuality, number> = {
 
 export { QUALITY_LABELS, QUALITY_MAX_BITRATE }
 
-// 状态 + actions 合并后的完整 store 类型（由 TypeScript 从初始值推断）
-type SettingsStore = {
-  apiPreferServer: boolean
-  apiAuthToken: string
-  coverRemoteTemplate: string
-  coverSource: CoverSource
-  coverLoadAlbum: boolean
-  coverLoadArtist: boolean
-  coverShape: CoverShape
-  o3icsRemoteTemplate: string
-  o3icsConfirmTemplate: string
-  o3icsUseRemote: boolean
-  o3icsPreferRemote: boolean
-  o3icsHighlightColor: string
-  o3icsFontSize: number
-  songDetailTemplate: string
-  songDetailPathReplace: string
-  translateTargetLang: string
-  translateType: string
-  audioQuality: AudioQuality
-  setApiPreferServer: (v: boolean) => void
-  setApiAuthToken: (t: string) => void
-  setCoverRemoteTemplate: (t: string) => void
-  setCoverSource: (s: CoverSource) => void
-  setCoverLoadAlbum: (v: boolean) => void
-  setCoverLoadArtist: (v: boolean) => void
-  setCoverShape: (s: CoverShape) => void
-  setLyricsRemoteTemplate: (t: string) => void
-  setLyricsConfirmTemplate: (t: string) => void
-  setLyricsUseRemote: (v: boolean) => void
-  setLyricsPreferRemote: (v: boolean) => void
-  setLyricsHighlightColor: (c: string) => void
-  setLyricsFontSize: (size: number) => void
-  setSongDetailTemplate: (t: string) => void
-  setSongDetailPathReplace: (t: string) => void
-  setTranslateTargetLang: (v: string) => void
-  setTranslateType: (v: string) => void
-  setAudioQuality: (q: AudioQuality) => void
-}
+/** 持久化 key */
+const STORAGE_KEY = 'msp-settings-store'
+
+// ─── 初始状态 ─────────────────────────────────────────────────────────────
 
 const initialState = {
   apiPreferServer: true,
@@ -92,10 +57,36 @@ const initialState = {
   audioQuality: 'lossless' as AudioQuality,
 }
 
+export type SettingsState = typeof initialState
+
+export type SettingsStore = SettingsState & {
+  setApiPreferServer: (v: boolean) => void
+  setApiAuthToken: (t: string) => void
+  setCoverRemoteTemplate: (t: string) => void
+  setCoverSource: (s: CoverSource) => void
+  setCoverLoadAlbum: (v: boolean) => void
+  setCoverLoadArtist: (v: boolean) => void
+  setCoverShape: (s: CoverShape) => void
+  setLyricsRemoteTemplate: (t: string) => void
+  setLyricsConfirmTemplate: (t: string) => void
+  setLyricsUseRemote: (v: boolean) => void
+  setLyricsPreferRemote: (v: boolean) => void
+  setLyricsHighlightColor: (c: string) => void
+  setLyricsFontSize: (size: number) => void
+  setSongDetailTemplate: (t: string) => void
+  setSongDetailPathReplace: (t: string) => void
+  setTranslateTargetLang: (v: string) => void
+  setTranslateType: (v: string) => void
+  setAudioQuality: (q: AudioQuality) => void
+}
+
+// ─── 持久化配置 ────────────────────────────────────────────────────────────
+
 export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set) => ({
       ...initialState,
+
       setApiPreferServer: (v) => set({ apiPreferServer: v }),
       setApiAuthToken: (t) => set({ apiAuthToken: t }),
       setCoverRemoteTemplate: (t) => set({ coverRemoteTemplate: t }),
@@ -115,7 +106,46 @@ export const useSettingsStore = create<SettingsStore>()(
       setTranslateType: (v) => set({ translateType: v }),
       setAudioQuality: (q) => set({ audioQuality: q }),
     }),
-    { name: 'msp-settings-store' }
+    {
+      name: STORAGE_KEY,
+      // 只持久化数据字段，不持久化内部属性
+      partialize: (state) => {
+        const { apiPreferServer, apiAuthToken, coverRemoteTemplate, coverSource,
+          coverLoadAlbum, coverLoadArtist, coverShape, o3icsRemoteTemplate,
+          o3icsConfirmTemplate, o3icsUseRemote, o3icsPreferRemote, o3icsHighlightColor,
+          o3icsFontSize, songDetailTemplate, songDetailPathReplace,
+          translateTargetLang, translateType, audioQuality } = state
+        return {
+          apiPreferServer, apiAuthToken, coverRemoteTemplate, coverSource,
+          coverLoadAlbum, coverLoadArtist, coverShape, o3icsRemoteTemplate,
+          o3icsConfirmTemplate, o3icsUseRemote, o3icsPreferRemote, o3icsHighlightColor,
+          o3icsFontSize, songDetailTemplate, songDetailPathReplace,
+          translateTargetLang, translateType, audioQuality,
+        }
+      },
+      // 兼容旧 zustand persist 格式：{ state: {...}, version: 0 }
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error('[SettingsStore] Rehydration failed:', error)
+        } else if (state) {
+          // 如果 state 是旧的 zustand persist 格式（嵌套在 state 属性里），
+          // 尝试从旧格式恢复
+          const stored = localStorage.getItem(STORAGE_KEY)
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored)
+              if (parsed && typeof parsed === 'object' && 'state' in parsed) {
+                // 旧格式：把嵌套的 state 提升到顶层
+                const oldState = parsed.state as Partial<typeof initialState>
+                if (oldState) {
+                  Object.assign(state, oldState)
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      },
+    }
   )
 )
 

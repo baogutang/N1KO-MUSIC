@@ -1,6 +1,6 @@
 {
   "name": "n1ko-music-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "N1KO MUSIC - Minimal Node.js backend for local playlist & stats",
   "main": "dist/index.js",
   "scripts": {

@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/use-toast'
-import { useSettingsStore } from '@/store/settingsStore'
+import { useSettingsStore, type SettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/o3icCacheStore'
 import type { Song } from '@/api/types'
@@ -103,7 +103,8 @@ interface LyricsSearchDialogProps {
 }
 
 function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogProps) {
-  const { o3icsRemoteTemplate, apiAuthToken } = useSettingsStore()
+  const o3icsRemoteTemplate = useSettingsStore((s: SettingsStore) => s.o3icsRemoteTemplate)
+  const apiAuthToken = useSettingsStore((s: SettingsStore) => s.apiAuthToken)
   const previewRef = useRef<HTMLPreElement>(null)
 
   const [searchTitle, setSearchTitle] = useState(song.title)
@@ -140,8 +141,15 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
 
       for (const item of list) {
         const record = item as Record<string, unknown>
+        // 与 useLyricsQuery 远程解析保持一致：常见字段名 lyrics / lrc / o3ics 等
         const lrcText = String(
-          record?.o3ics ?? record?.o3ics ?? record?.lrc ?? record?.o3ic ?? record?.content ?? record?.text ?? ''
+          record?.lyrics ??
+            record?.lrc ??
+            record?.o3ics ??
+            record?.o3ic ??
+            record?.content ??
+            record?.text ??
+            ''
         )
 
         if (lrcText && lrcText.trim()) {
@@ -339,7 +347,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
                 <div className="p-2 space-y-1">
                   {searchResults.map((result, index) => (
                     <button
-                      key={result.id}
+                      key={`${result.id}-${index}`}
                       type="button"
                       role="option"
                       aria-selected={selectedIndex === index}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ListMusic, Plus, Music2, MoreHorizontal, Trash2, Play, Shuffle } from 'lucide-react'
 import { usePlaylists } from '@/hooks/useServerQueries'
-import { getAdapter } from '@/api'
+import { getAdapter, hasAdapter } from '@/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/ui/use-toast'
 import { usePlayerStore } from '@/store/playerStore'
@@ -107,7 +107,7 @@ export default function Playlists() {
                 <div className="relative aspect-square rounded-xl overflow-hidden bg-muted mb-2">
                   {pl.coverArt ? (
                     <img
-                      src={pl.coverArt}
+                      src={hasAdapter() ? getAdapter().getCoverUrl(pl.coverArt, 300) : pl.coverArt}
                       alt={pl.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />

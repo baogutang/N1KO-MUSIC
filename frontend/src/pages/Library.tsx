@@ -7,6 +7,7 @@ import { usePlayerStore } from '@/store/playerStore'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { ArtistCard } from '@/components/music/ArtistCard'
 import { SongList } from '@/components/music/SongList'
+import { getAdapter, hasAdapter } from '@/api'
 
 type LibraryTab = 'songs' | 'albums' | 'artists' | 'playlists'
 type ViewMode = 'grid' | 'list'
@@ -151,7 +152,11 @@ export default function Library() {
                   className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors group"
                 >
                   <img
-                    src={album.coverArt ?? ''}
+                    src={
+                      album.coverArt && hasAdapter()
+                        ? getAdapter().getCoverUrl(album.coverArt, 96)
+                        : (album.coverArt ?? '')
+                    }
                     alt={album.name}
                     className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                     onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -187,7 +192,11 @@ export default function Library() {
                 >
                   <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {artist.coverArt ? (
-                      <img src={artist.coverArt} alt={artist.name} className="w-full h-full object-cover" />
+                      <img
+                        src={hasAdapter() ? getAdapter().getCoverUrl(artist.coverArt, 96) : artist.coverArt}
+                        alt={artist.name}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <Mic2 className="w-5 h-5 text-muted-foreground" />
                     )}

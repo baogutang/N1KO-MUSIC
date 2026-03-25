@@ -75,6 +75,8 @@ export interface Song {
   userRating?: number
   /** 文件路径（用于自定义歌词/封面 API 的 path 参数）*/
   path?: string
+  /** Subsonic 文件后缀（部分列表无 path 时有 suffix，用于流格式推断）*/
+  suffix?: string
 }
 
 /** 专辑 */
@@ -250,7 +252,15 @@ export interface MusicServerAdapter {
   // --- 歌曲 ---
   getSongs(params?: ListParams): Promise<PageResult<Song>>
   searchAll(query: string): Promise<SearchResult>
-  getStreamUrl(songId: string, maxBitrate: number, format: string, contentType?: string): string
+  /** path / suffix 用于识别 DSF/DSD（Navidrome 常缺准确 MIME，但会有 suffix）*/
+  getStreamUrl(
+    songId: string,
+    maxBitrate: number,
+    format: string,
+    contentType?: string,
+    path?: string,
+    suffix?: string
+  ): string
   getLyrics(songId: string, title?: string, artist?: string): Promise<Lyrics | null>
   scrobble(songId: string, submission?: boolean): Promise<void>
 

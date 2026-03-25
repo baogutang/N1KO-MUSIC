@@ -13,6 +13,13 @@
  * 3. 进度更新双写：移除 setInterval 轮询，仅用 timeupdate 事件驱动，减少 re-render
  * 4. 连续点击无响应修复：加入 120ms load debounce，快速连击时只执行最后一次加载，
  *    避免多次 abort+reload 堆积导致最终那首歌迟迟收不到 canplay
+ *
+ * 关于 Network 里大量 stream「206」或红色记录：
+ * - 206 Partial Content 是 HTML5 Audio 对大文件分段缓冲的正常行为，不是服务器错误。
+ * - 切歌、拖动进度或中止旧 range 请求时，浏览器会取消未完成的请求，Safari 等常标成红色，
+ *   属于预期现象，不代表播放失败。
+ * - 即使全是 206，仍可能出现 MediaError code 4（MEDIA_ERR_SRC_NOT_SUPPORTED）：表示解码器不接受
+ *   该字节流。Safari 对服务端实时转码的 FLAC 分段流尤易如此，此时会再试 MP3 转码流。
  */
 
 import { useEffect, useRef } from 'react'
@@ -214,11 +221,18 @@ export function useAudioEngine() {
       if (!latestSong || latestSong.id !== capturedSongId) return
 
       // ── 实际加载逻辑 ──────────────────────────────────────────
+      const maxBitrate = QUALITY_MAX_BITRATE[effectiveQuality]
+      const contentType = capturedSong.contentType
       let streamUrl: string
       try {
-        const maxBitrate = QUALITY_MAX_BITRATE[effectiveQuality]
-        const contentType = capturedSong.contentType
-        streamUrl = getAdapter().getStreamUrl(capturedSongId, maxBitrate, '', contentType)
+        streamUrl = getAdapter().getStreamUrl(
+          capturedSongId,
+          maxBitrate,
+          '',
+          contentType,
+          capturedSong.path,
+          capturedSong.suffix
+        )
       } catch (e) {
         console.error('[AudioEngine] getStreamUrl failed:', e)
         return
@@ -227,7 +241,9 @@ export function useAudioEngine() {
       loadedKey = capturedKey
 
       const audio = audioEl
-      let hasRetried = false
+      /** 无损最多 2 次恢复（无 format→FLAC→MP3）；有损仅 1 次同 URL 重试 */
+      let recoverAttempts = 0
+      const maxRecoverAttempts = maxBitrate === 0 ? 2 : 1
 
       // ─── 事件处理 ──────────────────────────────────────────────────
 
@@ -322,17 +338,68 @@ export function useAudioEngine() {
 
       const onError = () => {
         const err = audio.error
-        // code=1 是 load() 中止旧播放，不是真正错误
-        if (err?.code === 1) return
+        // WebKit/Safari 部分版本把标准 MediaError code 报成负数（如 -4）
+        const rawCode = err?.code ?? 0
+        const code = rawCode < 0 ? -rawCode : rawCode
 
-        // 网络错误(2) / 音频源不可用(4)：自动重试一次
-        if (!hasRetried && (err?.code === 2 || err?.code === 4)) {
-          hasRetried = true
-          console.warn('[AudioEngine] Retrying after error code:', err?.code)
+        // code=1 是 load() 中止旧播放，不是真正错误
+        if (code === 1) return
+
+        // 网络错误(2) / 音频源不可用(4)：按策略恢复（见文件头 206 vs code 4 说明）
+        if (recoverAttempts < maxRecoverAttempts && (code === 2 || code === 4)) {
+          const activeUrl = audio.currentSrc || streamUrl
+          let retryUrl = activeUrl
+          try {
+            const u = new URL(activeUrl, typeof window !== 'undefined' ? window.location.href : undefined)
+            const fmt = u.searchParams.get('format')
+
+            if (maxBitrate === 0) {
+              if (recoverAttempts === 0) {
+                if (!fmt) {
+                  retryUrl = getAdapter().getStreamUrl(
+                    capturedSongId,
+                    0,
+                    'flac',
+                    contentType,
+                    capturedSong.path,
+                    capturedSong.suffix
+                  )
+                  console.warn('[AudioEngine] Retrying with format=flac (first URL had no format param)')
+                } else if (fmt === 'flac' && code === 4) {
+                  retryUrl = getAdapter().getStreamUrl(
+                    capturedSongId,
+                    320,
+                    'mp3',
+                    contentType,
+                    capturedSong.path,
+                    capturedSong.suffix
+                  )
+                  console.warn(
+                    '[AudioEngine] Retrying as MP3: browser rejected FLAC transcode (Network may still show 206)'
+                  )
+                }
+              } else if (recoverAttempts === 1 && fmt === 'flac' && code === 4) {
+                retryUrl = getAdapter().getStreamUrl(
+                  capturedSongId,
+                  320,
+                  'mp3',
+                  contentType,
+                  capturedSong.path,
+                  capturedSong.suffix
+                )
+                console.warn('[AudioEngine] Second recovery: MP3 after FLAC transcode failed')
+              }
+            }
+          } catch {
+            retryUrl = streamUrl
+          }
+
+          recoverAttempts += 1
+          console.warn('[AudioEngine] Recovery', recoverAttempts, '/', maxRecoverAttempts, 'after code', rawCode)
           setTimeout(() => {
-            audio.src = streamUrl
+            audio.src = retryUrl
             audio.load()
-          }, 1000)
+          }, recoverAttempts === 1 ? 1000 : 600)
           return
         }
 
@@ -341,11 +408,11 @@ export function useAudioEngine() {
           2: '网络错误',
           3: '解码失败（格式不支持）',
           4: '音频源不可用',
-        }[err?.code ?? 0] ?? '未知错误'
-        console.error('[AudioEngine] audio error:', err?.code, err?.message, '| URL:', streamUrl)
+        }[code] ?? '未知错误'
+        console.error('[AudioEngine] audio error:', rawCode, err?.message, '| URL:', streamUrl)
         toast({
           title: `播放失败: ${errMsg}`,
-          description: `错误码=${err?.code} ${err?.message || ''}\nURL: ${streamUrl.substring(0, 120)}...`,
+          description: `错误码=${rawCode} ${err?.message || ''}\nURL: ${streamUrl.substring(0, 120)}...`,
           variant: 'destructive',
         })
         usePlayerStore.getState().pause()

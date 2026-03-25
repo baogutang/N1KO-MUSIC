@@ -142,6 +142,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       starred: !!s.starred,
       userRating: s.userRating ? Number(s.userRating) : undefined,
       path: s.path ? String(s.path) : undefined,
+      suffix: s.suffix ? String(s.suffix) : undefined,
     }
   }
 
@@ -212,7 +213,14 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
   }
 
-  getStreamUrl(songId: string, maxBitrate: number, format: string = '', contentType?: string): string {
+  getStreamUrl(
+    songId: string,
+    maxBitrate: number,
+    format: string = '',
+    contentType?: string,
+    path?: string,
+    suffix?: string
+  ): string {
     // stream / getCoverArt 返回二进制数据，不需要 f（API 响应格式）参数
     const { f: _, ...authParams } = this.buildParams()
     const authEntries = Object.fromEntries(
@@ -225,15 +233,27 @@ export class SubsonicAdapter implements MusicServerAdapter {
       maxBitRate: String(maxBitrate),
     }
 
+    const ct = (contentType ?? '').toLowerCase()
+    const p = (path ?? '').replace(/\\/g, '/').toLowerCase()
+    const suf = (suffix ?? '').toLowerCase().replace(/^\./, '')
+    // 路径任意位置出现 .dsf / .dff（不仅限于结尾）；suffix 单独传，避免队列里的 Song 丢 path 后漏判
+    const hasDsdExt = /\.(dsf|dff|dsd)(\?|#|$)/i.test(p)
+    const hasDsdSuffix = suf === 'dsf' || suf === 'dff' || suf === 'dsd'
+    const isDsdFamily =
+      hasDsdSuffix ||
+      hasDsdExt ||
+      ct.includes('dsf') ||
+      ct.includes('dsd') ||
+      ct.includes('dff')
+
     // 优先使用调用方指定的格式（如 opus 回退）
     // 否则：有损(maxBitrate>0)转码 mp3
-    // 无损(maxBitrate=0)对 DSF/DSD 格式转码为 flac，其他格式返回原文件
+    // 无损(maxBitrate=0)对 DSF/DSD 转码为 flac（浏览器无法解码原生 DSD 容器）
     if (format) {
       streamParams.format = format
     } else if (maxBitrate > 0) {
       streamParams.format = 'mp3'
-    } else if (contentType === 'audio/dsf' || contentType === 'audio/x-dsd') {
-      // DSF/DSD 格式需要转码为 FLAC 才能被浏览器播放
+    } else if (isDsdFamily) {
       streamParams.format = 'flac'
     }
 
@@ -241,11 +261,42 @@ export class SubsonicAdapter implements MusicServerAdapter {
     return `${this.baseUrl}/rest/stream?${params.toString()}`
   }
 
+  /**
+   * Navidrome 等实现有时在 JSON 里给出完整公开地址 `.../share/img/{jwt}`，
+   * 该路径在部分部署下会 404；Subsonic 标准 `getCoverArt?id={jwt}` 更稳定。
+   */
+  private normalizeCoverArtId(raw: string): string {
+    const id = raw.trim()
+    const fromAnywhere = id.match(/\/share\/img\/([^/?#]+)/)
+    if (fromAnywhere) {
+      try {
+        return decodeURIComponent(fromAnywhere[1])
+      } catch {
+        return fromAnywhere[1]
+      }
+    }
+    try {
+      const u = new URL(id)
+      const m = u.pathname.match(/\/share\/img\/([^/]+)/)
+      if (m) {
+        try {
+          return decodeURIComponent(m[1])
+        } catch {
+          return m[1]
+        }
+      }
+    } catch {
+      // 非绝对 URL，保持原样（一般为 Subsonic coverArt id）
+    }
+    return id
+  }
+
   getCoverUrl(id: string, size = 300): string {
+    const coverId = this.normalizeCoverArtId(id)
     // getCoverArt 返回二进制图片，不需要 f（API 响应格式）参数
     const { f: _, ...authParams } = this.buildParams()
     const params = new URLSearchParams({
-      id,
+      id: coverId,
       size: String(size),
       ...Object.fromEntries(
         Object.entries(authParams).map(([k, v]) => [k, String(v)])

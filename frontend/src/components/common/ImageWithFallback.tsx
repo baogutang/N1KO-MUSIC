@@ -159,7 +159,7 @@ export function ImageWithFallback({
         alt={alt}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        fetchPriority={eager ? 'auto' : 'low'}
+        fetchpriority={eager ? 'auto' : 'low'}
         className={cn('block w-full h-full object-cover', !isLoaded && 'opacity-0', className)}
         onLoad={() => setIsLoaded(true)}
         onError={() => {

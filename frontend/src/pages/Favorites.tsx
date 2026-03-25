@@ -4,6 +4,7 @@ import { Heart, Play, Music2, Disc3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStarred } from '@/hooks/useServerQueries'
 import { usePlayerStore } from '@/store/playerStore'
+import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
 
 type FavTab = 'songs' | 'albums'
@@ -111,7 +112,7 @@ export default function Favorites() {
                   <div className="aspect-square rounded-xl overflow-hidden bg-muted mb-2">
                     {album.coverArt ? (
                       <img
-                        src={album.coverArt}
+                        src={hasAdapter() ? getAdapter().getCoverUrl(album.coverArt, 300) : album.coverArt}
                         alt={album.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />

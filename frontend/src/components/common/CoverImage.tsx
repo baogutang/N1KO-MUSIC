@@ -198,7 +198,7 @@ export function CoverImage({
         }}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        fetchPriority={eager ? 'auto' : 'low'}
+        fetchpriority={eager ? 'auto' : 'low'}
         data-no-abort={eager ? 'true' : undefined}
       />
     </div>

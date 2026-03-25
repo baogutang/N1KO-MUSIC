@@ -35,7 +35,12 @@ export default function Settings() {
   const {
     apiPreferServer, apiAuthToken,
     coverRemoteTemplate, coverLoadAlbum, coverLoadArtist, coverShape,
-    lyricsRemoteTemplate, lyricsConfirmTemplate, lyricsUseRemote, lyricsPreferRemote, lyricsHighlightColor, lyricsFontSize,
+    o3icsRemoteTemplate: lyricsRemoteTemplate,
+    o3icsConfirmTemplate: lyricsConfirmTemplate,
+    o3icsUseRemote: lyricsUseRemote,
+    o3icsPreferRemote: lyricsPreferRemote,
+    o3icsHighlightColor: lyricsHighlightColor,
+    o3icsFontSize: lyricsFontSize,
     songDetailTemplate, songDetailPathReplace,
     translateTargetLang, translateType,
     audioQuality,

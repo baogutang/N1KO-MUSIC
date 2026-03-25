@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Play, Shuffle, Music2, Clock, Plus } from 'lucide-react'
 import { usePlaylistDetail } from '@/hooks/useServerQueries'
 import { usePlayerStore } from '@/store/playerStore'
+import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
 import { formatDuration } from '@/utils/formatters'
 
@@ -60,7 +61,11 @@ export default function PlaylistDetail() {
           {/* Cover */}
           <div className="w-48 h-48 rounded-xl overflow-hidden shadow-2xl flex-shrink-0">
             {playlist.coverArt ? (
-              <img src={playlist.coverArt} alt={playlist.name} className="w-full h-full object-cover" />
+              <img
+                src={hasAdapter() ? getAdapter().getCoverUrl(playlist.coverArt, 400) : playlist.coverArt}
+                alt={playlist.name}
+                className="w-full h-full object-cover"
+              />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-primary/30 to-primary/5 flex items-center justify-center">
                 <Music2 className="w-20 h-20 text-primary/30" />

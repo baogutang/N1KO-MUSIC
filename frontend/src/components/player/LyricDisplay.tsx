@@ -48,7 +48,7 @@ export const LyricDisplay = memo(function LyricDisplay({
     offset: 500,
   })
 
-  const { lyricsHighlightColor, lyricsFontSize } = useSettingsStore()
+  const { o3icsHighlightColor, o3icsFontSize } = useSettingsStore()
 
   const containerRef = useRef<HTMLDivElement>(null)
   const activeLineRef = useRef<HTMLParagraphElement>(null)
@@ -155,15 +155,15 @@ export const LyricDisplay = memo(function LyricDisplay({
                 isClickable && !isActive && 'hover:scale-[1.02]',
               )}
               style={{
-                fontSize: variant === 'fullscreen' ? `${lyricsFontSize}px` : undefined,
-                fontWeight: variant === 'fullscreen' ? 600 : undefined,
+                fontSize: `${o3icsFontSize}px`,
+                fontWeight: variant === 'fullscreen' ? 600 : 400,
                 color: isActive
-                  ? lyricsHighlightColor
+                  ? o3icsHighlightColor
                   : baseColor === 'white' ? 'rgba(255,255,255,0.85)' : undefined,
                 opacity: lineOpacity,
                 transform: isActive ? 'scale(1.05)' : undefined,
                 transformOrigin: 'center center',
-                transition: 'opacity 0.45s ease, transform 0.45s ease, color 0.45s ease',
+                transition: 'opacity 0.45s ease, transform 0.45s ease, color 0.45s ease, font-size 0.2s ease',
               }}
             >
               {line.text}

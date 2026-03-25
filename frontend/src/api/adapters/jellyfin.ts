@@ -223,7 +223,14 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
-  getStreamUrl(songId: string, _maxBitrate: number, _format: string = '', _contentType?: string): string {
+  getStreamUrl(
+    songId: string,
+    _maxBitrate: number,
+    _format: string = '',
+    _contentType?: string,
+    _path?: string,
+    _suffix?: string
+  ): string {
     return `${this.baseUrl}/Audio/${songId}/universal?UserId=${this.userId}&api_key=${this.token}&Container=opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac`
   }
 
