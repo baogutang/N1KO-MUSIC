@@ -108,6 +108,24 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: STORAGE_KEY,
+      version: 1,
+      // 旧格式：zustand persist v1/v2 存为 { state: {...}, version: 0 }
+      // 新格式：partialize 直接持久化数据字段，不再嵌套
+      migrate: (persistedState: unknown, fromVersion: number): typeof initialState => {
+        if (fromVersion === 0 && persistedState && typeof persistedState === 'object' && 'state' in persistedState) {
+          const inner = (persistedState as { state: Partial<typeof initialState> }).state
+          // 只取 initialState 中声明的字段，其余 zustand 内部属性全部丢弃
+          const dataKeys = Object.keys(initialState) as Array<keyof typeof initialState>
+          const merged: Partial<typeof initialState> = {}
+          for (const key of dataKeys) {
+            if (key in inner) {
+              ;(merged as Record<string, unknown>)[key] = inner[key]
+            }
+          }
+          return { ...initialState, ...merged }
+        }
+        return initialState
+      },
       // 只持久化数据字段，不持久化内部属性
       partialize: (state) => {
         const { apiPreferServer, apiAuthToken, coverRemoteTemplate, coverSource,
@@ -121,28 +139,6 @@ export const useSettingsStore = create<SettingsStore>()(
           o3icsConfirmTemplate, o3icsUseRemote, o3icsPreferRemote, o3icsHighlightColor,
           o3icsFontSize, songDetailTemplate, songDetailPathReplace,
           translateTargetLang, translateType, audioQuality,
-        }
-      },
-      // 兼容旧 zustand persist 格式：{ state: {...}, version: 0 }
-      onRehydrateStorage: () => (state, error) => {
-        if (error) {
-          console.error('[SettingsStore] Rehydration failed:', error)
-        } else if (state) {
-          // 如果 state 是旧的 zustand persist 格式（嵌套在 state 属性里），
-          // 尝试从旧格式恢复
-          const stored = localStorage.getItem(STORAGE_KEY)
-          if (stored) {
-            try {
-              const parsed = JSON.parse(stored)
-              if (parsed && typeof parsed === 'object' && 'state' in parsed) {
-                // 旧格式：把嵌套的 state 提升到顶层
-                const oldState = parsed.state as Partial<typeof initialState>
-                if (oldState) {
-                  Object.assign(state, oldState)
-                }
-              }
-            } catch { /* ignore */ }
-          }
         }
       },
     }
