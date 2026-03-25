@@ -22,7 +22,7 @@ import { getAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
 import { MemberUpgradeDialog } from '@/components/member/MemberUpgradeDialog'
 
-const VERSION = '1.1.0'
+const VERSION = '1.2.0'
 
 export default function Settings() {
   const navigate = useNavigate()
