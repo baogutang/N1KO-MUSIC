@@ -4,14 +4,12 @@ import {
   Server, Plus, Trash2, CheckCircle2, RefreshCw,
   Sun, Moon, Volume2, Palette, Info, LogOut, ChevronRight, Wifi,
   Music2, Radio, Link, KeyRound, Image as ImageIcon,
-  FileText, ArrowLeftRight, Globe, Languages, Disc3,
-  Crown, Lock,
+  FileText, ArrowLeftRight, Globe, Languages, Crown, Lock, Disc3
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { useThemeStore, type AccentColor } from '@/store/themeStore'
 import { usePlayerStore } from '@/store/playerStore'
-import { useMemberStore } from '@/store/memberStore'
 import {
   useSettingsStore,
   QUALITY_LABELS,
@@ -20,14 +18,12 @@ import {
 } from '@/store/settingsStore'
 import { getAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
-import { MemberUpgradeDialog } from '@/components/member/MemberUpgradeDialog'
+import { useMemberStore } from '@/store/memberStore'
 
-const VERSION = '1.2.0'
+const VERSION = '1.0.17'
 
 export default function Settings() {
   const navigate = useNavigate()
-  const isPremium = useMemberStore(s => s.isPremium)
-  const [memberUpgradeOpen, setMemberUpgradeOpen] = useState(false)
   const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
   const { resolvedTheme, toggleTheme, accentColor, setAccentColor } = useThemeStore()
   const volume    = usePlayerStore(s => s.volume)
@@ -35,12 +31,7 @@ export default function Settings() {
   const {
     apiPreferServer, apiAuthToken,
     coverRemoteTemplate, coverLoadAlbum, coverLoadArtist, coverShape,
-    o3icsRemoteTemplate: lyricsRemoteTemplate,
-    o3icsConfirmTemplate: lyricsConfirmTemplate,
-    o3icsUseRemote: lyricsUseRemote,
-    o3icsPreferRemote: lyricsPreferRemote,
-    o3icsHighlightColor: lyricsHighlightColor,
-    o3icsFontSize: lyricsFontSize,
+    lyricsRemoteTemplate, lyricsConfirmTemplate, lyricsUseRemote, lyricsPreferRemote, lyricsHighlightColor, lyricsFontSize,
     songDetailTemplate, songDetailPathReplace,
     translateTargetLang, translateType,
     audioQuality,
@@ -51,6 +42,7 @@ export default function Settings() {
     setTranslateTargetLang, setTranslateType,
     setAudioQuality,
   } = useSettingsStore()
+  const isPremium = useMemberStore(s => s.isPremium)
   const [pinging, setPinging] = useState<string | null>(null)
 
   const activeServer = servers.find(s => s.id === activeServerId)
@@ -293,44 +285,56 @@ export default function Settings() {
               <div className="flex items-center gap-2 mb-3">
                 <Radio className="w-4 h-4 text-muted-foreground" />
                 <p className="font-medium">流媒体音质</p>
+                {!isPremium && (
+                  <span className="ml-auto flex items-center gap-1 text-[11px] text-amber-500/80">
+                    <Crown className="w-3 h-3" />
+                    会员解锁高音质
+                  </span>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => (
-                  <button
-                    key={q}
-                    onClick={() => setAudioQuality(q)}
-                    className={cn(
-                      'relative px-3 py-2.5 rounded-lg border text-sm text-left transition-colors',
-                      audioQuality === q
-                        ? 'border-primary bg-primary/10 text-primary font-medium'
-                        : 'border-border hover:border-primary/40 hover:bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {QUALITY_LABELS[q]}
-                  </button>
-                ))}
+                {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => {
+                  // 非会员只允许省流（low），其余选项锁定
+                  const locked = !isPremium && q !== 'low'
+                  return (
+                    <button
+                      key={q}
+                      disabled={locked}
+                      onClick={() => !locked && setAudioQuality(q)}
+                      title={locked ? '升级会员后可使用此音质' : undefined}
+                      className={cn(
+                        'relative px-3 py-2.5 rounded-lg border text-sm text-left transition-colors',
+                        locked
+                          ? 'border-border/30 bg-muted/30 text-muted-foreground/30 cursor-not-allowed select-none'
+                          : audioQuality === q
+                            ? 'border-primary bg-primary/10 text-primary font-medium'
+                            : 'border-border hover:border-primary/40 hover:bg-muted text-muted-foreground'
+                      )}
+                    >
+                      <span className="flex items-center justify-between gap-1">
+                        {QUALITY_LABELS[q]}
+                        {locked && <Lock className="w-3 h-3 text-amber-500/50 flex-shrink-0" />}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                无损将请求服务器原始歌曲格式；其他选项将要求服务器转码为指定码率
+                {isPremium
+                  ? '无损将请求服务器原始歌曲格式；其他选项将要求服务器转码为指定码率'
+                  : '当前为省流模式（128kbps）；升级会员后可解锁无损、高质量等更多音质选项'}
               </p>
             </div>
           </div>
         </section>
 
-        {/* 自定义 API（仅会员） */}
+        {/* 自定义 API */}
         <section className="mb-8">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Globe className="w-5 h-5 text-primary" />
             自定义 API
-            {!isPremium && (
-              <span className="ml-auto flex items-center gap-1 text-[11px] text-amber-500/80">
-                <Crown className="w-3 h-3" />
-                会员专属
-              </span>
-            )}
           </h2>
 
-          {isPremium ? (
           <div className="bg-card rounded-xl border border-border overflow-hidden space-y-px">
 
             {/* 优先使用音乐服务接口 */}
@@ -565,26 +569,13 @@ export default function Settings() {
                 onChange={e => setTranslateType(e.target.value)}
                 className="text-sm bg-transparent border-none outline-none text-muted-foreground cursor-pointer"
               >
-                {['无', '没有内置', '不内置'].map(t => (
+                {['无', '没有内置山误', '不内置'].map(t => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
 
           </div>
-          ) : (
-            <div className="bg-card rounded-xl border border-border p-8 text-center">
-              <Lock className="w-8 h-8 mx-auto mb-3 text-muted-foreground/40" />
-              <p className="text-sm font-medium text-muted-foreground mb-1">自定义 API 仅对会员开放</p>
-              <p className="text-xs text-muted-foreground/60 mb-4">升级会员后解锁封面搜索、歌词搜索、歌曲详情等高级配置</p>
-              <button
-                onClick={() => setMemberUpgradeOpen(true)}
-                className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                <Crown className="w-4 h-4 inline mr-1.5" />升级会员
-              </button>
-            </div>
-          )}
         </section>
 
         {/* 歌词外观设置 */}
@@ -759,11 +750,6 @@ export default function Settings() {
           </section>
         )}
       </div>
-
-      <MemberUpgradeDialog
-        open={memberUpgradeOpen}
-        onOpenChange={setMemberUpgradeOpen}
-      />
     </div>
   )
 }

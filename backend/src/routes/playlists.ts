@@ -124,16 +124,31 @@ router.post('/:id/songs', (req: Request, res: Response) => {
   insertMany(songs)
 
   // Update playlist updated_at
-  db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(now, req.params.id)
+  db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ? AND user_id = ?')
+    .run(now, req.params.id, req.user!.userId)
 
   return res.json({ message: `Added ${songs.length} songs` })
 })
 
 // DELETE /api/playlists/:id/songs/:songId
 router.delete('/:id/songs/:songId', (req: Request, res: Response) => {
-  db.prepare(
-    'DELETE FROM playlist_songs WHERE playlist_id = ? AND song_id = ?'
-  ).run(req.params.id, req.params.songId)
+  const now = Math.floor(Date.now() / 1000)
+  const result = db.prepare(`
+    DELETE FROM playlist_songs
+    WHERE playlist_id = ? AND song_id = ?
+      AND EXISTS (
+        SELECT 1 FROM playlists p
+        WHERE p.id = ? AND p.user_id = ?
+      )
+  `).run(req.params.id, req.params.songId, req.params.id, req.user!.userId)
+
+  if (!result.changes) {
+    return res.status(404).json({ error: 'Playlist or song not found' })
+  }
+
+  db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ? AND user_id = ?')
+    .run(now, req.params.id, req.user!.userId)
+
   return res.json({ message: 'Song removed' })
 })
 

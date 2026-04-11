@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/use-toast'
-import { useSettingsStore, type SettingsStore } from '@/store/settingsStore'
+import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/o3icCacheStore'
 import type { Song } from '@/api/types'
@@ -103,8 +103,8 @@ interface LyricsSearchDialogProps {
 }
 
 function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogProps) {
-  const o3icsRemoteTemplate = useSettingsStore((s: SettingsStore) => s.o3icsRemoteTemplate)
-  const apiAuthToken = useSettingsStore((s: SettingsStore) => s.apiAuthToken)
+  const lyricsRemoteTemplate = useSettingsStore(s => s.lyricsRemoteTemplate)
+  const apiAuthToken = useSettingsStore(s => s.apiAuthToken)
   const previewRef = useRef<HTMLPreElement>(null)
 
   const [searchTitle, setSearchTitle] = useState(song.title)
@@ -222,7 +222,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
   }
 
   const handleSearch = async () => {
-    if (!o3icsRemoteTemplate) {
+    if (!lyricsRemoteTemplate) {
       toast({ title: '请先在设置中配置自定义歌词 API', variant: 'destructive' })
       return
     }
@@ -233,7 +233,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
     setPreviewLrc(null)
 
     try {
-      const url = new URL(o3icsRemoteTemplate)
+      const url = new URL(lyricsRemoteTemplate)
       if (searchTitle)  url.searchParams.set('title', searchTitle)
       if (searchArtist) url.searchParams.set('artist', searchArtist)
       if (searchAlbum)  url.searchParams.set('album', searchAlbum)

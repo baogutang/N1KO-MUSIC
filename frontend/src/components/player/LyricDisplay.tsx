@@ -48,7 +48,7 @@ export const LyricDisplay = memo(function LyricDisplay({
     offset: 500,
   })
 
-  const { o3icsHighlightColor, o3icsFontSize } = useSettingsStore()
+  const { lyricsHighlightColor, lyricsFontSize } = useSettingsStore()
 
   const containerRef = useRef<HTMLDivElement>(null)
   const activeLineRef = useRef<HTMLParagraphElement>(null)
@@ -72,7 +72,7 @@ export const LyricDisplay = memo(function LyricDisplay({
     }
   }, [])
 
-  // 自动滚动到当前歌词行
+  // 自动滚动到当前歌词行（高亮行始终居中于容器可视区域）
   const scrollToActive = useCallback(() => {
     if (!isSynced || currentIndex < 0) return
     // 如果最近 3 秒内有手动滚动，跳过自动滚动
@@ -82,10 +82,12 @@ export const LyricDisplay = memo(function LyricDisplay({
     const activeLine = activeLineRef.current
     if (!container || !activeLine) return
 
-    const containerHeight = container.clientHeight
-    const lineTop = activeLine.offsetTop
-    const lineHeight = activeLine.clientHeight
-    const targetScrollTop = lineTop - containerHeight / 2 + lineHeight / 2
+    // 使用 getBoundingClientRect 而非 offsetTop，避免 offsetParent 差异导致计算不准
+    const containerRect = container.getBoundingClientRect()
+    const lineRect = activeLine.getBoundingClientRect()
+    const lineCenter = (lineRect.top - containerRect.top) + lineRect.height / 2
+    const desiredCenter = containerRect.height / 2
+    const targetScrollTop = container.scrollTop + (lineCenter - desiredCenter)
 
     container.scrollTo({
       top: Math.max(0, targetScrollTop),
@@ -107,7 +109,7 @@ export const LyricDisplay = memo(function LyricDisplay({
 
   if (!hasLyrics) {
     return (
-      <div className={cn('flex h-full min-h-0 items-center justify-center bg-transparent', className)}>
+      <div className={cn('flex items-center justify-center h-full', className)}>
         <p className="text-muted-foreground text-sm">暂无歌词</p>
       </div>
     )
@@ -117,11 +119,11 @@ export const LyricDisplay = memo(function LyricDisplay({
     <div
       ref={containerRef}
       className={cn(
-        'overflow-y-auto scrollbar-hide bg-transparent py-12',
-        variant === 'fullscreen' ? 'h-full min-h-0' : 'h-64',
+        'overflow-y-auto scrollbar-hide py-12',
+        variant === 'fullscreen' ? 'h-full' : 'h-64',
         className
       )}
-      style={{ scrollBehavior: 'smooth', backgroundColor: 'transparent' }}
+      style={{ scrollBehavior: 'smooth' }}
     >
       <div className={cn(
         'space-y-4 px-6',
@@ -155,15 +157,15 @@ export const LyricDisplay = memo(function LyricDisplay({
                 isClickable && !isActive && 'hover:scale-[1.02]',
               )}
               style={{
-                fontSize: `${o3icsFontSize}px`,
-                fontWeight: variant === 'fullscreen' ? 600 : 400,
+                fontSize: variant === 'fullscreen' ? `${lyricsFontSize}px` : undefined,
+                fontWeight: variant === 'fullscreen' ? 600 : undefined,
                 color: isActive
-                  ? o3icsHighlightColor
+                  ? lyricsHighlightColor
                   : baseColor === 'white' ? 'rgba(255,255,255,0.85)' : undefined,
                 opacity: lineOpacity,
                 transform: isActive ? 'scale(1.05)' : undefined,
                 transformOrigin: 'center center',
-                transition: 'opacity 0.45s ease, transform 0.45s ease, color 0.45s ease, font-size 0.2s ease',
+                transition: 'opacity 0.45s ease, transform 0.45s ease, color 0.45s ease',
               }}
             >
               {line.text}

@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from 'react'
 import { User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCustomCoverUrl, type CoverQueryType } from '@/hooks/useServerQueries'
+import { pickMergedCoverDisplaySrc } from '@/hooks/useCoverUrl'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 
@@ -63,20 +64,14 @@ export function CoverImage({
   eager = false,
 }: CoverImageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  // eager 模式初始即可见，lazy 模式需等待 IntersectionObserver
   const [isVisible, setIsVisible] = useState(!!eager)
   const [serverError, setServerError] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
-  /**
-   * imgLoadKey — eager 模式下每次 primary 变化或 streamBuffering 恢复时自增，
-   * 作为 <img key> 强制 React 重建 img 元素，保证浏览器一定发出新请求。
-   * 解决问题：abortPendingImageLoads 可能在 React 更新 DOM 之前清空 img.src，
-   * 而 React 因 src prop 值未变不会重设 DOM，导致 img 永久空白。
-   */
-  const [imgLoadKey, setImgLoadKey] = useState(0)
   const coverRemoteTemplate = useSettingsStore(s => s.coverRemoteTemplate)
   const coverSource = useSettingsStore(s => s.coverSource)
+  // eager 模式下 streamBuffering 不阻塞加载，只有 lazy 模式才延迟
   const streamBuffering = usePlayerStore(s => s.streamBuffering)
-  const streamBufferingPrevRef = useRef(streamBuffering)
 
   // IntersectionObserver: 只在元素接近可视区域时才开始加载封面
   useEffect(() => {
@@ -102,57 +97,69 @@ export function CoverImage({
     hasCustomConfig && isVisible ? customCoverParams : null
   )
 
-  // primary 变化时重置错误和加载状态（切歌时保证先显示黑胶再显示新封面）
-  // eager 模式下同时自增 imgLoadKey，强制重建 img 元素
+  // primary 变化时重置错误和加载状态
   useEffect(() => {
     setServerError(false)
     setIsLoaded(false)
-    if (eager) setImgLoadKey(k => k + 1)
-  }, [primary, eager])
+  }, [primary])
 
-  // eager 模式下：streamBuffering 从 true→false 时再次强制重建 img
-  // 作为兜底：即使 img.src 曾被 abortPendingImageLoads 意外清除，也能自动修复
-  useEffect(() => {
-    const prevBuffering = streamBufferingPrevRef.current
-    streamBufferingPrevRef.current = streamBuffering
-    if (eager && prevBuffering && !streamBuffering) {
-      setIsLoaded(false)
-      setImgLoadKey(k => k + 1)
-    }
-  }, [streamBuffering, eager])
-
+  // 根据优先级决定展示的 URL
   let displaySrc: string | undefined
   if (isVisible) {
     const serverSrc = primary ?? fallback
-    const serverOk = !!serverSrc && !serverError
-
-    if (!hasCustomConfig) {
-      displaySrc = serverOk ? serverSrc : fallback
-    } else {
-      switch (coverSource) {
-        case 'server_only':
-          displaySrc = serverOk ? serverSrc : undefined
-          break
-        case 'remote_only':
-          displaySrc = customCoverDataUrl ?? undefined
-          break
-        case 'remote_first':
-          displaySrc = customCoverDataUrl ?? (serverOk ? serverSrc : undefined)
-          break
-        case 'server_first':
-        default:
-          displaySrc = serverOk ? serverSrc : (customCoverDataUrl ?? undefined)
-          break
-      }
-    }
+    displaySrc = pickMergedCoverDisplaySrc(
+      coverSource,
+      serverSrc,
+      serverError,
+      customCoverDataUrl,
+      hasCustomConfig
+    )
   }
 
   // 通知父组件已解析的封面 URL（用于颜色提取、背景模糊等）
+  // eager 模式下延迟到图片实际加载完成，避免与封面请求竞争 HTTP 连接。
+  // lazy 模式下仍使用 displaySrc 变化时触发（因为不紧急）。
   useEffect(() => {
-    if (displaySrc && onImageResolved) onImageResolved(displaySrc)
-  }, [displaySrc, onImageResolved])
+    if (!eager && displaySrc && onImageResolved) onImageResolved(displaySrc)
+  }, [eager, displaySrc, onImageResolved])
 
-  // 所有来源都无数据时展示占位图
+
+
+  // ─── eager 模式渲染 ────────────────────────────────────────────────────────
+  // 使用普通 <img> 标签，浏览器自动处理 HTTP 缓存和连接管理。
+  // onImageResolved 延迟到图片实际加载完成后调用，避免与封面请求竞争连接。
+  if (eager) {
+    const src = displaySrc
+    const showVinyl = !src || !isLoaded
+    return (
+      <div ref={containerRef} className={cn('relative', className)}>
+        {showVinyl && <VinylPlaceholder className="absolute inset-0" />}
+        {src && (
+          <img
+            src={src}
+            alt={alt}
+            className={cn('w-full h-full object-cover', !isLoaded && 'opacity-0')}
+            onLoad={() => {
+              setIsLoaded(true)
+              onImageResolved?.(src)
+            }}
+            onError={() => {
+              if (!serverError) {
+                setServerError(true)
+                setIsLoaded(false)
+              }
+            }}
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+            data-no-abort="true"
+          />
+        )}
+      </div>
+    )
+  }
+
+  // ─── lazy 模式（非 eager）────────────────────────────────────────────────────
   const customFailed = hasCustomConfig ? !customCoverDataUrl : true
   const serverFailed = (!primary && !fallback) || serverError
   const showPlaceholder = !isVisible || ((serverFailed && customFailed) && !displaySrc)
@@ -189,15 +196,11 @@ export function CoverImage({
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      {/* 图片加载中时显示黑胶占位，防止出现破损图标 */}
-      {!isLoaded && (
-        <VinylPlaceholder className="absolute inset-0" />
-      )}
+      {!isLoaded && <VinylPlaceholder className="absolute inset-0" />}
       <img
-        key={eager ? imgLoadKey : undefined}
-        src={(streamBuffering && !eager) ? undefined : displaySrc}
+        src={(streamBuffering && !isLoaded) ? undefined : displaySrc}
         alt={alt}
-        className={cn('block w-full h-full object-cover', !isLoaded && 'opacity-0')}
+        className={cn('w-full h-full object-cover', !isLoaded && 'opacity-0')}
         onLoad={() => setIsLoaded(true)}
         onError={() => {
           if (!serverError) {
@@ -205,10 +208,9 @@ export function CoverImage({
             setIsLoaded(false)
           }
         }}
-        loading={eager ? 'eager' : 'lazy'}
+        loading="lazy"
         decoding="async"
-        fetchPriority={eager ? 'auto' : 'low'}
-        data-no-abort={eager ? 'true' : undefined}
+        fetchPriority="low"
       />
     </div>
   )

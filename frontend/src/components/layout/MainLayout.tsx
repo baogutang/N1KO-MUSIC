@@ -51,13 +51,18 @@ export default function MainLayout() {
       prefetchCommonAuthenticatedRoutes()
       prefetchFullscreenPlayer()
     }
-    if (typeof window === 'undefined') return
-    if ('requestIdleCallback' in window) {
-      const id = window.requestIdleCallback(warmup, { timeout: 2200 })
-      return () => window.cancelIdleCallback(id)
+    const requestIdle = (globalThis as {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+    }).requestIdleCallback
+    const cancelIdle = (globalThis as {
+      cancelIdleCallback?: (handle: number) => void
+    }).cancelIdleCallback
+    if (requestIdle && cancelIdle) {
+      const id = requestIdle(warmup, { timeout: 2200 })
+      return () => cancelIdle(id)
     }
-    const timer = window.setTimeout(warmup, 1200)
-    return () => window.clearTimeout(timer)
+    const timer = globalThis.setTimeout(warmup, 1200)
+    return () => globalThis.clearTimeout(timer)
   }, [])
 
   return (

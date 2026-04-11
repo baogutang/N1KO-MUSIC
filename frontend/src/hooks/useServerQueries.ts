@@ -101,10 +101,10 @@ export function useLyricsQuery(
   duration?: number,
   enabled = true
 ) {
-  const { o3icsRemoteTemplate: lyricsRemoteTemplate, apiAuthToken, apiPreferServer } = useSettingsStore()
+  const { lyricsRemoteTemplate, apiAuthToken, lyricsUseRemote, lyricsPreferRemote } = useSettingsStore()
   const { getLyrics: getCachedLyrics } = useLyricCacheStore()
 
-  const hasRemoteTemplate = !!lyricsRemoteTemplate
+  const hasRemoteTemplate = lyricsUseRemote && !!lyricsRemoteTemplate
 
   // 1. 优先检查本地缓存（注意：不能提前 return，需保持 hooks 调用顺序稳定）
   const cachedLyrics = getCachedLyrics(songId)
@@ -141,7 +141,7 @@ export function useLyricsQuery(
   let remoteUrl = ''
   try { if (hasRemoteTemplate) remoteUrl = buildRemoteUrl() } catch { /* invalid URL */ }
 
-  // 远程歌词（配置了模板就请求，不需要单独开关）
+  // 远程歌词（需要启用远程歌词源 + 配置模板）
   const remoteQuery = useQuery({
     queryKey: ['o3ics-remote', songId, remoteUrl],
     queryFn: async (): Promise<Lyrics | null> => {
@@ -194,9 +194,9 @@ export function useLyricsQuery(
     return serverQuery
   }
 
-  // apiPreferServer=true：服务器有内容就用服务器，否则用自定义
-  // apiPreferServer=false：自定义有内容就用自定义，否则用服务器
-  if (apiPreferServer) {
+  // lyricsPreferRemote=true：远程有内容就用远程，否则用服务器
+  // lyricsPreferRemote=false：服务器有内容就用服务器，否则用远程
+  if (!lyricsPreferRemote) {
     const serverHasData = serverQuery.data && serverQuery.data.lines.length > 0
     const data = serverHasData ? serverQuery.data : remoteQuery.data
     return { ...serverQuery, data }

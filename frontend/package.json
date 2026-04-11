@@ -1,12 +1,12 @@
 {
   "name": "n1ko-music",
-  "version": "1.1.0",
+  "version": "1.2.1",
   "description": "A modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "tauri": "tauri",

@@ -58,22 +58,7 @@ const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolea
 
   const progressRef = useRef<HTMLDivElement>(null)
   const safeDurationRef = useRef(safeDuration)
-  const dragMoveRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
-  const dragUpRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
   safeDurationRef.current = safeDuration
-
-  const clearDragListeners = useCallback(() => {
-    if (dragMoveRef.current) {
-      document.removeEventListener('mousemove', dragMoveRef.current)
-      dragMoveRef.current = null
-    }
-    if (dragUpRef.current) {
-      document.removeEventListener('mouseup', dragUpRef.current)
-      dragUpRef.current = null
-    }
-  }, [])
-
-  useEffect(() => clearDragListeners, [clearDragListeners])
 
   const handleMouseDown = useCallback((e: MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -90,14 +75,12 @@ const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolea
     const onUp = (me: globalThis.MouseEvent) => {
       // 松开时才实际 seek 音频
       seekHowl(getR(me.clientX) * safeDurationRef.current)
-      clearDragListeners()
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
     }
-    clearDragListeners()
-    dragMoveRef.current = onMove
-    dragUpRef.current = onUp
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [clearDragListeners])
+  }, [])
 
   return (
     <div className="w-full space-y-1.5">
@@ -153,7 +136,6 @@ export function FullscreenPlayer() {
   const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
 
   const [bgColors, setBgColors] = useState({ primary: 'hsl(0, 0%, 5%)', secondary: 'hsl(0, 0%, 10%)' })
-  const [displayBgColors, setDisplayBgColors] = useState({ primary: 'hsl(0, 0%, 5%)', secondary: 'hsl(0, 0%, 10%)' })
   const [coverLoaded, setCoverLoaded] = useState(false)
   const [showVolumePanel, setShowVolumePanel] = useState(false)
   const volumeBtnRef = useRef<HTMLButtonElement>(null)
@@ -163,63 +145,24 @@ export function FullscreenPlayer() {
   const coverShape = useSettingsStore(s => s.coverShape)
   const isCircle = coverShape === 'circle'
 
-  const { cached: coverCached, primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 512 })
+  const { primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 512 })
   const toggleStar = useToggleStar()
 
-  const debugCover = import.meta.env.DEV
-  const switchSeqRef = useRef(0)
-
-  // 已解析的实际封面 URL（用于背景模糊/取色）。不在切歌时立即清空，避免背景闪跳。
+  // 已解析的实际封面 URL（可能来自服务器或自定义 API）
   const [resolvedCoverUrl, setResolvedCoverUrl] = useState<string | undefined>(undefined)
 
-  // 切歌时先隐藏模糊背景，等待新封面加载完成再渐显
-  useEffect(() => {
-    if (debugCover) {
-      switchSeqRef.current += 1
-      console.debug('[CoverDebug] switch start', {
-        seq: switchSeqRef.current,
-        songId: currentSong?.id,
-        coverUrl,
-        coverFallback,
-        resolvedCoverUrl,
-        coverLoaded,
-      })
-    } else {
-      switchSeqRef.current += 1
-    }
-    setResolvedCoverUrl(undefined)
-    setCoverLoaded(false)
-  }, [currentSong?.id]) // coverCached / coverUrl / coverFallback 由外层计算，切歌时读取即可
+  // 封面加载完成后才提取颜色，避免与封面请求竞争 HTTP 连接。
+  // resolvedCoverUrl 由 CoverImage 的 onLoad 回调设置，此时封面已加载完成。
+  useEffect(() => { setCoverLoaded(false) }, [coverUrl])
 
   useEffect(() => {
-    // 只在封面真正加载完成后才取色，避免切歌瞬间用旧 URL 取色导致颜色突跳
-    if (!coverLoaded) return
-    const url = resolvedCoverUrl || coverCached || coverUrl || coverFallback
+    // 优先使用 resolvedCoverUrl（封面加载后触发），没有则用 coverUrl
+    const url = resolvedCoverUrl || coverUrl
     if (!url) return
     getCachedColors(url).then(colors => {
       setBgColors({ primary: colors.primary, secondary: colors.secondary })
     })
-    if (debugCover) {
-      console.debug('[CoverDebug] blur src choose', { songId: currentSong?.id, url })
-    }
-  }, [coverLoaded, resolvedCoverUrl, coverCached, coverUrl, coverFallback])
-
-  // bgColors 更新后延一帧再同步到 displayBgColors，让 CSS transition 有时间接手
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      setDisplayBgColors(bgColors)
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [bgColors])
-
-  useEffect(() => {
-    if (!debugCover) return
-    console.debug('[CoverDebug] coverLoaded change', {
-      seq: switchSeqRef.current,
-      songId: currentSong?.id,
-      coverLoaded,
-    })
-  }, [coverLoaded, debugCover]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resolvedCoverUrl, coverUrl])
 
   const { data: lyrics } = useLyricsQuery(
     currentSong?.id ?? '',
@@ -278,52 +221,21 @@ export function FullscreenPlayer() {
       className="fixed inset-0 z-50 flex flex-col"
       style={{
         background: isLight
-          ? `linear-gradient(160deg, ${displayBgColors.primary} 0%, ${displayBgColors.secondary} 50%, hsl(0, 0%, 95%) 100%)`
-          : `linear-gradient(160deg, ${displayBgColors.primary} 0%, ${displayBgColors.secondary} 50%, hsl(0, 0%, 3%) 100%)`,
-        transition: 'background 1.2s ease',
+          ? `linear-gradient(160deg, ${bgColors.primary} 0%, ${bgColors.secondary} 50%, hsl(0, 0%, 95%) 100%)`
+          : `linear-gradient(160deg, ${bgColors.primary} 0%, ${bgColors.secondary} 50%, hsl(0, 0%, 3%) 100%)`,
       }}
     >
       {/* 封面图模糊背景层 */}
-      {(resolvedCoverUrl || coverCached || coverUrl || coverFallback) && (
+      {(coverUrl || resolvedCoverUrl) && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {(() => {
-            const blurSrc = resolvedCoverUrl || coverCached || coverUrl || coverFallback
-            return (
-              <img
-                src={blurSrc}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover"
-                style={{
-                  filter: 'blur(80px) saturate(1.4)',
-                  opacity: coverLoaded ? (isLight ? 0.25 : 0.18) : 0,
-                  transform: 'scale(1.45)',
-                  transformOrigin: 'center center',
-                  transition: 'opacity 0.8s ease',
-                  willChange: 'opacity',
-                }}
-                onLoad={() => {
-                  if (debugCover) {
-                    console.debug('[CoverDebug] blur img onLoad', {
-                      seq: switchSeqRef.current,
-                      songId: currentSong?.id,
-                      src: blurSrc,
-                    })
-                  }
-                  setCoverLoaded(true)
-                }}
-                onError={() => {
-                  if (debugCover) {
-                    console.debug('[CoverDebug] blur img onError', {
-                      seq: switchSeqRef.current,
-                      songId: currentSong?.id,
-                      src: blurSrc,
-                    })
-                  }
-                  setCoverLoaded(false)
-                }}
-              />
-            )
-          })()}
+          <img
+            src={resolvedCoverUrl || coverUrl}
+            alt=""
+            className="absolute w-full h-full object-cover transition-opacity duration-1000"
+            style={{ filter: 'blur(80px) saturate(1.4)', opacity: coverLoaded ? (isLight ? 0.25 : 0.18) : 0, transform: 'scale(1.2)' }}
+            onLoad={() => setCoverLoaded(true)}
+            data-no-abort="true"
+          />
           <div className="absolute inset-0" style={{
             background: isLight
               ? 'linear-gradient(to bottom, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.5) 60%, rgba(255,255,255,0.75) 100%)'
@@ -393,37 +305,36 @@ export function FullscreenPlayer() {
       </div>
 
       {/* 主内容区 */}
-      <div className="relative z-10 flex min-h-0 flex-1 gap-12 px-8">
+      <div className="flex flex-1 min-h-0 px-8 gap-12 relative z-10">
         {/* 左侧：封面 + 操作按钮 */}
-        <div className="mx-auto flex min-h-0 max-w-lg flex-1 flex-col items-center justify-center gap-5">
-          {/* 专辑封面：不再使用 drop-shadow / box-shadow，避免实图加载后在封面下方出现色块或「脏边」 */}
+        <div className="flex flex-col items-center justify-center flex-1 max-w-lg mx-auto gap-5">
+          {/* 专辑封面 */}
           <div
             className={cn(
-              'w-full max-w-sm lg:max-w-[420px] transition-transform duration-500',
-              isPlaying ? 'scale-100' : 'scale-95',
+              'aspect-square overflow-hidden shadow-2xl w-full max-w-sm lg:max-w-[420px]',
+              isCircle
+                ? 'rounded-full'
+                : cn(
+                    'rounded-2xl transition-[transform,box-shadow] duration-500',
+                    isPlaying ? 'scale-100 shadow-[0_20px_60px_rgba(0,0,0,0.7)]' : 'scale-95'
+                  )
             )}
+            style={isCircle ? {
+              animation: 'spin-vinyl 20s linear infinite',
+              animationPlayState: isPlaying ? 'running' : 'paused',
+              boxShadow: isPlaying ? '0 20px 60px rgba(0,0,0,0.7)' : '0 6px 24px rgba(0,0,0,0.4)',
+            } : undefined}
           >
-            <div
-              className={cn(
-                'aspect-square w-full overflow-hidden',
-                isCircle ? 'rounded-full' : 'rounded-2xl [transform:translateZ(0)]',
-              )}
-              style={isCircle ? {
-                animation: 'spin-vinyl 20s linear infinite',
-                animationPlayState: isPlaying ? 'running' : 'paused',
-              } : undefined}
-            >
-              <CoverImage
-                key={currentSong.id}
-                primary={coverCached ?? coverUrl}
-                fallback={coverFallback}
-                alt={currentSong.album}
-                className="w-full h-full"
-                eager
-                customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
-                onImageResolved={setResolvedCoverUrl}
-              />
-            </div>
+            <CoverImage
+              key={currentSong.id}
+              primary={coverUrl}
+              fallback={coverFallback}
+              alt={currentSong.album}
+              className="w-full h-full"
+              eager
+              customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
+              onImageResolved={setResolvedCoverUrl}
+            />
           </div>
 
           {/* 操作按钮行 */}
@@ -541,19 +452,17 @@ export function FullscreenPlayer() {
 
         </div>
 
-        {/* 右侧：歌词（显式透明底，避免 WebKit/Tauri 下 overflow 滚动层自带浅色底形成「右下色块」） */}
-        <div className="hidden lg:flex min-h-0 flex-1 max-w-md bg-transparent">
-          {lyrics && lyrics.lines.length > 0 ? (
+        {/* 右侧：歌词 */}
+        {lyrics && lyrics.lines.length > 0 && (
+          <div className="hidden lg:flex flex-1 max-w-md">
             <LyricDisplay
               lines={lyrics.lines}
               variant="fullscreen"
               baseColor="white"
               className="flex-1"
             />
-          ) : (
-            <div className="min-h-0 flex-1 bg-transparent" />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* 底部播放控制栏 */}

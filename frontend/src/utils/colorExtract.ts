@@ -12,17 +12,46 @@ export interface ExtractedColors {
 }
 
 /**
+ * 当前正在加载的颜色提取图片 — 用于取消上一次未完成的提取，
+ * 避免 new Image() 持有 HTTP 连接导致连接池耗尽。
+ */
+let currentExtractImg: HTMLImageElement | null = null
+
+/**
+ * 取消当前进行中的颜色提取请求，释放其占用的 HTTP 连接。
+ * 在开始新提取前自动调用，也可由外部显式调用。
+ */
+export function cancelPendingColorExtraction() {
+  if (currentExtractImg) {
+    currentExtractImg.onload = null
+    currentExtractImg.onerror = null
+    currentExtractImg.src = ''  // 立即释放 HTTP 连接
+    currentExtractImg = null
+  }
+}
+
+/**
  * 从图片 URL 提取主色调
  * 使用 Canvas API 分析像素
+ *
+ * 注意：每次调用会自动取消上一次未完成的提取，
+ * 确保同一时刻最多只有一个颜色提取 Image() 占用 HTTP 连接。
  */
 export async function extractColorsFromUrl(
   imageUrl: string
 ): Promise<ExtractedColors> {
+  // 取消上一次未完成的提取，释放其 HTTP 连接
+  cancelPendingColorExtraction()
+
   return new Promise((resolve) => {
     const img = new Image()
+    currentExtractImg = img
     img.crossOrigin = 'anonymous'
 
     img.onload = () => {
+      // 如果已被新的提取取代，直接返回默认色
+      if (currentExtractImg !== img) { resolve(getDefaultColors()); return }
+      currentExtractImg = null
       try {
         const canvas = document.createElement('canvas')
         const size = 50 // 降采样到 50x50 提高性能
@@ -44,8 +73,15 @@ export async function extractColorsFromUrl(
       }
     }
 
-    img.onerror = () => resolve(getDefaultColors())
-    img.src = imageUrl
+    img.onerror = () => {
+      if (currentExtractImg === img) currentExtractImg = null
+      resolve(getDefaultColors())
+    }
+    // 给颜色提取请求附加独立参数，避免与常规 <img> 标签共享 HTTP 缓存。
+    // crossOrigin='anonymous' 发起 CORS 请求，若服务器不支持 CORS，浏览器可能
+    // 将失败响应缓存，污染同 URL 的非 CORS <img> 请求，导致封面图加载失败。
+    const separator = imageUrl.includes('?') ? '&' : '?'
+    img.src = imageUrl + separator + '_ce=1'
   })
 }
 

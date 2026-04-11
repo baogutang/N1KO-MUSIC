@@ -104,7 +104,7 @@ export function useCoverUrl(
     }
 
     return { cached, primary, fallback }
-  }, [target?.coverArt, target?.artist, target?.album, target?.title, target?.id, target?.path, coverSource, coverRemoteTemplate, size, getCachedCover])
+  }, [target, coverSource, coverRemoteTemplate, size, getCachedCover])
 }
 
 /** 单值版本：返回最终要使用的 URL（cached > primary > fallback）*/

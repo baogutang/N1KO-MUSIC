@@ -1,7 +1,18 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'msp-dev-secret-change-in-production'
+const rawJwtSecret = process.env.JWT_SECRET
+const isProduction = process.env.NODE_ENV === 'production'
+
+if (isProduction && !rawJwtSecret) {
+  throw new Error('JWT_SECRET must be set in production environment')
+}
+
+if (!rawJwtSecret) {
+  console.warn('[auth] JWT_SECRET is not set, using development fallback secret')
+}
+
+const JWT_SECRET = rawJwtSecret ?? 'msp-dev-secret-change-in-production'
 
 export interface AuthPayload {
   userId: string

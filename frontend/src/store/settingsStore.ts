@@ -31,35 +31,55 @@ const QUALITY_MAX_BITRATE: Record<AudioQuality, number> = {
 
 export { QUALITY_LABELS, QUALITY_MAX_BITRATE }
 
-/** 持久化 key */
-const STORAGE_KEY = 'msp-settings-store'
+interface SettingsState {
+  // --- 自定义 API 全局设置 ---
+  /** 优先使用音乐服务接口，只有服务无数据时才从自定义 API 获取 */
+  apiPreferServer: boolean
+  /** 验证信息，传入 Authorization 请求头 */
+  apiAuthToken: string
 
-// ─── 初始状态 ─────────────────────────────────────────────────────────────
+  // --- 封面图设置 ---
+  /** 自定义封面图 API 模板，如 https://api.example.com/cover?artist={artist}&album={album} */
+  coverRemoteTemplate: string
+  /** 封面来源优先级 */
+  coverSource: CoverSource
+  /** 是否通过封面接口加载专辑封面 */
+  coverLoadAlbum: boolean
+  /** 是否通过封面接口加载歌手图片 */
+  coverLoadArtist: boolean
+  /** 播放详情页封面样式：方形或圆形旋转 */
+  coverShape: CoverShape
 
-const initialState = {
-  apiPreferServer: true,
-  apiAuthToken: '',
-  coverRemoteTemplate: '',
-  coverSource: 'server_first' as CoverSource,
-  coverLoadAlbum: true,
-  coverLoadArtist: true,
-  coverShape: 'square' as CoverShape,
-  o3icsRemoteTemplate: '',
-  o3icsConfirmTemplate: '',
-  o3icsUseRemote: false,
-  o3icsPreferRemote: false,
-  o3icsHighlightColor: '#22c55e',
-  o3icsFontSize: 20,
-  songDetailTemplate: '',
-  songDetailPathReplace: '',
-  translateTargetLang: '英文',
-  translateType: '无',
-  audioQuality: 'lossless' as AudioQuality,
-}
+  // --- 歌词设置 ---
+  /** 自定义歌词 API 模板，如 https://api.example.com/lyrics?artist={artist}&title={title} */
+  lyricsRemoteTemplate: string
+  /** 歌词确认接口 URL 模板 */
+  lyricsConfirmTemplate: string
+  /** 是否启用远程歌词（覆盖/降级 Navidrome 内置歌词）*/
+  lyricsUseRemote: boolean
+  /** 远程歌词优先还是服务器歌词优先 */
+  lyricsPreferRemote: boolean
+  /** 歌词高亮颜色（十六进制色影代码，默认绿色）*/
+  lyricsHighlightColor: string
+  /** 歌词字号大小（范围 14-32，默认 24）*/
+  lyricsFontSize: number
 
-export type SettingsState = typeof initialState
+  // --- 歌曲详情接口 ---
+  /** 歌曲详情跳转 URL 模板 */
+  songDetailTemplate: string
+  /** 路径替换，格式为 "pattern,replacement" */
+  songDetailPathReplace: string
 
-export type SettingsStore = SettingsState & {
+  // --- 翻译接口 ---
+  /** 翻译目标语言 */
+  translateTargetLang: string
+  /** 翻译类型 */
+  translateType: string
+
+  // --- 音质设置 ---
+  audioQuality: AudioQuality
+
+  // --- Actions ---
   setApiPreferServer: (v: boolean) => void
   setApiAuthToken: (t: string) => void
   setCoverRemoteTemplate: (t: string) => void
@@ -80,12 +100,27 @@ export type SettingsStore = SettingsState & {
   setAudioQuality: (q: AudioQuality) => void
 }
 
-// ─── 持久化配置 ────────────────────────────────────────────────────────────
-
-export const useSettingsStore = create<SettingsStore>()(
+export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      ...initialState,
+      apiPreferServer: true,
+      apiAuthToken: '',
+      coverRemoteTemplate: '',
+      coverSource: 'server_first',
+      coverLoadAlbum: true,
+      coverLoadArtist: true,
+      coverShape: 'square',
+      lyricsRemoteTemplate: '',
+      lyricsConfirmTemplate: '',
+      lyricsUseRemote: false,
+      lyricsPreferRemote: false,
+      lyricsHighlightColor: '#22c55e',
+      lyricsFontSize: 20,
+      songDetailTemplate: '',
+      songDetailPathReplace: '',
+      translateTargetLang: '英文',
+      translateType: '无',
+      audioQuality: 'low',
 
       setApiPreferServer: (v) => set({ apiPreferServer: v }),
       setApiAuthToken: (t) => set({ apiAuthToken: t }),
@@ -94,12 +129,12 @@ export const useSettingsStore = create<SettingsStore>()(
       setCoverLoadAlbum: (v) => set({ coverLoadAlbum: v }),
       setCoverLoadArtist: (v) => set({ coverLoadArtist: v }),
       setCoverShape: (s) => set({ coverShape: s }),
-      setLyricsRemoteTemplate: (t) => set({ o3icsRemoteTemplate: t }),
-      setLyricsConfirmTemplate: (t) => set({ o3icsConfirmTemplate: t }),
-      setLyricsUseRemote: (v) => set({ o3icsUseRemote: v }),
-      setLyricsPreferRemote: (v) => set({ o3icsPreferRemote: v }),
-      setLyricsHighlightColor: (c) => set({ o3icsHighlightColor: c }),
-      setLyricsFontSize: (size) => set({ o3icsFontSize: Math.max(14, Math.min(36, size)) }),
+      setLyricsRemoteTemplate: (t) => set({ lyricsRemoteTemplate: t }),
+      setLyricsConfirmTemplate: (t) => set({ lyricsConfirmTemplate: t }),
+      setLyricsUseRemote: (v) => set({ lyricsUseRemote: v }),
+      setLyricsPreferRemote: (v) => set({ lyricsPreferRemote: v }),
+      setLyricsHighlightColor: (c) => set({ lyricsHighlightColor: c }),
+      setLyricsFontSize: (size) => set({ lyricsFontSize: Math.max(14, Math.min(36, size)) }),
       setSongDetailTemplate: (t) => set({ songDetailTemplate: t }),
       setSongDetailPathReplace: (t) => set({ songDetailPathReplace: t }),
       setTranslateTargetLang: (v) => set({ translateTargetLang: v }),
@@ -107,40 +142,7 @@ export const useSettingsStore = create<SettingsStore>()(
       setAudioQuality: (q) => set({ audioQuality: q }),
     }),
     {
-      name: STORAGE_KEY,
-      version: 1,
-      // 旧格式：zustand persist v1/v2 存为 { state: {...}, version: 0 }
-      // 新格式：partialize 直接持久化数据字段，不再嵌套
-      migrate: (persistedState: unknown, fromVersion: number): typeof initialState => {
-        if (fromVersion === 0 && persistedState && typeof persistedState === 'object' && 'state' in persistedState) {
-          const inner = (persistedState as { state: Partial<typeof initialState> }).state
-          // 只取 initialState 中声明的字段，其余 zustand 内部属性全部丢弃
-          const dataKeys = Object.keys(initialState) as Array<keyof typeof initialState>
-          const merged: Partial<typeof initialState> = {}
-          for (const key of dataKeys) {
-            if (key in inner) {
-              ;(merged as Record<string, unknown>)[key] = inner[key]
-            }
-          }
-          return { ...initialState, ...merged }
-        }
-        return initialState
-      },
-      // 只持久化数据字段，不持久化内部属性
-      partialize: (state) => {
-        const { apiPreferServer, apiAuthToken, coverRemoteTemplate, coverSource,
-          coverLoadAlbum, coverLoadArtist, coverShape, o3icsRemoteTemplate,
-          o3icsConfirmTemplate, o3icsUseRemote, o3icsPreferRemote, o3icsHighlightColor,
-          o3icsFontSize, songDetailTemplate, songDetailPathReplace,
-          translateTargetLang, translateType, audioQuality } = state
-        return {
-          apiPreferServer, apiAuthToken, coverRemoteTemplate, coverSource,
-          coverLoadAlbum, coverLoadArtist, coverShape, o3icsRemoteTemplate,
-          o3icsConfirmTemplate, o3icsUseRemote, o3icsPreferRemote, o3icsHighlightColor,
-          o3icsFontSize, songDetailTemplate, songDetailPathReplace,
-          translateTargetLang, translateType, audioQuality,
-        }
-      },
+      name: 'msp-settings-store',
     }
   )
 )

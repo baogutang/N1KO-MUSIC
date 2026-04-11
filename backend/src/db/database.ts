@@ -10,10 +10,17 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true })
 }
 
-export const db = new Database(DB_PATH)
+const db = new Database(DB_PATH)
 
-// Initialize schema
-const schemaPath = path.join(__dirname, 'schema.sql')
+// Initialize schema (support both ts-node/src and built dist runtime)
+const schemaCandidates = [
+  path.join(__dirname, 'schema.sql'),
+  path.join(process.cwd(), 'src', 'db', 'schema.sql'),
+]
+const schemaPath = schemaCandidates.find(p => fs.existsSync(p))
+if (!schemaPath) {
+  throw new Error(`Schema file not found. Tried: ${schemaCandidates.join(', ')}`)
+}
 const schema = fs.readFileSync(schemaPath, 'utf-8')
 db.exec(schema)
 
