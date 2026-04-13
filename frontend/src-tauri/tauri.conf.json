@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "N1KO MUSIC",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "identifier": "cn.baogutang.musicstreampro",
   "build": {
     "frontendDist": "../dist",

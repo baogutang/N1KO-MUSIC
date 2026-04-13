@@ -225,6 +225,7 @@ export function useAudioEngine() {
 
     // 重置进度，用服务器返回的 duration 作为初始值（避免进度条为 0）
     usePlayerStore.getState().setCurrentTime(0)
+    usePlayerStore.getState().setBuffered(0)
     const knownDurationEarly = currentSong.duration ?? 0
     usePlayerStore.getState().setDuration(knownDurationEarly > 0 ? knownDurationEarly : 0)
 
@@ -307,9 +308,11 @@ export function useAudioEngine() {
       const onBufferProgress = () => {
         if (audio.buffered.length > 0) {
           const bufferedEnd = audio.buffered.end(audio.buffered.length - 1)
-          const dur = audio.duration
-          if (isFinite(dur) && dur > 0) {
-            usePlayerStore.getState().setBuffered(bufferedEnd / dur)
+          // 流媒体场景 audio.duration 可能长期为 Infinity，此时回退到 store/song 元数据时长计算缓冲比例
+          const state = usePlayerStore.getState()
+          const dur = getFiniteDuration(audio) ?? state.duration ?? capturedSong.duration ?? 0
+          if (dur > 0) {
+            usePlayerStore.getState().setBuffered(Math.max(0, Math.min(1, bufferedEnd / dur)))
           }
         }
       }
