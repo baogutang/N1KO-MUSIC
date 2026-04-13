@@ -264,6 +264,8 @@ export function useAudioEngine() {
       /** 无损最多 2 次恢复（无 format→FLAC→MP3）；有损仅 1 次同 URL 重试 */
       let recoverAttempts = 0
       const maxRecoverAttempts = maxBitrate === 0 ? 2 : 1
+      /** 错误重载后的恢复点（秒）*/
+      let pendingRecoverTime: number | null = null
 
       // ─── 事件处理 ──────────────────────────────────────────────────
 
@@ -324,6 +326,17 @@ export function useAudioEngine() {
        */
       const tryPlay = () => {
         updateDuration()
+        if (pendingRecoverTime !== null && pendingRecoverTime > 1) {
+          // 重载后的恢复点稍微回退，减少边界位置 seek 失败概率
+          const resumeAt = Math.max(0, pendingRecoverTime - 0.25)
+          pendingRecoverTime = null
+          try {
+            audio.currentTime = resumeAt
+            usePlayerStore.getState().setCurrentTime(resumeAt)
+          } catch {
+            // 某些流在过早 seek 时会抛错，忽略并让浏览器默认位置播放
+          }
+        }
         // 音频已就绪，恢复图片加载
         usePlayerStore.getState().setStreamBuffering(false)
         if (usePlayerStore.getState().isPlaying && audio.paused) {
@@ -361,8 +374,8 @@ export function useAudioEngine() {
       let stallWatchInterval: ReturnType<typeof setInterval> | null = null
       let stallPrevT = -1
       let stallSinceMs: number | null = null
-      const STALL_ADVANCE_MS = 2800
-      const NEAR_END_RATIO = 0.82
+      const STALL_ADVANCE_MS = 5000
+      const NEAR_END_RATIO = 0.95
 
       const clearStallWatch = () => {
         if (stallWatchInterval !== null) {
@@ -413,7 +426,7 @@ export function useAudioEngine() {
         const audioDur = getFiniteDuration(audio) ?? st.duration ?? 0
         const refDur = Math.max(songDur, audioDur, t + 0.01)
         const nearEnd =
-          t >= refDur - 12 || (refDur > 45 && t / refDur >= NEAR_END_RATIO)
+          t >= refDur - 8 || (refDur > 45 && t / refDur >= NEAR_END_RATIO)
         if (!nearEnd) {
           stallSinceMs = null
           return
@@ -438,6 +451,12 @@ export function useAudioEngine() {
 
         // 网络错误(2) / 音频源不可用(4)：按策略恢复（见文件头 206 vs code 4 说明）
         if (recoverAttempts < maxRecoverAttempts && (code === 2 || code === 4)) {
+          const recoverFrom = Math.max(
+            usePlayerStore.getState().currentTime || 0,
+            isFinite(audio.currentTime) ? audio.currentTime : 0
+          )
+          pendingRecoverTime = recoverFrom > 1 ? recoverFrom : null
+
           const activeUrl = audio.currentSrc || streamUrl
           let retryUrl = activeUrl
           try {
