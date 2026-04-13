@@ -9,7 +9,7 @@
  * - hover 状态用 CSS group-hover 实现，零 re-render 开销
  */
 
-import { useCallback, memo, useRef } from 'react'
+import { useCallback, useEffect, memo, useRef } from 'react'
 import type { MouseEvent } from 'react'
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
@@ -42,7 +42,29 @@ const ProgressBar = memo(function ProgressBar() {
 
   const progressRef = useRef<HTMLDivElement>(null)
   const safeDurationRef = useRef(safeDuration)
+  const dragMoveRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
+  const dragUpRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
   safeDurationRef.current = safeDuration
+
+  const clearDragListeners = useCallback(() => {
+    if (dragMoveRef.current) {
+      document.removeEventListener('mousemove', dragMoveRef.current)
+      dragMoveRef.current = null
+    }
+    if (dragUpRef.current) {
+      document.removeEventListener('mouseup', dragUpRef.current)
+      dragUpRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const onBlur = () => clearDragListeners()
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('blur', onBlur)
+      clearDragListeners()
+    }
+  }, [clearDragListeners])
 
   const handleMouseDown = useCallback((e: MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -56,12 +78,14 @@ const ProgressBar = memo(function ProgressBar() {
     }
     const onUp = (me: globalThis.MouseEvent) => {
       seekHowl(getR(me.clientX) * safeDurationRef.current)
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
+      clearDragListeners()
     }
+    clearDragListeners()
+    dragMoveRef.current = onMove
+    dragUpRef.current = onUp
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [])
+  }, [clearDragListeners])
 
   return (
     <div className="px-4 pt-0.5">

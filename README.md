@@ -11,7 +11,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=for-the-badge&color=gold)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/baogutang/N1KO-MUSIC?style=for-the-badge&color=blue)](https://github.com/baogutang/N1KO-MUSIC/network)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.1-green?style=for-the-badge)](https://github.com/baogutang/N1KO-MUSIC/releases)
+[![Version](https://img.shields.io/badge/version-1.2.2-green?style=for-the-badge)](https://github.com/baogutang/N1KO-MUSIC/releases)
 
 **[English](README.md)** · **[中文](README_CN.md)**
 
