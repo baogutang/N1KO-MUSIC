@@ -375,7 +375,7 @@ export function useAudioEngine() {
       let stallPrevT = -1
       let stallSinceMs: number | null = null
       const STALL_ADVANCE_MS = 5000
-      const NEAR_END_RATIO = 0.95
+      const NEAR_END_RATIO = 0.97
 
       const clearStallWatch = () => {
         if (stallWatchInterval !== null) {
@@ -424,9 +424,15 @@ export function useAudioEngine() {
 
         const songDur = capturedSong.duration || 0
         const audioDur = getFiniteDuration(audio) ?? st.duration ?? 0
-        const refDur = Math.max(songDur, audioDur, t + 0.01)
+        const refDur = Math.max(songDur, audioDur)
+        // 仅在“有可靠时长”时才允许自动推进，避免 duration 缺失导致误判从头播
+        if (!isFinite(refDur) || refDur < 20) {
+          stallSinceMs = null
+          return
+        }
+        const remain = refDur - t
         const nearEnd =
-          t >= refDur - 8 || (refDur > 45 && t / refDur >= NEAR_END_RATIO)
+          (remain <= 6 && t > 10) || (refDur > 60 && t / refDur >= NEAR_END_RATIO)
         if (!nearEnd) {
           stallSinceMs = null
           return
@@ -622,7 +628,7 @@ export function useAudioEngine() {
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
     }
 
-  }, [currentSong?.id, isConnected, effectiveQuality, playVersion]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentSong?.id, playVersion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- 播放/暂停控制 ---
   useEffect(() => {
