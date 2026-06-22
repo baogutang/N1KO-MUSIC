@@ -189,6 +189,17 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
+  async getSong(songId: string): Promise<Song | null> {
+    try {
+      const resp = await this.client.get(`/Items/${songId}`, {
+        params: { UserId: this.userId, Fields: 'MediaStreams,RunTimeTicks,UserData,Genres,ImageTags' },
+      })
+      return this.mapSong(resp.data as Record<string, unknown>)
+    } catch {
+      return null
+    }
+  }
+
   async searchAll(query: string): Promise<SearchResult> {
     const [songs, albums, artists] = await Promise.all([
       this.client.get('/Items', {

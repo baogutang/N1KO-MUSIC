@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Music Stream Pro',
-        short_name: 'MusicPro',
+        name: 'N1KO MUSIC',
+        short_name: 'N1KO',
         description: 'Modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby',
         theme_color: '#0a0a0a',
         background_color: '#0a0a0a',

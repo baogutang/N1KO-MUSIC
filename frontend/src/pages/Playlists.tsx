@@ -5,7 +5,7 @@ import { usePlaylists } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/ui/use-toast'
-import { usePlayerStore } from '@/store/playerStore'
+import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,9 +20,6 @@ export default function Playlists() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: playlists, isLoading } = usePlaylists()
-  const playQueue     = usePlayerStore(s => s.playQueue)
-  const toggleShuffle = usePlayerStore(s => s.toggleShuffle)
-  const shuffle       = usePlayerStore(s => s.shuffle)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -53,11 +50,9 @@ export default function Playlists() {
         return
       }
       if (randomPlay) {
-        if (!shuffle) toggleShuffle()
-        playQueue(detail.songs, 0)
+        playAllShuffled(detail.songs, 0)
       } else {
-        if (shuffle) toggleShuffle()
-        playQueue(detail.songs, 0)
+        playAllInOrder(detail.songs, 0)
       }
     } catch {
       toast({ title: '加载歌单失败', variant: 'destructive' })

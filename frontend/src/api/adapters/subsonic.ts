@@ -176,13 +176,35 @@ export class SubsonicAdapter implements MusicServerAdapter {
   }
 
   async getSongs(params: ListParams = {}): Promise<PageResult<Song>> {
+    const size = params.size ?? 50
+    const offset = params.offset ?? 0
     const data = await this.request<{
-      albumList2?: { album?: unknown[] }
-      songsByGenre?: { song?: unknown[] }
-      randomSongs?: { song?: unknown[] }
-    }>('/getRandomSongs', { size: params.size ?? 50 })
-    const songs = ((data.randomSongs as Record<string, unknown[]> | undefined)?.song ?? []) as Record<string, unknown>[]
-    return { items: songs.map(this.mapSong.bind(this)), offset: 0, size: songs.length }
+      searchResult3?: { song?: unknown[]; totalMatched?: number }
+    }>('/search3', {
+      query: '*',
+      songCount: size,
+      albumCount: 0,
+      artistCount: 0,
+      songOffset: offset,
+    })
+    const result = data.searchResult3 ?? {}
+    const songs = ((result.song ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
+    return {
+      items: songs,
+      total: result.totalMatched != null ? Number(result.totalMatched) : undefined,
+      offset,
+      size: songs.length,
+    }
+  }
+
+  async getSong(songId: string): Promise<Song | null> {
+    try {
+      const data = await this.request<{ song?: Record<string, unknown> }>('/getSong', { id: songId })
+      if (!data.song) return null
+      return this.mapSong(data.song)
+    } catch {
+      return null
+    }
   }
 
   async searchAll(query: string): Promise<SearchResult> {

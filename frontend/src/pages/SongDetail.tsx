@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ChevronLeft,
   Music2, AlignLeft, FileAudio,
@@ -21,6 +21,7 @@ import { toast } from '@/components/ui/use-toast'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/o3icCacheStore'
+import { useSongDetail } from '@/hooks/useServerQueries'
 import type { Song } from '@/api/types'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
@@ -421,15 +422,26 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
 // ─── 主页面 ───────────────────────────────────────────────────────────────────
 
 export default function SongDetailPage() {
+  const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const navigate = useNavigate()
-  const song = location.state?.song as Song | undefined
+  const stateSong = location.state?.song as Song | undefined
+  const { data: fetchedSong, isLoading, isError } = useSongDetail(id ?? '', stateSong)
+  const song = fetchedSong ?? stateSong
   const setFullscreen = usePlayerStore(s => s.setFullscreen)
   const { saveLyrics } = useLyricCacheStore()
 
   const [o3icsSearchOpen, setO3icsSearchOpen] = useState(false)
 
-  if (!song) {
+  if (isLoading && !song) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!song || isError) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-3 text-muted-foreground">
         <Music2 className="w-12 h-12 opacity-30" />

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Heart, Play, Music2, Disc3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStarred } from '@/hooks/useServerQueries'
-import { usePlayerStore } from '@/store/playerStore'
+import { playAllInOrder } from '@/utils/playActions'
 import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
 
@@ -13,14 +13,12 @@ export default function Favorites() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<FavTab>('songs')
   const { data: starred, isLoading } = useStarred()
-  const playQueue = usePlayerStore(s => s.playQueue)
-
   const songs = starred?.songs ?? []
   const albums = starred?.albums ?? []
 
   function handlePlayAll() {
     if (!songs.length) return
-    playQueue(songs, 0)
+    playAllInOrder(songs, 0)
   }
 
   if (isLoading) {

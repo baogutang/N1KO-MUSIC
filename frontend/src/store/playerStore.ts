@@ -9,6 +9,8 @@ import type { Song } from '@/api/types'
 
 export type RepeatMode = 'none' | 'one' | 'all'
 
+const MAX_HISTORY = 50
+
 /** 切歌防抖：记录上次切歌时间，50ms 内重复调用忽略 */
 let lastSwitchTime = 0
 function canSwitch(): boolean {
@@ -18,46 +20,35 @@ function canSwitch(): boolean {
   return true
 }
 
+function appendHistory(history: Song[], song: Song | null): Song[] {
+  if (!song) return history
+  const filtered = history.filter(s => s.id !== song.id)
+  return [song, ...filtered].slice(0, MAX_HISTORY)
+}
+
 interface PlayerState {
-  // --- 当前播放 ---
   currentSong: Song | null
   isPlaying: boolean
   currentTime: number
   duration: number
-  /** 缓冲进度（0-1）*/
   buffered: number
-  /** 每次调用 playSong/playQueue 时自增，用于强制触发音频引擎重新加载 */
   playVersion: number
 
-  // --- 队列 ---
   queue: Song[]
-  /** 当前在队列中的索引 */
   queueIndex: number
-  /** 播放历史（用于上一首）*/
+  /** 跨列表播放历史（上一首回退）*/
   history: Song[]
 
-  // --- 播放设置 ---
   volume: number
-  /** 是否静音 */
   muted: boolean
-  /** 循环模式 */
   repeatMode: RepeatMode
-  /** 是否随机播放 */
   shuffle: boolean
-  /** 随机播放顺序缓存 */
   shuffledIndexes: number[]
 
-  // --- UI 状态 ---
-  /** 是否展开全屏播放器 */
   isFullscreen: boolean
-  /** 是否显示播放队列抽屉 */
   isQueueOpen: boolean
-  /** 是否显示歌词面板 */
-  isLyricsOpen: boolean
-  /** 音频流是否正在缓冲中 — 为 true 时图片组件暂停新图加载，释放连接池给 audio stream */
   streamBuffering: boolean
 
-  // --- Actions ---
   playSong: (song: Song, queue?: Song[]) => void
   playQueue: (songs: Song[], startIndex?: number) => void
   togglePlay: () => void
@@ -75,12 +66,12 @@ interface PlayerState {
   toggleShuffle: () => void
   addToQueue: (songs: Song[], position?: 'next' | 'last') => void
   removeFromQueue: (index: number) => void
+  reorderQueue: (fromIndex: number, toIndex: number) => void
   clearQueue: () => void
   jumpToIndex: (index: number) => void
   setFullscreen: (open: boolean) => void
   toggleFullscreen: () => void
   setQueueOpen: (open: boolean) => void
-  setLyricsOpen: (open: boolean) => void
   setStreamBuffering: (buffering: boolean) => void
   updateCurrentSong: (song: Partial<Song>) => void
 }
@@ -88,7 +79,6 @@ interface PlayerState {
 export const usePlayerStore = create<PlayerState>()(
   persist(
     (set, get) => ({
-      // 初始状态
       currentSong: null,
       isPlaying: false,
       currentTime: 0,
@@ -105,14 +95,15 @@ export const usePlayerStore = create<PlayerState>()(
       shuffledIndexes: [],
       isFullscreen: false,
       isQueueOpen: false,
-      isLyricsOpen: false,
       streamBuffering: false,
 
       playSong: (song, queue) => {
+        const state = get()
         const newQueue = queue ?? [song]
         const index = newQueue.findIndex(s => s.id === song.id)
-        const shuffledIndexes = generateShuffledIndexes(newQueue.length, index)
-        set(state => ({
+        const shuffledIndexes = generateShuffledIndexes(newQueue.length, index >= 0 ? index : 0)
+        set({
+          history: appendHistory(state.history, state.currentSong),
           currentSong: song,
           isPlaying: true,
           currentTime: 0,
@@ -120,14 +111,16 @@ export const usePlayerStore = create<PlayerState>()(
           queueIndex: index >= 0 ? index : 0,
           shuffledIndexes,
           playVersion: state.playVersion + 1,
-        }))
+        })
       },
 
       playQueue: (songs, startIndex = 0) => {
         if (!songs.length) return
+        const state = get()
         const song = songs[startIndex]
         const shuffledIndexes = generateShuffledIndexes(songs.length, startIndex)
-        set(state => ({
+        set({
+          history: appendHistory(state.history, state.currentSong),
           queue: songs,
           queueIndex: startIndex,
           currentSong: song,
@@ -135,7 +128,7 @@ export const usePlayerStore = create<PlayerState>()(
           currentTime: 0,
           shuffledIndexes,
           playVersion: state.playVersion + 1,
-        }))
+        })
       },
 
       togglePlay: () => {
@@ -147,7 +140,8 @@ export const usePlayerStore = create<PlayerState>()(
 
       next: () => {
         if (!canSwitch()) return
-        const { queue, queueIndex, repeatMode, shuffle, shuffledIndexes } = get()
+        const state = get()
+        const { queue, queueIndex, repeatMode, shuffle, shuffledIndexes, currentSong } = state
         if (!queue.length) return
 
         let nextIndex: number
@@ -163,27 +157,43 @@ export const usePlayerStore = create<PlayerState>()(
         } else if (repeatMode === 'all') {
           nextIndex = 0
         } else {
-          // 播放完毕
           set({ isPlaying: false })
           return
         }
 
-        set(state => ({
+        set({
+          history: appendHistory(state.history, currentSong),
           currentSong: queue[nextIndex],
           queueIndex: nextIndex,
           isPlaying: true,
           currentTime: 0,
           playVersion: state.playVersion + 1,
-        }))
+        })
       },
 
       prev: () => {
         if (!canSwitch()) return
-        const { queue, queueIndex, shuffle, shuffledIndexes } = get()
+        const state = get()
+        const { queue, queueIndex, shuffle, shuffledIndexes, history, currentSong } = state
         if (!queue.length) return
 
-        // "播放超过 3 秒则重播" 的逻辑已移至 UI 层（handlePrev），
-        // 因为 store 无法直接 seek 音频元素，这里只负责切到上一首
+        if (!shuffle && queueIndex === 0 && history.length > 0) {
+          const prevSong = history[0]
+          const newHistory = history.slice(1)
+          const newQueue = [prevSong, ...queue.filter(s => s.id !== prevSong.id)]
+          const newIndex = 0
+          set({
+            history: newHistory,
+            queue: newQueue,
+            queueIndex: newIndex,
+            currentSong: prevSong,
+            isPlaying: true,
+            currentTime: 0,
+            shuffledIndexes: generateShuffledIndexes(newQueue.length, newIndex),
+            playVersion: state.playVersion + 1,
+          })
+          return
+        }
 
         let prevIndex: number
 
@@ -196,13 +206,14 @@ export const usePlayerStore = create<PlayerState>()(
           prevIndex = Math.max(0, queueIndex - 1)
         }
 
-        set(state => ({
+        set({
+          history: appendHistory(state.history, currentSong),
           currentSong: queue[prevIndex],
           queueIndex: prevIndex,
           isPlaying: true,
           currentTime: 0,
           playVersion: state.playVersion + 1,
-        }))
+        })
       },
 
       seekTo: (time) => {
@@ -232,47 +243,133 @@ export const usePlayerStore = create<PlayerState>()(
 
       addToQueue: (songs, position = 'last') => {
         set(state => {
+          if (!songs.length) return state
           if (position === 'next') {
+            const insertAt = state.queueIndex >= 0 ? state.queueIndex + 1 : state.queue.length
             const newQueue = [
-              ...state.queue.slice(0, state.queueIndex + 1),
+              ...state.queue.slice(0, insertAt),
               ...songs,
-              ...state.queue.slice(state.queueIndex + 1),
+              ...state.queue.slice(insertAt),
             ]
-            return { queue: newQueue }
+            const shuffledIndexes = state.shuffle
+              ? generateShuffledIndexes(newQueue.length, state.queueIndex)
+              : state.shuffledIndexes
+            return { queue: newQueue, shuffledIndexes }
           }
-          return { queue: [...state.queue, ...songs] }
+          const newQueue = [...state.queue, ...songs]
+          const shuffledIndexes = state.shuffle
+            ? generateShuffledIndexes(newQueue.length, state.queueIndex)
+            : state.shuffledIndexes
+          return { queue: newQueue, shuffledIndexes }
         })
       },
 
       removeFromQueue: (index) => {
         set(state => {
+          if (index < 0 || index >= state.queue.length) return state
+          const removedIsCurrent = index === state.queueIndex
           const queue = state.queue.filter((_, i) => i !== index)
-          const queueIndex =
-            index < state.queueIndex
-              ? state.queueIndex - 1
-              : state.queueIndex
-          return { queue, queueIndex: Math.max(0, queueIndex) }
+
+          if (!queue.length) {
+            return {
+              queue: [],
+              queueIndex: -1,
+              currentSong: null,
+              isPlaying: false,
+              currentTime: 0,
+              shuffledIndexes: [],
+            }
+          }
+
+          let queueIndex = state.queueIndex
+          if (index < state.queueIndex) {
+            queueIndex = state.queueIndex - 1
+          } else if (removedIsCurrent) {
+            queueIndex = Math.min(index, queue.length - 1)
+            const currentSong = queue[queueIndex]
+            return {
+              queue,
+              queueIndex,
+              currentSong,
+              isPlaying: state.isPlaying,
+              currentTime: 0,
+              shuffledIndexes: state.shuffle
+                ? generateShuffledIndexes(queue.length, queueIndex)
+                : queue.map((_, i) => i),
+              playVersion: state.playVersion + 1,
+            }
+          }
+
+          const shuffledIndexes = state.shuffle
+            ? generateShuffledIndexes(queue.length, queueIndex)
+            : queue.map((_, i) => i)
+
+          return { queue, queueIndex, shuffledIndexes }
         })
       },
 
-      clearQueue: () => set({ queue: [], queueIndex: -1 }),
+      reorderQueue: (fromIndex, toIndex) => {
+        set(state => {
+          if (
+            fromIndex === toIndex ||
+            fromIndex < 0 ||
+            toIndex < 0 ||
+            fromIndex >= state.queue.length ||
+            toIndex >= state.queue.length
+          ) {
+            return state
+          }
+          const queue = [...state.queue]
+          const [moved] = queue.splice(fromIndex, 1)
+          queue.splice(toIndex, 0, moved)
+
+          let queueIndex = state.queueIndex
+          if (state.queueIndex === fromIndex) {
+            queueIndex = toIndex
+          } else if (fromIndex < state.queueIndex && toIndex >= state.queueIndex) {
+            queueIndex = state.queueIndex - 1
+          } else if (fromIndex > state.queueIndex && toIndex <= state.queueIndex) {
+            queueIndex = state.queueIndex + 1
+          }
+
+          const shuffledIndexes = state.shuffle
+            ? generateShuffledIndexes(queue.length, queueIndex)
+            : queue.map((_, i) => i)
+
+          return { queue, queueIndex, shuffledIndexes }
+        })
+      },
+
+      clearQueue: () => {
+        const { currentSong, queueIndex } = get()
+        if (!currentSong) {
+          set({ queue: [], queueIndex: -1, shuffledIndexes: [] })
+          return
+        }
+        set({
+          queue: [currentSong],
+          queueIndex: 0,
+          shuffledIndexes: [0],
+        })
+      },
 
       jumpToIndex: (index) => {
-        const { queue } = get()
+        const state = get()
+        const { queue } = state
         if (index < 0 || index >= queue.length) return
-        set(state => ({
+        set({
+          history: appendHistory(state.history, state.currentSong),
           currentSong: queue[index],
           queueIndex: index,
           isPlaying: true,
           currentTime: 0,
           playVersion: state.playVersion + 1,
-        }))
+        })
       },
 
       setFullscreen: (open) => set({ isFullscreen: open }),
       toggleFullscreen: () => set(state => ({ isFullscreen: !state.isFullscreen })),
       setQueueOpen: (open) => set({ isQueueOpen: open }),
-      setLyricsOpen: (open) => set({ isLyricsOpen: open }),
       setStreamBuffering: (buffering) => set({ streamBuffering: buffering }),
 
       updateCurrentSong: (songPatch) => {
@@ -288,19 +385,36 @@ export const usePlayerStore = create<PlayerState>()(
         muted: state.muted,
         repeatMode: state.repeatMode,
         shuffle: state.shuffle,
-        // 不持久化 currentSong/queue，刷新后从干净状态开始
+        currentSong: state.currentSong,
+        queue: state.queue,
+        queueIndex: state.queueIndex,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        if (state.queue.length && state.queueIndex >= 0 && state.queueIndex < state.queue.length) {
+          state.currentSong = state.queue[state.queueIndex]
+          state.shuffledIndexes = state.shuffle
+            ? generateShuffledIndexes(state.queue.length, state.queueIndex)
+            : state.queue.map((_, i) => i)
+        } else if (state.currentSong) {
+          state.queue = [state.currentSong]
+          state.queueIndex = 0
+          state.shuffledIndexes = [0]
+        }
+        state.isPlaying = false
+        state.currentTime = 0
+      },
     }
   )
 )
 
-/** 生成随机播放顺序索引数组，确保当前索引在第一位 */
 function generateShuffledIndexes(length: number, currentIndex: number): number[] {
-  const indexes = Array.from({ length }, (_, i) => i).filter(i => i !== currentIndex)
-  // Fisher-Yates shuffle
+  if (length <= 0) return []
+  const safeCurrent = Math.max(0, Math.min(currentIndex, length - 1))
+  const indexes = Array.from({ length }, (_, i) => i).filter(i => i !== safeCurrent)
   for (let i = indexes.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[indexes[i], indexes[j]] = [indexes[j], indexes[i]]
   }
-  return [currentIndex, ...indexes]
+  return [safeCurrent, ...indexes]
 }

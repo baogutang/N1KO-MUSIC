@@ -251,6 +251,7 @@ export interface MusicServerAdapter {
 
   // --- 歌曲 ---
   getSongs(params?: ListParams): Promise<PageResult<Song>>
+  getSong(songId: string): Promise<Song | null>
   searchAll(query: string): Promise<SearchResult>
   /** path / suffix 用于识别 DSF/DSD（Navidrome 常缺准确 MIME，但会有 suffix）*/
   getStreamUrl(

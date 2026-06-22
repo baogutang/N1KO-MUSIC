@@ -7,7 +7,7 @@
  * - SongRow 用 React.memo 包装，避免父组件更新时全列表重渲染
  */
 
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Play, Heart, MoreHorizontal, Plus, Clock, Music2, Info, Disc3, Mic2, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,7 @@ import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { useToggleStar } from '@/hooks/useServerQueries'
+import { playNextInQueue } from '@/utils/playActions'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -124,6 +125,10 @@ const SongRow = React.memo(function SongRow({
   const [localStarred, setLocalStarred] = React.useState(!!song.starred)
   const navigate = useNavigate()
   const toggleStar = useToggleStar()
+
+  useEffect(() => {
+    setLocalStarred(!!song.starred)
+  }, [song.id, song.starred])
 
   // 稳定的 handlePlay，只依赖 index 和 onPlayIndex（均为稳定引用）
   const handlePlay = useCallback(() => onPlayIndex(index), [onPlayIndex, index])
@@ -286,7 +291,10 @@ const SongRow = React.memo(function SongRow({
             <Play className="w-4 h-4" />
             立即播放
           </DropdownMenuItem>
-          <DropdownMenuItem className="gap-2">
+          <DropdownMenuItem
+            onClick={(e) => { e.stopPropagation(); playNextInQueue([song]) }}
+            className="gap-2"
+          >
             <Plus className="w-4 h-4" />
             下一首播放
           </DropdownMenuItem>
@@ -312,7 +320,7 @@ const SongRow = React.memo(function SongRow({
 
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={(e) => { e.stopPropagation(); navigate('/songs/detail', { state: { song } }) }}
+            onClick={(e) => { e.stopPropagation(); navigate(`/songs/${song.id}`, { state: { song } }) }}
             className="gap-2"
           >
             <FileText className="w-4 h-4" />

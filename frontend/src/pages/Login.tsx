@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { Music2, Loader2, Eye, EyeOff, ChevronRight, Server } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useServerStore } from '@/store/serverStore'
+import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { SubsonicAdapter } from '@/api/adapters/subsonic'
 import { JellyfinAdapter } from '@/api/adapters/jellyfin'
 import { EmbyAdapter } from '@/api/adapters/emby'
@@ -25,7 +25,7 @@ const SERVER_TYPES: Array<{ type: ServerType; label: string; desc: string; color
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { addServer, activateServer, updateServerAuth } = useServerStore()
+  const { servers, addServer, activateServer, updateServerAuth } = useServerStore()
 
   const [step, setStep] = useState<'type' | 'credentials'>('type')
   const [selectedType, setSelectedType] = useState<ServerType | null>(null)
@@ -33,6 +33,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const handleQuickConnect = (serverId: string) => {
+    activateServer(serverId)
+    navigate('/')
+  }
 
   const handleTypeSelect = (type: ServerType) => {
     setSelectedType(type)
@@ -142,6 +147,31 @@ export default function LoginPage() {
         {step === 'type' ? (
           /* 选择服务器类型 */
           <div className="space-y-3">
+            {servers.length > 0 && (
+              <div className="mb-6 space-y-2">
+                <p className="text-sm font-medium text-foreground text-center mb-3">
+                  已保存的服务器
+                </p>
+                {servers.map(server => (
+                  <button
+                    key={server.id}
+                    onClick={() => handleQuickConnect(server.id)}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl border border-border bg-card hover:bg-accent transition-all group"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                      <Music2 className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-foreground truncate">{server.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{server.url}</p>
+                      <p className="text-xs text-muted-foreground">{getServerTypeLabel(server.type)} · {server.username}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </button>
+                ))}
+                <p className="text-xs text-muted-foreground text-center pt-2">或添加新服务器</p>
+              </div>
+            )}
             <p className="text-sm font-medium text-foreground mb-4 text-center">
               选择服务器类型
             </p>

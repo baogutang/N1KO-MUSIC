@@ -1,29 +1,24 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Play, Shuffle, Music2, Clock, Plus } from 'lucide-react'
 import { usePlaylistDetail } from '@/hooks/useServerQueries'
-import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
 import { formatDuration } from '@/utils/formatters'
+import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 
 export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: playlist, isLoading, error } = usePlaylistDetail(id!)
-  const playQueue     = usePlayerStore(s => s.playQueue)
-  const toggleShuffle = usePlayerStore(s => s.toggleShuffle)
-  const shuffle       = usePlayerStore(s => s.shuffle)
 
   function handlePlayAll() {
     if (!playlist?.songs.length) return
-    if (shuffle) toggleShuffle()
-    playQueue(playlist.songs, 0)
+    playAllInOrder(playlist.songs, 0)
   }
 
   function handleShuffle() {
     if (!playlist?.songs.length) return
-    if (!shuffle) toggleShuffle()
-    playQueue(playlist.songs, 0)
+    playAllShuffled(playlist.songs, 0)
   }
 
   const totalDuration = playlist?.songs.reduce((sum: number, s) => sum + (s.duration ?? 0), 0) ?? 0

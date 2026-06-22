@@ -62,16 +62,17 @@ export function TopBar({ title, className }: TopBarProps) {
 
       <div className="flex-1" />
 
-      {/* 搜索快捷键提示 */}
+      {/* 搜索 */}
       <button
         onClick={() => navigate('/search')}
         onMouseEnter={() => prefetchRoute('/search')}
         onFocus={() => prefetchRoute('/search')}
-        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary text-muted-foreground text-sm hover:bg-accent hover:text-foreground transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary text-muted-foreground text-sm hover:bg-accent hover:text-foreground transition-colors"
+        aria-label="搜索"
       >
         <Search className="w-3.5 h-3.5" />
-        <span>搜索</span>
-        <kbd className="ml-1 px-1.5 py-0.5 rounded text-xs bg-background border border-border font-mono">
+        <span className="hidden md:inline">搜索</span>
+        <kbd className="hidden md:inline ml-1 px-1.5 py-0.5 rounded text-xs bg-background border border-border font-mono">
           ⌘K
         </kbd>
       </button>

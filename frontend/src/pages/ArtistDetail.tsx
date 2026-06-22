@@ -10,9 +10,9 @@ import { SongList } from '@/components/music/SongList'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { useArtistDetail } from '@/hooks/useServerQueries'
-import { usePlayerStore } from '@/store/playerStore'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
+import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 
 /** 全部歌曲默认展示数量 */
 const SONGS_INITIAL_SHOW = 20
@@ -21,7 +21,6 @@ export default function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: artist, isLoading } = useArtistDetail(id ?? '')
-  const playQueue = usePlayerStore(s => s.playQueue)
   const [showAllSongs, setShowAllSongs] = useState(false)
   const [bannerImgError, setBannerImgError] = useState(false)
 
@@ -79,16 +78,13 @@ export default function ArtistDetailPage() {
             )}
             <div className="flex gap-3 mt-4">
               {playableSongs.length > 0 && (
-                <Button onClick={() => playQueue(playableSongs)}>
+                <Button onClick={() => playAllInOrder(playableSongs)}>
                   <Play className="w-4 h-4 mr-2" fill="currentColor" />
                   播放全部
                 </Button>
               )}
               {playableSongs.length > 0 && (
-                <Button variant="secondary" onClick={() => {
-                  const shuffled = [...playableSongs].sort(() => Math.random() - 0.5)
-                  playQueue(shuffled)
-                }}>
+                <Button variant="secondary" onClick={() => playAllShuffled(playableSongs)}>
                   <Shuffle className="w-4 h-4 mr-2" />
                   随机播放
                 </Button>

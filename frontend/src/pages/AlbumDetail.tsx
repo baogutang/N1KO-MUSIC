@@ -4,21 +4,28 @@
  */
 
 import { useParams } from 'react-router-dom'
-import { Play, Shuffle, Heart, MoreHorizontal } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Play, Shuffle, Heart } from 'lucide-react'
 import { SongList } from '@/components/music/SongList'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { useAlbumDetail } from '@/hooks/useServerQueries'
-import { usePlayerStore } from '@/store/playerStore'
+import { useAlbumDetail, useToggleStar } from '@/hooks/useServerQueries'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration, formatDurationNatural } from '@/utils/formatters'
+import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { cn } from '@/lib/utils'
 
 export default function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { data: album, isLoading } = useAlbumDetail(id ?? '')
-  const playQueue = usePlayerStore(s => s.playQueue)
+  const toggleStar = useToggleStar()
+  const [starred, setStarred] = useState(false)
+
+  useEffect(() => {
+    if (album) setStarred(!!album.starred)
+  }, [album])
 
   const coverUrl = album?.coverArt && hasAdapter()
     ? getAdapter().getCoverUrl(album.coverArt, 400)
@@ -34,7 +41,13 @@ export default function AlbumDetailPage() {
     )
   }
 
-  if (!album) return null
+  if (!album) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center text-muted-foreground">
+        <p>专辑不存在或加载失败</p>
+      </div>
+    )
+  }
 
   const totalDuration = album.songs.reduce((s, r) => s + r.duration, 0)
 
@@ -79,7 +92,7 @@ export default function AlbumDetailPage() {
                 <Button
                   size="lg"
                   className="rounded-full"
-                  onClick={() => playQueue(album.songs)}
+                  onClick={() => playAllInOrder(album.songs)}
                 >
                   <Play className="w-5 h-5 mr-2" fill="currentColor" />
                   播放全部
@@ -88,19 +101,28 @@ export default function AlbumDetailPage() {
                   variant="secondary"
                   size="lg"
                   className="rounded-full"
-                  onClick={() => {
-                    const shuffled = [...album.songs].sort(() => Math.random() - 0.5)
-                    playQueue(shuffled)
-                  }}
+                  onClick={() => playAllShuffled(album.songs)}
                 >
                   <Shuffle className="w-5 h-5 mr-2" />
                   随机播放
                 </Button>
-                <button className="p-2 rounded-full hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
-                  <Heart className="w-5 h-5" />
-                </button>
-                <button className="p-2 rounded-full hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
-                  <MoreHorizontal className="w-5 h-5" />
+                <button
+                  onClick={() => {
+                    if (!id) return
+                    const next = !starred
+                    setStarred(next)
+                    toggleStar.mutate(
+                      { id, type: 'album', isStarred: !next },
+                      { onError: () => setStarred(!next) }
+                    )
+                  }}
+                  className={cn(
+                    'p-2 rounded-full hover:bg-accent transition-colors',
+                    starred ? 'text-red-400' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  aria-label={starred ? '取消收藏专辑' : '收藏专辑'}
+                >
+                  <Heart className="w-5 h-5" fill={starred ? 'currentColor' : 'none'} />
                 </button>
               </div>
             </div>

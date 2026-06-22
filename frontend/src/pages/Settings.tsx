@@ -20,12 +20,12 @@ import { getAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
 import { useMemberStore } from '@/store/memberStore'
 
-const VERSION = '1.0.17'
+const VERSION = '1.2.5'
 
 export default function Settings() {
   const navigate = useNavigate()
   const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
-  const { resolvedTheme, toggleTheme, accentColor, setAccentColor } = useThemeStore()
+  const { theme, setTheme, accentColor, setAccentColor } = useThemeStore()
   const volume    = usePlayerStore(s => s.volume)
   const setVolume = usePlayerStore(s => s.setVolume)
   const {
@@ -184,21 +184,32 @@ export default function Settings() {
 
           <div className="bg-card rounded-xl border border-border overflow-hidden">
             {/* Theme mode */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
+            <div className="p-4 border-b border-border space-y-3">
               <div>
                 <p className="font-medium">主题模式</p>
-                <p className="text-sm text-muted-foreground">深色或浅色</p>
+                <p className="text-sm text-muted-foreground">深色、浅色或跟随系统</p>
               </div>
-              <button
-                onClick={toggleTheme}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-              >
-                {resolvedTheme === 'dark' ? (
-                  <><Moon className="w-4 h-4" /><span className="text-sm">深色</span></>
-                ) : (
-                  <><Sun className="w-4 h-4" /><span className="text-sm">浅色</span></>
-                )}
-              </button>
+              <div className="flex gap-2 flex-wrap">
+                {([
+                  { value: 'dark' as const, label: '深色', icon: Moon },
+                  { value: 'light' as const, label: '浅色', icon: Sun },
+                  { value: 'system' as const, label: '跟随系统', icon: Sun },
+                ]).map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => setTheme(value)}
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors border',
+                      theme === value
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:bg-muted text-muted-foreground'
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Accent color */}

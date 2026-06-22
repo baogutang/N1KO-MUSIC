@@ -68,7 +68,7 @@ const routeMatchers: Array<{ test: (path: string) => boolean; key: string; loade
   { test: p => p === '/history', key: 'route:history', loader: loaders.history },
   { test: p => p === '/stats', key: 'route:stats', loader: loaders.stats },
   { test: p => p === '/settings', key: 'route:settings', loader: loaders.settings },
-  { test: p => p === '/songs/detail', key: 'route:song-detail', loader: loaders.songDetail },
+  { test: p => /^\/songs\/[^/]+$/.test(p), key: 'route:song-detail', loader: loaders.songDetail },
 ]
 
 export function prefetchRoute(path: string) {

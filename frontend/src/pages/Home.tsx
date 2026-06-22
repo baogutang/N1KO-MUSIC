@@ -17,13 +17,12 @@ import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { useQueryClient } from '@tanstack/react-query'
+import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 
 export default function HomePage() {
   const navigate = useNavigate()
   const { username } = useServerStore()
   const playQueue     = usePlayerStore(s => s.playQueue)
-  const toggleShuffle = usePlayerStore(s => s.toggleShuffle)
-  const shuffle       = usePlayerStore(s => s.shuffle)
   const queryClient = useQueryClient()
 
   const { data: recentAlbums, isLoading: albumsLoading } = useRecentAlbums(20)
@@ -112,10 +111,7 @@ export default function HomePage() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  playQueue(randomSongs, 0)
-                  toggleShuffle()
-                }}
+                onClick={() => playAllShuffled(randomSongs, 0)}
               >
                 <Shuffle className="w-4 h-4 mr-2" />
                 随机播放

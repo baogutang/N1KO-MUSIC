@@ -17,7 +17,7 @@ import {
   Repeat, Repeat1, Shuffle, ArrowUpDown,
   Volume2, VolumeX, Volume1,
   ChevronDown, MoreHorizontal, Info, Clock, Music2, Disc3, Mic2,
-  ListMusic, Download, FileText
+  ListMusic, FileText
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
@@ -38,6 +38,7 @@ import {
 import { getCachedColors } from '@/utils/colorExtract'
 import { formatDuration } from '@/utils/formatters'
 import { useSettingsStore } from '@/store/settingsStore'
+import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 
 /** macOS 检测：FullscreenPlayer 是 fixed 覆盖层，需要独立处理 traffic-light 区域 */
 const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
@@ -162,6 +163,7 @@ export function FullscreenPlayer() {
   const [bgColors, setBgColors] = useState({ primary: 'hsl(0, 0%, 5%)', secondary: 'hsl(0, 0%, 10%)' })
   const [coverLoaded, setCoverLoaded] = useState(false)
   const [showVolumePanel, setShowVolumePanel] = useState(false)
+  const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false)
   const volumeBtnRef = useRef<HTMLButtonElement>(null)
 
   const resolvedTheme = useThemeStore(s => s.resolvedTheme)
@@ -365,25 +367,17 @@ export function FullscreenPlayer() {
           <div className="flex items-center justify-center gap-10 pt-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <button className={cn(
-                  'p-2.5 rounded-full transition-colors',
-                  isLight ? 'text-black/40 hover:text-black hover:bg-black/10' : 'text-white/50 hover:text-white hover:bg-white/10'
-                )}>
+                <button
+                  onClick={() => setPlaylistDialogOpen(true)}
+                  className={cn(
+                    'p-2.5 rounded-full transition-colors',
+                    isLight ? 'text-black/40 hover:text-black hover:bg-black/10' : 'text-white/50 hover:text-white hover:bg-white/10'
+                  )}
+                >
                   <ListMusic className="w-[22px] h-[22px]" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">添加到播放列表</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className={cn(
-                  'p-2.5 rounded-full transition-colors',
-                  isLight ? 'text-black/40 hover:text-black hover:bg-black/10' : 'text-white/50 hover:text-white hover:bg-white/10'
-                )}>
-                  <Download className="w-[22px] h-[22px]" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">下载</TooltipContent>
+              <TooltipContent side="bottom">添加到歌单</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -440,7 +434,7 @@ export function FullscreenPlayer() {
                 )}
                 <DropdownMenuSeparator className={isLight ? 'bg-black/10' : 'bg-white/10'} />
                 <DropdownMenuItem
-                  onClick={() => { toggleFullscreen(); navigate('/songs/detail', { state: { song: currentSong } }) }}
+                  onClick={() => { toggleFullscreen(); navigate(`/songs/${currentSong.id}`, { state: { song: currentSong } }) }}
                   className="gap-2 cursor-pointer"
                 >
                   <FileText className="w-4 h-4" />
@@ -478,7 +472,7 @@ export function FullscreenPlayer() {
 
         {/* 右侧：歌词 */}
         {lyrics && lyrics.lines.length > 0 && (
-          <div className="hidden lg:flex flex-1 max-w-md">
+          <div className="hidden md:flex flex-1 max-w-md">
             <LyricDisplay
               lines={lyrics.lines}
               variant="fullscreen"
@@ -649,6 +643,12 @@ export function FullscreenPlayer() {
           </div>
         </div>
       </div>
+
+      <AddToPlaylistDialog
+        open={playlistDialogOpen}
+        onOpenChange={setPlaylistDialogOpen}
+        songs={currentSong ? [currentSong] : []}
+      />
     </div>
   )
 }

@@ -4,6 +4,14 @@ import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatRelativeTime, formatDuration } from '@/utils/formatters'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import type { Song } from '@/api/types'
 
 interface HistoryEntry {
@@ -37,6 +45,7 @@ export function recordPlay(song: Song) {
 
 export default function History() {
   const [history, setHistory] = useState<HistoryEntry[]>(getHistory)
+  const [confirmClear, setConfirmClear] = useState(false)
   const playQueue = usePlayerStore(s => s.playQueue)
 
   // 进入页面时刷新，并监听音频引擎写入历史后的通知事件
@@ -50,6 +59,7 @@ export default function History() {
   function handleClear() {
     clearHistory()
     setHistory([])
+    setConfirmClear(false)
   }
 
   function handlePlay(index: number) {
@@ -89,7 +99,7 @@ export default function History() {
           </h1>
           {history.length > 0 && (
             <button
-              onClick={handleClear}
+              onClick={() => setConfirmClear(true)}
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-destructive transition-colors"
             >
               <Trash2 className="w-4 h-4" />
@@ -167,6 +177,19 @@ export default function History() {
           </div>
         )}
       </div>
+
+      <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>清除播放历史？</DialogTitle>
+            <DialogDescription>此操作不可撤销，本地播放记录将被全部删除。</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setConfirmClear(false)}>取消</Button>
+            <Button variant="destructive" onClick={handleClear}>清除</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -18,13 +18,14 @@ import { getAdapter } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useLyricCacheStore } from '@/store/o3icCacheStore'
 import { parseLrc } from '@/hooks/useLyrics'
-import type { ListParams, Lyrics } from '@/api/types'
+import type { ListParams, Lyrics, Song } from '@/api/types'
 
 // ===================================================
 // Query Keys - 统一管理缓存键
 // ===================================================
 export const queryKeys = {
   songs: (params?: ListParams) => ['songs', params] as const,
+  songDetail: (id: string) => ['songs', 'detail', id] as const,
   randomSongs: (size?: number) => ['songs', 'random', size] as const,
   search: (query: string) => ['search', query] as const,
   albums: (params?: ListParams) => ['albums', params] as const,
@@ -77,6 +78,33 @@ export function useSongs(params: ListParams = {}) {
     queryKey: ['songs', 'all', params] as const,
     queryFn: () => getAdapter().getSongs(params),
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** 无限滚动加载歌曲（音乐库）*/
+export function useSongsInfinite(size = 100) {
+  return useInfiniteQuery({
+    queryKey: ['songs', 'infinite', size] as const,
+    queryFn: ({ pageParam = 0 }) =>
+      getAdapter().getSongs({ size, offset: pageParam as number }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
+      if (lastPage.items.length < size) return undefined
+      if (lastPage.total != null && loaded >= lastPage.total) return undefined
+      return loaded
+    },
+  })
+}
+
+/** 获取单首歌曲详情 */
+export function useSongDetail(songId: string, initialData?: Song) {
+  return useQuery({
+    queryKey: queryKeys.songDetail(songId),
+    queryFn: () => getAdapter().getSong(songId),
+    enabled: !!songId,
+    initialData: initialData ?? undefined,
+    staleTime: 10 * 60 * 1000,
   })
 }
 

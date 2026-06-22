@@ -221,9 +221,9 @@ export function PlayerBar() {
           </div>
         </div>
 
-        {/* ===== 中：播放控制（hover 时出现）===== */}
+        {/* ===== 中：播放控制 ===== */}
         <div className="flex-1 flex items-center justify-center">
-          <div className="flex items-center gap-1 opacity-0 scale-90 group-hover/bar:opacity-100 group-hover/bar:scale-100 transition-all duration-200">
+          <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button

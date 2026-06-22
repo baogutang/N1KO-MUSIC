@@ -11,14 +11,11 @@ import { SongList } from '@/components/music/SongList'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { useRecentAlbums, useRandomSongs, useArtists } from '@/hooks/useServerQueries'
-import { usePlayerStore } from '@/store/playerStore'
 import { formatDuration } from '@/utils/formatters'
+import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 
 export default function RecommendationsPage() {
   const navigate = useNavigate()
-  const playQueue     = usePlayerStore(s => s.playQueue)
-  const toggleShuffle = usePlayerStore(s => s.toggleShuffle)
-  const shuffle       = usePlayerStore(s => s.shuffle)
 
   const { data: recentAlbums, isLoading: albumsLoading } = useRecentAlbums(12)
   const { data: randomSongs, isLoading: songsLoading, refetch: refetchSongs } = useRandomSongs(30)
@@ -26,14 +23,12 @@ export default function RecommendationsPage() {
 
   function handlePlayAll() {
     if (!randomSongs?.length) return
-    if (shuffle) toggleShuffle()
-    playQueue(randomSongs, 0)
+    playAllInOrder(randomSongs, 0)
   }
 
   function handleShuffle() {
     if (!randomSongs?.length) return
-    if (!shuffle) toggleShuffle()
-    playQueue(randomSongs, 0)
+    playAllShuffled(randomSongs, 0)
   }
 
   return (

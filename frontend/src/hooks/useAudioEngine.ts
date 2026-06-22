@@ -628,7 +628,7 @@ export function useAudioEngine() {
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
     }
 
-  }, [currentSong?.id, playVersion]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentSong, currentSong?.id, playVersion, isConnected, effectiveQuality, queryClient])
 
   // --- 播放/暂停控制 ---
   useEffect(() => {
