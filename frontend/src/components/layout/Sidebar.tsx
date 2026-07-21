@@ -8,14 +8,12 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   House, MagnifyingGlass, VinylRecord, Heart, ClockCounterClockwise,
   ChartBar, GearSix, CaretRight, SignOut, Plus, MusicNote, Sparkle,
-  CrownSimple, Waveform,
+  Waveform,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { usePlaylists } from '@/hooks/useServerQueries'
-import { useMemberStore } from '@/store/memberStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { prefetchRoute } from '@/routes/lazyRoutes'
 import {
   DropdownMenu,
@@ -24,20 +22,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MemberUpgradeDialog } from '@/components/member/MemberUpgradeDialog'
 import { toast } from '@/components/ui/use-toast'
 
 const mainNavItems = [
-  { to: '/', icon: House, label: '首页', premium: false },
-  { to: '/search', icon: MagnifyingGlass, label: '搜索', premium: false },
-  { to: '/library', icon: VinylRecord, label: '音乐库', premium: false },
-  { to: '/recommendations', icon: Sparkle, label: '为你推荐', premium: true },
+  { to: '/', icon: House, label: '首页' },
+  { to: '/search', icon: MagnifyingGlass, label: '搜索' },
+  { to: '/library', icon: VinylRecord, label: '音乐库' },
+  { to: '/recommendations', icon: Sparkle, label: '为你推荐' },
 ]
 
 const collectionNavItems = [
-  { to: '/favorites', icon: Heart, label: '我的收藏', premium: true },
-  { to: '/history', icon: ClockCounterClockwise, label: '最近播放', premium: false },
-  { to: '/stats', icon: ChartBar, label: '听歌统计', premium: true },
+  { to: '/favorites', icon: Heart, label: '我的收藏' },
+  { to: '/history', icon: ClockCounterClockwise, label: '最近播放' },
+  { to: '/stats', icon: ChartBar, label: '听歌统计' },
 ]
 
 export function Sidebar() {
@@ -45,9 +42,6 @@ export function Sidebar() {
   const navigate = useNavigate()
   const { data: playlists } = usePlaylists()
   const activeServer = servers.find(s => s.id === activeServerId)
-  const isPremium = useMemberStore(s => s.isPremium)
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
-  const [upgradeName, setUpgradeName] = useState<string | undefined>()
   const bindPrefetch = (to: string) => ({
     onMouseEnter: () => prefetchRoute(to),
     onFocus: () => prefetchRoute(to),
@@ -56,12 +50,6 @@ export function Sidebar() {
 
   return (
     <aside className="flex flex-col h-full w-60 bg-background border-r border-border flex-shrink-0">
-      {/* 会员升级弹窗 */}
-      <MemberUpgradeDialog
-        open={upgradeOpen}
-        onOpenChange={setUpgradeOpen}
-        featureName={upgradeName}
-      />
       {/* 品牌区 + 服务器切换 */}
       <div className="px-3 pt-4 pb-2">
         <DropdownMenu>
@@ -127,45 +115,21 @@ export function Sidebar() {
           {/* 主导航 */}
           <nav>
             <ul className="space-y-0.5">
-              {mainNavItems.map(({ to, icon: Icon, label, premium }) => {
-                const locked = premium && !isPremium
-                if (locked) {
-                  return (
-                    <li key={to}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            className="nav-item w-full opacity-45 cursor-not-allowed select-none"
-                            onClick={() => { setUpgradeName(label); setUpgradeOpen(true) }}
-                          >
-                            <Icon size={18} className="flex-shrink-0" />
-                            <span className="flex-1 text-left">{label}</span>
-                            <CrownSimple size={12} weight="fill" className="text-amber-500" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                          <p>「{label}」是会员专属功能，点击了解详情</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </li>
-                  )
-                }
-                return (
-                  <li key={to}>
-                    <NavLink
-                      to={to}
-                      end={to === '/'}
-                      {...bindPrefetch(to)}
-                      className={({ isActive }) =>
-                        cn('nav-item', isActive && 'active')
-                      }
-                    >
-                      <Icon size={18} className="flex-shrink-0" />
-                      <span>{label}</span>
-                    </NavLink>
-                  </li>
-                )
-              })}
+              {mainNavItems.map(({ to, icon: Icon, label }) => (
+                <li key={to}>
+                  <NavLink
+                    to={to}
+                    end={to === '/'}
+                    {...bindPrefetch(to)}
+                    className={({ isActive }) =>
+                      cn('nav-item', isActive && 'active')
+                    }
+                  >
+                    <Icon size={18} className="flex-shrink-0" />
+                    <span>{label}</span>
+                  </NavLink>
+                </li>
+              ))}
             </ul>
           </nav>
 
@@ -175,44 +139,20 @@ export function Sidebar() {
               我的音乐
             </p>
             <ul className="space-y-0.5">
-              {collectionNavItems.map(({ to, icon: Icon, label, premium }) => {
-                const locked = premium && !isPremium
-                if (locked) {
-                  return (
-                    <li key={to}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            className="nav-item w-full opacity-45 cursor-not-allowed select-none"
-                            onClick={() => { setUpgradeName(label); setUpgradeOpen(true) }}
-                          >
-                            <Icon size={18} className="flex-shrink-0" />
-                            <span className="flex-1 text-left">{label}</span>
-                            <CrownSimple size={12} weight="fill" className="text-amber-500" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                          <p>「{label}」是会员专属功能，点击了解详情</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </li>
-                  )
-                }
-                return (
-                  <li key={to}>
-                    <NavLink
-                      to={to}
-                      {...bindPrefetch(to)}
-                      className={({ isActive }) =>
-                        cn('nav-item', isActive && 'active')
-                      }
-                    >
-                      <Icon size={18} className="flex-shrink-0" />
-                      <span>{label}</span>
-                    </NavLink>
-                  </li>
-                )
-              })}
+              {collectionNavItems.map(({ to, icon: Icon, label }) => (
+                <li key={to}>
+                  <NavLink
+                    to={to}
+                    {...bindPrefetch(to)}
+                    className={({ isActive }) =>
+                      cn('nav-item', isActive && 'active')
+                    }
+                  >
+                    <Icon size={18} className="flex-shrink-0" />
+                    <span>{label}</span>
+                  </NavLink>
+                </li>
+              ))}
             </ul>
           </nav>
 
@@ -255,24 +195,6 @@ export function Sidebar() {
 
       {/* 底部设置 */}
       <div className="p-3 border-t border-border space-y-1">
-        {/* 会员状态 */}
-        {!isPremium ? (
-          <button
-            onClick={() => { setUpgradeName(undefined); setUpgradeOpen(true) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-md
-              border border-amber-500/30 bg-amber-500/10
-              text-amber-500 hover:border-amber-500/50 hover:text-amber-400
-              transition-colors duration-150 active:scale-[0.97]"
-          >
-            <CrownSimple size={16} weight="fill" className="flex-shrink-0" />
-            <span className="text-[12.5px] font-medium">升级会员</span>
-          </button>
-        ) : (
-          <div className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/10">
-            <CrownSimple size={16} weight="fill" className="text-amber-500 flex-shrink-0" />
-            <span className="text-[12.5px] font-medium text-amber-500">会员已激活</span>
-          </div>
-        )}
         <NavLink
           to="/settings"
           {...bindPrefetch('/settings')}

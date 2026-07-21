@@ -8,7 +8,6 @@ import { useAudioEngine } from '@/hooks/useAudioEngine'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { usePlayerStore } from '@/store/playerStore'
-import { useMemberStore } from '@/store/memberStore'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
@@ -26,10 +25,6 @@ export default function MainLayout() {
   useAudioEngine()
   useMediaSession()
   useKeyboardShortcuts()
-
-  useEffect(() => {
-    useMemberStore.getState().checkExpiry()
-  }, [])
 
   const isFullscreen = usePlayerStore(s => s.isFullscreen)
 

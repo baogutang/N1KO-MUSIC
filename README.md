@@ -29,6 +29,8 @@ N1KO MUSIC is not just another tool that plays files. It is crafted with the aes
 
 On the sound side it streams FLAC / WAV / ALAC losslessly, with 320kbps down to 128kbps transcoding tiers for when bandwidth matters.
 
+N1KO MUSIC is fully free and open source. Every feature works out of the box.
+
 <br/>
 
 ## Screenshots
@@ -130,25 +132,6 @@ Grab the installer for your platform from **[Releases](https://github.com/baogut
 
 <br/>
 
-## Premium
-
-The core of N1KO MUSIC is free. A premium membership unlocks **lossless audio**, **recommendations**, **favorites** and **listening stats**.
-
-1. Scan the Alipay QR code below and transfer **¥59.9** (lifetime)
-2. Leave your **Alipay account** or **contact** in the transfer note
-3. Contact the payee (Nikooh) via Alipay to receive your **activation code**
-4. Enter the code in the app's Settings page
-
-<div align="center">
-
-<img src="docs/screenshots/alipay.jpg" alt="Alipay QR" width="260" />
-
-<sub>Scan with Alipay · contact for the activation code</sub>
-
-</div>
-
-<br/>
-
 ## Tech stack
 
 | Layer | Technology |
@@ -159,7 +142,6 @@ The core of N1KO MUSIC is free. A premium membership unlocks **lossless audio**,
 | Audio engine | Native HTML5 Audio |
 | Desktop shell | Tauri 2 (Rust) |
 | Data backend | Node.js (Express) · SQLite |
-| License backend | Spring Boot 3 · JPA · H2/MySQL |
 
 ### Development
 

@@ -120,7 +120,7 @@ export const useSettingsStore = create<SettingsState>()(
       songDetailPathReplace: '',
       translateTargetLang: '英文',
       translateType: '无',
-      audioQuality: 'low',
+      audioQuality: 'lossless',
 
       setApiPreferServer: (v) => set({ apiPreferServer: v }),
       setApiAuthToken: (t) => set({ apiAuthToken: t }),
@@ -143,6 +143,16 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'msp-settings-store',
+      version: 1,
+      // v0 -> v1：会员体系移除。旧版免费用户被强制锁定在 low（非主动选择），
+      // 迁移为无损默认；之后用户在设置里的选择正常持久化
+      migrate: (persisted, version) => {
+        const state = persisted as Record<string, unknown>
+        if (version === 0 && state?.audioQuality === 'low') {
+          state.audioQuality = 'lossless'
+        }
+        return state
+      },
     }
   )
 )
