@@ -1,171 +1,189 @@
 <div align="center">
 
-<img src="docs/logo.png" alt="N1KO MUSIC - Music Player for Navidrome Subsonic Jellyfin Emby" width="100" height="100" />
+<img src="docs/logo.png" alt="N1KO MUSIC" width="88" height="88" />
 
 # N1KO MUSIC
 
-### A Modern Desktop Music Player for Navidrome, Subsonic, Jellyfin & Emby
+**The modern Hi-Fi music player built for your NAS**
 
-**The best self-hosted NAS music streaming client you'll ever use.**
+Connect to Navidrome / Subsonic / Jellyfin / Emby and turn your private library into a first-class streaming experience.
 
-[![GitHub Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=for-the-badge&color=gold)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/baogutang/N1KO-MUSIC?style=for-the-badge&color=blue)](https://github.com/baogutang/N1KO-MUSIC/network)
-[![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.5-green?style=for-the-badge)](https://github.com/baogutang/N1KO-MUSIC/releases)
+<br/>
 
-**[English](README.md)** · **[中文](README_CN.md)**
+[![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=2ec27e&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
+[![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=2ec27e&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
+[![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=flat-square&color=555)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
+
+<br/>
+
+**[⬇ Download](https://github.com/baogutang/N1KO-MUSIC/releases/latest)** · **[English](README.md)** · **[中文](README_CN.md)**
 
 </div>
 
----
+<br/>
 
-## What is N1KO MUSIC?
+## Design philosophy
 
-N1KO MUSIC is a **cross-platform desktop music player** designed for self-hosted music servers. It connects to **Navidrome**, **Subsonic**, **Jellyfin**, and **Emby** — turning your private music library into a beautiful, Spotify-like streaming experience.
+N1KO MUSIC is not just another tool that plays files. It is crafted with the aesthetics of high-end audio equipment: an ink-dark canvas, a single emerald accent, monospaced timecodes, a floating glass playback console, and ambient light extracted in real time from the album artwork. Light and dark themes share one design language, and every screen keeps the same restraint and precision.
 
-Built with **Tauri 2 + React + TypeScript**, it offers a native macOS desktop app with Hi-Fi lossless playback (FLAC/WAV/ALAC), real-time synced lyrics, and a stunning fullscreen player.
+On the sound side it streams FLAC / WAV / ALAC losslessly, with 320kbps down to 128kbps transcoding tiers for when bandwidth matters.
 
-> **Looking for a Navidrome desktop client? A Subsonic music player? A Jellyfin or Emby music streaming app?**
-> N1KO MUSIC is built exactly for that.
-
----
+<br/>
 
 ## Screenshots
 
-### Server Connection
+### Connect your server
 
-Connect to **Navidrome**, **Subsonic**, **Jellyfin**, or **Emby** servers with one click.
+Navidrome, Subsonic, Jellyfin and Emby are supported out of the box.
 
-| Select Server | Login |
+| Choose a server | Sign in |
 |:---------:|:-------:|
-| ![Navidrome Subsonic Jellyfin Emby Server Selection](docs/screenshots/connect.png) | ![Server Login](docs/screenshots/login.png) |
+| ![Server selection](docs/screenshots/connect.png) | ![Login](docs/screenshots/login.png) |
 
 ### Home
 
-Beautiful home page with album recommendations, recently added, and popular artists. Supports dark & light themes.
+Latest albums, recently added and top artists at a glance, in light or dark.
 
-| Dark Mode | Light Mode |
+| Dark | Light |
 |:-------:|:-------:|
-| ![Dark Mode](docs/screenshots/home-dark.png) | ![Light Mode](docs/screenshots/home-light.png) |
+| ![Dark mode](docs/screenshots/home-dark.png) | ![Light mode](docs/screenshots/home-light.png) |
 
-### Fullscreen Player
+### Fullscreen player
 
-Immersive fullscreen experience with dynamic blurred album art background and real-time synced scrolling lyrics.
+Immersive ambience derived from the cover art, synced scrolling lyrics, tap any line to seek.
 
-![Fullscreen Music Player with Lyrics](docs/screenshots/player.png)
+![Fullscreen player](docs/screenshots/player.png)
 
-### Listening Stats
+### Listening stats
 
-Your music data report: total plays, listening time, top songs, top artists, and top albums.
+Your personal music report: play counts, total time, favorite songs, artists and albums.
 
-![Music Listening Statistics](docs/screenshots/stats.png)
+![Stats](docs/screenshots/stats.png)
 
 ### Settings
 
-Server management, theme customization, audio quality (Lossless/High/Standard/Low), custom API integration, and more.
+Server management, themes and accent colors, quality tiers, custom cover and lyrics APIs.
 
 ![Settings](docs/screenshots/settings.png)
 
----
+<br/>
 
 ## Features
 
-### 🎵 Music Playback
-- **Fullscreen Player** — Album art with dynamic blur gradient background, smooth animations
-- **Real-time Lyrics** — Synced scrolling & highlighting, click-to-seek, custom remote lyrics API support
-- **Hi-Fi Lossless Audio** — FLAC / WAV / ALAC original format playback, plus 320kbps & low bitrate options
-- **Playback Queue** — Shuffle / repeat / single loop, drag to reorder, play next
+**Playback**
 
-### 📚 Music Library & Discovery
-- **Music Library** — Browse songs, albums, artists, and playlists in one place
-- **Recommendations** — Discover music from your library with smart random picks
-- **Global Search** — Full-text search across all content
-- **Play History** — Local playback history with beautiful timeline UI
-- **Listening Stats** — Visual data: most played, active hours, favorite artists
+- Immersive fullscreen player with artwork-derived ambience and synced lyrics
+- Lossless passthrough (FLAC / WAV / ALAC) plus 320 / 192 / 128kbps transcoding tiers
+- Full queue control: shuffle, repeat, repeat-one, drag reorder, play-next insertion
+- Global keyboard shortcuts and system media keys (MediaSession)
 
-### 🎨 Custom API Integration
-- **Custom Cover Art** — Replace album covers with your own API (supports `{artist}`, `{album}`, `{title}` placeholders)
-- **Custom Lyrics** — Fetch lyrics from any external source via URL template
-- **Priority Control** — Choose server data or custom API first
+**Library and discovery**
 
-### 🖥️ Desktop App
-- **macOS** — Native window style, Apple Silicon (arm64) + Intel (x64)
-- **Dark / Light Theme** — Follow system or switch manually, multiple accent colors
-- **Built with Tauri 2** — Lightweight, fast, native performance
+- Songs, albums, artists and playlists in one place, with infinite scrolling
+- Instant library-wide search and randomized recommendations
+- Local listening history and visualized statistics
+- Scrobbling based on real listening time (Last.fm compatible via your server)
 
----
+**Custom integrations**
 
-## Compatible Servers
+- Custom cover and lyrics APIs with `{artist}` / `{album}` / `{title}` placeholders
+- Configurable priority between server data and custom sources
 
-N1KO MUSIC implements the **Subsonic API** protocol and is compatible with the following music servers:
+**Desktop app**
+
+- Native builds for macOS (Apple Silicon + Intel), Windows and Linux
+- Light and dark themes that follow the system, five accent presets
+- Built on Tauri 2: small installers, far lighter than Electron
+
+<br/>
+
+## Supported servers
 
 | Server | Status | Notes |
-|--------|--------|-------|
-| [**Navidrome**](https://www.navidrome.org/) | ✅ Recommended | Best experience, fully tested |
-| [**Subsonic**](http://www.subsonic.org/) | ✅ Supported | Full Subsonic API compatibility |
-| [**Airsonic**](https://airsonic.github.io/) | ✅ Supported | Subsonic-compatible fork |
-| [**Airsonic-Advanced**](https://github.com/airsonic-advanced/airsonic-advanced) | ✅ Supported | Enhanced Airsonic fork |
-| [**Jellyfin**](https://jellyfin.org/) | ✅ Supported | Via Subsonic plugin |
-| [**Emby**](https://emby.media/) | ✅ Supported | Native support |
+|--------|------|------|
+| [Navidrome](https://www.navidrome.org/) | ✅ Recommended | Best experience, fully tested |
+| [Subsonic](http://www.subsonic.org/) | ✅ Supported | Full Subsonic API compatibility |
+| [Airsonic](https://airsonic.github.io/) / [Airsonic-Advanced](https://github.com/airsonic-advanced/airsonic-advanced) | ✅ Supported | Subsonic-compatible forks |
+| [Jellyfin](https://jellyfin.org/) | ✅ Supported | Native API integration |
+| [Emby](https://emby.media/) | ✅ Supported | Native API integration |
 
-> **Keywords:** Navidrome client, Navidrome desktop app, Navidrome music player, Subsonic client, Subsonic desktop player, Jellyfin music player, Jellyfin music client, Emby music player, Emby music client, NAS music player, self-hosted music player, music streaming client, Airsonic client
+<details>
+<summary>Related searches</summary>
+<sub>Navidrome client · Navidrome desktop app · Subsonic client · Subsonic music player · Jellyfin music player · Emby music player · NAS music player · self-hosted music player · music streaming client · Airsonic client</sub>
+</details>
 
----
+<br/>
+
+## Download
+
+Grab the installer for your platform from **[Releases](https://github.com/baogutang/N1KO-MUSIC/releases/latest)**:
+
+| Platform | Package |
+|------|--------|
+| macOS (Apple Silicon) | `N1KO.MUSIC_x.x.x_aarch64.dmg` |
+| macOS (Intel) | `N1KO.MUSIC_x.x.x_x64.dmg` |
+| Windows | `N1KO.MUSIC_x.x.x_x64-setup.exe` / `.msi` |
+| Linux | `.AppImage` / `.deb` |
+
+> On macOS, if you see "cannot verify the developer" on first launch, allow the app under System Settings → Privacy & Security.
+
+<br/>
 
 ## Premium
 
-N1KO MUSIC is free for basic features. Upgrade to Premium to unlock:
+The core of N1KO MUSIC is free. A premium membership unlocks **lossless audio**, **recommendations**, **favorites** and **listening stats**.
 
-- 🎶 **Lossless Audio** — FLAC / WAV / ALAC original format playback
-- ✨ **Recommendations** — Smart music discovery from your library
-- ❤️ **Favorites** — Save your favorite songs
-- 📊 **Listening Stats** — Detailed playback data visualization
-
-### How to Upgrade
-
-1. Scan the QR code below with Alipay and transfer **¥59.9** (lifetime membership)
-2. Leave your **Alipay account** or **contact info** in the transfer note
-3. Contact the payee (Nikooh) via Alipay to get the **activation code**
-4. Enter the activation code in N1KO MUSIC Settings page
+1. Scan the Alipay QR code below and transfer **¥59.9** (lifetime)
+2. Leave your **Alipay account** or **contact** in the transfer note
+3. Contact the payee (Nikooh) via Alipay to receive your **activation code**
+4. Enter the code in the app's Settings page
 
 <div align="center">
 
-<img src="docs/screenshots/alipay.jpg" alt="Alipay QR Code" width="300" />
+<img src="docs/screenshots/alipay.jpg" alt="Alipay QR" width="260" />
 
-**Scan with Alipay · Contact for activation code**
+<sub>Scan with Alipay · contact for the activation code</sub>
 
 </div>
 
----
+<br/>
 
-## Tech Stack
+## Tech stack
 
-| Module | Technology |
-|--------|-----------|
-| Frontend | React 18, TypeScript, Vite 5 |
-| UI Components | Radix UI, Tailwind CSS, shadcn/ui |
-| State Management | Zustand |
-| Data Fetching | TanStack Query v5 |
-| Audio Engine | Native HTML5 Audio API |
-| Desktop Framework | Tauri 2 (Rust) |
-| License Backend | Spring Boot 3, JPA, H2/MySQL |
+| Layer | Technology |
+|------|-----|
+| Frontend | React 18 · TypeScript · Vite 5 · Tailwind CSS |
+| UI | Radix UI · shadcn/ui · Phosphor Icons |
+| State and data | Zustand · TanStack Query v5 |
+| Audio engine | Native HTML5 Audio |
+| Desktop shell | Tauri 2 (Rust) |
+| Data backend | Node.js (Express) · SQLite |
+| License backend | Spring Boot 3 · JPA · H2/MySQL |
 
----
+### Development
 
-## Acknowledgments
+```bash
+git clone https://github.com/baogutang/N1KO-MUSIC.git
+cd N1KO-MUSIC/frontend
+npm install
+npm run dev          # web dev mode
+npm run tauri:dev    # desktop dev mode
+```
 
-N1KO MUSIC is inspired by and built upon these amazing open-source projects:
+<br/>
 
-- **[StreamMusic](https://github.com/gitbobobo/StreamMusic)** — An excellent Flutter-based mobile NAS music player. Its refined UI/UX design inspired this project 🫡
-- [Navidrome](https://www.navidrome.org/) — Outstanding open-source Subsonic server
-- [Radix UI](https://www.radix-ui.com/) — Unstyled, accessible UI primitives
-- [shadcn/ui](https://ui.shadcn.com/) — Beautiful React UI components
-- [TanStack Query](https://tanstack.com/query) — Powerful async state management
-- [Zustand](https://github.com/pmndrs/zustand) — Lightweight global state management
+## Acknowledgements
 
----
+N1KO MUSIC stands on the shoulders of these excellent projects:
 
-## Star History
+- [StreamMusic](https://github.com/gitbobobo/StreamMusic) a beautifully designed Flutter NAS music player whose UI and UX inspired this project
+- [Navidrome](https://www.navidrome.org/) the outstanding open-source Subsonic server
+- [Radix UI](https://www.radix-ui.com/) · [shadcn/ui](https://ui.shadcn.com/) · [TanStack Query](https://tanstack.com/query) · [Zustand](https://github.com/pmndrs/zustand)
+
+<br/>
+
+## Star history
 
 <a href="https://star-history.com/#baogutang/N1KO-MUSIC&Date">
  <picture>
@@ -175,12 +193,13 @@ N1KO MUSIC is inspired by and built upon these amazing open-source projects:
  </picture>
 </a>
 
----
+<br/>
+<br/>
 
 <div align="center">
 
-Made with ❤️ by [N1KO](https://github.com/baogutang)
+Built by [N1KO](https://github.com/baogutang)
 
-If N1KO MUSIC helps you, please give it a ⭐ — it means a lot!
+If N1KO MUSIC is useful to you, a ⭐ means the world.
 
 </div>
