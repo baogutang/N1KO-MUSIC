@@ -48,7 +48,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 // Start server
 // ===================================================
 app.listen(PORT, () => {
-  console.log(`🎵 Music Stream Pro Backend`)
+  console.log(`🎵 N1KO MUSIC Backend`)
   console.log(`   Listening on http://localhost:${PORT}`)
   console.log(`   Frontend: ${FRONTEND_URL}`)
 })

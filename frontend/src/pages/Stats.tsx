@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
-import { BarChart3, Music2, Clock, TrendingUp, Calendar, Headphones, Disc3, Mic2 } from 'lucide-react'
+import { Headphones } from '@phosphor-icons/react'
+import { cn } from '@/lib/utils'
 import type { Song } from '@/api/types'
 import { formatDurationNatural } from '@/utils/formatters'
 import { getAdapter, hasAdapter } from '@/api'
@@ -16,27 +17,6 @@ function getHistory(): HistoryEntry[] {
   } catch {
     return []
   }
-}
-
-interface StatCardProps {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value: string
-  sub?: string
-  color?: string
-}
-
-function StatCard({ icon: Icon, label, value, sub, color = 'text-primary' }: StatCardProps) {
-  return (
-    <div className="bg-card rounded-2xl p-5 border border-border">
-      <div className={`w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3 ${color}`}>
-        <Icon className="w-5 h-5" />
-      </div>
-      <p className="text-2xl font-bold mb-0.5">{value}</p>
-      <p className="text-sm text-muted-foreground">{label}</p>
-      {sub && <p className="text-xs text-muted-foreground/60 mt-1">{sub}</p>}
-    </div>
-  )
 }
 
 export default function Stats() {
@@ -126,15 +106,12 @@ export default function Stats() {
   const maxDailyCount = stats ? Math.max(...stats.dailyCounts.map(d => d.count), 1) : 1
 
   return (
-    <div className="min-h-full pb-8">
+    <div className="min-h-full pb-8 animate-fade-in">
       <div className="px-6 py-6">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <BarChart3 className="w-8 h-8 text-primary" />
-            听歌统计
-          </h1>
-          <p className="text-muted-foreground mt-1">你的音乐数据报告</p>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold tracking-tight">听歌统计</h1>
+          <p className="text-muted-foreground mt-1.5 text-[13.5px]">你的音乐数据报告</p>
         </div>
 
         {!stats ? (
@@ -145,73 +122,74 @@ export default function Stats() {
           </div>
         ) : (
           <>
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <StatCard
-                icon={Music2}
-                label="总播放次数"
-                value={String(stats.totalPlays)}
-              />
-              <StatCard
-                icon={Clock}
-                label="总时长"
-                value={formatDurationNatural(stats.totalDuration)}
-                color="text-blue-500"
-              />
-              <StatCard
-                icon={Mic2}
-                label="不同歌手"
-                value={String(stats.uniqueArtists)}
-                sub="位"
-                color="text-purple-500"
-              />
-              <StatCard
-                icon={Disc3}
-                label="不同专辑"
-                value={String(stats.uniqueAlbums)}
-                sub="张"
-                color="text-amber-500"
-              />
-            </div>
-
-            {/* Weekly chart */}
-            <div className="bg-card rounded-2xl border border-border p-5 mb-6">
-              <h2 className="font-semibold mb-4 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-primary" />
-                最近 7 天
-              </h2>
-              <div className="flex items-end gap-2 h-32">
-                {stats.dailyCounts.map(day => (
-                  <div key={day.label} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-xs text-muted-foreground">{day.count || ''}</span>
-                    <div className="w-full bg-muted rounded-t-sm overflow-hidden" style={{ height: '80px' }}>
-                      <div
-                        className="w-full bg-primary/70 rounded-t-sm transition-all duration-500"
-                        style={{
-                          height: `${(day.count / maxDailyCount) * 80}px`,
-                          marginTop: `${80 - (day.count / maxDailyCount) * 80}px`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground">{day.label}</span>
-                  </div>
-                ))}
+            {/* Stat strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 border-y border-border mb-10">
+              <div className="px-5 py-6">
+                <p className="font-num text-3xl font-medium tracking-tight">{stats.totalPlays}</p>
+                <p className="text-xs text-muted-foreground mt-1.5">总播放次数</p>
+              </div>
+              <div className="px-5 py-6 border-l border-border">
+                <p className="font-num text-3xl font-medium tracking-tight">{formatDurationNatural(stats.totalDuration)}</p>
+                <p className="text-xs text-muted-foreground mt-1.5">总时长</p>
+              </div>
+              <div className="px-5 py-6 border-t border-border md:border-t-0 md:border-l">
+                <p className="font-num text-3xl font-medium tracking-tight">
+                  {stats.uniqueArtists}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">位</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1.5">不同歌手</p>
+              </div>
+              <div className="px-5 py-6 border-t border-l border-border md:border-t-0">
+                <p className="font-num text-3xl font-medium tracking-tight">
+                  {stats.uniqueAlbums}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">张</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1.5">不同专辑</p>
               </div>
             </div>
 
-            {/* Top content - 3 columns */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Weekly chart */}
+            <div className="mb-12">
+              <h2 className="text-lg font-bold mb-4">最近 7 天</h2>
+              <div className="grid grid-cols-7 gap-3 items-end pt-2">
+                {stats.dailyCounts.map(day => {
+                  const isPeak = day.count > 0 && day.count === maxDailyCount
+                  return (
+                    <div key={day.label} className="flex flex-col items-center min-w-0">
+                      <span
+                        className={cn(
+                          'font-num text-[11px] mb-1.5',
+                          isPeak ? 'text-primary' : 'text-muted-foreground'
+                        )}
+                      >
+                        {day.count || ''}
+                      </span>
+                      <div className="w-full h-36 flex items-end">
+                        <div
+                          className={cn(
+                            'w-full rounded-t-md min-h-[4px] transition-all duration-500',
+                            isPeak ? 'bg-gradient-to-b from-primary to-primary/80' : 'bg-accent'
+                          )}
+                          style={{ height: `${Math.max((day.count / maxDailyCount) * 100, 3)}%` }}
+                        />
+                      </div>
+                      <span className="font-num text-[11px] text-muted-foreground mt-2.5">{day.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Top content - 3 ranked columns */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 border-t border-border pt-8">
               {/* Top songs */}
-              <div className="bg-card rounded-2xl border border-border p-5">
-                <h2 className="font-semibold mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-primary" />
-                  最爱歌曲
-                </h2>
-                <div className="space-y-3">
+              <div>
+                <h2 className="text-[15px] font-bold mb-4">最爱歌曲</h2>
+                <div className="space-y-1">
                   {stats.topSongs.map((item, i) => (
-                    <div key={item.song.id} className="flex items-center gap-3">
-                      <span className="w-5 text-center text-sm font-bold text-muted-foreground/60">{i + 1}</span>
-                      <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0">
+                    <div key={item.song.id} className="flex items-center gap-3 py-1.5">
+                      <span className="font-num w-5 text-center text-xs text-muted-foreground flex-shrink-0">{i + 1}</span>
+                      <div className="w-10 h-10 rounded-md ring-1 ring-border overflow-hidden flex-shrink-0">
                         <ImageWithFallback
                           src={item.song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(item.song.coverArt, 64) : undefined}
                           alt={item.song.title}
@@ -221,26 +199,23 @@ export default function Stats() {
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.song.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">{item.song.artist}</p>
+                        <p className="text-[13px] font-semibold truncate">{item.song.title}</p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">{item.song.artist}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">{item.count}次</span>
+                      <span className="font-num text-xs text-muted-foreground flex-shrink-0">{item.count}次</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Top artists */}
-              <div className="bg-card rounded-2xl border border-border p-5">
-                <h2 className="font-semibold mb-4 flex items-center gap-2">
-                  <Mic2 className="w-4 h-4 text-purple-500" />
-                  最爱歌手
-                </h2>
-                <div className="space-y-3">
+              <div>
+                <h2 className="text-[15px] font-bold mb-4">最爱歌手</h2>
+                <div className="space-y-1">
                   {stats.topArtists.map((item, i) => (
-                    <div key={item.name} className="flex items-center gap-3">
-                      <span className="w-5 text-center text-sm font-bold text-muted-foreground/60">{i + 1}</span>
-                      <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
+                    <div key={item.name} className="flex items-center gap-3 py-1.5">
+                      <span className="font-num w-5 text-center text-xs text-muted-foreground flex-shrink-0">{i + 1}</span>
+                      <div className="w-10 h-10 rounded-full ring-1 ring-border overflow-hidden flex-shrink-0">
                         <ImageWithFallback
                           src={item.coverArt && hasAdapter() ? getAdapter().getCoverUrl(item.coverArt, 64) : undefined}
                           alt={item.name}
@@ -250,25 +225,22 @@ export default function Stats() {
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.name}</p>
+                        <p className="text-[13px] font-semibold truncate">{item.name}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">{item.count}次</span>
+                      <span className="font-num text-xs text-muted-foreground flex-shrink-0">{item.count}次</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Top albums */}
-              <div className="bg-card rounded-2xl border border-border p-5">
-                <h2 className="font-semibold mb-4 flex items-center gap-2">
-                  <Disc3 className="w-4 h-4 text-amber-500" />
-                  最爱专辑
-                </h2>
-                <div className="space-y-3">
+              <div>
+                <h2 className="text-[15px] font-bold mb-4">最爱专辑</h2>
+                <div className="space-y-1">
                   {stats.topAlbums.map((item, i) => (
-                    <div key={item.name} className="flex items-center gap-3">
-                      <span className="w-5 text-center text-sm font-bold text-muted-foreground/60">{i + 1}</span>
-                      <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0">
+                    <div key={item.name} className="flex items-center gap-3 py-1.5">
+                      <span className="font-num w-5 text-center text-xs text-muted-foreground flex-shrink-0">{i + 1}</span>
+                      <div className="w-10 h-10 rounded-md ring-1 ring-border overflow-hidden flex-shrink-0">
                         <ImageWithFallback
                           src={item.coverArt && hasAdapter() ? getAdapter().getCoverUrl(item.coverArt, 64) : undefined}
                           alt={item.name}
@@ -278,10 +250,10 @@ export default function Stats() {
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{item.artist}</p>
+                        <p className="text-[13px] font-semibold truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">{item.artist}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">{item.count}次</span>
+                      <span className="font-num text-xs text-muted-foreground flex-shrink-0">{item.count}次</span>
                     </div>
                   ))}
                 </div>

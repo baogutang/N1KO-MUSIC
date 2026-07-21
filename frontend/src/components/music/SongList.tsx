@@ -9,7 +9,18 @@
 
 import React, { useCallback, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Play, Heart, MoreHorizontal, Plus, Clock, Music2, Info, Disc3, Mic2, FileText } from 'lucide-react'
+import {
+  Play,
+  Heart,
+  DotsThree,
+  Plus,
+  ClockCounterClockwise,
+  MusicNote,
+  Info,
+  Disc,
+  MicrophoneStage,
+  FileText,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { usePlayerStore } from '@/store/playerStore'
@@ -162,7 +173,7 @@ const SongRow = React.memo(function SongRow({
     <div
       className={cn(
         'song-row group',
-        isCurrentSong && 'bg-accent/60'
+        isCurrentSong ? 'bg-primary/10 hover:bg-primary/10' : 'hover:bg-surface'
       )}
       onClick={handlePlay}
     >
@@ -171,7 +182,7 @@ const SongRow = React.memo(function SongRow({
         <div className="w-8 text-center flex-shrink-0 relative">
           {/* 默认：行号 */}
           <span className={cn(
-            'text-sm tabular-nums group-hover:opacity-0 transition-opacity',
+            'text-sm font-num group-hover:opacity-0 transition-opacity',
             isCurrentSong ? 'text-primary font-medium' : 'text-muted-foreground'
           )}>
             {isPlaying && isCurrentSong ? (
@@ -192,7 +203,7 @@ const SongRow = React.memo(function SongRow({
                 <span /><span /><span />
               </div>
             ) : (
-              <Play className="w-4 h-4" fill="currentColor" />
+              <Play className="w-4 h-4" weight="fill" />
             )}
           </button>
         </div>
@@ -200,7 +211,7 @@ const SongRow = React.memo(function SongRow({
 
       {/* 封面 */}
       {showCover && (
-        <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0">
+        <div className="w-10 h-10 rounded-md overflow-hidden ring-1 ring-border flex-shrink-0">
           <ImageWithFallback
             src={coverUrl}
             alt={song.album}
@@ -254,20 +265,20 @@ const SongRow = React.memo(function SongRow({
         onClick={handleToggleStar}
         disabled={toggleStar.isPending}
         className={cn(
-          'transition-all p-2 rounded-full hover:bg-accent flex-shrink-0',
+          'transition-all p-2 rounded-md hover:bg-accent active:scale-[0.94] flex-shrink-0',
           localStarred
-            ? 'opacity-100 text-red-500'
-            : 'opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500'
+            ? 'opacity-100 text-primary'
+            : 'opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary'
         )}
       >
         <Heart
           className="w-4 h-4"
-          fill={localStarred ? 'currentColor' : 'none'}
+          weight={localStarred ? 'fill' : 'regular'}
         />
       </button>
 
       {/* 时长 */}
-      <span className="text-sm text-muted-foreground tabular-nums w-12 text-right flex-shrink-0">
+      <span className="text-xs text-muted-foreground font-num w-12 text-right flex-shrink-0">
         {formatDuration(song.duration)}
       </span>
 
@@ -276,19 +287,19 @@ const SongRow = React.memo(function SongRow({
         <DropdownMenuTrigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full hover:bg-accent flex-shrink-0"
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-md hover:bg-accent active:scale-[0.94] flex-shrink-0"
           >
-            <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+            <DotsThree className="w-4 h-4 text-muted-foreground" weight="bold" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-56 glass">
           <div className="px-3 py-2 border-b border-border">
             <p className="font-semibold text-sm truncate">{song.title}</p>
             <p className="text-xs text-muted-foreground truncate mt-0.5">{song.artist}</p>
           </div>
 
           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePlay() }} className="gap-2">
-            <Play className="w-4 h-4" />
+            <Play className="w-4 h-4" weight="fill" />
             立即播放
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -301,19 +312,19 @@ const SongRow = React.memo(function SongRow({
           <DropdownMenuSeparator />
 
           <DropdownMenuItem onClick={handleToggleStar} className="gap-2">
-            <Heart className={cn('w-4 h-4', localStarred ? 'fill-current text-red-500' : '')} />
+            <Heart className={cn('w-4 h-4', localStarred ? 'text-primary' : '')} weight={localStarred ? 'fill' : 'regular'} />
             {localStarred ? '取消喜欢' : '加入喜欢'}
           </DropdownMenuItem>
 
           {song.artistId && (
             <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2">
-              <Mic2 className="w-4 h-4" />
+              <MicrophoneStage className="w-4 h-4" />
               查看歌手
             </DropdownMenuItem>
           )}
           {song.albumId && (
             <DropdownMenuItem onClick={handleNavigateAlbum} className="gap-2">
-              <Disc3 className="w-4 h-4" />
+              <Disc className="w-4 h-4" />
               查看专辑
             </DropdownMenuItem>
           )}
@@ -342,14 +353,14 @@ const SongRow = React.memo(function SongRow({
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">歌曲信息</p>
             {song.duration > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock className="w-3 h-3 flex-shrink-0" />
-                <span>{formatDuration(song.duration)}</span>
+                <ClockCounterClockwise className="w-3 h-3 flex-shrink-0" />
+                <span className="font-num">{formatDuration(song.duration)}</span>
               </div>
             )}
             {song.bitRate && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Music2 className="w-3 h-3 flex-shrink-0" />
-                <span>{song.bitRate} kbps</span>
+                <MusicNote className="w-3 h-3 flex-shrink-0" />
+                <span className="font-num">{song.bitRate} kbps</span>
                 {song.contentType && (
                   <span className="text-muted-foreground/50">· {song.contentType.split('/')[1]?.toUpperCase()}</span>
                 )}
@@ -358,7 +369,7 @@ const SongRow = React.memo(function SongRow({
             {song.year && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Info className="w-3 h-3 flex-shrink-0" />
-                <span>{song.year} 年</span>
+                <span className="font-num">{song.year} 年</span>
                 {song.genre && <span className="text-muted-foreground/50">· {song.genre}</span>}
               </div>
             )}

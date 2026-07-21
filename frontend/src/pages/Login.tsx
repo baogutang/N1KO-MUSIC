@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Music2, Loader2, Eye, EyeOff, ChevronRight, Server } from 'lucide-react'
+import { Waveform, CircleNotch, Eye, EyeSlash, CaretRight, HardDrives, MusicNote } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
@@ -14,13 +14,12 @@ import { JellyfinAdapter } from '@/api/adapters/jellyfin'
 import { EmbyAdapter } from '@/api/adapters/emby'
 import { setActiveAdapter } from '@/api'
 import type { ServerType } from '@/api/types'
-import { cn } from '@/lib/utils'
 
-const SERVER_TYPES: Array<{ type: ServerType; label: string; desc: string; color: string }> = [
-  { type: 'navidrome', label: 'Navidrome', desc: '开源音乐服务器（推荐）', color: 'from-blue-600 to-blue-800' },
-  { type: 'subsonic', label: 'Subsonic', desc: '经典 Subsonic 兼容服务器', color: 'from-purple-600 to-purple-800' },
-  { type: 'jellyfin', label: 'Jellyfin', desc: '开源媒体服务器', color: 'from-teal-600 to-teal-800' },
-  { type: 'emby', label: 'Emby', desc: '多媒体服务器', color: 'from-green-600 to-green-800' },
+const SERVER_TYPES: Array<{ type: ServerType; label: string; desc: string }> = [
+  { type: 'navidrome', label: 'Navidrome', desc: '开源音乐服务器（推荐）' },
+  { type: 'subsonic', label: 'Subsonic', desc: '经典 Subsonic 兼容服务器' },
+  { type: 'jellyfin', label: 'Jellyfin', desc: '开源媒体服务器' },
+  { type: 'emby', label: 'Emby', desc: '多媒体服务器' },
 ]
 
 export default function LoginPage() {
@@ -139,77 +138,77 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      {/* 背景装饰 */}
+      {/* 背景氛围光 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/2 -left-1/2 w-full h-full rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full bg-primary/3 blur-3xl" />
+        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full bg-primary/5 blur-3xl" />
       </div>
 
-      <div className="relative z-10 w-full max-w-md">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center mb-4">
-            <Music2 className="w-8 h-8 text-primary" />
+      <div className="relative z-10 w-full max-w-md animate-fade-in">
+        {/* 品牌 */}
+        <div className="flex flex-col items-center mb-10">
+          <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center mb-4 shadow-lg">
+            <Waveform weight="fill" className="w-7 h-7 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">N1KO MUSIC</h1>
-          <p className="text-sm text-muted-foreground mt-1">连接到你的音乐服务器</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">N1KO MUSIC</h1>
+          <p className="text-sm text-muted-foreground mt-1.5">连接到你的音乐服务器</p>
         </div>
 
         {step === 'type' ? (
           /* 选择服务器类型 */
-          <div className="space-y-3">
+          <div className="space-y-2">
             {servers.length > 0 && (
-              <div className="mb-6 space-y-2">
-                <p className="text-sm font-medium text-foreground text-center mb-3">
+              <div className="mb-8 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground tracking-widest text-center mb-3">
                   已保存的服务器
                 </p>
                 {servers.map(server => (
                   <button
                     key={server.id}
                     onClick={() => handleQuickConnect(server.id)}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl border border-border bg-card hover:bg-accent transition-all group"
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-lg border border-border hover:border-primary transition-colors duration-150 group text-left active:scale-[0.98]"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                      <Music2 className="w-5 h-5 text-primary" />
+                    <div className="w-9 h-9 rounded-md bg-accent flex items-center justify-center flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors duration-150">
+                      <MusicNote size={18} />
                     </div>
-                    <div className="text-left flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm text-foreground truncate">{server.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{server.url}</p>
                       <p className="text-xs text-muted-foreground">{getServerTypeLabel(server.type)} · {server.username}</p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    <CaretRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors duration-150 flex-shrink-0" />
                   </button>
                 ))}
                 <p className="text-xs text-muted-foreground text-center pt-2">或添加新服务器</p>
               </div>
             )}
-            <p className="text-sm font-medium text-foreground mb-4 text-center">
+            <p className="text-xs font-medium text-muted-foreground tracking-widest text-center mb-3">
               选择服务器类型
             </p>
-            {SERVER_TYPES.map(({ type, label, desc, color }) => (
+            {SERVER_TYPES.map(({ type, label, desc }) => (
               <button
                 key={type}
                 onClick={() => handleTypeSelect(type)}
-                className="w-full flex items-center gap-4 p-4 rounded-2xl border border-border bg-card hover:bg-accent transition-all group"
+                className="w-full flex items-center gap-4 px-4 py-3.5 rounded-lg border border-border hover:border-primary transition-colors duration-150 group text-left active:scale-[0.98]"
               >
-                <div className={cn('w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center flex-shrink-0', color)}>
-                  <Server className="w-5 h-5 text-white" />
+                <div className="w-9 h-9 rounded-md bg-accent flex items-center justify-center flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors duration-150">
+                  <HardDrives size={18} />
                 </div>
-                <div className="text-left flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-foreground">{label}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <CaretRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors duration-150 flex-shrink-0" />
               </button>
             ))}
           </div>
         ) : (
           /* 填写连接信息 */
-          <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
+          <div className="border-t border-border pt-6 space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <button
                 onClick={() => setStep('type')}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-150"
               >
                 ← 返回
               </button>
@@ -273,29 +272,29 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors duration-150"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
             {/* 错误提示 */}
             {error && (
-              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
+              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
                 {error}
               </p>
             )}
 
             {/* 连接按钮 */}
             <Button
-              className="w-full"
+              className="w-full h-10 font-semibold"
               onClick={handleConnect}
               disabled={isLoading || !form.url || !form.username || !form.password}
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <CircleNotch className="w-4 h-4 mr-2 animate-spin" />
                   正在连接...
                 </>
               ) : (

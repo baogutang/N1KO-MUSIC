@@ -5,15 +5,13 @@
 
 import { useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { Play, Shuffle, Heart } from 'lucide-react'
+import { Play, Shuffle, Heart } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { useAlbumDetail, useToggleStar } from '@/hooks/useServerQueries'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
-import { formatDuration, formatDurationNatural } from '@/utils/formatters'
+import { formatDurationNatural } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
 
@@ -54,58 +52,64 @@ export default function AlbumDetailPage() {
   return (
     <div className="flex flex-col h-full">
       <ScrollArea className="flex-1">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-5xl mx-auto animate-fade-in">
           {/* 专辑 Header */}
-          <div className="p-6 flex gap-6 items-end">
+          <div className="px-8 pt-10 pb-8 flex gap-8 items-end">
             {/* 封面 */}
-            <div className="w-40 h-40 lg:w-56 lg:h-56 rounded-2xl overflow-hidden shadow-2xl flex-shrink-0">
-              <ImageWithFallback
-                src={coverUrl}
-                alt={album.name}
-                fallbackType="album"
-                className="w-full h-full"
-                customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
-              />
+            <div className="relative w-40 h-40 lg:w-56 lg:h-56 flex-shrink-0">
+              <div aria-hidden className="absolute inset-[10%] rounded-[40%] bg-primary/20 blur-[48px]" />
+              <div className="relative w-full h-full rounded-lg overflow-hidden ring-1 ring-border shadow-2xl shadow-black/40">
+                <ImageWithFallback
+                  src={coverUrl}
+                  alt={album.name}
+                  fallbackType="album"
+                  className="w-full h-full"
+                  customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
+                />
+              </div>
             </div>
 
             {/* 信息 */}
-            <div className="flex-1 min-w-0 pb-2">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">专辑</p>
-              <h1 className="text-2xl lg:text-4xl font-bold text-foreground line-clamp-2 mb-2">
+            <div className="flex-1 min-w-0 pb-1">
+              <p className="text-[11.5px] uppercase tracking-[0.14em] text-primary mb-2">专辑</p>
+              <h1 className="text-2xl lg:text-4xl font-bold tracking-tight text-foreground line-clamp-2 mb-2">
                 {album.name}
               </h1>
-              <p className="text-base text-muted-foreground mb-3">{album.artist}</p>
-              <div className="flex items-center gap-3 flex-wrap">
+              <p className="text-base text-muted-foreground mb-3 truncate">{album.artist}</p>
+              <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
                 {album.year && (
-                  <Badge variant="secondary">{album.year}</Badge>
+                  <>
+                    <span className="font-num">{album.year}</span>
+                    <span aria-hidden>·</span>
+                  </>
                 )}
                 {album.genre && (
-                  <Badge variant="outline">{album.genre}</Badge>
+                  <>
+                    <span>{album.genre}</span>
+                    <span aria-hidden>·</span>
+                  </>
                 )}
-                <span className="text-xs text-muted-foreground">
-                  {album.songs.length} 首歌曲 · {formatDurationNatural(totalDuration)}
+                <span>
+                  <span className="font-num">{album.songs.length}</span> 首歌曲 · <span className="font-num">{formatDurationNatural(totalDuration)}</span>
                 </span>
               </div>
 
               {/* 操作按钮 */}
-              <div className="flex items-center gap-3 mt-5">
-                <Button
-                  size="lg"
-                  className="rounded-full"
+              <div className="flex items-center gap-3 mt-6">
+                <button
                   onClick={() => playAllInOrder(album.songs)}
+                  className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors active:scale-[0.97]"
                 >
-                  <Play className="w-5 h-5 mr-2" fill="currentColor" />
+                  <Play size={16} weight="fill" />
                   播放全部
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  className="rounded-full"
+                </button>
+                <button
                   onClick={() => playAllShuffled(album.songs)}
+                  className="inline-flex items-center gap-2 h-10 px-5 rounded-full border border-border text-sm font-semibold text-foreground hover:border-primary hover:text-primary transition-colors active:scale-[0.97]"
                 >
-                  <Shuffle className="w-5 h-5 mr-2" />
+                  <Shuffle size={16} />
                   随机播放
-                </Button>
+                </button>
                 <button
                   onClick={() => {
                     if (!id) return
@@ -117,22 +121,22 @@ export default function AlbumDetailPage() {
                     )
                   }}
                   className={cn(
-                    'p-2 rounded-full hover:bg-accent transition-colors',
-                    starred ? 'text-red-400' : 'text-muted-foreground hover:text-foreground'
+                    'w-10 h-10 grid place-items-center rounded-full transition-colors hover:bg-accent active:scale-[0.94]',
+                    starred ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                   )}
                   aria-label={starred ? '取消收藏专辑' : '收藏专辑'}
                 >
-                  <Heart className="w-5 h-5" fill={starred ? 'currentColor' : 'none'} />
+                  <Heart size={20} weight={starred ? 'fill' : 'regular'} />
                 </button>
               </div>
             </div>
           </div>
 
           {/* 歌曲列表 */}
-          <div className="px-6 pb-8">
+          <div className="px-8 pb-10 border-t border-border pt-4">
             {/* 表头 */}
-            <div className="flex items-center gap-4 px-4 py-2 text-xs text-muted-foreground border-b border-border/50 mb-2">
-              <span className="w-8 text-center">#</span>
+            <div className="flex items-center gap-4 px-4 py-2 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border mb-2">
+              <span className="w-8 text-center font-num">#</span>
               <span className="flex-1">标题</span>
               <span className="hidden lg:block flex-1">专辑</span>
               <span className="w-12 text-right">时长</span>

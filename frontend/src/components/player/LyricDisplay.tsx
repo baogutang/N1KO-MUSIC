@@ -143,7 +143,16 @@ export const LyricDisplay = memo(function LyricDisplay({
         variant === 'fullscreen' ? 'h-full' : 'h-64',
         className
       )}
-      style={{ scrollBehavior: 'smooth' }}
+      style={{
+        scrollBehavior: 'smooth',
+        // 上下 22% 渐隐遮罩（DESIGN.md §4 全屏播放页）
+        ...(variant === 'fullscreen'
+          ? {
+              maskImage: 'linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent)',
+              WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent)',
+            }
+          : {}),
+      }}
     >
       <div className={cn(
         'space-y-4 px-6',
@@ -151,20 +160,11 @@ export const LyricDisplay = memo(function LyricDisplay({
       )}>
         {lines.map((line, index) => {
           const isActive = index === currentIndex
-          const isPast = isSynced && index < currentIndex
-          const isNear = Math.abs(index - currentIndex) <= 2
           const isClickable = isSynced && line.time >= 0
 
-          // 纯 opacity 方案（移除昂贵的 per-line filter: blur()）
-          const lineOpacity = isActive
-            ? 1
-            : isSynced
-              ? isPast
-                ? 0.3
-                : isNear
-                  ? 0.55
-                  : 0.2
-              : 0.85
+          // 纯 opacity 方案（移除昂贵的 per-line filter: blur()）：
+          // 当前行 1，非当前行 0.55（DESIGN.md §4），未同步歌词整体 0.85
+          const lineOpacity = isActive ? 1 : isSynced ? 0.55 : 0.85
 
           return (
             <p
@@ -175,10 +175,11 @@ export const LyricDisplay = memo(function LyricDisplay({
                 'leading-relaxed text-center',
                 isClickable ? 'cursor-pointer select-none' : 'select-none',
                 isClickable && !isActive && 'hover:scale-[1.02]',
+                !isActive && baseColor === 'default' && 'text-muted-foreground',
               )}
               style={{
                 fontSize: variant === 'fullscreen' ? `${lyricsFontSize}px` : undefined,
-                fontWeight: variant === 'fullscreen' ? 600 : undefined,
+                fontWeight: variant === 'fullscreen' ? 700 : undefined,
                 color: isActive
                   ? lyricsHighlightColor
                   : baseColor === 'white' ? 'rgba(255,255,255,0.85)' : undefined,

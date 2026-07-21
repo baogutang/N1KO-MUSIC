@@ -6,9 +6,10 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Home, Search, Library, Heart, Clock,
-  BarChart3, Settings, ChevronRight, LogOut, Plus, Music2, Sparkles, Crown
-} from 'lucide-react'
+  House, MagnifyingGlass, VinylRecord, Heart, ClockCounterClockwise,
+  ChartBar, GearSix, CaretRight, SignOut, Plus, MusicNote, Sparkle,
+  CrownSimple, Waveform,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { usePlaylists } from '@/hooks/useServerQueries'
@@ -27,16 +28,16 @@ import { MemberUpgradeDialog } from '@/components/member/MemberUpgradeDialog'
 import { toast } from '@/components/ui/use-toast'
 
 const mainNavItems = [
-  { to: '/', icon: Home, label: '首页', premium: false },
-  { to: '/search', icon: Search, label: '搜索', premium: false },
-  { to: '/library', icon: Library, label: '音乐库', premium: false },
-  { to: '/recommendations', icon: Sparkles, label: '为你推荐', premium: true },
+  { to: '/', icon: House, label: '首页', premium: false },
+  { to: '/search', icon: MagnifyingGlass, label: '搜索', premium: false },
+  { to: '/library', icon: VinylRecord, label: '音乐库', premium: false },
+  { to: '/recommendations', icon: Sparkle, label: '为你推荐', premium: true },
 ]
 
 const collectionNavItems = [
   { to: '/favorites', icon: Heart, label: '我的收藏', premium: true },
-  { to: '/history', icon: Clock, label: '最近播放', premium: false },
-  { to: '/stats', icon: BarChart3, label: '听歌统计', premium: true },
+  { to: '/history', icon: ClockCounterClockwise, label: '最近播放', premium: false },
+  { to: '/stats', icon: ChartBar, label: '听歌统计', premium: true },
 ]
 
 export function Sidebar() {
@@ -54,31 +55,32 @@ export function Sidebar() {
   })
 
   return (
-    <aside className="flex flex-col h-full w-60 bg-background border-r border-border/50 flex-shrink-0">
+    <aside className="flex flex-col h-full w-60 bg-background border-r border-border flex-shrink-0">
       {/* 会员升级弹窗 */}
       <MemberUpgradeDialog
         open={upgradeOpen}
         onOpenChange={setUpgradeOpen}
         featureName={upgradeName}
       />
-      {/* 服务器信息 */}
-      <div className="p-4 border-b border-border/50">
+      {/* 品牌区 + 服务器切换 */}
+      <div className="px-3 pt-4 pb-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-accent transition-colors group">
-              {/* 服务器 Logo */}
-              <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                <Music2 className="w-5 h-5 text-primary" />
+            <button className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md hover:bg-surface transition-colors duration-150 group text-left active:scale-[0.97]">
+              {/* 品牌方标 */}
+              <div className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center flex-shrink-0 text-primary-foreground [background:linear-gradient(145deg,hsl(var(--primary)),color-mix(in_srgb,hsl(var(--primary))_60%,black))]">
+                <Waveform size={17} weight="fill" />
               </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-semibold text-foreground line-clamp-1">
-                  {activeServer?.name ?? 'N1KO MUSIC'}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold tracking-[0.06em] text-foreground truncate">
+                  N1KO MUSIC
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {activeServer ? getServerTypeLabel(activeServer.type) : '未连接'}
+                <p className="flex items-center gap-[5px] text-[11px] text-muted-foreground truncate">
+                  <span className="w-[5px] h-[5px] rounded-full bg-primary flex-shrink-0" aria-hidden="true" />
+                  {activeServer ? activeServer.name : '未连接'}
                 </p>
               </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              <CaretRight size={14} className="text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="start">
@@ -96,7 +98,7 @@ export function Sidebar() {
                 }}
                 className={cn(activeServerId === server.id && 'text-primary')}
               >
-                <Music2 className="w-4 h-4 mr-2" />
+                <MusicNote size={16} className="mr-2" />
                 {server.name}
                 <span className="ml-auto text-xs text-muted-foreground">
                   {getServerTypeLabel(server.type)}
@@ -105,7 +107,7 @@ export function Sidebar() {
             ))}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate('/settings')}>
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus size={16} className="mr-2" />
               添加服务器
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -113,7 +115,7 @@ export function Sidebar() {
               className="text-destructive"
               onClick={disconnect}
             >
-              <LogOut className="w-4 h-4 mr-2" />
+              <SignOut size={16} className="mr-2" />
               断开连接
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -121,7 +123,7 @@ export function Sidebar() {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-3 space-y-6">
+        <div className="px-3 pb-3 space-y-5">
           {/* 主导航 */}
           <nav>
             <ul className="space-y-0.5">
@@ -136,9 +138,9 @@ export function Sidebar() {
                             className="nav-item w-full opacity-45 cursor-not-allowed select-none"
                             onClick={() => { setUpgradeName(label); setUpgradeOpen(true) }}
                           >
-                            <Icon className="w-4 h-4 flex-shrink-0" />
+                            <Icon size={18} className="flex-shrink-0" />
                             <span className="flex-1 text-left">{label}</span>
-                            <Crown className="w-3 h-3 text-amber-500" />
+                            <CrownSimple size={12} weight="fill" className="text-amber-500" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="right">
@@ -155,10 +157,10 @@ export function Sidebar() {
                       end={to === '/'}
                       {...bindPrefetch(to)}
                       className={({ isActive }) =>
-                        cn('nav-item', isActive && 'active text-foreground bg-accent')
+                        cn('nav-item', isActive && 'active')
                       }
                     >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <Icon size={18} className="flex-shrink-0" />
                       <span>{label}</span>
                     </NavLink>
                   </li>
@@ -169,7 +171,7 @@ export function Sidebar() {
 
           {/* 我的收藏 */}
           <nav>
-            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <p className="px-3 mb-2 text-[11px] text-muted-foreground/70 uppercase tracking-widest">
               我的音乐
             </p>
             <ul className="space-y-0.5">
@@ -184,9 +186,9 @@ export function Sidebar() {
                             className="nav-item w-full opacity-45 cursor-not-allowed select-none"
                             onClick={() => { setUpgradeName(label); setUpgradeOpen(true) }}
                           >
-                            <Icon className="w-4 h-4 flex-shrink-0" />
+                            <Icon size={18} className="flex-shrink-0" />
                             <span className="flex-1 text-left">{label}</span>
-                            <Crown className="w-3 h-3 text-amber-500" />
+                            <CrownSimple size={12} weight="fill" className="text-amber-500" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="right">
@@ -202,10 +204,10 @@ export function Sidebar() {
                       to={to}
                       {...bindPrefetch(to)}
                       className={({ isActive }) =>
-                        cn('nav-item', isActive && 'active text-foreground bg-accent')
+                        cn('nav-item', isActive && 'active')
                       }
                     >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <Icon size={18} className="flex-shrink-0" />
                       <span>{label}</span>
                     </NavLink>
                   </li>
@@ -218,7 +220,7 @@ export function Sidebar() {
           {playlists && playlists.length > 0 && (
             <nav>
               <div className="flex items-center justify-between px-3 mb-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <p className="text-[11px] text-muted-foreground/70 uppercase tracking-widest">
                   歌单
                 </p>
                 <button
@@ -237,11 +239,11 @@ export function Sidebar() {
                       to={`/playlists/${playlist.id}`}
                       {...bindPrefetch(`/playlists/${playlist.id}`)}
                       className={({ isActive }) =>
-                        cn('nav-item', isActive && 'active text-foreground bg-accent')
+                        cn('nav-item', isActive && 'active')
                       }
                     >
-                      <Library className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-                      <span className="line-clamp-1">{playlist.name}</span>
+                      <VinylRecord size={18} className="flex-shrink-0 text-muted-foreground" />
+                      <span className="flex-1 min-w-0 truncate">{playlist.name}</span>
                     </NavLink>
                   </li>
                 ))}
@@ -252,33 +254,33 @@ export function Sidebar() {
       </ScrollArea>
 
       {/* 底部设置 */}
-      <div className="p-3 border-t border-border/50 space-y-1">
+      <div className="p-3 border-t border-border space-y-1">
         {/* 会员状态 */}
         {!isPremium ? (
           <button
             onClick={() => { setUpgradeName(undefined); setUpgradeOpen(true) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg
-              bg-gradient-to-r from-amber-500/10 to-orange-500/10
-              border border-amber-500/20 hover:border-amber-500/40
-              text-amber-500 hover:text-amber-400 transition-all group"
+            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-md
+              border border-amber-500/30 bg-amber-500/10
+              text-amber-500 hover:border-amber-500/50 hover:text-amber-400
+              transition-colors duration-150 active:scale-[0.97]"
           >
-            <Crown className="w-4 h-4 flex-shrink-0" />
-            <span className="text-sm font-medium">升级会员</span>
+            <CrownSimple size={16} weight="fill" className="flex-shrink-0" />
+            <span className="text-[12.5px] font-medium">升级会员</span>
           </button>
         ) : (
-          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <Crown className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            <span className="text-sm font-medium text-amber-400">会员已激活</span>
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/10">
+            <CrownSimple size={16} weight="fill" className="text-amber-500 flex-shrink-0" />
+            <span className="text-[12.5px] font-medium text-amber-500">会员已激活</span>
           </div>
         )}
         <NavLink
           to="/settings"
           {...bindPrefetch('/settings')}
           className={({ isActive }) =>
-            cn('nav-item', isActive && 'active text-foreground bg-accent')
+            cn('nav-item', isActive && 'active')
           }
         >
-          <Settings className="w-4 h-4 flex-shrink-0" />
+          <GearSix size={18} className="flex-shrink-0" />
           <span>设置</span>
         </NavLink>
       </div>

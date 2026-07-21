@@ -4,7 +4,7 @@
  */
 
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Sun, Moon, Search, User } from 'lucide-react'
+import { CaretLeft, CaretRight, Sun, Moon, MagnifyingGlass, User } from '@phosphor-icons/react'
 import { useThemeStore } from '@/store/themeStore'
 import { useServerStore } from '@/store/serverStore'
 import { Button } from '@/components/ui/button'
@@ -30,7 +30,7 @@ export function TopBar({ title, className }: TopBarProps) {
 
   return (
     <header className={cn(
-      'h-14 flex items-center gap-3 px-6 border-b border-border/50 bg-background/80 backdrop-blur-md flex-shrink-0',
+      'h-[60px] flex items-center gap-3 px-6 border-b border-border flex-shrink-0',
       className
     )}>
       {/* 导航按钮 */}
@@ -39,23 +39,23 @@ export function TopBar({ title, className }: TopBarProps) {
           variant="ghost"
           size="icon-sm"
           onClick={() => navigate(-1)}
-          className="rounded-full"
+          className="rounded-md active:scale-[0.94]"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <CaretLeft size={18} />
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
           onClick={() => navigate(1)}
-          className="rounded-full"
+          className="rounded-md active:scale-[0.94]"
         >
-          <ChevronRight className="w-4 h-4" />
+          <CaretRight size={18} />
         </Button>
       </div>
 
       {/* 页面标题 */}
       {title && (
-        <h1 className="text-lg font-semibold text-foreground truncate flex-1">
+        <h1 className="text-lg font-bold tracking-tight text-foreground truncate flex-1">
           {title}
         </h1>
       )}
@@ -67,12 +67,12 @@ export function TopBar({ title, className }: TopBarProps) {
         onClick={() => navigate('/search')}
         onMouseEnter={() => prefetchRoute('/search')}
         onFocus={() => prefetchRoute('/search')}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary text-muted-foreground text-sm hover:bg-accent hover:text-foreground transition-colors"
+        className="flex items-center gap-2 h-[34px] px-3 rounded-md bg-surface border border-border text-muted-foreground text-[13px] hover:text-foreground transition-colors duration-150 active:scale-[0.97]"
         aria-label="搜索"
       >
-        <Search className="w-3.5 h-3.5" />
+        <MagnifyingGlass size={15} />
         <span className="hidden md:inline">搜索</span>
-        <kbd className="hidden md:inline ml-1 px-1.5 py-0.5 rounded text-xs bg-background border border-border font-mono">
+        <kbd className="hidden md:inline-flex items-center ml-1 px-1.5 py-0.5 rounded-md text-[10.5px] font-num border border-border text-muted-foreground">
           ⌘K
         </kbd>
       </button>
@@ -82,21 +82,21 @@ export function TopBar({ title, className }: TopBarProps) {
         variant="ghost"
         size="icon-sm"
         onClick={toggleTheme}
-        className="rounded-full"
+        className="rounded-md active:scale-[0.94]"
         title={resolvedTheme === 'dark' ? '切换浅色模式' : '切换深色模式'}
       >
         {resolvedTheme === 'dark' ? (
-          <Sun className="w-4 h-4" />
+          <Sun size={18} />
         ) : (
-          <Moon className="w-4 h-4" />
+          <Moon size={18} />
         )}
       </Button>
 
       {/* 用户菜单 */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30 transition-colors">
-            <User className="w-4 h-4 text-primary" />
+          <button className="w-[30px] h-[30px] rounded-full bg-accent border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors duration-150 active:scale-[0.94]">
+            <User size={15} />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">

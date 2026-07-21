@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { User } from 'lucide-react'
+import { User } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useCustomCoverUrl, type CoverQueryType } from '@/hooks/useServerQueries'
 import { pickMergedCoverDisplaySrc } from '@/hooks/useCoverUrl'
@@ -36,7 +36,7 @@ interface CoverImageProps {
 
 function VinylPlaceholder({ className }: { className?: string }) {
   return (
-    <div className={cn('flex items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950', className)}>
+    <div className={cn('flex items-center justify-center bg-accent', className)}>
       <svg viewBox="0 0 100 100" className="w-3/5 h-3/5 opacity-70" xmlns="http://www.w3.org/2000/svg">
         <circle cx="50" cy="50" r="48" fill="#111" stroke="#333" strokeWidth="1"/>
         {[44,40,36,32,28,24,20].map(r => (
@@ -155,7 +155,7 @@ export function CoverImage({
     const showVinyl = !src || !isLoaded
     return (
       <div ref={containerRef} className={cn('relative', className)}>
-        {showVinyl && <VinylPlaceholder className="absolute inset-0" />}
+        {showVinyl && <VinylPlaceholder className="absolute inset-0 animate-pulse" />}
         {src && (
           <img
             src={src}
@@ -184,8 +184,8 @@ export function CoverImage({
   if (showPlaceholder) {
     if (type === 'artist') {
       return (
-        <div ref={containerRef} className={cn('flex items-center justify-center bg-gradient-to-br from-zinc-700 to-zinc-900', className)}>
-          <User className="w-1/3 h-1/3 text-white/25" />
+        <div ref={containerRef} className={cn('flex items-center justify-center bg-accent', className)}>
+          <User className="w-1/3 h-1/3 text-muted-foreground/40" />
         </div>
       )
     }
@@ -199,8 +199,8 @@ export function CoverImage({
   if (!displaySrc) {
     if (type === 'artist') {
       return (
-        <div ref={containerRef} className={cn('flex items-center justify-center bg-gradient-to-br from-zinc-700 to-zinc-900', className)}>
-          <User className="w-1/3 h-1/3 text-white/25" />
+        <div ref={containerRef} className={cn('flex items-center justify-center bg-accent', className)}>
+          <User className="w-1/3 h-1/3 text-muted-foreground/40" />
         </div>
       )
     }
@@ -213,7 +213,7 @@ export function CoverImage({
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      {!isLoaded && <VinylPlaceholder className="absolute inset-0" />}
+      {!isLoaded && <VinylPlaceholder className="absolute inset-0 animate-pulse" />}
       <img
         src={(streamBuffering && !isLoaded) ? undefined : displaySrc}
         alt={alt}

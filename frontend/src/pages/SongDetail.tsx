@@ -7,12 +7,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
-  ChevronLeft,
-  Music2, AlignLeft, FileAudio,
+  CaretLeft,
+  MusicNote, TextAlignLeft, FileAudio,
   HardDrive, Gauge, Clock, PlayCircle, Timer, FolderOpen,
-  ArrowRight, Search,
-  X, Save, RefreshCw,
-} from 'lucide-react'
+  ArrowRight, MagnifyingGlass,
+  X, FloppyDisk, ArrowsClockwise,
+} from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -22,6 +22,8 @@ import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/o3icCacheStore'
 import { useSongDetail } from '@/hooks/useServerQueries'
+import { getAdapter, hasAdapter } from '@/api'
+import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import type { Song } from '@/api/types'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
@@ -33,11 +35,11 @@ interface SectionProps {
 
 function Section({ title, children }: SectionProps) {
   return (
-    <div className="mb-4">
-      <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium px-4 mb-1.5">
+    <div className="border-t border-border pt-5 mt-6">
+      <p className="text-[11px] text-muted-foreground tracking-[0.14em] font-medium px-2 mb-2">
         {title}
       </p>
-      <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/50">
+      <div>
         {children}
       </div>
     </div>
@@ -57,10 +59,10 @@ function Row({ icon, label, value, onClick, linkable }: RowProps) {
     <>
       <div className="flex items-center gap-3 text-muted-foreground flex-shrink-0 w-36">
         <span className="flex-shrink-0">{icon}</span>
-        <span className="text-sm text-foreground/80">{label}</span>
+        <span className="text-sm text-foreground">{label}</span>
       </div>
       <div className="flex-1 text-right flex items-center justify-end gap-1 min-w-0">
-        <span className="text-sm text-foreground/70 truncate text-right">{value}</span>
+        <span className="text-sm text-muted-foreground truncate text-right">{value}</span>
         {linkable && <ArrowRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
       </div>
     </>
@@ -70,7 +72,7 @@ function Row({ icon, label, value, onClick, linkable }: RowProps) {
     return (
       <button
         onClick={onClick}
-        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-accent/50 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-2 py-3 rounded-md hover:bg-accent transition-colors duration-150 text-left active:scale-[0.99]"
       >
         {inner}
       </button>
@@ -78,7 +80,7 @@ function Row({ icon, label, value, onClick, linkable }: RowProps) {
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3.5">
+    <div className="flex items-center gap-3 px-2 py-3">
       {inner}
     </div>
   )
@@ -305,7 +307,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
                 <input
                   type="text" value={searchTitle}
                   onChange={(e) => setSearchTitle(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-border/60 bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-surface text-sm text-foreground transition-colors focus:outline-none focus:border-primary"
                 />
               </div>
               <div>
@@ -313,7 +315,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
                 <input
                   type="text" value={searchArtist}
                   onChange={(e) => setSearchArtist(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-border/60 bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-surface text-sm text-foreground transition-colors focus:outline-none focus:border-primary"
                 />
               </div>
               <div>
@@ -321,15 +323,15 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
                 <input
                   type="text" value={searchAlbum}
                   onChange={(e) => setSearchAlbum(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-border/60 bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-surface text-sm text-foreground transition-colors focus:outline-none focus:border-primary"
                 />
               </div>
             </div>
 
-            <Button onClick={handleSearch} disabled={searching || !searchTitle.trim()} className="w-full" size="sm">
+            <Button onClick={handleSearch} disabled={searching || !searchTitle.trim()} className="w-full gap-1.5" size="sm">
               {searching
-                ? <><RefreshCw className="w-4 h-4 mr-1.5 animate-spin" />搜索中...</>
-                : <><Search className="w-4 h-4 mr-1.5" />搜索歌词</>
+                ? <><ArrowsClockwise className="w-4 h-4 animate-spin" />搜索中...</>
+                : <><MagnifyingGlass className="w-4 h-4" />搜索歌词</>
               }
             </Button>
           </div>
@@ -339,10 +341,10 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
           {searchResults.length > 0 && (
             <div className="flex-shrink-0 flex flex-col min-h-0">
               <p className="text-xs text-muted-foreground mb-1.5 flex-shrink-0">
-                找到 {searchResults.length} 个结果，点击选择
+                找到 <span className="font-num">{searchResults.length}</span> 个结果，点击选择
               </p>
               <div
-                className="mb-2 max-h-[min(15rem,32vh)] min-h-0 overflow-y-auto overscroll-y-contain rounded-lg border border-border/60 bg-muted/30"
+                className="mb-2 max-h-[min(15rem,32vh)] min-h-0 overflow-y-auto overscroll-y-contain rounded-md border border-border bg-surface"
                 role="listbox" aria-label="歌词搜索结果"
               >
                 <div className="p-2 space-y-1">
@@ -354,15 +356,15 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
                       aria-selected={selectedIndex === index}
                       onClick={() => handleSelectResult(index)}
                       className={cn(
-                        'w-full text-left px-3 py-2 rounded-lg transition-colors text-sm',
+                        'w-full text-left px-3 py-2 rounded-md transition-colors duration-150 text-sm',
                         selectedIndex === index
-                          ? 'bg-primary/20 text-foreground'
+                          ? 'bg-primary/10 text-foreground'
                           : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                       )}
                     >
                       <div className="flex items-center gap-2">
                         <span className={cn(
-                          'w-5 h-5 rounded-full border flex items-center justify-center text-xs flex-shrink-0',
+                          'font-num w-5 h-5 rounded-full border flex items-center justify-center text-xs flex-shrink-0',
                           selectedIndex === index ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
                         )}>{index + 1}</span>
                         <div className="min-w-0 flex-1">
@@ -385,7 +387,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
             <div className="mt-2 flex-shrink-0">
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-xs text-muted-foreground">
-                  歌词预览（{previewLrc.split('\n').filter(l => l.trim()).length} 行）
+                  歌词预览（<span className="font-num">{previewLrc.split('\n').filter(l => l.trim()).length}</span> 行）
                   {selectedResult?.artist && (
                     <span className="ml-2">
                       - {selectedResult.artist}{selectedResult.title && `《${selectedResult.title}》`}
@@ -394,8 +396,8 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
                 </p>
                 <span className="text-xs text-muted-foreground">可滚动查看</span>
               </div>
-              <ScrollArea className="h-48 rounded-lg border border-border/60 bg-muted/30">
-                <pre ref={previewRef} className="text-xs text-foreground/80 font-mono whitespace-pre-wrap leading-6 px-3 py-2">
+              <ScrollArea className="h-48 rounded-md border border-border bg-surface">
+                <pre ref={previewRef} className="font-num text-xs text-muted-foreground whitespace-pre-wrap leading-6 px-3 py-2">
                   {previewLrc}
                 </pre>
               </ScrollArea>
@@ -404,13 +406,13 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
         </div>
 
         <div className="flex justify-end gap-2 mt-2 flex-shrink-0">
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            <X className="w-4 h-4 mr-1.5" />取消
+          <Button variant="outline" onClick={onClose} disabled={saving} className="gap-1.5">
+            <X className="w-4 h-4" />取消
           </Button>
-          <Button onClick={handleConfirm} disabled={saving || previewLrc === null}>
+          <Button onClick={handleConfirm} disabled={saving || previewLrc === null} className="gap-1.5">
             {saving
-              ? <><RefreshCw className="w-4 h-4 mr-1.5 animate-spin" />保存中...</>
-              : <><Save className="w-4 h-4 mr-1.5" />确认保存</>
+              ? <><ArrowsClockwise className="w-4 h-4 animate-spin" />保存中...</>
+              : <><FloppyDisk className="w-4 h-4" />确认保存</>
             }
           </Button>
         </div>
@@ -444,7 +446,7 @@ export default function SongDetailPage() {
   if (!song || isError) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-3 text-muted-foreground">
-        <Music2 className="w-12 h-12 opacity-30" />
+        <MusicNote className="w-12 h-12 opacity-30" />
         <p className="text-sm">未找到歌曲信息</p>
         <button onClick={() => navigate(-1)} className="text-sm text-primary hover:underline">
           返回
@@ -463,31 +465,52 @@ export default function SongDetailPage() {
     : undefined
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full animate-fade-in">
       {/* 顶部栏 */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60 flex-shrink-0">
+      <div className="flex items-center gap-2 px-4 h-[60px] border-b border-border flex-shrink-0">
         <button
           onClick={() => navigate(-1)}
-          className="p-1.5 rounded-full hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+          className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors duration-150 text-muted-foreground hover:text-foreground active:scale-[0.94]"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <CaretLeft className="w-5 h-5" />
         </button>
         <h1 className="text-base font-semibold">歌曲详情</h1>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 max-w-2xl mx-auto">
+        <div className="p-6 max-w-2xl mx-auto">
+
+          {/* Hero */}
+          <div className="flex items-center gap-5 mb-8">
+            <div className="w-28 h-28 rounded-lg ring-1 ring-border overflow-hidden flex-shrink-0 shadow-xl bg-accent">
+              <ImageWithFallback
+                src={song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(song.coverArt, 300) : undefined}
+                alt={song.title}
+                fallbackType="album"
+                className="w-full h-full"
+                customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-primary tracking-[0.14em] mb-2">歌曲</p>
+              <h2 className="text-2xl font-bold tracking-tight truncate">{song.title}</h2>
+              <p className="text-[13.5px] text-muted-foreground truncate mt-1.5">
+                {song.artist}
+                {song.album && ` · ${song.album}`}
+              </p>
+            </div>
+          </div>
 
           {/* 基础信息 */}
           <Section title="基础">
             <Row
-              icon={<Music2 className="w-4 h-4" />}
+              icon={<MusicNote className="w-4 h-4" />}
               label="标题"
               value={song.title}
             />
 
             <Row
-              icon={<AlignLeft className="w-4 h-4" />}
+              icon={<TextAlignLeft className="w-4 h-4" />}
               label="专辑"
               value={song.album || '-'}
               onClick={song.albumId ? () => navigate(`/albums/${song.albumId}`) : undefined}
@@ -495,7 +518,7 @@ export default function SongDetailPage() {
             />
 
             <Row
-              icon={<AlignLeft className="w-4 h-4" />}
+              icon={<TextAlignLeft className="w-4 h-4" />}
               label="歌手"
               value={song.artist || '-'}
               onClick={song.artistId ? () => navigate(`/artists/${song.artistId}`) : undefined}
@@ -503,7 +526,7 @@ export default function SongDetailPage() {
             />
 
             <Row
-              icon={<AlignLeft className="w-4 h-4" />}
+              icon={<TextAlignLeft className="w-4 h-4" />}
               label="歌词"
               value="查看 / 搜索歌词"
               onClick={() => { navigate(-1); setTimeout(() => setFullscreen(true), 50) }}
@@ -511,7 +534,7 @@ export default function SongDetailPage() {
             />
 
             <Row
-              icon={<Search className="w-4 h-4" />}
+              icon={<MagnifyingGlass className="w-4 h-4" />}
               label="搜索歌词"
               value="自定义参数搜索"
               onClick={() => setO3icsSearchOpen(true)}
@@ -519,17 +542,17 @@ export default function SongDetailPage() {
 
             {song.year != null && (
               <Row
-                icon={<AlignLeft className="w-4 h-4" />}
+                icon={<TextAlignLeft className="w-4 h-4" />}
                 label="年代"
-                value={String(song.year)}
+                value={<span className="font-num">{String(song.year)}</span>}
               />
             )}
 
             {song.track != null && (
               <Row
-                icon={<AlignLeft className="w-4 h-4" />}
+                icon={<TextAlignLeft className="w-4 h-4" />}
                 label="音轨号"
-                value={String(song.track)}
+                value={<span className="font-num">{String(song.track)}</span>}
               />
             )}
           </Section>
@@ -547,7 +570,7 @@ export default function SongDetailPage() {
               <Row
                 icon={<HardDrive className="w-4 h-4" />}
                 label="文件大小"
-                value={formatFileSize(song.size)}
+                value={<span className="font-num">{formatFileSize(song.size)}</span>}
               />
             )}
             {contentTypeLabel && (
@@ -561,26 +584,26 @@ export default function SongDetailPage() {
               <Row
                 icon={<Clock className="w-4 h-4" />}
                 label="时长"
-                value={formatDuration(song.duration)}
+                value={<span className="font-num">{formatDuration(song.duration)}</span>}
               />
             )}
             {song.bitRate != null && song.bitRate > 0 && (
               <Row
                 icon={<Gauge className="w-4 h-4" />}
                 label="比特率"
-                value={`${song.bitRate} kbps`}
+                value={<span className="font-num">{`${song.bitRate} kbps`}</span>}
               />
             )}
             {song.playCount != null && song.playCount > 0 && (
               <Row
                 icon={<PlayCircle className="w-4 h-4" />}
                 label="播放次数"
-                value={song.playCount}
+                value={<span className="font-num">{song.playCount}</span>}
               />
             )}
             {song.genre && (
               <Row
-                icon={<AlignLeft className="w-4 h-4" />}
+                icon={<TextAlignLeft className="w-4 h-4" />}
                 label="流派"
                 value={song.genre}
               />
@@ -589,7 +612,7 @@ export default function SongDetailPage() {
               <Row
                 icon={<Timer className="w-4 h-4" />}
                 label="评分"
-                value={`${song.userRating} / 5`}
+                value={<span className="font-num">{`${song.userRating} / 5`}</span>}
               />
             )}
           </Section>

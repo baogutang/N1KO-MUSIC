@@ -5,7 +5,7 @@ import { useServerStore } from './store/serverStore'
 import { useMemberStore } from './store/memberStore'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { MemberUpgradeDialog } from './components/member/MemberUpgradeDialog'
-import { Loader2 } from 'lucide-react'
+import { CircleNotch } from '@phosphor-icons/react'
 import {
   MainLayoutPage,
   LoginPage,
@@ -29,7 +29,7 @@ import {
 function RouteLoading() {
   return (
     <div className="flex min-h-[40vh] items-center justify-center text-muted-foreground gap-2">
-      <Loader2 className="w-5 h-5 animate-spin" />
+      <CircleNotch className="w-5 h-5 animate-spin" />
       <span className="text-sm">加载中...</span>
     </div>
   )

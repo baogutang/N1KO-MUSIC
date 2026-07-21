@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, Play, Trash2 } from 'lucide-react'
+import { ClockCounterClockwise, Play, Trash } from '@phosphor-icons/react'
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatRelativeTime, formatDuration } from '@/utils/formatters'
@@ -89,36 +89,33 @@ export default function History() {
   }
 
   return (
-    <div className="min-h-full pb-8">
+    <div className="min-h-full pb-8 animate-fade-in">
       <div className="px-6 py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Clock className="w-8 h-8 text-primary" />
-            播放历史
-          </h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold tracking-tight">播放历史</h1>
           {history.length > 0 && (
             <button
               onClick={() => setConfirmClear(true)}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-destructive transition-colors"
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-destructive transition-colors active:scale-[0.97]"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash className="w-4 h-4" />
               清除记录
             </button>
           )}
         </div>
 
         {history.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <Clock className="w-16 h-16 mb-4 opacity-20" />
+          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground border-t border-border">
+            <ClockCounterClockwise className="w-16 h-16 mb-4 opacity-20" />
             <p className="text-lg mb-1">暂无播放记录</p>
             <p className="text-sm">播放音乐后记录会出现在这里</p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div>
             {Object.entries(grouped).map(([dateKey, entries]) => (
-              <div key={dateKey}>
-                <h2 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
+              <div key={dateKey} className="border-t border-border pt-5 mt-5 first:mt-0">
+                <h2 className="text-[11px] font-medium text-muted-foreground tracking-[0.14em] mb-3 px-3">
                   {formatDateLabel(dateKey)}
                 </h2>
                 <div className="space-y-0.5">
@@ -127,12 +124,12 @@ export default function History() {
                     return (
                       <div
                         key={`${entry.song.id}-${entry.playedAt}`}
-                        className="group flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                        className="group flex items-center gap-4 px-3 py-2 rounded-lg hover:bg-surface cursor-pointer transition-colors duration-150"
                         onClick={() => handlePlay(globalIndex)}
                       >
                         {/* Cover */}
                         <div className="relative flex-shrink-0">
-                          <div className="w-11 h-11 rounded-lg overflow-hidden">
+                          <div className="w-10 h-10 rounded-md ring-1 ring-border overflow-hidden">
                             <ImageWithFallback
                               src={entry.song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(entry.song.coverArt, 64) : undefined}
                               alt={entry.song.title}
@@ -141,17 +138,17 @@ export default function History() {
                               customCoverParams={{ type: 'song', title: entry.song.title, artist: entry.song.artist, album: entry.song.album, path: entry.song.path }}
                             />
                           </div>
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-lg transition-opacity">
-                            <Play className="w-4 h-4 text-white fill-white" />
+                          <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-md transition-opacity duration-150">
+                            <Play className="w-4 h-4 text-foreground" weight="fill" />
                           </div>
                         </div>
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate text-sm group-hover:text-primary transition-colors">
+                          <p className="font-semibold truncate text-[13px] group-hover:text-primary transition-colors">
                             {entry.song.title}
                           </p>
-                          <p className="text-xs text-muted-foreground truncate">
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
                             {entry.song.artist}
                             {entry.song.album && ` · ${entry.song.album}`}
                           </p>
@@ -159,11 +156,11 @@ export default function History() {
 
                         {/* Time & duration */}
                         <div className="flex-shrink-0 text-right">
-                          <p className="text-xs text-muted-foreground">
+                          <p className="font-num text-xs text-muted-foreground">
                             {formatRelativeTime(entry.playedAt)}
                           </p>
                           {entry.song.duration && (
-                            <p className="text-xs text-muted-foreground/60">
+                            <p className="font-num text-xs text-muted-foreground mt-0.5">
                               {formatDuration(entry.song.duration)}
                             </p>
                           )}

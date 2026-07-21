@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Server, Plus, Trash2, CheckCircle2, RefreshCw,
-  Sun, Moon, Volume2, Palette, Info, LogOut, ChevronRight, Wifi,
-  Music2, Radio, Link, KeyRound, Image as ImageIcon,
-  FileText, ArrowLeftRight, Globe, Languages, Crown, Lock, Disc3
-} from 'lucide-react'
+  Plus, Trash, CheckCircle, ArrowsClockwise,
+  Sun, Moon, Monitor, SpeakerHigh, SignOut, CaretRight, WifiHigh,
+  CrownSimple, Lock,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { useThemeStore, type AccentColor } from '@/store/themeStore'
@@ -81,96 +80,91 @@ export default function Settings() {
   }
 
   const accentOptions: { label: string; value: AccentColor; className: string }[] = [
-    { label: 'Spotify 绿', value: 'green', className: 'bg-[#1DB954]' },
-    { label: 'Apple 红', value: 'red', className: 'bg-[#FA233B]' },
-    { label: '天空蓝', value: 'blue', className: 'bg-[#0EA5E9]' },
-    { label: '紫罗兰', value: 'purple', className: 'bg-[#8B5CF6]' },
-    { label: '橙色', value: 'orange', className: 'bg-[#F97316]' },
+    { label: 'Spotify 绿', value: 'green', className: 'bg-[#2ec27e]' },
+    { label: 'Apple 红', value: 'red', className: 'bg-[#e0525b]' },
+    { label: '天空蓝', value: 'blue', className: 'bg-[#4e94ed]' },
+    { label: '紫罗兰', value: 'purple', className: 'bg-[#9f78e3]' },
+    { label: '橙色', value: 'orange', className: 'bg-[#ee8e3a]' },
   ]
 
   return (
-    <div className="min-h-full pb-8">
+    <div className="min-h-full pb-8 animate-fade-in">
       <div className="max-w-2xl mx-auto px-6 py-8">
-        <h1 className="text-3xl font-bold mb-8">设置</h1>
+        <h1 className="text-3xl font-bold tracking-tight mb-10">设置</h1>
 
         {/* Server management */}
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Server className="w-5 h-5 text-primary" />
-            服务器管理
-          </h2>
+        <section className="pb-10">
+          <h2 className="text-lg font-bold mb-5">服务器管理</h2>
 
-          <div className="space-y-3">
+          <div className="space-y-1">
             {servers.map(server => (
               <div
                 key={server.id}
                 className={cn(
-                  'bg-card rounded-xl p-4 border transition-colors',
+                  'flex items-center justify-between gap-2 px-3 py-3 rounded-lg transition-colors duration-150',
                   server.id === activeServerId
-                    ? 'border-primary/50 bg-primary/5'
-                    : 'border-border hover:border-border/80'
+                    ? 'bg-primary/10'
+                    : 'hover:bg-surface'
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={cn(
-                      'w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0',
-                      server.id === activeServerId
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
-                    )}>
-                      {getServerTypeLabel(server.type).charAt(0)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium truncate">{server.name}</p>
-                        {server.id === activeServerId && (
-                          <span className="text-xs text-primary font-medium flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            当前
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate">{server.url}</p>
-                      <p className="text-xs text-muted-foreground">{getServerTypeLabel(server.type)} · {server.username}</p>
-                    </div>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={cn(
+                    'w-10 h-10 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0',
+                    server.id === activeServerId
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-accent text-muted-foreground'
+                  )}>
+                    {getServerTypeLabel(server.type).charAt(0)}
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                    <button
-                      onClick={() => handlePing(server.id)}
-                      disabled={pinging === server.id}
-                      className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                      title="测试连接"
-                    >
-                      {pinging === server.id
-                        ? <RefreshCw className="w-4 h-4 animate-spin" />
-                        : <Wifi className="w-4 h-4" />
-                      }
-                    </button>
-                    {server.id !== activeServerId && (
-                      <button
-                        onClick={() => handleSwitch(server.id)}
-                        className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        title="切换到此服务器"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleRemove(server.id)}
-                      className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-                      title="移除服务器"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm truncate">{server.name}</p>
+                      {server.id === activeServerId && (
+                        <span className="text-xs text-primary font-medium flex items-center gap-1 flex-shrink-0">
+                          <CheckCircle weight="fill" className="w-3.5 h-3.5" />
+                          当前
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{server.url}</p>
+                    <p className="text-xs text-muted-foreground">{getServerTypeLabel(server.type)} · {server.username}</p>
                   </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                  <button
+                    onClick={() => handlePing(server.id)}
+                    disabled={pinging === server.id}
+                    className="p-2 rounded-md hover:bg-accent transition-colors duration-150 text-muted-foreground hover:text-foreground active:scale-[0.94]"
+                    title="测试连接"
+                  >
+                    {pinging === server.id
+                      ? <ArrowsClockwise className="w-4 h-4 animate-spin" />
+                      : <WifiHigh className="w-4 h-4" />
+                    }
+                  </button>
+                  {server.id !== activeServerId && (
+                    <button
+                      onClick={() => handleSwitch(server.id)}
+                      className="p-2 rounded-md hover:bg-accent transition-colors duration-150 text-muted-foreground hover:text-foreground active:scale-[0.94]"
+                      title="切换到此服务器"
+                    >
+                      <CaretRight className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleRemove(server.id)}
+                    className="p-2 rounded-md hover:bg-destructive/10 transition-colors duration-150 text-muted-foreground hover:text-destructive active:scale-[0.94]"
+                    title="移除服务器"
+                  >
+                    <Trash className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             ))}
 
             <button
               onClick={() => navigate('/login')}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/5 transition-colors text-muted-foreground hover:text-foreground"
+              className="w-full flex items-center justify-center gap-2 h-10 !mt-3 rounded-full border border-border text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors duration-150 active:scale-[0.97]"
             >
               <Plus className="w-4 h-4" />
               添加新服务器
@@ -179,33 +173,30 @@ export default function Settings() {
         </section>
 
         {/* Appearance */}
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Palette className="w-5 h-5 text-primary" />
-            外观
-          </h2>
+        <section className="border-t border-border pt-8 pb-10">
+          <h2 className="text-lg font-bold mb-2">外观</h2>
 
-          <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="divide-y divide-border">
             {/* Theme mode */}
-            <div className="p-4 border-b border-border space-y-3">
+            <div className="py-5 space-y-3">
               <div>
-                <p className="font-medium">主题模式</p>
-                <p className="text-sm text-muted-foreground">深色、浅色或跟随系统</p>
+                <p className="font-medium text-sm">主题模式</p>
+                <p className="text-xs text-muted-foreground mt-0.5">深色、浅色或跟随系统</p>
               </div>
               <div className="flex gap-2 flex-wrap">
                 {([
                   { value: 'dark' as const, label: '深色', icon: Moon },
                   { value: 'light' as const, label: '浅色', icon: Sun },
-                  { value: 'system' as const, label: '跟随系统', icon: Sun },
+                  { value: 'system' as const, label: '跟随系统', icon: Monitor },
                 ]).map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}
                     onClick={() => setTheme(value)}
                     className={cn(
-                      'flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors border',
+                      'flex items-center gap-2 px-4 h-9 rounded-full text-sm transition-colors duration-150 border active:scale-[0.97]',
                       theme === value
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border hover:bg-muted text-muted-foreground'
+                        ? 'border-primary bg-primary/10 text-primary font-medium'
+                        : 'border-border text-muted-foreground hover:text-foreground hover:bg-surface'
                     )}
                   >
                     <Icon className="w-4 h-4" />
@@ -216,19 +207,19 @@ export default function Settings() {
             </div>
 
             {/* Accent color */}
-            <div className="p-4 border-b border-border">
-              <p className="font-medium mb-1">强调色</p>
-              <p className="text-sm text-muted-foreground mb-3">界面主题颜色</p>
-              <div className="flex gap-2 flex-wrap">
+            <div className="py-5">
+              <p className="font-medium text-sm">强调色</p>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-4">界面主题颜色</p>
+              <div className="flex gap-4 flex-wrap">
                 {accentOptions.map(opt => (
                   <button
                     key={opt.value}
                     onClick={() => setAccentColor(opt.value)}
                     title={opt.label}
                     className={cn(
-                      'w-8 h-8 rounded-full transition-transform hover:scale-110',
+                      'w-7 h-7 rounded-full transition-transform duration-150 hover:scale-110 active:scale-95',
                       opt.className,
-                      accentColor === opt.value && 'ring-2 ring-offset-2 ring-offset-card ring-white scale-110'
+                      accentColor === opt.value && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
                     )}
                   />
                 ))}
@@ -236,26 +227,21 @@ export default function Settings() {
             </div>
 
             {/* 播放详情页封面样式 */}
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
-                  <Disc3 className="w-4 h-4 text-purple-400" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">播放详情页封面样式</p>
-                  <p className="text-xs text-muted-foreground">方形静止或圆形旋转（黑胶唱片效果）</p>
-                </div>
+            <div className="flex items-center justify-between gap-4 py-5">
+              <div>
+                <p className="font-medium text-sm">播放详情页封面样式</p>
+                <p className="text-xs text-muted-foreground mt-0.5">方形静止或圆形旋转（黑胶唱片效果）</p>
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 flex-shrink-0">
                 {(['square', 'circle'] as CoverShape[]).map(shape => (
                   <button
                     key={shape}
                     onClick={() => setCoverShape(shape)}
                     className={cn(
-                      'px-3 py-1.5 rounded-lg text-sm transition-colors',
+                      'px-3.5 h-8 rounded-full text-sm transition-colors duration-150 border active:scale-[0.97]',
                       coverShape === shape
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground hover:bg-accent'
+                        ? 'border-primary bg-primary/10 text-primary font-medium'
+                        : 'border-border text-muted-foreground hover:text-foreground hover:bg-surface'
                     )}
                   >
                     {shape === 'square' ? '方形' : '圆形旋转'}
@@ -267,18 +253,15 @@ export default function Settings() {
         </section>
 
         {/* Audio */}
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Volume2 className="w-5 h-5 text-primary" />
-            音频
-          </h2>
+        <section className="border-t border-border pt-8 pb-10">
+          <h2 className="text-lg font-bold mb-2">音频</h2>
 
-          <div className="bg-card rounded-xl border border-border p-4 space-y-5">
+          <div className="divide-y divide-border">
             {/* 默认音量 */}
-            <div className="flex items-center gap-4">
-              <Volume2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <div className="flex items-center gap-4 py-5">
+              <SpeakerHigh className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               <div className="flex-1">
-                <p className="font-medium mb-1">默认音量</p>
+                <p className="font-medium text-sm mb-1.5">默认音量</p>
                 <input
                   type="range"
                   min={0}
@@ -289,19 +272,18 @@ export default function Settings() {
                   className="w-full accent-primary"
                 />
               </div>
-              <span className="text-sm text-muted-foreground w-10 text-right">
+              <span className="font-num text-sm text-muted-foreground w-10 text-right">
                 {Math.round(volume * 100)}%
               </span>
             </div>
 
             {/* 音质选择 */}
-            <div>
+            <div className="py-5">
               <div className="flex items-center gap-2 mb-3">
-                <Radio className="w-4 h-4 text-muted-foreground" />
-                <p className="font-medium">流媒体音质</p>
+                <p className="font-medium text-sm">流媒体音质</p>
                 {!isPremium && (
                   <span className="ml-auto flex items-center gap-1 text-[11px] text-amber-500/80">
-                    <Crown className="w-3 h-3" />
+                    <CrownSimple weight="fill" className="w-3 h-3" />
                     会员解锁高音质
                   </span>
                 )}
@@ -317,15 +299,15 @@ export default function Settings() {
                       onClick={() => !locked && setAudioQuality(q)}
                       title={locked ? '升级会员后可使用此音质' : undefined}
                       className={cn(
-                        'relative px-3 py-2.5 rounded-lg border text-sm text-left transition-colors',
+                        'relative px-4 h-9 rounded-full border text-sm transition-colors duration-150',
                         locked
-                          ? 'border-border/30 bg-muted/30 text-muted-foreground/30 cursor-not-allowed select-none'
+                          ? 'border-border/40 text-muted-foreground/40 cursor-not-allowed select-none'
                           : audioQuality === q
-                            ? 'border-primary bg-primary/10 text-primary font-medium'
-                            : 'border-border hover:border-primary/40 hover:bg-muted text-muted-foreground'
+                            ? 'border-primary bg-primary/10 text-primary font-medium active:scale-[0.97]'
+                            : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground active:scale-[0.97]'
                       )}
                     >
-                      <span className="flex items-center justify-between gap-1">
+                      <span className="flex items-center justify-center gap-1.5">
                         {QUALITY_LABELS[q]}
                         {locked && <Lock className="w-3 h-3 text-amber-500/50 flex-shrink-0" />}
                       </span>
@@ -333,7 +315,7 @@ export default function Settings() {
                   )
                 })}
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-xs text-muted-foreground mt-3">
                 {isPremium
                   ? '无损将请求服务器原始歌曲格式；其他选项将要求服务器转码为指定码率'
                   : '当前为省流模式（128kbps）；升级会员后可解锁无损、高质量等更多音质选项'}
@@ -343,29 +325,20 @@ export default function Settings() {
         </section>
 
         {/* 自定义 API */}
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Globe className="w-5 h-5 text-primary" />
-            自定义 API
-          </h2>
+        <section className="border-t border-border pt-8 pb-10">
+          <h2 className="text-lg font-bold mb-2">自定义 API</h2>
 
-          <div className="bg-card rounded-xl border border-border overflow-hidden space-y-px">
-
+          <div>
             {/* 优先使用音乐服务接口 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center flex-shrink-0">
-                  <Globe className="w-4 h-4 text-blue-400" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">优先使用音乐服务接口</p>
-                  <p className="text-xs text-muted-foreground">只有音乐服务接口无数据时才会从自定义 API 获取数据</p>
-                </div>
+            <div className="flex items-center justify-between gap-4 py-4 border-b border-border">
+              <div>
+                <p className="font-medium text-sm">优先使用音乐服务接口</p>
+                <p className="text-xs text-muted-foreground mt-0.5">只有音乐服务接口无数据时才会从自定义 API 获取数据</p>
               </div>
               <button
                 onClick={() => setApiPreferServer(!apiPreferServer)}
                 className={cn(
-                  'relative w-11 h-6 rounded-full transition-colors flex-shrink-0',
+                  'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
                   apiPreferServer ? 'bg-primary' : 'bg-muted-foreground/30'
                 )}
               >
@@ -377,13 +350,8 @@ export default function Settings() {
             </div>
 
             {/* 验证信息 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-green-500/15 flex items-center justify-center flex-shrink-0">
-                  <KeyRound className="w-4 h-4 text-green-400" />
-                </div>
-                <p className="font-medium text-sm flex-shrink-0">验证信息</p>
-              </div>
+            <div className="flex items-center justify-between gap-4 py-4">
+              <p className="font-medium text-sm flex-shrink-0">验证信息</p>
               <input
                 type="text"
                 value={apiAuthToken}
@@ -392,23 +360,16 @@ export default function Settings() {
                 className="text-sm text-right bg-transparent border-none outline-none text-muted-foreground placeholder:text-muted-foreground/40 min-w-0 w-48"
               />
             </div>
-            <p className="px-4 py-2 text-xs text-muted-foreground border-b border-border">
-              验证信息将作为请求头的 <code className="bg-muted px-1 rounded">Authorization</code> 字段进行传输
+            <p className="pb-4 text-xs text-muted-foreground border-b border-border">
+              验证信息将作为请求头的 <code className="bg-accent px-1 rounded-md">Authorization</code> 字段进行传输
             </p>
 
             {/* 歌词接口 标题 */}
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">歌词接口</p>
-            </div>
+            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">歌词接口</p>
 
             {/* 歌词接口 - 地址 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
-                  <Link className="w-4 h-4 text-purple-400" />
-                </div>
-                <p className="font-medium text-sm">地址</p>
-              </div>
+            <div className="flex items-center justify-between py-4 border-b border-border">
+              <p className="font-medium text-sm flex-shrink-0">地址</p>
               <input
                 type="text"
                 value={lyricsRemoteTemplate}
@@ -419,18 +380,11 @@ export default function Settings() {
             </div>
 
             {/* 歌词确认接口 标题 */}
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">歌词确认接口</p>
-            </div>
+            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">歌词确认接口</p>
 
             {/* 歌词确认接口 - 地址 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
-                  <Link className="w-4 h-4 text-purple-400" />
-                </div>
-                <p className="font-medium text-sm">地址</p>
-              </div>
+            <div className="flex items-center justify-between py-4 border-b border-border">
+              <p className="font-medium text-sm flex-shrink-0">地址</p>
               <input
                 type="text"
                 value={lyricsConfirmTemplate}
@@ -441,18 +395,11 @@ export default function Settings() {
             </div>
 
             {/* 封面接口 标题 */}
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">封面接口</p>
-            </div>
+            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">封面接口</p>
 
             {/* 封面接口 - 地址 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
-                  <Link className="w-4 h-4 text-purple-400" />
-                </div>
-                <p className="font-medium text-sm">地址</p>
-              </div>
+            <div className="flex items-center justify-between py-4 border-b border-border">
+              <p className="font-medium text-sm flex-shrink-0">地址</p>
               <input
                 type="text"
                 value={coverRemoteTemplate}
@@ -463,17 +410,12 @@ export default function Settings() {
             </div>
 
             {/* 加载专辑封面 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center flex-shrink-0">
-                  <ImageIcon className="w-4 h-4 text-orange-400" />
-                </div>
-                <p className="font-medium text-sm">加载专辑封面</p>
-              </div>
+            <div className="flex items-center justify-between gap-4 py-4 border-b border-border">
+              <p className="font-medium text-sm">加载专辑封面</p>
               <button
                 onClick={() => setCoverLoadAlbum(!coverLoadAlbum)}
                 className={cn(
-                  'relative w-11 h-6 rounded-full transition-colors flex-shrink-0',
+                  'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
                   coverLoadAlbum ? 'bg-primary' : 'bg-muted-foreground/30'
                 )}
               >
@@ -485,17 +427,12 @@ export default function Settings() {
             </div>
 
             {/* 加载歌手图片 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-pink-500/15 flex items-center justify-center flex-shrink-0">
-                  <ImageIcon className="w-4 h-4 text-pink-400" />
-                </div>
-                <p className="font-medium text-sm">加载歌手图片</p>
-              </div>
+            <div className="flex items-center justify-between gap-4 py-4 border-b border-border">
+              <p className="font-medium text-sm">加载歌手图片</p>
               <button
                 onClick={() => setCoverLoadArtist(!coverLoadArtist)}
                 className={cn(
-                  'relative w-11 h-6 rounded-full transition-colors flex-shrink-0',
+                  'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
                   coverLoadArtist ? 'bg-primary' : 'bg-muted-foreground/30'
                 )}
               >
@@ -507,18 +444,11 @@ export default function Settings() {
             </div>
 
             {/* 歌曲详情接口 标题 */}
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">歌曲详情接口</p>
-            </div>
+            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">歌曲详情接口</p>
 
             {/* 歌曲详情 - 地址 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
-                  <Link className="w-4 h-4 text-purple-400" />
-                </div>
-                <p className="font-medium text-sm">地址</p>
-              </div>
+            <div className="flex items-center justify-between py-4 border-b border-border">
+              <p className="font-medium text-sm flex-shrink-0">地址</p>
               <input
                 type="text"
                 value={songDetailTemplate}
@@ -529,13 +459,8 @@ export default function Settings() {
             </div>
 
             {/* 歌曲详情 - 路径替换 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-cyan-500/15 flex items-center justify-center flex-shrink-0">
-                  <ArrowLeftRight className="w-4 h-4 text-cyan-400" />
-                </div>
-                <p className="font-medium text-sm">路径替换</p>
-              </div>
+            <div className="flex items-center justify-between py-4">
+              <p className="font-medium text-sm flex-shrink-0">路径替换</p>
               <input
                 type="text"
                 value={songDetailPathReplace}
@@ -544,21 +469,14 @@ export default function Settings() {
                 className="text-sm text-right bg-transparent border-none outline-none text-muted-foreground placeholder:text-muted-foreground/40 min-w-0 w-48"
               />
             </div>
-            <p className="px-4 py-2 text-xs text-muted-foreground border-b border-border">配置后可在歌曲详情页跳转至对应网页</p>
+            <p className="pb-4 text-xs text-muted-foreground border-b border-border">配置后可在歌曲详情页跳转至对应网页</p>
 
             {/* 翻译接口 标题 */}
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">翻译接口</p>
-            </div>
+            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">翻译接口</p>
 
             {/* 翻译 - 目标语言 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center flex-shrink-0">
-                  <Globe className="w-4 h-4 text-blue-400" />
-                </div>
-                <p className="font-medium text-sm">目标语言</p>
-              </div>
+            <div className="flex items-center justify-between py-4 border-b border-border">
+              <p className="font-medium text-sm flex-shrink-0">目标语言</p>
               <select
                 value={translateTargetLang}
                 onChange={e => setTranslateTargetLang(e.target.value)}
@@ -571,13 +489,8 @@ export default function Settings() {
             </div>
 
             {/* 翻译 - 类型 */}
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center flex-shrink-0">
-                  <Languages className="w-4 h-4 text-indigo-400" />
-                </div>
-                <p className="font-medium text-sm">类型</p>
-              </div>
+            <div className="flex items-center justify-between py-4">
+              <p className="font-medium text-sm flex-shrink-0">类型</p>
               <select
                 value={translateType}
                 onChange={e => setTranslateType(e.target.value)}
@@ -588,29 +501,25 @@ export default function Settings() {
                 ))}
               </select>
             </div>
-
           </div>
         </section>
 
         {/* 歌词外观设置 */}
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Music2 className="w-5 h-5 text-primary" />
-            歌词外观
-          </h2>
+        <section className="border-t border-border pt-8 pb-10">
+          <h2 className="text-lg font-bold mb-2">歌词外观</h2>
 
-          <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="divide-y divide-border">
             {/* 歌词高亮颜色 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
+            <div className="flex items-center justify-between gap-4 py-5">
               <div>
-                <p className="font-medium">高亮颜色</p>
-                <p className="text-xs text-muted-foreground">当前播放歌词行的高亮颜色</p>
+                <p className="font-medium text-sm">高亮颜色</p>
+                <p className="text-xs text-muted-foreground mt-0.5">当前播放歌词行的高亮颜色</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-shrink-0">
                 <div className="flex gap-1.5">
                   {[
-                    { color: '#22c55e', label: '绿色' },
-                    { color: '#ffffff', label: '白色' },
+                    { color: '#2ec27e', label: '绿色' },
+                    { color: '#14b8a6', label: '青色' },
                     { color: '#f59e0b', label: '黄色' },
                     { color: '#60a5fa', label: '蓝色' },
                     { color: '#f472b6', label: '粉色' },
@@ -620,10 +529,10 @@ export default function Settings() {
                       key={color}
                       title={label}
                       onClick={() => setLyricsHighlightColor(color)}
-                      className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex-shrink-0"
+                      className="w-6 h-6 rounded-full border-2 transition-transform duration-150 hover:scale-110 active:scale-95 flex-shrink-0"
                       style={{
                         backgroundColor: color,
-                        borderColor: lyricsHighlightColor === color ? 'white' : 'transparent',
+                        borderColor: lyricsHighlightColor === color ? 'hsl(var(--foreground))' : 'transparent',
                         boxShadow: lyricsHighlightColor === color ? `0 0 0 1px ${color}` : 'none',
                       }}
                     />
@@ -633,20 +542,20 @@ export default function Settings() {
                   type="color"
                   value={lyricsHighlightColor}
                   onChange={e => setLyricsHighlightColor(e.target.value)}
-                  className="w-8 h-8 rounded-lg cursor-pointer border border-border bg-transparent overflow-hidden"
+                  className="w-8 h-8 rounded-md cursor-pointer border border-border bg-transparent overflow-hidden"
                   title="自定义颜色"
                 />
               </div>
             </div>
 
             {/* 歌词字号 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
+            <div className="flex items-center justify-between gap-4 py-5">
               <div>
-                <p className="font-medium">字号大小</p>
-                <p className="text-xs text-muted-foreground">全屏播放器中歌词的字体大小（14–36px）</p>
+                <p className="font-medium text-sm">字号大小</p>
+                <p className="text-xs text-muted-foreground mt-0.5">全屏播放器中歌词的字体大小（14–36px）</p>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground w-8 text-right tabular-nums">{lyricsFontSize}px</span>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span className="font-num text-xs text-muted-foreground w-9 text-right">{lyricsFontSize}px</span>
                 <input
                   type="range"
                   min={14}
@@ -662,10 +571,10 @@ export default function Settings() {
                       key={size}
                       onClick={() => setLyricsFontSize(size)}
                       className={cn(
-                        'text-xs px-2 py-0.5 rounded transition-colors',
+                        'font-num text-xs px-2 py-1 rounded-md transition-colors duration-150 active:scale-[0.94]',
                         lyricsFontSize === size
                           ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:bg-accent'
+                          : 'bg-accent text-muted-foreground hover:text-foreground'
                       )}
                     >
                       {size}
@@ -676,15 +585,15 @@ export default function Settings() {
             </div>
 
             {/* 启用远程歌词 */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
+            <div className="flex items-center justify-between gap-4 py-5">
               <div>
-                <p className="font-medium">启用远程歌词源</p>
-                <p className="text-xs text-muted-foreground">通过上方自定义 API 获取 LRC 歌词，第一条显示设置</p>
+                <p className="font-medium text-sm">启用远程歌词源</p>
+                <p className="text-xs text-muted-foreground mt-0.5">通过上方自定义 API 获取 LRC 歌词，第一条显示设置</p>
               </div>
               <button
                 onClick={() => setLyricsUseRemote(!lyricsUseRemote)}
                 className={cn(
-                  'relative w-11 h-6 rounded-full transition-colors',
+                  'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
                   lyricsUseRemote ? 'bg-primary' : 'bg-muted-foreground/30'
                 )}
               >
@@ -696,15 +605,15 @@ export default function Settings() {
             </div>
 
             {lyricsUseRemote && (
-              <div className="flex items-center justify-between p-4">
+              <div className="flex items-center justify-between gap-4 py-5">
                 <div>
-                  <p className="font-medium">远程歌词优先</p>
-                  <p className="text-xs text-muted-foreground">开启时远程优先，关闭时服务器优先</p>
+                  <p className="font-medium text-sm">远程歌词优先</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">开启时远程优先，关闭时服务器优先</p>
                 </div>
                 <button
                   onClick={() => setLyricsPreferRemote(!lyricsPreferRemote)}
                   className={cn(
-                    'relative w-11 h-6 rounded-full transition-colors',
+                    'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
                     lyricsPreferRemote ? 'bg-primary' : 'bg-muted-foreground/30'
                   )}
                 >
@@ -719,23 +628,20 @@ export default function Settings() {
         </section>
 
         {/* About */}
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Info className="w-5 h-5 text-primary" />
-            关于
-          </h2>
+        <section className="border-t border-border pt-8 pb-10">
+          <h2 className="text-lg font-bold mb-2">关于</h2>
 
-          <div className="bg-card rounded-xl border border-border overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <span className="text-muted-foreground">版本</span>
-              <span className="font-mono text-sm">v{VERSION}</span>
+          <div className="divide-y divide-border">
+            <div className="flex items-center justify-between py-4">
+              <span className="text-sm text-muted-foreground">版本</span>
+              <span className="font-num text-sm">v{VERSION}</span>
             </div>
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <span className="text-muted-foreground">开源协议</span>
+            <div className="flex items-center justify-between py-4">
+              <span className="text-sm text-muted-foreground">开源协议</span>
               <span className="text-sm">MIT License</span>
             </div>
-            <div className="flex items-center justify-between p-4">
-              <span className="text-muted-foreground">GitHub</span>
+            <div className="flex items-center justify-between py-4">
+              <span className="text-sm text-muted-foreground">GitHub</span>
               <a
                 href="https://github.com/baogutang/N1KO-MUSIC"
                 target="_blank"
@@ -750,15 +656,15 @@ export default function Settings() {
 
         {/* Danger zone */}
         {activeServer && (
-          <section>
+          <section className="border-t border-border pt-8">
             <button
               onClick={() => {
                 disconnect()
                 navigate('/login')
               }}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-destructive/30 hover:bg-destructive/10 transition-colors text-destructive"
+              className="w-full flex items-center justify-center gap-2 h-10 rounded-full border border-destructive/30 hover:bg-destructive/10 transition-colors duration-150 text-sm text-destructive active:scale-[0.97]"
             >
-              <LogOut className="w-4 h-4" />
+              <SignOut className="w-4 h-4" />
               断开当前服务器连接
             </button>
           </section>

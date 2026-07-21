@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { X } from 'lucide-react'
+import { X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 
 const Dialog = DialogPrimitive.Root
@@ -32,13 +32,13 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 bg-card border border-border shadow-2xl duration-200 data-[state=open]:animate-fade-in-scale sm:rounded-2xl p-6',
+        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 glass border-border rounded-lg shadow-2xl duration-200 data-[state=open]:animate-fade-in-scale p-6',
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-accent p-1 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1.5 text-muted-foreground transition-colors duration-150 hover:text-foreground hover:bg-accent active:scale-[0.94] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">关闭</span>
       </DialogPrimitive.Close>
@@ -58,7 +58,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold leading-none tracking-tight', className)}
+    className={cn('text-lg font-bold leading-none tracking-tight', className)}
     {...props}
   />
 ))

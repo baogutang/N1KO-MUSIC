@@ -70,7 +70,7 @@ export default function MainLayout() {
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+      <div className="relative flex flex-col h-screen bg-background text-foreground overflow-hidden">
         {isMac && (
           <div
             className="h-9 flex-shrink-0"
@@ -85,8 +85,9 @@ export default function MainLayout() {
           <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
             <TopBar />
 
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-              <main className="flex-1 overflow-y-auto min-w-0">
+            <div className="relative flex flex-1 min-h-0 overflow-hidden">
+              {/* 底部预留 ~120px（--player-height + 12px），避免内容藏在悬浮控制台下 */}
+              <main className="flex-1 overflow-y-auto min-w-0 pb-[calc(var(--player-height)+12px)]">
                 <Outlet />
               </main>
               <QueueDrawer />

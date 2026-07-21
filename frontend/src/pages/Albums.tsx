@@ -5,7 +5,7 @@
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAlbumsInfinite } from '@/hooks/useServerQueries'
-import { Loader2 } from 'lucide-react'
+import { CircleNotch } from '@phosphor-icons/react'
 
 export default function AlbumsPage() {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useAlbumsInfinite(50)
@@ -15,17 +15,24 @@ export default function AlbumsPage() {
   return (
     <div className="flex flex-col h-full">
       <ScrollArea className="flex-1">
-        <div className="p-6 max-w-7xl mx-auto">
+        <div className="px-8 pt-8 pb-10 max-w-[1320px] mx-auto animate-fade-in">
+          <div className="mb-7">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">专辑</h1>
+            {!isLoading && (
+              <p className="text-sm text-muted-foreground mt-1.5">
+                <span className="font-num">{albums.length}</span> 张专辑{hasNextPage ? '+' : ''}
+              </p>
+            )}
+          </div>
           {isLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {Array.from({ length: 24 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-xl bg-card animate-pulse" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-6">
+              {Array.from({ length: 20 }).map((_, i) => (
+                <div key={i} className="aspect-square rounded-lg bg-accent animate-pulse" />
               ))}
             </div>
           ) : (
             <>
-              <p className="text-sm text-muted-foreground mb-4">{albums.length} 张专辑</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-6 [&>*]:min-w-0">
                 {albums.map(album => (
                   <AlbumCard key={album.id} album={album} />
                 ))}
@@ -35,9 +42,9 @@ export default function AlbumsPage() {
                   <button
                     onClick={() => fetchNextPage()}
                     disabled={isFetchingNextPage}
-                    className="px-6 py-2 rounded-full bg-secondary text-foreground text-sm hover:bg-accent transition-colors disabled:opacity-50 flex items-center gap-2"
+                    className="inline-flex items-center gap-2 h-10 px-6 rounded-full border border-border text-sm text-foreground hover:border-primary hover:text-primary transition-colors active:scale-[0.97] disabled:opacity-50"
                   >
-                    {isFetchingNextPage && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {isFetchingNextPage && <CircleNotch size={16} className="animate-spin" />}
                     加载更多
                   </button>
                 </div>

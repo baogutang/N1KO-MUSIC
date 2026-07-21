@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Heart, Play, Music2, Disc3 } from 'lucide-react'
+import { Heart, Play, MusicNote, VinylRecord } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useStarred } from '@/hooks/useServerQueries'
 import { playAllInOrder } from '@/utils/playActions'
 import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
+import { AlbumCard } from '@/components/music/AlbumCard'
 
 type FavTab = 'songs' | 'albums'
 
@@ -30,25 +31,25 @@ export default function Favorites() {
   }
 
   return (
-    <div className="min-h-full pb-8">
+    <div className="min-h-full pb-8 animate-fade-in">
       {/* Header */}
-      <div className="px-6 pt-6 pb-6 bg-gradient-to-b from-rose-500/10 to-transparent">
-        <div className="flex items-end gap-6">
-          <div className="w-40 h-40 rounded-2xl bg-gradient-to-br from-rose-500/30 to-rose-500/5 flex items-center justify-center flex-shrink-0">
-            <Heart className="w-20 h-20 text-rose-500/50" fill="currentColor" />
+      <div className="px-6 pt-6 pb-8">
+        <div className="flex items-end gap-7">
+          <div className="w-40 h-40 rounded-lg ring-1 ring-border bg-gradient-to-br from-primary/25 to-primary/5 flex items-center justify-center flex-shrink-0 shadow-2xl">
+            <Heart className="w-20 h-20 text-primary/60" weight="fill" />
           </div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">收藏</p>
-            <h1 className="text-4xl font-bold mb-2">我喜欢的音乐</h1>
-            <p className="text-muted-foreground mb-4">
-              {songs.length} 首歌曲 · {albums.length} 张专辑
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-primary tracking-[0.14em] mb-3">收藏</p>
+            <h1 className="text-4xl font-bold tracking-tight mb-2 truncate">我喜欢的音乐</h1>
+            <p className="text-muted-foreground text-[13.5px] mb-5">
+              <span className="font-num">{songs.length}</span> 首歌曲 · <span className="font-num">{albums.length}</span> 张专辑
             </p>
             {songs.length > 0 && (
               <button
                 onClick={handlePlayAll}
-                className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full font-medium hover:bg-primary/90 transition-colors"
+                className="flex items-center gap-2 h-10 px-5 bg-primary text-primary-foreground rounded-full text-sm font-semibold hover:brightness-110 transition-all active:scale-[0.97]"
               >
-                <Play className="w-4 h-4 fill-current" />
+                <Play className="w-4 h-4" weight="fill" />
                 播放全部
               </button>
             )}
@@ -58,26 +59,30 @@ export default function Favorites() {
 
       {/* Tabs */}
       <div className="px-6">
-        <div className="flex gap-1 bg-muted/50 rounded-xl p-1 w-fit mb-6">
+        <div className="flex items-center gap-6 border-b border-border mb-7">
           <button
             onClick={() => setTab('songs')}
             className={cn(
-              'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              tab === 'songs' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              'relative flex items-center gap-1.5 pb-3 pt-1 text-sm transition-colors',
+              tab === 'songs'
+                ? 'text-foreground font-semibold after:absolute after:left-0 after:right-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <Music2 className="w-4 h-4" />
-            歌曲 {songs.length > 0 && <span className="text-xs text-muted-foreground ml-1">({songs.length})</span>}
+            <MusicNote className="w-4 h-4" />
+            歌曲 {songs.length > 0 && <span className="font-num text-xs text-muted-foreground ml-1">({songs.length})</span>}
           </button>
           <button
             onClick={() => setTab('albums')}
             className={cn(
-              'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              tab === 'albums' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              'relative flex items-center gap-1.5 pb-3 pt-1 text-sm transition-colors',
+              tab === 'albums'
+                ? 'text-foreground font-semibold after:absolute after:left-0 after:right-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <Disc3 className="w-4 h-4" />
-            专辑 {albums.length > 0 && <span className="text-xs text-muted-foreground ml-1">({albums.length})</span>}
+            <VinylRecord className="w-4 h-4" />
+            专辑 {albums.length > 0 && <span className="font-num text-xs text-muted-foreground ml-1">({albums.length})</span>}
           </button>
         </div>
 
@@ -96,33 +101,13 @@ export default function Favorites() {
         {tab === 'albums' && (
           albums.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
-              <Disc3 className="w-12 h-12 mb-3 opacity-20" />
+              <VinylRecord className="w-12 h-12 mb-3 opacity-20" />
               <p>暂无收藏专辑</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-6">
               {albums.map(album => (
-                <div
-                  key={album.id}
-                  className="group cursor-pointer"
-                  onClick={() => navigate(`/albums/${album.id}`)}
-                >
-                  <div className="aspect-square rounded-xl overflow-hidden bg-muted mb-2">
-                    {album.coverArt ? (
-                      <img
-                        src={hasAdapter() ? getAdapter().getCoverUrl(album.coverArt, 300) : album.coverArt}
-                        alt={album.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Disc3 className="w-10 h-10 text-muted-foreground/30" />
-                      </div>
-                    )}
-                  </div>
-                  <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">{album.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{album.artist}</p>
-                </div>
+                <AlbumCard key={album.id} album={album} />
               ))}
             </div>
           )

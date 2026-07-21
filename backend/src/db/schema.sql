@@ -1,4 +1,4 @@
--- Music Stream Pro - SQLite Schema
+-- N1KO MUSIC - SQLite Schema
 -- 本地持久化数据，用于跨设备同步和离线功能
 
 PRAGMA journal_mode = WAL;

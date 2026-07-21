@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ListMusic, Plus, Loader2 } from 'lucide-react'
+import { Queue, Plus, CircleNotch } from '@phosphor-icons/react'
 import { usePlaylists, useCreatePlaylist, useAddToPlaylist } from '@/hooks/useServerQueries'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -51,14 +51,14 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md glass">
         <DialogHeader>
           <DialogTitle>添加到歌单</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 pt-1 max-h-64 overflow-y-auto">
           {isLoading ? (
             <div className="flex justify-center py-6">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <CircleNotch className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : playlists?.length ? (
             playlists.map(pl => (
@@ -66,9 +66,9 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
                 key={pl.id}
                 onClick={() => handleAdd(pl.id, pl.name)}
                 disabled={addToPlaylist.isPending}
-                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors text-left"
+                className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-accent active:scale-[0.98] transition-all text-left"
               >
-                <ListMusic className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <Queue className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <span className="text-sm font-medium truncate">{pl.name}</span>
               </button>
             ))
@@ -87,7 +87,7 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
             }}
           />
           <Button onClick={handleCreate} disabled={creating || !newName.trim()} size="icon" title="新建并添加">
-            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            {creating ? <CircleNotch className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           </Button>
         </div>
       </DialogContent>

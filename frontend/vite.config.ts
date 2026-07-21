@@ -14,8 +14,8 @@ export default defineConfig({
         name: 'N1KO MUSIC',
         short_name: 'N1KO',
         description: 'Modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby',
-        theme_color: '#0a0a0a',
-        background_color: '#0a0a0a',
+        theme_color: '#0a0a0c',
+        background_color: '#0a0a0c',
         display: 'standalone',
         icons: [
           {

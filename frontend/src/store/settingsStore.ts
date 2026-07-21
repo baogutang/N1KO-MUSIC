@@ -114,7 +114,7 @@ export const useSettingsStore = create<SettingsState>()(
       lyricsConfirmTemplate: '',
       lyricsUseRemote: false,
       lyricsPreferRemote: false,
-      lyricsHighlightColor: '#22c55e',
+      lyricsHighlightColor: '#2ec27e',
       lyricsFontSize: 20,
       songDetailTemplate: '',
       songDetailPathReplace: '',

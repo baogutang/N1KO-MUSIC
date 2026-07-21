@@ -1,10 +1,10 @@
 /**
- * 播放队列抽屉
+ * 播放队列抽屉 — 悬浮玻璃面板（现代 Hi-Fi 设计，见 DESIGN.md）
  * 显示当前播放列表，支持拖拽排序、删除
  */
 
 import { useState, useCallback } from 'react'
-import { X, GripVertical, Play } from 'lucide-react'
+import { X, DotsSixVertical, Play } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { usePlayerStore } from '@/store/playerStore'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
@@ -24,6 +24,7 @@ export function QueueDrawer() {
   const queue           = usePlayerStore(s => s.queue)
   const queueIndex      = usePlayerStore(s => s.queueIndex)
   const isQueueOpen     = usePlayerStore(s => s.isQueueOpen)
+  const isPlaying       = usePlayerStore(s => s.isPlaying)
   const setQueueOpen    = usePlayerStore(s => s.setQueueOpen)
   const jumpToIndex     = usePlayerStore(s => s.jumpToIndex)
   const removeFromQueue = usePlayerStore(s => s.removeFromQueue)
@@ -55,9 +56,10 @@ export function QueueDrawer() {
 
   return (
     <>
-      <div className="w-80 border-l border-border/50 bg-background/95 backdrop-blur-xl flex flex-col flex-shrink-0 animate-slide-up">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-          <h3 className="font-semibold text-sm">播放队列</h3>
+      {/* 悬浮玻璃面板：下沿停在悬浮控制台上方（--player-height 108px - 8px 间距）*/}
+      <div className="absolute top-3 right-4 bottom-[calc(var(--player-height)-8px)] z-30 w-80 rounded-lg glass shadow-[0_18px_46px_-18px_rgba(0,0,0,0.55)] flex flex-col overflow-hidden animate-slide-up">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h3 className="font-bold text-sm">播放队列</h3>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setConfirmClear(true)}
@@ -67,10 +69,10 @@ export function QueueDrawer() {
             </button>
             <button
               onClick={() => setQueueOpen(false)}
-              className="p-1 rounded-full hover:bg-accent transition-colors"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors active:scale-[0.94]"
               aria-label="关闭队列"
             >
-              <X className="w-4 h-4" />
+              <X size={16} />
             </button>
           </div>
         </div>
@@ -97,16 +99,28 @@ export function QueueDrawer() {
                     onDrop={() => handleDrop(index)}
                     onDragEnd={() => { setDragIndex(null); setOverIndex(null) }}
                     className={cn(
-                      'flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer group transition-colors',
-                      isCurrent ? 'bg-accent' : 'hover:bg-accent/50',
+                      'flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer group transition-colors',
+                      isCurrent ? 'bg-primary/10' : 'hover:bg-surface',
                       overIndex === index && dragIndex !== null && 'ring-1 ring-primary/40',
                       dragIndex === index && 'opacity-50'
                     )}
                     onClick={() => jumpToIndex(index)}
                   >
-                    <GripVertical className="w-4 h-4 text-muted-foreground/40 flex-shrink-0 cursor-grab active:cursor-grabbing" />
+                    {isCurrent && isPlaying ? (
+                      <span className="playing-bar w-4 justify-center flex-shrink-0" aria-hidden="true">
+                        <span /><span /><span />
+                      </span>
+                    ) : (
+                      <DotsSixVertical
+                        size={16}
+                        className={cn(
+                          'flex-shrink-0 cursor-grab active:cursor-grabbing',
+                          isCurrent ? 'text-primary/50' : 'text-muted-foreground/40'
+                        )}
+                      />
+                    )}
 
-                    <div className="w-9 h-9 rounded overflow-hidden flex-shrink-0">
+                    <div className="w-9 h-9 rounded-md ring-1 ring-border overflow-hidden flex-shrink-0">
                       <ImageWithFallback
                         src={coverUrl}
                         alt={song.album}
@@ -128,24 +142,24 @@ export function QueueDrawer() {
                       </p>
                     </div>
 
-                    <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0">
+                    <span className="font-num text-xs text-muted-foreground flex-shrink-0">
                       {formatDuration(song.duration)}
                     </span>
 
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                       <button
                         onClick={(e) => { e.stopPropagation(); jumpToIndex(index) }}
-                        className="p-1 rounded hover:bg-accent"
+                        className="p-1 rounded-md hover:bg-accent active:scale-[0.94] transition-colors"
                         aria-label="播放"
                       >
-                        <Play className="w-3 h-3" fill="currentColor" />
+                        <Play size={12} weight="fill" />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); removeFromQueue(index) }}
-                        className="p-1 rounded hover:bg-accent"
+                        className="p-1 rounded-md hover:bg-accent active:scale-[0.94] transition-colors"
                         aria-label="移除"
                       >
-                        <X className="w-3 h-3" />
+                        <X size={12} />
                       </button>
                     </div>
                   </div>
@@ -156,9 +170,9 @@ export function QueueDrawer() {
         </ScrollArea>
 
         {queue.length > 0 && (
-          <div className="px-4 py-2 border-t border-border/50">
+          <div className="px-4 py-2 border-t border-border">
             <p className="text-xs text-muted-foreground text-center">
-              {queue.length} 首歌曲 · {queueIndex + 1} / {queue.length}
+              <span className="font-num">{queue.length}</span> 首歌曲 · <span className="font-num">{queueIndex + 1} / {queue.length}</span>
             </p>
           </div>
         )}

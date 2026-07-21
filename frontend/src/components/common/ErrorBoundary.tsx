@@ -25,7 +25,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8 text-center">
-          <h2 className="text-lg font-semibold text-foreground">页面出现问题</h2>
+          <h2 className="text-lg font-bold text-foreground">页面出现问题</h2>
           <p className="text-sm text-muted-foreground max-w-md">{this.state.message}</p>
           <Button onClick={() => window.location.reload()}>重新加载</Button>
         </div>

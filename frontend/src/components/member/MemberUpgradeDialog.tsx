@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react'
-import { Crown, Zap, Music, Star, CheckCircle2, AlertCircle, X, KeyRound, Loader2 } from 'lucide-react'
+import { CrownSimple, Lightning, MusicNote, Star, CheckCircle, WarningCircle, X, Key, CircleNotch } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useMemberStore } from '@/store/memberStore'
 import {
@@ -26,10 +26,10 @@ interface MemberUpgradeDialogProps {
 }
 
 const FEATURES = [
-  { icon: Music, label: '无损原码 / 超高音质', desc: '支持 FLAC、无损原码等高品质格式' },
-  { icon: Zap, label: '为你推荐', desc: '智能算法根据你的口味精选歌单' },
+  { icon: MusicNote, label: '无损原码 / 超高音质', desc: '支持 FLAC、无损原码等高品质格式' },
+  { icon: Lightning, label: '为你推荐', desc: '智能算法根据你的口味精选歌单' },
   { icon: Star, label: '我的收藏', desc: '跨设备同步收藏夹，随时随地听' },
-  { icon: CheckCircle2, label: '听歌统计', desc: '详细播放数据，了解你的音乐偏好' },
+  { icon: CheckCircle, label: '听歌统计', desc: '详细播放数据，了解你的音乐偏好' },
 ]
 
 // ─── 激活码输入面板 ───────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ function CodePanel({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-white/40 text-center">输入激活码即可解锁会员</p>
+      <p className="text-xs text-muted-foreground text-center">输入激活码即可解锁会员</p>
       <div className="relative">
         <input
           type="text"
@@ -63,15 +63,14 @@ function CodePanel({ onSuccess }: { onSuccess: () => void }) {
           onChange={e => setCode(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === 'Enter' && handleActivate()}
           placeholder="XXXX-XXXX-XXXX-XXXX"
-          style={{ color: '#ffffff' }}
           className={cn(
-            'w-full bg-white/10 border rounded-xl px-4 py-3 text-sm placeholder:text-white/30',
-            'outline-none focus:ring-2 transition-all font-mono tracking-widest text-center caret-white',
+            'w-full bg-surface border rounded-md px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40',
+            'outline-none focus:ring-2 transition-all duration-150 font-num tracking-widest text-center caret-primary',
             result?.type === 'error'
-              ? 'border-red-500/50 focus:ring-red-500/30'
+              ? 'border-destructive/50 focus:ring-destructive/30'
               : result?.type === 'success'
-                ? 'border-green-500/50 focus:ring-green-500/30'
-                : 'border-white/15 focus:ring-primary/40 focus:border-primary/50'
+                ? 'border-primary/50 focus:ring-primary/30'
+                : 'border-border focus:ring-primary/40 focus:border-primary/50'
           )}
           disabled={loading}
         />
@@ -79,31 +78,31 @@ function CodePanel({ onSuccess }: { onSuccess: () => void }) {
 
       {result && (
         <div className={cn(
-          'flex items-center gap-2 text-sm rounded-lg px-3 py-2',
+          'flex items-center gap-2 text-sm rounded-md px-3 py-2 border',
           result.type === 'success'
-            ? 'bg-green-500/15 text-green-400 border border-green-500/20'
-            : 'bg-red-500/15 text-red-400 border border-red-500/20'
+            ? 'bg-primary/10 text-primary border-primary/20'
+            : 'bg-destructive/10 text-destructive border-destructive/20'
         )}>
           {result.type === 'success'
-            ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-            : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+            ? <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" />
+            : <WarningCircle weight="fill" className="w-4 h-4 flex-shrink-0" />}
           <span>{result.message}</span>
         </div>
       )}
 
       <Button
-        className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold rounded-xl h-11 shadow-lg shadow-amber-500/20 border-0"
+        className="w-full h-10 font-semibold"
         onClick={handleActivate}
         disabled={loading || !code.trim()}
       >
         {loading ? (
           <span className="flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <CircleNotch className="w-4 h-4 animate-spin" />
             验证中...
           </span>
         ) : (
           <span className="flex items-center gap-2">
-            <KeyRound className="w-4 h-4" />
+            <Key className="w-4 h-4" />
             立即激活
           </span>
         )}
@@ -126,31 +125,31 @@ export function MemberUpgradeDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md p-0 overflow-hidden border-0 bg-transparent shadow-none [&>button]:hidden">
-        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950 border border-white/10 shadow-2xl">
+        <div className="relative rounded-lg overflow-hidden glass shadow-2xl">
           {/* 装饰光晕 */}
-          <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
           {/* 关闭按钮 */}
           <button
             onClick={() => onOpenChange(false)}
-            className="absolute top-4 right-4 z-10 p-1.5 rounded-full text-white/40 hover:text-white/80 hover:bg-white/10 transition-all"
+            className="absolute top-4 right-4 z-10 p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-150 active:scale-[0.94]"
           >
             <X className="w-4 h-4" />
           </button>
 
           {/* 头部 */}
           <div className="relative px-8 pt-8 pb-5 text-center">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/30 mb-3">
-              <Crown className="w-7 h-7 text-white" />
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 shadow-lg shadow-amber-500/30 mb-3">
+              <CrownSimple weight="fill" className="w-7 h-7 text-amber-950" />
             </div>
-            <h2 className="text-xl font-bold text-white mb-1.5">解锁 N1KO MUSIC 会员</h2>
+            <h2 className="text-xl font-bold text-foreground mb-1.5">解锁 N1KO MUSIC 会员</h2>
             {featureName ? (
-              <p className="text-sm text-white/60">
-                <span className="text-amber-400 font-medium">「{featureName}」</span> 是会员专属功能
+              <p className="text-sm text-muted-foreground">
+                <span className="text-primary font-medium">「{featureName}」</span> 是会员专属功能
               </p>
             ) : (
-              <p className="text-sm text-white/60">升级会员，享受完整音乐体验</p>
+              <p className="text-sm text-muted-foreground">升级会员，享受完整音乐体验</p>
             )}
           </div>
 
@@ -159,14 +158,14 @@ export function MemberUpgradeDialog({
             {FEATURES.map(({ icon: Icon, label, desc }) => (
               <div
                 key={label}
-                className="flex items-start gap-2 p-2.5 rounded-xl bg-white/5 border border-white/8"
+                className="flex items-start gap-2 p-2.5 rounded-md bg-surface border border-border"
               >
-                <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Icon className="w-3 h-3 text-primary" />
+                <div className="w-6 h-6 rounded-md bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Icon weight="fill" className="w-3 h-3 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold text-white/90 leading-tight">{label}</p>
-                  <p className="text-[10px] text-white/40 mt-0.5 leading-tight">{desc}</p>
+                  <p className="text-[11px] font-semibold text-foreground leading-tight">{label}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{desc}</p>
                 </div>
               </div>
             ))}
@@ -187,11 +186,11 @@ export function PremiumBadge({ className }: { className?: string }) {
   return (
     <span className={cn(
       'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full',
-      'bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30',
+      'bg-amber-500/15 border border-amber-500/30',
       'text-[10px] font-bold text-amber-400 uppercase tracking-wider',
       className
     )}>
-      <Crown className="w-2.5 h-2.5" />
+      <CrownSimple weight="fill" className="w-2.5 h-2.5" />
       PRO
     </span>
   )
@@ -214,4 +213,3 @@ export function usePremiumGuard() {
 
   return { guard, showDialog, setShowDialog, featureName, isPremium }
 }
-

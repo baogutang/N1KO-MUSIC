@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Search, X } from 'lucide-react'
+import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { ArtistCard } from '@/components/music/ArtistCard'
@@ -41,35 +41,36 @@ export default function SearchPage() {
     <div className="flex flex-col h-full">
       <div className="flex-1 flex flex-col min-h-0">
         {/* 搜索框 */}
-        <div className="px-6 py-4 border-b border-border/50">
-          <div className="relative max-w-xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <div className="px-8 py-5 border-b border-border">
+          <div className="relative max-w-xl mx-auto lg:mx-0">
+            <MagnifyingGlass size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="搜索歌曲、专辑、歌手..."
-              className="pl-10 pr-10 h-11 text-base"
+              className="pl-10 pr-10 h-11 text-base rounded-md"
               autoFocus
             />
             {query && (
               <button
                 onClick={handleClear}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors active:scale-[0.94]"
+                aria-label="清空搜索"
               >
-                <X className="w-4 h-4" />
+                <X size={14} />
               </button>
             )}
           </div>
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-6 space-y-8 max-w-7xl mx-auto">
+          <div className="px-8 pb-10 max-w-[1320px] mx-auto divide-y divide-border">
             {/* 无查询时展示提示 */}
             {!query && (
-              <div className="text-center py-16">
-                <Search className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
+              <div className="text-center py-20">
+                <MagnifyingGlass size={44} className="text-muted-foreground/30 mx-auto mb-4" />
                 <p className="text-muted-foreground">输入关键词开始搜索</p>
-                <p className="text-xs text-muted-foreground/50 mt-1">
+                <p className="text-xs text-muted-foreground/50 mt-1.5">
                   支持歌曲名、专辑名、歌手名
                 </p>
               </div>
@@ -77,25 +78,25 @@ export default function SearchPage() {
 
             {/* 加载中 */}
             {isLoading && (
-              <div className="text-center py-8">
+              <div className="text-center py-10">
                 <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
               </div>
             )}
 
             {/* 无结果（等待防抖或请求进行中时不提前展示） */}
             {showResults && !isLoading && !isFetching && !hasResults && (
-              <div className="text-center py-16">
+              <div className="text-center py-20">
                 <p className="text-muted-foreground">未找到「{query}」相关内容</p>
               </div>
             )}
 
             {/* 歌手 */}
             {showResults && results?.artists && results.artists.length > 0 && (
-              <section>
-                <h2 className="text-base font-semibold text-foreground mb-4">
-                  歌手 <span className="text-muted-foreground font-normal text-sm">({results.artists.length})</span>
+              <section className="py-8">
+                <h2 className="text-lg font-bold tracking-tight text-foreground mb-5">
+                  歌手 <span className="font-num text-sm font-normal text-muted-foreground">({results.artists.length})</span>
                 </h2>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5 [&>*]:min-w-0">
                   {results.artists.map(artist => (
                     <ArtistCard key={artist.id} artist={artist} />
                   ))}
@@ -105,11 +106,11 @@ export default function SearchPage() {
 
             {/* 专辑 */}
             {showResults && results?.albums && results.albums.length > 0 && (
-              <section>
-                <h2 className="text-base font-semibold text-foreground mb-4">
-                  专辑 <span className="text-muted-foreground font-normal text-sm">({results.albums.length})</span>
+              <section className="py-8">
+                <h2 className="text-lg font-bold tracking-tight text-foreground mb-5">
+                  专辑 <span className="font-num text-sm font-normal text-muted-foreground">({results.albums.length})</span>
                 </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-6 [&>*]:min-w-0">
                   {results.albums.map(album => (
                     <AlbumCard key={album.id} album={album} />
                   ))}
@@ -119,9 +120,9 @@ export default function SearchPage() {
 
             {/* 歌曲 */}
             {showResults && results?.songs && results.songs.length > 0 && (
-              <section>
-                <h2 className="text-base font-semibold text-foreground mb-4">
-                  歌曲 <span className="text-muted-foreground font-normal text-sm">({results.songs.length})</span>
+              <section className="py-8">
+                <h2 className="text-lg font-bold tracking-tight text-foreground mb-5">
+                  歌曲 <span className="font-num text-sm font-normal text-muted-foreground">({results.songs.length})</span>
                 </h2>
                 <SongList songs={results.songs} showCover showAlbum showIndex />
               </section>
