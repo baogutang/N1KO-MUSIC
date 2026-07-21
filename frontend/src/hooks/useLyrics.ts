@@ -24,6 +24,10 @@ export function parseLrc(text: string): LyricLine[] {
   // LRC 元数据标签正则：匹配 [tag] 或 [tag:value] 格式
   const metaPattern = /^\[(?:id|ar|ti|al|by|hash|sign|qq|total|offset|lang|length|desc|album|artist|title|author|maker|version|re|ve|encoding|file|rcv|usr|uid|msid|msas|mscv|msp|msu|cap|cta|cla|cla2|com|tag|instrument|role|track|lrcx)\s*(?::[^]]*)?\]$/i
 
+  // [offset:±毫秒] 全局偏移标签：LRC 约定正值表示歌词提前显示（即时间戳减去偏移）
+  const offsetPattern = /^\[offset:\s*([+-]?\d+)\s*\]$/i
+  let lrcOffset = 0
+
   // 匹配标准时间标签 [mm:ss.xx] 或 [mm:ss.xxx]
   const timePattern = /\[(\d{1,2}):(\d{2})\.(\d{2,3})\]/g
 
@@ -31,7 +35,15 @@ export function parseLrc(text: string): LyricLine[] {
 
   for (const row of rows) {
     const trimmed = row.trim()
-    if (!trimmed || metaPattern.test(trimmed)) continue
+    if (!trimmed) continue
+
+    const offsetMatch = offsetPattern.exec(trimmed)
+    if (offsetMatch) {
+      lrcOffset = parseInt(offsetMatch[1])
+      continue
+    }
+
+    if (metaPattern.test(trimmed)) continue
 
     const times: number[] = []
     let match: RegExpExecArray | null
@@ -54,6 +66,13 @@ export function parseLrc(text: string): LyricLine[] {
     } else if (times.length === 0 && lyricText) {
       // 无时间戳的纯文本行
       lines.push({ time: 0, text: lyricText })
+    }
+  }
+
+  // 应用全局偏移（正值提前 -> 减去偏移），并保证时间不为负
+  if (lrcOffset !== 0) {
+    for (const line of lines) {
+      line.time = Math.max(0, line.time - lrcOffset)
     }
   }
 

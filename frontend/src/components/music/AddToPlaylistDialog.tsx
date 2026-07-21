@@ -81,7 +81,10 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
             placeholder="新建歌单名称"
             value={newName}
             onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            onKeyDown={e => {
+              // isComposing / keyCode 229：中日韩输入法组词期间按 Enter 是确认候选词，不应触发创建
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) handleCreate()
+            }}
           />
           <Button onClick={handleCreate} disabled={creating || !newName.trim()} size="icon" title="新建并添加">
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}

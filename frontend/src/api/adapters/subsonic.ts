@@ -331,7 +331,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
     // 优先使用 OpenSubsonic 扩展接口 getLyricsBySongId（返回带时间戳的结构化歌词）
     try {
       const extData = await this.request<{
-        o3icsList?: {
+        lyricsList?: {
           structuredLyrics?: Array<{
             displayArtist?: string
             displayTitle?: string
@@ -343,7 +343,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
         }
       }>('/getLyricsBySongId', { id: songId })
 
-      const list = extData.o3icsList?.structuredLyrics ?? []
+      const list = extData.lyricsList?.structuredLyrics ?? []
       if (list.length > 0) {
         // 优先取 synced=true 的歌词，否则取第一个
         const preferred = list.find(l => l.synced) ?? list[0]
@@ -368,15 +368,15 @@ export class SubsonicAdapter implements MusicServerAdapter {
     // 降级：使用旧版 getLyrics（返回纯文本，无时间戳）
     try {
       const data = await this.request<{
-        o3ics?: { value?: string; title?: string; artist?: string }
+        lyrics?: { value?: string; title?: string; artist?: string }
       }>('/getLyrics', { id: songId, title, artist })
-      const raw = (data.o3ics as Record<string, unknown> | undefined)?.value as string | undefined
+      const raw = (data.lyrics as Record<string, unknown> | undefined)?.value as string | undefined
       if (!raw) return null
       const lines = parseLrcText(raw)
       return {
         songId,
-        title: (data.o3ics as Record<string, unknown> | undefined)?.title as string | undefined,
-        artist: (data.o3ics as Record<string, unknown> | undefined)?.artist as string | undefined,
+        title: (data.lyrics as Record<string, unknown> | undefined)?.title as string | undefined,
+        artist: (data.lyrics as Record<string, unknown> | undefined)?.artist as string | undefined,
         lines,
         synced: lines.some(l => l.time > 0),
       }
@@ -633,6 +633,10 @@ export function parseLrcText(text: string): LyricLine[] {
 
   const lines: LyricLine[] = []
 
+  // [offset:±毫秒] 全局偏移：LRC 约定正值表示歌词提前显示（时间戳减去偏移），与 useLyrics.parseLrc 保持一致
+  const offsetMatch = /\[offset:\s*([+-]?\d+)\s*\]/i.exec(text)
+  const lrcOffset = offsetMatch ? parseInt(offsetMatch[1]) : 0
+
   // LRC 元数据标签正则：匹配 [tag] 或 [tag:value] 格式
   const metaTagRegex = /^\[(?:id|ar|ti|al|by|hash|sign|qq|total|offset|lang|length|desc|album|artist|title|author|maker|version|re|ve|encoding|file|rcv|usr|uid|msid|msas|mscv|msp|msu|cap|cta|cla|cla2|com|tag|instrument|role|track|lrcx)\s*(?::[^]]*)?\]$/i
 
@@ -665,7 +669,7 @@ export function parseLrcText(text: string): LyricLine[] {
     if (!lyricText) continue
 
     for (const time of times) {
-      lines.push({ time, text: lyricText })
+      lines.push({ time: Math.max(0, time - lrcOffset), text: lyricText })
     }
 
     // 无时间戳的纯文本行

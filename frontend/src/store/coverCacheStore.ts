@@ -7,6 +7,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useServerStore } from './serverStore'
 
 interface CoverCache {
   /** 封面图片 URL */
@@ -15,8 +16,17 @@ interface CoverCache {
   savedAt: number
 }
 
+/**
+ * 组合缓存 key：serverId:songId
+ * 不同服务器的歌曲 ID 可能相同，必须按服务器隔离
+ */
+function scopedKey(songId: string): string {
+  const serverId = useServerStore.getState().activeServerId ?? 'default'
+  return `${serverId}:${songId}`
+}
+
 interface CoverCacheState {
-  /** 封面缓存，key 为 songId */
+  /** 封面缓存，key 为 serverId:songId（旧版数据为裸 songId，读取时兼容回退） */
   cache: Record<string, CoverCache>
 
   /** 保存封面到本地缓存 */
@@ -41,7 +51,7 @@ export const useCoverCacheStore = create<CoverCacheState>()(
         set(state => ({
           cache: {
             ...state.cache,
-            [songId]: {
+            [scopedKey(songId)]: {
               url,
               savedAt: Date.now(),
             },
@@ -50,12 +60,14 @@ export const useCoverCacheStore = create<CoverCacheState>()(
       },
 
       getCover: (songId: string) => {
-        return get().cache[songId]?.url ?? null
+        const cache = get().cache
+        // 旧版数据用裸 songId 作 key，找不到作用域 key 时兼容回退
+        return cache[scopedKey(songId)]?.url ?? cache[songId]?.url ?? null
       },
 
       removeCover: (songId: string) => {
         set(state => {
-          const { [songId]: _, ...rest } = state.cache
+          const { [scopedKey(songId)]: _, [songId]: __, ...rest } = state.cache
           return { cache: rest }
         })
       },

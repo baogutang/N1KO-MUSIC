@@ -31,14 +31,14 @@ export function createAdapter(config: ServerConfig): MusicServerAdapter {
       return new JellyfinAdapter({
         url: config.url,
         token: config.token,
-        userId: config.token, // userId 暂时复用，初始化时会更新
+        userId: config.userId ?? '',
       })
 
     case 'emby':
       return new EmbyAdapter({
         url: config.url,
         token: config.token,
-        userId: config.token,
+        userId: config.userId ?? '',
       })
 
     default:

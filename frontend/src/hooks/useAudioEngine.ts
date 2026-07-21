@@ -119,11 +119,18 @@ let loadDebounceTimer: ReturnType<typeof setTimeout> | null = null
 const LOAD_DEBOUNCE_MS = 120  // 120ms：足以吸收快速连击，又不影响正常点击的响应速度
 
 /**
- * 模块级历史记录 timer — 完全脱离 React 生命周期
- * 用于在 audio 加载后 5 秒记录播放历史，不受 useEffect cleanup 影响
+ * 模块级播放统计状态 — 完全脱离 React 生命周期
+ * 按加载 key 归属：新歌加载时重置，同 key 重挂监听（reattach）时保留，
+ * 保证 now-playing / scrobble 提交 / 历史记录每次播放最多各一次
  */
-let moduleHistoryTimer: ReturnType<typeof setTimeout> | null = null
-let lastRecordedSongId: string | null = null
+let playStatKey: string | null = null
+/** 实际收听累计秒数（按 timeupdate 增量累计，seek 跳变不计入）*/
+let listenedSec = 0
+let listenedPrevT = -1
+/** submission=false 的 now-playing 是否已发送（真正开始播放时才发）*/
+let nowPlayingSent = false
+/** submission=true 的播放提交（及历史记录）是否已完成 */
+let playSubmitted = false
 
 /** 从外部 seek（供 PlayerBar / FullscreenPlayer / LyricDisplay 调用）*/
 export function seekHowl(time: number) {
@@ -200,34 +207,6 @@ export function useAudioEngine() {
     }
 
     const currentKey = `${songId}@${effectiveQuality}@${playVersion}`
-    // 只有“当前 key 已加载 且 监听仍然存活”时才跳过；
-    // 否则（例如依赖变化触发过 cleanup）需要重新绑定监听。
-    if (loadedKey === currentKey && audioEl && cleanupPrev) {
-      return
-    }
-
-    // 清除上一个待执行的加载 debounce（连续切歌时，丢弃中间的加载请求）
-    if (loadDebounceTimer !== null) {
-      clearTimeout(loadDebounceTimer)
-      loadDebounceTimer = null
-    }
-
-    const isFirstPlay = loadedKey === null
-
-    if (!isFirstPlay) {
-      // 非首次播放：停止旧音频、标记切歌防止 onPause 误同步
-      if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
-      isSwitchingSong = true
-      audioEl.pause()
-      audioEl.src = ''
-      setTimeout(() => { isSwitchingSong = false }, LOAD_DEBOUNCE_MS + 50)
-    }
-
-    // 重置进度，用服务器返回的 duration 作为初始值（避免进度条为 0）
-    usePlayerStore.getState().setCurrentTime(0)
-    usePlayerStore.getState().setBuffered(0)
-    const knownDurationEarly = currentSong.duration ?? 0
-    usePlayerStore.getState().setDuration(knownDurationEarly > 0 ? knownDurationEarly : 0)
 
     // 捕获当前歌曲 id，供 debounce 内校验
     const capturedSongId = songId
@@ -235,7 +214,9 @@ export function useAudioEngine() {
     const capturedSong = currentSong
 
     // 首次播放不需要 debounce（没有旧音频要中断），后续切歌才 debounce 吸收连续点击
-    const doLoad = () => {
+    // reattachOnly=true：同 key 重挂监听（依赖变化触发过 cleanup 后），
+    // 绝不能触碰 audioEl.src / currentTime，否则正在播放的歌会从头重播
+    const doLoad = (reattachOnly = false) => {
       // 检查 store 当前状态是否还是同一首歌，避免 debounce 期间又切走了
       const latestSong = usePlayerStore.getState().currentSong
       if (!latestSong || latestSong.id !== capturedSongId) return
@@ -290,6 +271,21 @@ export function useAudioEngine() {
         updateDuration()
       }
 
+      /**
+       * 达到播放阈值（Subsonic 约定：收听过半或满 4 分钟）后，
+       * 提交 submission=true 的 scrobble 并写入本地历史，每次播放只做一次
+       */
+      const maybeSubmitPlay = () => {
+        if (playSubmitted || playStatKey !== capturedKey) return
+        const st = usePlayerStore.getState()
+        const dur = capturedSong.duration || st.duration || 0
+        const threshold = dur > 0 ? Math.min(dur / 2, 240) : 240
+        if (listenedSec < threshold) return
+        playSubmitted = true
+        try { getAdapter().scrobble(capturedSongId, true) } catch { /* ignore */ }
+        recordPlayToHistory(st.currentSong?.id === capturedSongId ? st.currentSong : capturedSong)
+      }
+
       // timeupdate 节流：浏览器原生约 250ms 触发一次，但 zustand 广播开销不低
       // 限制为每 200ms 最多更新一次（实际和 timeupdate 频率一致，但可防止异常高频场景）
       let lastTimeUpdateMs = 0
@@ -300,6 +296,16 @@ export function useAudioEngine() {
 
         const t = audio.currentTime
         usePlayerStore.getState().setCurrentTime(t)
+
+        // 累计实际收听时长：只计入正常前进的小增量，seek 造成的跳变不算收听
+        if (playStatKey === capturedKey) {
+          const delta = t - listenedPrevT
+          if (listenedPrevT >= 0 && delta > 0 && delta < 2) {
+            listenedSec += delta
+            maybeSubmitPlay()
+          }
+          listenedPrevT = t
+        }
 
         // timeupdate 期间再尝试补全 duration（有些服务器流在播放中才返回有效 duration）
         if (usePlayerStore.getState().duration <= 0) {
@@ -353,6 +359,12 @@ export function useAudioEngine() {
 
       const onPlay = () => {
         usePlayerStore.getState().resume()
+        // now-playing 通知在真正开始播放时才发送一次
+        // （启动时 rehydrate 的歌只加载不播放，不应上报）
+        if (!nowPlayingSent && playStatKey === capturedKey) {
+          nowPlayingSent = true
+          try { getAdapter().scrobble(capturedSongId, false) } catch { /* ignore */ }
+        }
       }
 
       const onPause = () => {
@@ -388,6 +400,7 @@ export function useAudioEngine() {
 
       const onEnded = () => {
         clearStallWatch()
+        maybeSubmitPlay()
         usePlayerStore.getState().next()
       }
 
@@ -551,44 +564,32 @@ export function useAudioEngine() {
       audio.addEventListener('error', onError)
       audio.addEventListener('waiting', onWaiting)
 
-      // ── 释放连接池：确保 audio stream 获得最高优先级 ──
-      // 第 1 层：DOM 层 — 立即中止所有未完成的 <img> HTTP 请求（0 延迟）
-      abortPendingImageLoads()
-      // 第 2 层：TanStack Query 层 — 仅取消非活跃封面请求，避免误杀当前详情页正在加载的封面
-      queryClient.cancelQueries({ queryKey: ['custom-cover'], type: 'inactive' }).catch(() => {})
-      // 第 3 层：React 状态层 — 阻止后续 React 渲染重新发起图片请求
-      usePlayerStore.getState().setStreamBuffering(true)
+      if (!reattachOnly) {
+        // ── 释放连接池：确保 audio stream 获得最高优先级 ──
+        // 第 1 层：DOM 层 — 立即中止所有未完成的 <img> HTTP 请求（0 延迟）
+        abortPendingImageLoads()
+        // 第 2 层：TanStack Query 层 — 仅取消非活跃封面请求，避免误杀当前详情页正在加载的封面
+        queryClient.cancelQueries({ queryKey: ['custom-cover'], type: 'inactive' }).catch(() => {})
+        // 第 3 层：React 状态层 — 阻止后续 React 渲染重新发起图片请求
+        usePlayerStore.getState().setStreamBuffering(true)
 
-      audio.src = streamUrl
-      audio.volume = mutedRef.current ? 0 : volumeRef.current
-      audio.load()
+        audio.src = streamUrl
+        audio.volume = mutedRef.current ? 0 : volumeRef.current
+        audio.load()
 
-      // ── 模块级历史记录（完全脱离 React 生命周期，immune to useEffect cleanup）──
-      // 为什么不用 React useEffect：
-      //   1. effect cleanup 在依赖变化时清除 timer，而 isConnected/effectiveQuality
-      //      可能在首次 rehydration 后变化，触发核心 effect cleanup
-      //   2. 核心 effect cleanup 后 loadedKey === currentKey 导致 early return，
-      //      但 listener 已被移除，后续变化无法触发
-      //   3. 模块级 timer 只在新歌加载时被清除，其余情况（React 重渲染、
-      //      effect cleanup、store 变化）都无法干扰它
-      if (moduleHistoryTimer) { clearTimeout(moduleHistoryTimer); moduleHistoryTimer = null }
-      moduleHistoryTimer = setTimeout(() => {
-        moduleHistoryTimer = null
-        if (lastRecordedSongId === capturedSongId) return
-        const state = usePlayerStore.getState()
-        if (state.currentSong?.id === capturedSongId) {
-          lastRecordedSongId = capturedSongId
-          recordPlayToHistory(state.currentSong)
+        // 新的一次播放：重置播放统计（now-playing / scrobble 提交 / 历史都归本次）
+        // 模块级状态脱离 React 生命周期，reattach（同 key 重挂监听）时不重置
+        playStatKey = capturedKey
+        listenedSec = 0
+        listenedPrevT = -1
+        nowPlayingSent = false
+        playSubmitted = false
+
+        // 如果应该播放但 audio 还没 canplay，先标记 isPlaying=true，等 canplay 触发
+        const shouldPlay = usePlayerStore.getState().isPlaying
+        if (shouldPlay) {
+          usePlayerStore.getState().resume()
         }
-      }, 5000)
-
-      // scrobble（异步，不阻塞）
-      try { getAdapter().scrobble(capturedSongId, false) } catch { /* ignore */ }
-
-      // 如果应该播放但 audio 还没 canplay，先标记 isPlaying=true，等 canplay 触发
-      const shouldPlay = usePlayerStore.getState().isPlaying
-      if (shouldPlay) {
-        usePlayerStore.getState().resume()
       }
 
       const cleanup = () => {
@@ -607,6 +608,38 @@ export function useAudioEngine() {
       }
       cleanupPrev = cleanup
     }
+
+    // 同 key 已加载：监听存活则直接跳过；
+    // 监听被 cleanup 移除过（如 isConnected 抖动、依赖变化）则仅重挂监听，
+    // 不重置 src/进度 —— 否则收藏、重连等同曲重跑会导致从头重播
+    if (loadedKey === currentKey) {
+      if (cleanupPrev) return
+      doLoad(true)
+      return
+    }
+
+    // 清除上一个待执行的加载 debounce（连续切歌时，丢弃中间的加载请求）
+    if (loadDebounceTimer !== null) {
+      clearTimeout(loadDebounceTimer)
+      loadDebounceTimer = null
+    }
+
+    const isFirstPlay = loadedKey === null
+
+    if (!isFirstPlay) {
+      // 非首次播放：停止旧音频、标记切歌防止 onPause 误同步
+      if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
+      isSwitchingSong = true
+      audioEl.pause()
+      audioEl.src = ''
+      setTimeout(() => { isSwitchingSong = false }, LOAD_DEBOUNCE_MS + 50)
+    }
+
+    // 重置进度，用服务器返回的 duration 作为初始值（避免进度条为 0）
+    usePlayerStore.getState().setCurrentTime(0)
+    usePlayerStore.getState().setBuffered(0)
+    const knownDurationEarly = currentSong.duration ?? 0
+    usePlayerStore.getState().setDuration(knownDurationEarly > 0 ? knownDurationEarly : 0)
 
     if (isFirstPlay) {
       // 首次播放：同步执行，不经过 setTimeout（消除 macrotask 排队延迟）
@@ -628,7 +661,9 @@ export function useAudioEngine() {
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
     }
 
-  }, [currentSong, currentSong?.id, playVersion, isConnected, effectiveQuality, queryClient])
+    // 依赖歌曲 id 而非对象引用：updateCurrentSong（如收藏切换）只替换引用不换歌，
+    // 不应触发本 effect，否则会 cleanup 后重载导致从头重播
+  }, [currentSong?.id, playVersion, isConnected, effectiveQuality, queryClient])
 
   // --- 播放/暂停控制 ---
   useEffect(() => {

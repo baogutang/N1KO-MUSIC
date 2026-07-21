@@ -55,22 +55,39 @@ export const LyricDisplay = memo(function LyricDisplay({
   // 手动滚动锁定：记录最后一次手动滚动时间
   const lastManualScrollRef = useRef<number>(0)
   const AUTO_SCROLL_RESUME_DELAY = 3000 // 3 秒后恢复自动滚动
+  // 程序化滚动标志：scrollToActive 的平滑滚动同样会触发 scroll 事件，
+  // 必须与用户手动滚动区分，否则每次自动滚动都会把自己锁定 3 秒
+  const isProgrammaticScrollRef = useRef(false)
+  const programmaticSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /** 刷新程序化滚动的"结束"计时：平滑滚动停止约 150ms 后清除标志 */
+  const armProgrammaticSettle = useCallback(() => {
+    if (programmaticSettleTimerRef.current) clearTimeout(programmaticSettleTimerRef.current)
+    programmaticSettleTimerRef.current = setTimeout(() => {
+      isProgrammaticScrollRef.current = false
+      programmaticSettleTimerRef.current = null
+    }, 150)
+  }, [])
 
   // 监听手动滚动
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    let scrollTimer: ReturnType<typeof setTimeout> | undefined
     const handleScroll = () => {
+      if (isProgrammaticScrollRef.current) {
+        // 自动滚动产生的事件：只顺延结束计时，不算作手动滚动
+        armProgrammaticSettle()
+        return
+      }
       lastManualScrollRef.current = Date.now()
     }
     container.addEventListener('scroll', handleScroll, { passive: true })
     return () => {
       container.removeEventListener('scroll', handleScroll)
-      if (scrollTimer) clearTimeout(scrollTimer)
+      if (programmaticSettleTimerRef.current) clearTimeout(programmaticSettleTimerRef.current)
     }
-  }, [])
+  }, [armProgrammaticSettle])
 
   // 自动滚动到当前歌词行（高亮行始终居中于容器可视区域）
   const scrollToActive = useCallback(() => {
@@ -89,11 +106,14 @@ export const LyricDisplay = memo(function LyricDisplay({
     const desiredCenter = containerRect.height / 2
     const targetScrollTop = container.scrollTop + (lineCenter - desiredCenter)
 
+    // 标记程序化滚动；即使滚动距离为 0 不触发 scroll 事件，计时器也会兜底清除标志
+    isProgrammaticScrollRef.current = true
+    armProgrammaticSettle()
     container.scrollTo({
       top: Math.max(0, targetScrollTop),
       behavior: 'smooth',
     })
-  }, [currentIndex, isSynced])
+  }, [currentIndex, isSynced, armProgrammaticSettle])
 
   useEffect(() => {
     scrollToActive()

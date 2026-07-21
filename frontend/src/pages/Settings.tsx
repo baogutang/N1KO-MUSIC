@@ -16,7 +16,7 @@ import {
   type AudioQuality,
   type CoverShape,
 } from '@/store/settingsStore'
-import { getAdapter } from '@/api'
+import { createAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
 import { useMemberStore } from '@/store/memberStore'
 
@@ -48,9 +48,12 @@ export default function Settings() {
   const activeServer = servers.find(s => s.id === activeServerId)
 
   async function handlePing(serverId: string) {
+    const server = servers.find(s => s.id === serverId)
+    if (!server) return
     setPinging(serverId)
     try {
-      const adapter = getAdapter()
+      // 用被点击行的服务器配置临时创建适配器，而不是 ping 当前激活的服务器
+      const adapter = createAdapter(server)
       const ok = await adapter.ping()
       toast({
         title: ok ? '连接正常' : '连接失败',

@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>N1KO MUSIC · Redesign Demo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+<style>
+/* ============================================================
+   N1KO MUSIC · Design Tokens
+   一套 token，深浅双主题共用。演示页默认深色。
+   ============================================================ */
+:root {
+  /* type */
+  --font-ui: -apple-system, "SF Pro Display", "SF Pro Text", "PingFang SC",
+             "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", system-ui, sans-serif;
+  --font-num: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+  /* radius scale: sm 8 / md 12 / lg 20 / pill 999 */
+  --r-sm: 8px; --r-md: 12px; --r-lg: 20px; --r-pill: 999px;
+
+  /* motion */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 160ms; --t-med: 280ms; --t-slow: 480ms;
+}
+
+:root[data-theme="dark"] {
+  --canvas: #0a0a0c;
+  --surface: #111114;
+  --surface-2: #17171c;
+  --hairline: rgba(255, 255, 255, 0.07);
+  --hairline-strong: rgba(255, 255, 255, 0.13);
+  --text-hi: #f2f1ed;
+  --text-mid: #a1a09a;
+  --text-low: #62615c;
+  --brass: #2ec27e;
+  --brass-bright: #57dfa1;
+  --brass-ink: #06130c;           /* text on brass fills */
+  --brass-dim: rgba(46, 194, 126, 0.13);
+  --scrim: rgba(10, 10, 12, 0.55);
+  --console-bg: rgba(17, 17, 20, 0.72);
+  --shadow-cover: 0 24px 60px -18px rgba(0, 0, 0, 0.65);
+}
+
+:root[data-theme="light"] {
+  --canvas: #f5f5f6;
+  --surface: #ffffff;
+  --surface-2: #ededef;
+  --hairline: rgba(20, 20, 24, 0.08);
+  --hairline-strong: rgba(20, 20, 24, 0.16);
+  --text-hi: #17171a;
+  --text-mid: #66655f;
+  --text-low: #9b9a94;
+  --brass: #157a4b;
+  --brass-bright: #0f5e39;
+  --brass-ink: #fdfbf6;
+  --brass-dim: rgba(21, 122, 75, 0.10);
+  --scrim: rgba(245, 245, 246, 0.6);
+  --console-bg: rgba(255, 255, 255, 0.78);
+  --shadow-cover: 0 24px 60px -22px rgba(20, 20, 24, 0.35);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-ui);
+  background: var(--canvas);
+  color: var(--text-hi);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; border: none; background: none; color: inherit; cursor: pointer; }
+i.ph, i.ph-fill { line-height: 1; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--hairline-strong); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   App shell
+   ============================================================ */
+.app {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  grid-template-rows: 1fr;
+  height: 100vh;
+  position: relative;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  border-right: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px 16px;
+  background: var(--canvas);
+  z-index: 5;
+}
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px 20px;
+}
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(145deg, var(--brass), color-mix(in srgb, var(--brass) 60%, #000));
+  display: grid; place-items: center;
+  color: var(--brass-ink); font-size: 17px;
+  flex: none;
+}
+.brand-name {
+  font-size: 14px; font-weight: 700; letter-spacing: 0.06em;
+}
+.brand-server {
+  font-size: 11px; color: var(--text-low); letter-spacing: 0.02em;
+  display: flex; align-items: center; gap: 5px;
+}
+.brand-server::before {
+  content: ""; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--brass); opacity: .85;
+}
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-group-label {
+  font-size: 11px; color: var(--text-low); letter-spacing: 0.12em;
+  padding: 18px 12px 8px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  color: var(--text-mid);
+  font-size: 13.5px;
+  position: relative;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  text-align: left; width: 100%;
+}
+.nav-item i { font-size: 18px; }
+.nav-item:hover { color: var(--text-hi); background: var(--surface); }
+.nav-item.active { color: var(--text-hi); background: var(--surface-2); }
+.nav-item.active::before {
+  content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 2px;
+  border-radius: 2px; background: var(--brass);
+}
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; }
+.member-chip {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 8px; padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--brass) 35%, transparent);
+  background: var(--brass-dim);
+  border-radius: var(--r-sm);
+  color: var(--brass-bright); font-size: 12.5px;
+}
+.member-chip i { font-size: 16px; }
+
+/* ---------- Main column ---------- */
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar {
+  height: 60px; flex: none;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--hairline);
+}
+.nav-arrows { display: flex; gap: 4px; }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  color: var(--text-mid); font-size: 17px;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.icon-btn:hover { color: var(--text-hi); background: var(--surface-2); }
+.icon-btn:active { transform: scale(0.94); }
+.search {
+  margin-left: 8px;
+  display: flex; align-items: center; gap: 8px;
+  width: 300px; height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  color: var(--text-low);
+  font-size: 13px;
+  background: var(--surface);
+  transition: border-color var(--t-fast) var(--ease);
+}
+.search:hover { border-color: var(--hairline-strong); }
+.search kbd {
+  margin-left: auto;
+  font-family: var(--font-num); font-size: 10.5px;
+  padding: 2px 5px; border: 1px solid var(--hairline); border-radius: 5px;
+  color: var(--text-low);
+}
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-strong);
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 600; color: var(--text-mid);
+}
+
+/* ---------- Views ---------- */
+.views { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
+.view { display: none; padding: 36px 40px 140px; max-width: 1320px; margin: 0 auto; }
+.view.active { display: block; animation: view-in var(--t-med) var(--ease); }
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .view.active { animation: none; }
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* ============================================================
+   Home
+   ============================================================ */
+.greeting-row {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  margin-bottom: 40px;
+}
+.greeting h1 {
+  font-size: 42px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15;
+}
+.greeting p { color: var(--text-mid); margin-top: 6px; font-size: 14px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 20px;
+  border-radius: var(--r-pill);
+  font-size: 13.5px; font-weight: 600;
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--brass); color: var(--brass-ink); }
+.btn-primary:hover { background: var(--brass-bright); }
+:root[data-theme="light"] .btn-primary:hover { background: var(--brass); filter: brightness(1.08); }
+.btn-ghost {
+  border: 1px solid var(--hairline-strong); color: var(--text-hi);
+}
+.btn-ghost:hover { border-color: var(--brass); color: var(--brass-bright); }
+.btn i { font-size: 16px; }
+
+/* featured album: asymmetric split */
+.featured {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 72px;
+  align-items: center;
+  padding: 40px 0 48px;
+  border-top: 1px solid var(--hairline);
+}
+.featured-label {
+  font-size: 11.5px; letter-spacing: 0.14em; color: var(--brass);
+  margin-bottom: 14px;
+}
+.featured h2 {
+  font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2;
+  margin-bottom: 10px;
+}
+.featured-meta { color: var(--text-mid); font-size: 13.5px; margin-bottom: 26px; }
+.featured-actions { display: flex; gap: 12px; }
+.featured-art { position: relative; }
+.featured-art .glow {
+  position: absolute; inset: 8%;
+  background: var(--glow, var(--brass));
+  filter: blur(56px); opacity: 0.32;
+  border-radius: 40%;
+  z-index: 0;
+}
+.cover {
+  position: relative; z-index: 1;
+  width: 100%; aspect-ratio: 1;
+  border-radius: var(--r-md);
+  object-fit: cover;
+  box-shadow: var(--shadow-cover);
+  outline: 1px solid var(--hairline);
+  outline-offset: -1px;
+  background: var(--surface-2);
+}
+
+/* section shells */
+.section { padding: 30px 0 8px; }
+.section + .section { border-top: 1px solid var(--hairline); margin-top: 26px; }
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.section-head h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.see-all { font-size: 12.5px; color: var(--text-low); transition: color var(--t-fast) var(--ease); }
+.see-all:hover { color: var(--brass-bright); }
+
+/* album shelf */
+.shelf { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; }
+.shelf > *, .grid-5 > *, .artists > * { min-width: 0; }
+.album { position: relative; cursor: pointer; }
+.album .cover { transition: transform var(--t-med) var(--ease), box-shadow var(--t-med) var(--ease); }
+.album:hover .cover { transform: translateY(-4px); }
+.album-play {
+  position: absolute; right: 10px; bottom: 62px;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--brass); color: var(--brass-ink);
+  display: grid; place-items: center; font-size: 17px;
+  opacity: 0; transform: translateY(6px);
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  box-shadow: 0 8px 20px -6px rgba(0,0,0,.5);
+}
+.album:hover .album-play { opacity: 1; transform: none; }
+.album-title {
+  margin-top: 10px; font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.album-artist {
+  font-size: 12px; color: var(--text-low); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* artists row */
+.artists { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; }
+.artist { text-align: center; cursor: pointer; }
+.artist img {
+  width: 76%; aspect-ratio: 1; border-radius: 50%;
+  object-fit: cover;
+  outline: 1px solid var(--hairline); outline-offset: -1px;
+  transition: transform var(--t-med) var(--ease);
+  background: var(--surface-2);
+}
+.artist:hover img { transform: scale(1.04); }
+.artist-name { margin-top: 10px; font-size: 13px; font-weight: 600; }
+.artist-sub { font-size: 11.5px; color: var(--text-low); margin-top: 1px; }
+
+/* ============================================================
+   Library
+   ============================================================ */
+.page-head { margin-bottom: 26px; }
+.page-head h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; }
+.page-head p { color: var(--text-mid); margin-top: 5px; font-size: 13.5px; }
+.tabs {
+  display: flex; gap: 26px; align-items: center;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 28px;
+}
+.tab {
+  padding: 10px 2px 12px;
+  font-size: 14px; color: var(--text-mid);
+  position: relative;
+  transition: color var(--t-fast) var(--ease);
+}
+.tab:hover { color: var(--text-hi); }
+.tab.active { color: var(--text-hi); font-weight: 600; }
+.tab.active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+  background: var(--brass); border-radius: 2px;
+}
+.tabs .sort {
+  margin-left: auto; display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--text-low);
+}
+.grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 22px 20px; }
+
+/* ============================================================
+   Stats
+   ============================================================ */
+.stat-strip {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 40px;
+}
+.stat {
+  padding: 26px 24px;
+}
+.stat + .stat { border-left: 1px solid var(--hairline); }
+.stat .num {
+  font-family: var(--font-num); font-size: 34px; font-weight: 500;
+  letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
+}
+.stat .num small { font-size: 15px; color: var(--text-mid); font-weight: 400; margin-left: 4px; }
+.stat .label { color: var(--text-mid); font-size: 12.5px; margin-top: 6px; }
+
+.chart { margin-bottom: 44px; }
+.chart-bars {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px;
+  align-items: end; height: 150px;
+  padding-top: 18px;
+}
+.bar { display: flex; flex-direction: column; align-items: center; gap: 0; height: 100%; justify-content: flex-end; }
+.bar .fill {
+  width: 100%; border-radius: 6px 6px 3px 3px;
+  background: var(--surface-2);
+  min-height: 4px;
+  position: relative;
+  transition: background var(--t-fast) var(--ease);
+}
+.bar.hot .fill { background: linear-gradient(180deg, var(--brass-bright), var(--brass)); }
+.bar .count {
+  font-family: var(--font-num); font-size: 11px; color: var(--text-low);
+  margin-bottom: 6px;
+}
+.bar.hot .count { color: var(--brass-bright); }
+.bar .day { font-family: var(--font-num); font-size: 11px; color: var(--text-low); margin-top: 10px; }
+
+.ranks { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 40px; }
+.rank-col h4 { font-size: 15px; font-weight: 700; margin-bottom: 16px; }
+.rank-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 0;
+}
+.rank-row .idx {
+  font-family: var(--font-num); font-size: 12px; color: var(--text-low);
+  width: 16px; text-align: center; flex: none;
+}
+.rank-row img {
+  width: 40px; height: 40px; border-radius: var(--r-sm); object-fit: cover; flex: none;
+  outline: 1px solid var(--hairline); outline-offset: -1px;
+  background: var(--surface-2);
+}
+.rank-row.circle img { border-radius: 50%; }
+.rank-main { min-width: 0; }
+.rank-main .t {
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rank-main .s { font-size: 11.5px; color: var(--text-low); margin-top: 1px; }
+.rank-row .plays {
+  margin-left: auto; font-family: var(--font-num); font-size: 11.5px; color: var(--text-low);
+  flex: none;
+}
+
+/* ============================================================
+   Design tokens view
+   ============================================================ */
+.tokens h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+.tokens > p { color: var(--text-mid); font-size: 13.5px; margin-bottom: 34px; }
+.token-block { padding: 26px 0; border-top: 1px solid var(--hairline); }
+.token-block h3 { font-size: 15px; font-weight: 700; margin-bottom: 18px; }
+.swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+.swatch .chip-color {
+  height: 64px; border-radius: var(--r-sm);
+  outline: 1px solid var(--hairline); outline-offset: -1px;
+}
+.swatch .n { font-size: 12px; font-weight: 600; margin-top: 8px; }
+.swatch .v { font-family: var(--font-num); font-size: 11px; color: var(--text-low); margin-top: 2px; }
+.type-scale > div { padding: 10px 0; display: flex; align-items: baseline; gap: 22px; }
+.type-scale .spec { font-family: var(--font-num); font-size: 11px; color: var(--text-low); width: 120px; flex: none; }
+.radius-row { display: flex; gap: 16px; }
+.radius-demo {
+  width: 88px; height: 64px; background: var(--surface-2);
+  outline: 1px solid var(--hairline-strong); outline-offset: -1px;
+  display: grid; place-items: end start;
+  padding: 8px; font-family: var(--font-num); font-size: 11px; color: var(--text-mid);
+}
+.comp-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.demo-input {
+  height: 36px; width: 200px; border-radius: var(--r-sm);
+  border: 1px solid var(--hairline-strong); background: var(--surface);
+  color: var(--text-hi); padding: 0 12px; font-size: 13px; font-family: inherit;
+}
+.demo-input:focus { outline: none; border-color: var(--brass); }
+.demo-input::placeholder { color: var(--text-low); }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 12px; border-radius: var(--r-pill);
+  border: 1px solid var(--hairline-strong); font-size: 12px; color: var(--text-mid);
+}
+.chip.on { border-color: var(--brass); color: var(--brass-bright); background: var(--brass-dim); }
+
+/* playing row demo + equalizer */
+.list-row {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; max-width: 560px;
+  padding: 8px 12px; border-radius: var(--r-sm);
+}
+.list-row:hover { background: var(--surface); }
+.list-row.playing { background: var(--brass-dim); }
+.eq { display: flex; align-items: flex-end; gap: 2px; width: 14px; height: 14px; flex: none; }
+.eq span {
+  flex: 1; background: var(--brass); border-radius: 1px;
+  animation: eq-bounce 1s var(--ease) infinite;
+  transform-origin: bottom;
+  height: 100%;
+}
+.eq span:nth-child(1) { animation-delay: 0s; }
+.eq span:nth-child(2) { animation-delay: 0.25s; }
+.eq span:nth-child(3) { animation-delay: 0.5s; }
+@keyframes eq-bounce {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eq span { animation: none; transform: scaleY(0.6); }
+}
+
+/* ============================================================
+   Player console (floating)
+   ============================================================ */
+.console {
+  position: absolute; left: 248px; right: 16px; bottom: 16px;
+  height: 76px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--hairline-strong);
+  background: var(--console-bg);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  box-shadow: 0 18px 46px -18px rgba(0, 0, 0, 0.55);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 18px;
+  gap: 16px;
+  z-index: 40;
+}
+.np { display: flex; align-items: center; gap: 12px; min-width: 0; cursor: pointer; }
+.np img {
+  width: 48px; height: 48px; border-radius: var(--r-sm); object-fit: cover; flex: none;
+  outline: 1px solid var(--hairline); outline-offset: -1px;
+  background: var(--surface-2);
+  box-shadow: 0 0 24px -4px var(--glow, transparent);
+}
+.np-meta { min-width: 0; }
+.np-title {
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.np-artist { font-size: 11.5px; color: var(--text-mid); margin-top: 1px; }
+.np-like { color: var(--brass); font-size: 17px; flex: none; }
+
+.transport { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 0; }
+.transport-btns { display: flex; align-items: center; gap: 18px; }
+.t-btn {
+  color: var(--text-mid); font-size: 18px;
+  transition: color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.t-btn:hover { color: var(--text-hi); }
+.t-btn:active { transform: scale(0.92); }
+.t-btn.on { color: var(--brass); }
+.t-play {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--brass); color: var(--brass-ink);
+  display: grid; place-items: center; font-size: 19px;
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.t-play:hover { background: var(--brass-bright); transform: scale(1.05); }
+.t-play:active { transform: scale(0.96); }
+.progress-row { display: flex; align-items: center; gap: 10px; width: 420px; }
+.timecode {
+  font-family: var(--font-num); font-size: 10.5px; color: var(--text-low);
+  font-variant-numeric: tabular-nums; flex: none; width: 34px;
+}
+.timecode.right { text-align: right; }
+.track {
+  flex: 1; height: 14px; display: flex; align-items: center; cursor: pointer; position: relative;
+}
+.track .rail {
+  width: 100%; height: 3px; border-radius: 2px; background: var(--hairline-strong);
+  overflow: hidden;
+}
+.track .fill {
+  height: 100%; width: var(--p, 45%);
+  background: var(--brass);
+  border-radius: 2px;
+  transition: background var(--t-fast) var(--ease);
+}
+.track:hover .fill { background: var(--brass-bright); }
+.track .thumb {
+  position: absolute; top: 50%; left: var(--p, 45%);
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--text-hi);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform var(--t-fast) var(--ease);
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+}
+.track:hover .thumb { transform: translate(-50%, -50%) scale(1); }
+
+.console-right { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.vol { display: flex; align-items: center; gap: 8px; margin: 0 6px; }
+.vol .track { width: 84px; }
+.vol .fill { width: 70%; background: var(--text-mid); }
+.vol .track:hover .fill { background: var(--text-hi); }
+.vol .thumb { left: 70%; }
+
+/* ============================================================
+   Fullscreen player
+   ============================================================ */
+.fsp {
+  position: absolute; inset: 0; z-index: 60;
+  display: none;
+  background: var(--canvas);
+  overflow: hidden;
+}
+.fsp.open { display: block; animation: fsp-in var(--t-slow) var(--ease); }
+@keyframes fsp-in {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: none; }
+}
+.fsp-bg {
+  position: absolute; inset: -80px;
+  background-size: cover; background-position: center;
+  filter: blur(90px) brightness(0.5) saturate(1.1);
+  opacity: 0.55;
+}
+:root[data-theme="light"] .fsp-bg { filter: blur(90px) brightness(1.25) saturate(0.8); opacity: 0.4; }
+.fsp-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, transparent, var(--scrim)); }
+.fsp-inner {
+  position: relative; height: 100%;
+  display: grid; grid-template-rows: auto 1fr;
+  padding: 22px 40px 36px;
+  max-width: 1360px; margin: 0 auto;
+}
+.fsp-top { display: flex; align-items: center; justify-content: space-between; }
+.fsp-top .mid { text-align: center; }
+.fsp-top .mid .l1 { font-size: 11px; letter-spacing: 0.16em; color: var(--text-mid); }
+.fsp-top .mid .l2 { font-size: 13px; font-weight: 600; margin-top: 3px; max-width: 480px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fsp-main {
+  display: grid; grid-template-columns: 440px 1fr;
+  gap: 96px; align-items: center;
+  min-height: 0;
+}
+.fsp-left { display: flex; flex-direction: column; gap: 26px; }
+.fsp-cover-wrap { position: relative; width: 100%; }
+.fsp-cover-wrap .glow {
+  position: absolute; inset: 6%;
+  background: var(--glow, var(--brass));
+  filter: blur(70px); opacity: 0.4;
+  border-radius: 40%;
+}
+.fsp-song { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.fsp-song .t { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.fsp-song .s { font-size: 13.5px; color: var(--text-mid); margin-top: 4px; }
+.fsp-controls { display: flex; flex-direction: column; gap: 14px; }
+.fsp-controls .progress-row { width: 100%; }
+.fsp-controls .transport-btns { justify-content: center; gap: 26px; }
+.fsp-controls .t-btn { font-size: 21px; }
+.fsp-controls .t-play { width: 52px; height: 52px; font-size: 24px; }
+
+.lyrics {
+  align-self: stretch; min-height: 0;
+  overflow: hidden; position: relative;
+  mask-image: linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent);
+}
+.lyrics-scroll { display: flex; flex-direction: column; gap: 4px; transition: transform 600ms var(--ease); }
+.lyric-line {
+  font-size: 26px; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--text-mid);
+  padding: 11px 0;
+  transition: color var(--t-med) var(--ease), transform var(--t-med) var(--ease), opacity var(--t-med) var(--ease);
+  transform-origin: left center;
+  cursor: default;
+  opacity: 0.55;
+}
+.lyric-line.current {
+  color: var(--brass-bright);
+  transform: scale(1.05);
+  opacity: 1;
+}
+.lyric-line:hover { color: var(--text-hi); opacity: 0.9; }
+.lyric-line.current:hover { color: var(--brass-bright); opacity: 1; }
+
+/* demo hint pill: in-flow inside topbar so it never covers controls */
+.demo-hint {
+  font-size: 11px; color: var(--text-low);
+  border: 1px solid var(--hairline); border-radius: var(--r-pill);
+  padding: 4px 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-left: auto;
+}
+.topbar-right { margin-left: 0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ======================= Sidebar ======================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><i class="ph-fill ph-waveform"></i></div>
+      <div>
+        <div class="brand-name">N1KO MUSIC</div>
+        <div class="brand-server">Navidrome</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="home"><i class="ph ph-house-simple"></i>首页</button>
+      <button class="nav-item"><i class="ph ph-magnifying-glass"></i>搜索</button>
+      <button class="nav-item" data-view="library"><i class="ph ph-vinyl-record"></i>音乐库</button>
+      <button class="nav-item"><i class="ph ph-sparkle"></i>为你推荐</button>
+
+      <div class="nav-group-label">我的音乐</div>
+      <button class="nav-item"><i class="ph ph-heart"></i>我的收藏</button>
+      <button class="nav-item"><i class="ph ph-clock-counter-clockwise"></i>最近播放</button>
+      <button class="nav-item" data-view="stats"><i class="ph ph-chart-bar"></i>听歌统计</button>
+
+      <div class="nav-group-label">重构演示</div>
+      <button class="nav-item" data-view="tokens"><i class="ph ph-swatches"></i>设计规范</button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="member-chip"><i class="ph-fill ph-crown-simple"></i>会员已激活</div>
+      <button class="nav-item"><i class="ph ph-gear-six"></i>设置</button>
+    </div>
+  </aside>
+
+  <!-- ======================= Main ======================= -->
+  <div class="main">
+    <header class="topbar">
+      <div class="nav-arrows">
+        <button class="icon-btn"><i class="ph ph-caret-left"></i></button>
+        <button class="icon-btn"><i class="ph ph-caret-right"></i></button>
+      </div>
+      <div class="search">
+        <i class="ph ph-magnifying-glass"></i>搜索歌曲、专辑、歌手
+        <kbd>⌘K</kbd>
+      </div>
+      <div class="demo-hint">重构 Demo · 点击侧边栏切换页面 · 点击左下角封面打开播放页</div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="theme-toggle" title="切换主题"><i class="ph ph-sun"></i></button>
+        <div class="avatar">N</div>
+      </div>
+    </header>
+
+    <div class="views">
+
+      <!-- ======================= Home ======================= -->
+      <section class="view view-home active" data-view-name="home">
+        <div class="greeting-row">
+          <div class="greeting">
+            <h1>晚上好，niko</h1>
+            <p>发现今天的音乐</p>
+          </div>
+          <button class="btn btn-ghost"><i class="ph ph-shuffle"></i>随机播放</button>
+        </div>
+
+        <div class="featured" style="--glow:#c2707e">
+          <div>
+            <div class="featured-label">最新专辑</div>
+            <h2>风过留痕 影视原声带</h2>
+            <div class="featured-meta">李佳薇 · 2024 年 · 12 首</div>
+            <div class="featured-actions">
+              <button class="btn btn-primary"><i class="ph-fill ph-play"></i>播放专辑</button>
+              <button class="btn btn-ghost"><i class="ph ph-queue"></i>加入队列</button>
+            </div>
+          </div>
+          <div class="featured-art">
+            <div class="glow"></div>
+            <img class="cover" src="https://picsum.photos/seed/niko-ost-wind/640/640" alt="风过留痕 影视原声带" />
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <h3>最近添加</h3>
+            <a class="see-all" href="#">查看全部</a>
+          </div>
+          <div class="shelf">
+            <div class="album">
+              <img class="cover" src="https://picsum.photos/seed/niko-home-cp/420/420" alt="" />
+              <button class="album-play"><i class="ph-fill ph-play"></i></button>
+              <div class="album-title">Home (feat. Hikaru Utada)</div>
+              <div class="album-artist">Charlie Puth, 宇多田光</div>
+            </div>
+            <div class="album">
+              <img class="cover" src="https://picsum.photos/seed/niko-rosie/420/420" alt="" />
+              <button class="album-play"><i class="ph-fill ph-play"></i></button>
+              <div class="album-title">rosie</div>
+              <div class="album-artist">ROSÉ</div>
+            </div>
+            <div class="album">
+              <img class="cover" src="https://picsum.photos/seed/niko-fire/420/420" alt="" />
+              <button class="album-play"><i class="ph-fill ph-play"></i></button>
+              <div class="album-title">火力全开</div>
+              <div class="album-artist">王力宏, 张靓颖</div>
+            </div>
+            <div class="album">
+              <img class="cover" src="https://picsum.photos/seed/niko-owe/420/420" alt="" />
+              <button class="album-play"><i class="ph-fill ph-play"></i></button>
+              <div class="album-title">亏欠</div>
+              <div class="album-artist">徐佳莹</div>
+            </div>
+            <div class="album">
+              <img class="cover" src="https://picsum.photos/seed/niko-stage/420/420" alt="" />
+              <button class="album-play"><i class="ph-fill ph-play"></i></button>
+              <div class="album-title">Beyond The Stage</div>
+              <div class="album-artist">BEYOND</div>
+            </div>
+            <div class="album">
+              <img class="cover" src="https://picsum.photos/seed/niko-metro/420/420" alt="" />
+              <button class="album-play"><i class="ph-fill ph-play"></i></button>
+              <div class="album-title">关于我在地铁上莫名其妙干了碗鸡汤这件事儿</div>
+              <div class="album-artist">孙天宇</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <h3>热门歌手</h3>
+            <a class="see-all" href="#">查看全部</a>
+          </div>
+          <div class="artists">
+            <div class="artist">
+              <img src="https://picsum.photos/seed/niko-ar-1/300/300" alt="" />
+              <div class="artist-name">孙天宇</div>
+              <div class="artist-sub">12 首歌曲</div>
+            </div>
+            <div class="artist">
+              <img src="https://picsum.photos/seed/niko-ar-2/300/300" alt="" />
+              <div class="artist-name">张杰</div>
+              <div class="artist-sub">28 首歌曲</div>
+            </div>
+            <div class="artist">
+              <img src="https://picsum.photos/seed/niko-ar-3/300/300" alt="" />
+              <div class="artist-name">李佳薇</div>
+              <div class="artist-sub">17 首歌曲</div>
+            </div>
+            <div class="artist">
+              <img src="https://picsum.photos/seed/niko-ar-4/300/300" alt="" />
+              <div class="artist-name">光良</div>
+              <div class="artist-sub">21 首歌曲</div>
+            </div>
+            <div class="artist">
+              <img src="https://picsum.photos/seed/niko-ar-5/300/300" alt="" />
+              <div class="artist-name">徐佳莹</div>
+              <div class="artist-sub">15 首歌曲</div>
+            </div>
+            <div class="artist">
+              <img src="https://picsum.photos/seed/niko-ar-6/300/300" alt="" />
+              <div class="artist-name">ROSÉ</div>
+              <div class="artist-sub">9 首歌曲</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= Library ======================= -->
+      <section class="view view-library" data-view-name="library">
+        <div class="page-head">
+          <h1>音乐库</h1>
+          <p>57 张专辑 · 34 位歌手 · 412 首歌曲</p>
+        </div>
+        <div class="tabs">
+          <button class="tab active">专辑</button>
+          <button class="tab">歌手</button>
+          <button class="tab">歌曲</button>
+          <button class="tab">流派</button>
+          <div class="sort"><i class="ph ph-arrows-down-up"></i>最近添加</div>
+        </div>
+        <div class="grid-5" id="lib-grid"><!-- filled by JS --></div>
+      </section>
+
+      <!-- ======================= Stats ======================= -->
+      <section class="view view-stats" data-view-name="stats">
+        <div class="page-head">
+          <h1>听歌统计</h1>
+          <p>你的音乐数据报告</p>
+        </div>
+
+        <!-- 示例数据 -->
+        <div class="stat-strip">
+          <div class="stat"><div class="num">128</div><div class="label">总播放次数</div></div>
+          <div class="stat"><div class="num">9.6<small>小时</small></div><div class="label">总时长</div></div>
+          <div class="stat"><div class="num">34</div><div class="label">不同歌手</div></div>
+          <div class="stat"><div class="num">57</div><div class="label">不同专辑</div></div>
+        </div>
+
+        <div class="chart">
+          <div class="section-head"><h3>最近 7 天</h3></div>
+          <div class="chart-bars">
+            <div class="bar"><div class="count">6</div><div class="fill" style="height:24%"></div><div class="day">7/15</div></div>
+            <div class="bar"><div class="count">14</div><div class="fill" style="height:52%"></div><div class="day">7/16</div></div>
+            <div class="bar"><div class="count">9</div><div class="fill" style="height:34%"></div><div class="day">7/17</div></div>
+            <div class="bar"><div class="count">21</div><div class="fill" style="height:76%"></div><div class="day">7/18</div></div>
+            <div class="bar"><div class="count">11</div><div class="fill" style="height:40%"></div><div class="day">7/19</div></div>
+            <div class="bar hot"><div class="count">27</div><div class="fill" style="height:100%"></div><div class="day">7/20</div></div>
+            <div class="bar"><div class="count">8</div><div class="fill" style="height:30%"></div><div class="day">7/21</div></div>
+          </div>
+        </div>
+
+        <div class="ranks">
+          <div class="rank-col">
+            <h4>最爱歌曲</h4>
+            <div class="rank-row">
+              <div class="idx">1</div>
+              <img src="https://picsum.photos/seed/niko-metro/120/120" alt="" />
+              <div class="rank-main"><div class="t">关于我在地铁上莫名其妙干了碗鸡汤这件事儿</div><div class="s">孙天宇</div></div>
+              <div class="plays">14 次</div>
+            </div>
+            <div class="rank-row">
+              <div class="idx">2</div>
+              <img src="https://picsum.photos/seed/niko-layla/120/120" alt="" />
+              <div class="rank-main"><div class="t">Layla蕾拉</div><div class="s">张杰</div></div>
+              <div class="plays">11 次</div>
+            </div>
+            <div class="rank-row">
+              <div class="idx">3</div>
+              <img src="https://picsum.photos/seed/niko-happy/120/120" alt="" />
+              <div class="rank-main"><div class="t">你要幸福啊</div><div class="s">李佳薇</div></div>
+              <div class="plays">9 次</div>
+            </div>
+            <div class="rank-row">
+              <div class="idx">4</div>
+              <img src="https://picsum.photos/seed/niko-song101/120/120" alt="" />
+              <div class="rank-main"><div class="t">情歌101</div><div class="s">光良</div></div>
+              <div class="plays">7 次</div>
+            </div>
+            <div class="rank-row">
+              <div class="idx">5</div>
+              <img src="https://picsum.photos/seed/niko-rosie/120/120" alt="" />
+              <div class="rank-main"><div class="t">number one girl</div><div class="s">ROSÉ</div></div>
+              <div class="plays">6 次</div>
+            </div>
+          </div>
+          <div class="rank-col">
+            <h4>最爱歌手</h4>
+            <div class="rank-row circle">
+              <div class="idx">1</div>
+              <img src="https://picsum.photos/seed/niko-ar-1/120/120" alt="" />
+              <div class="rank-main"><div class="t">孙天宇</div></div>
+              <div class="plays">21 次</div>
+            </div>
+            <div class="rank-row circle">
+              <div class="idx">2</div>
+              <img src="https://picsum.photos/seed/niko-ar-2/120/120" alt="" />
+              <div class="rank-main"><div class="t">张杰</div></div>
+              <div class="plays">17 次</div>
+            </div>
+            <div class="rank-row circle">
+              <div class="idx">3</div>
+              <img src="https://picsum.photos/seed/niko-ar-3/120/120" alt="" />
+              <div class="rank-main"><div class="t">李佳薇</div></div>
+              <div class="plays">12 次</div>
+            </div>
+          </div>
+          <div class="rank-col">
+            <h4>最爱专辑</h4>
+            <div class="rank-row">
+              <div class="idx">1</div>
+              <img src="https://picsum.photos/seed/niko-metro/120/120" alt="" />
+              <div class="rank-main"><div class="t">关于我在地铁上莫名其妙干了碗鸡汤这件事儿</div><div class="s">孙天宇</div></div>
+              <div class="plays">14 次</div>
+            </div>
+            <div class="rank-row">
+              <div class="idx">2</div>
+              <img src="https://picsum.photos/seed/niko-1982/120/120" alt="" />
+              <div class="rank-main"><div class="t">外南街1982</div><div class="s">张杰</div></div>
+              <div class="plays">10 次</div>
+            </div>
+            <div class="rank-row">
+              <div class="idx">3</div>
+              <img src="https://picsum.photos/seed/niko-ost-wind/120/120" alt="" />
+              <div class="rank-main"><div class="t">风过留痕 影视原声带</div><div class="s">李佳薇</div></div>
+              <div class="plays">8 次</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= Design tokens ======================= -->
+      <section class="view tokens" data-view-name="tokens">
+        <h1>设计规范</h1>
+        <p>一套 token 驱动全部界面：色彩、字阶、圆角、组件在深浅两个主题下保持完全一致的层级关系。</p>
+
+        <div class="token-block">
+          <h3>色彩 · 中性色 + 单一强调色</h3>
+          <div class="swatches">
+            <div class="swatch"><div class="chip-color" style="background:var(--canvas)"></div><div class="n">canvas</div><div class="v">画布底色</div></div>
+            <div class="swatch"><div class="chip-color" style="background:var(--surface)"></div><div class="n">surface</div><div class="v">悬浮层</div></div>
+            <div class="swatch"><div class="chip-color" style="background:var(--surface-2)"></div><div class="n">surface-2</div><div class="v">高亮层</div></div>
+            <div class="swatch"><div class="chip-color" style="background:var(--text-hi)"></div><div class="n">text-hi</div><div class="v">主文本</div></div>
+            <div class="swatch"><div class="chip-color" style="background:var(--text-mid)"></div><div class="n">text-mid</div><div class="v">次文本</div></div>
+            <div class="swatch"><div class="chip-color" style="background:var(--brass)"></div><div class="n">accent</div><div class="v">强调色 · 祖母绿</div></div>
+          </div>
+        </div>
+
+        <div class="token-block">
+          <h3>字阶 · 界面用系统黑体，数字一律等宽</h3>
+          <div class="type-scale">
+            <div><div class="spec">42 / 700 / -2%</div><div style="font-size:42px;font-weight:700;letter-spacing:-0.02em">晚上好，niko</div></div>
+            <div><div class="spec">19 / 700</div><div style="font-size:19px;font-weight:700">最近添加</div></div>
+            <div><div class="spec">13.5 / 400</div><div style="font-size:13.5px;color:var(--text-mid)">正文与列表文字，次要信息一律降为中灰</div></div>
+            <div><div class="spec">mono 12</div><div style="font-family:var(--font-num);font-size:12px;color:var(--text-mid)">2:41 / 3:24 · 320kbps FLAC</div></div>
+          </div>
+        </div>
+
+        <div class="token-block">
+          <h3>圆角 · 三档 + 胶囊</h3>
+          <div class="radius-row">
+            <div class="radius-demo" style="border-radius:var(--r-sm)">sm 8</div>
+            <div class="radius-demo" style="border-radius:var(--r-md)">md 12</div>
+            <div class="radius-demo" style="border-radius:var(--r-lg)">lg 20</div>
+            <div class="radius-demo" style="border-radius:var(--r-pill);width:120px">pill</div>
+          </div>
+        </div>
+
+        <div class="token-block">
+          <h3>组件</h3>
+          <div class="comp-row" style="margin-bottom:18px">
+            <button class="btn btn-primary"><i class="ph-fill ph-play"></i>播放专辑</button>
+            <button class="btn btn-ghost"><i class="ph ph-queue"></i>加入队列</button>
+            <span class="chip on"><i class="ph ph-check"></i>已收藏</span>
+            <span class="chip">流派</span>
+            <input class="demo-input" placeholder="搜索歌曲、专辑、歌手" />
+          </div>
+          <div class="list-row playing">
+            <div class="eq"><span></span><span></span><span></span></div>
+            <div class="rank-main" style="flex:1"><div class="t" style="color:var(--brass-bright)">为何没来得及爱一个人</div><div class="s">孙天宇 · 关于我在地铁上莫名其妙干了碗鸡汤这件事儿</div></div>
+            <div class="plays" style="font-family:var(--font-num);font-size:11.5px;color:var(--text-low)">3:24</div>
+          </div>
+          <div class="list-row">
+            <div style="width:14px;text-align:center;font-family:var(--font-num);font-size:12px;color:var(--text-low)">2</div>
+            <div class="rank-main" style="flex:1"><div class="t">此时此刻</div><div class="s">孙天宇 · 关于我在地铁上莫名其妙干了碗鸡汤这件事儿</div></div>
+            <div class="plays" style="font-family:var(--font-num);font-size:11.5px;color:var(--text-low)">4:02</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ======================= Player console ======================= -->
+  <div class="console" style="--glow:#9aa1ab">
+    <div class="np" id="open-fsp" title="打开播放页">
+      <img src="https://picsum.photos/seed/niko-metro/120/120" alt="" />
+      <div class="np-meta">
+        <div class="np-title">关于我在地铁上莫名其妙干了碗鸡汤这件事儿</div>
+        <div class="np-artist">孙天宇</div>
+      </div>
+      <button class="np-like"><i class="ph-fill ph-heart"></i></button>
+    </div>
+
+    <div class="transport">
+      <div class="transport-btns">
+        <button class="t-btn"><i class="ph ph-shuffle"></i></button>
+        <button class="t-btn"><i class="ph-fill ph-skip-back"></i></button>
+        <button class="t-play" id="play-toggle"><i class="ph-fill ph-pause"></i></button>
+        <button class="t-btn"><i class="ph-fill ph-skip-forward"></i></button>
+        <button class="t-btn on"><i class="ph ph-repeat"></i></button>
+      </div>
+      <div class="progress-row">
+        <div class="timecode" id="tc-now">2:41</div>
+        <div class="track" id="main-track"><div class="rail"><div class="fill"></div></div><div class="thumb"></div></div>
+        <div class="timecode right">3:24</div>
+      </div>
+    </div>
+
+    <div class="console-right">
+      <button class="icon-btn" title="歌词"><i class="ph ph-microphone-stage"></i></button>
+      <button class="icon-btn" title="播放队列"><i class="ph ph-queue"></i></button>
+      <div class="vol">
+        <i class="ph ph-speaker-high" style="color:var(--text-mid);font-size:16px"></i>
+        <div class="track"><div class="rail"><div class="fill"></div></div><div class="thumb"></div></div>
+      </div>
+      <button class="icon-btn" id="open-fsp-2" title="全屏播放"><i class="ph ph-arrows-out-simple"></i></button>
+    </div>
+  </div>
+
+  <!-- ======================= Fullscreen player ======================= -->
+  <div class="fsp" id="fsp" style="--glow:#9aa1ab">
+    <div class="fsp-bg" style="background-image:url('https://picsum.photos/seed/niko-metro/640/640')"></div>
+    <div class="fsp-scrim"></div>
+    <div class="fsp-inner">
+      <div class="fsp-top">
+        <button class="icon-btn" id="close-fsp"><i class="ph ph-caret-down"></i></button>
+        <div class="mid">
+          <div class="l1">正在播放</div>
+          <div class="l2">关于我在地铁上莫名其妙干了碗鸡汤这件事儿</div>
+        </div>
+        <button class="icon-btn"><i class="ph ph-dots-three"></i></button>
+      </div>
+      <div class="fsp-main">
+        <div class="fsp-left">
+          <div class="fsp-cover-wrap">
+            <div class="glow"></div>
+            <img class="cover" src="https://picsum.photos/seed/niko-metro/900/900" alt="" />
+          </div>
+          <div class="fsp-song">
+            <div>
+              <div class="t">关于我在地铁上莫名其妙干了碗鸡汤这件事儿</div>
+              <div class="s">孙天宇 · 关于我在地铁上莫名其妙干了碗鸡汤这件事儿</div>
+            </div>
+            <button class="np-like" style="font-size:21px"><i class="ph-fill ph-heart"></i></button>
+          </div>
+          <div class="fsp-controls">
+            <div class="progress-row">
+              <div class="timecode" id="tc-now-2">2:41</div>
+              <div class="track" id="fsp-track"><div class="rail"><div class="fill"></div></div><div class="thumb"></div></div>
+              <div class="timecode right">3:24</div>
+            </div>
+            <div class="transport-btns">
+              <button class="t-btn"><i class="ph ph-shuffle"></i></button>
+              <button class="t-btn"><i class="ph-fill ph-skip-back"></i></button>
+              <button class="t-play" id="play-toggle-2"><i class="ph-fill ph-pause"></i></button>
+              <button class="t-btn"><i class="ph-fill ph-skip-forward"></i></button>
+              <button class="t-btn on"><i class="ph ph-repeat"></i></button>
+            </div>
+          </div>
+        </div>
+        <div class="lyrics">
+          <div class="lyrics-scroll" id="lyrics-scroll">
+            <div class="lyric-line">重写剧本</div>
+            <div class="lyric-line">不管 不听 不问 谁的标准</div>
+            <div class="lyric-line">去见证 每段青春</div>
+            <div class="lyric-line">每出戏剧 每首诗文</div>
+            <div class="lyric-line">每种 世界 缤纷</div>
+            <div class="lyric-line">自我旋转 自由灵魂</div>
+            <div class="lyric-line">放肆心神</div>
+            <div class="lyric-line">放纵去爱 去沉沦</div>
+            <div class="lyric-line">此时此刻 做最自由灵魂</div>
+            <div class="lyric-line">别等时针</div>
+            <div class="lyric-line">转过青春 再追问</div>
+            <div class="lyric-line current">为何没来得及爱一个人</div>
+            <div class="lyric-line">放肆心神</div>
+            <div class="lyric-line">放纵去爱 去拥吻</div>
+            <div class="lyric-line">此时此刻 做最自由灵魂</div>
+            <div class="lyric-line">别等时针</div>
+            <div class="lyric-line">转过青春 莫追问</div>
+            <div class="lyric-line">就让我这样一直向前奔</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ---------- view switching ---------- */
+const navItems = document.querySelectorAll('.nav-item[data-view]');
+const views = document.querySelectorAll('.view');
+navItems.forEach(item => {
+  item.addEventListener('click', () => {
+    navItems.forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.nav-item.active').forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    views.forEach(v => v.classList.toggle('active', v.dataset.viewName === item.dataset.view));
+    document.querySelector('.views').scrollTop = 0;
+  });
+});
+
+/* ---------- theme toggle ---------- */
+const themeToggle = document.getElementById('theme-toggle');
+themeToggle.addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme === 'dark';
+  root.dataset.theme = dark ? 'light' : 'dark';
+  themeToggle.innerHTML = dark ? '<i class="ph ph-moon"></i>' : '<i class="ph ph-sun"></i>';
+});
+
+/* ---------- fullscreen player ---------- */
+const fsp = document.getElementById('fsp');
+document.getElementById('open-fsp').addEventListener('click', () => fsp.classList.add('open'));
+document.getElementById('open-fsp-2').addEventListener('click', () => fsp.classList.add('open'));
+document.getElementById('close-fsp').addEventListener('click', () => fsp.classList.remove('open'));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fsp.classList.remove('open'); });
+
+/* ---------- library grid ---------- */
+const libAlbums = [
+  ['关于我在地铁上莫名其妙干了碗鸡汤这件事儿', '孙天宇', 'niko-metro'],
+  ['风过留痕 影视原声带', '李佳薇', 'niko-ost-wind'],
+  ['外南街1982', '张杰', 'niko-1982'],
+  ['情歌101', '光良', 'niko-song101'],
+  ['rosie', 'ROSÉ', 'niko-rosie'],
+  ['Beyond The Stage', 'BEYOND', 'niko-stage'],
+  ['A Time 4 You 新曲+精选', '林峯', 'niko-atime'],
+  ['我的秘密-翻唱', '徐俊雅', 'niko-secret'],
+  ['Ring Pop (Stripped)', 'Jax', 'niko-ring'],
+  ['亏欠', '徐佳莹', 'niko-owe'],
+];
+document.getElementById('lib-grid').innerHTML = libAlbums.map(([t, a, s]) => `
+  <div class="album">
+    <img class="cover" src="https://picsum.photos/seed/${s}/420/420" alt="" />
+    <button class="album-play"><i class="ph-fill ph-play"></i></button>
+    <div class="album-title">${t}</div>
+    <div class="album-artist">${a}</div>
+  </div>`).join('');
+
+/* ---------- fake playback: progress + timecode + lyric ticker ---------- */
+const DURATION = 204;               // 3:24
+let elapsed = 161;                  // 2:41
+let playing = true;
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const tracks = [document.getElementById('main-track'), document.getElementById('fsp-track')];
+const tcs = [document.getElementById('tc-now'), document.getElementById('tc-now-2')];
+const playBtns = [document.getElementById('play-toggle'), document.getElementById('play-toggle-2')];
+
+function render() {
+  const p = (elapsed / DURATION * 100).toFixed(2) + '%';
+  tracks.forEach(t => t.style.setProperty('--p', p));
+  tcs.forEach(t => t.textContent = fmt(elapsed));
+}
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+setInterval(() => {
+  if (!playing || reduced) return;
+  elapsed = (elapsed + 1) % DURATION;
+  render();
+}, 1000);
+render();
+
+playBtns.forEach(btn => btn.addEventListener('click', () => {
+  playing = !playing;
+  const icon = playing ? 'ph-pause' : 'ph-play';
+  playBtns.forEach(b => b.innerHTML = `<i class="ph-fill ${icon}"></i>`);
+  document.querySelectorAll('.eq span').forEach(s => s.style.animationPlayState = playing ? 'running' : 'paused');
+}));
+
+/* seek on click */
+tracks.forEach(t => t.addEventListener('click', e => {
+  const r = t.getBoundingClientRect();
+  elapsed = Math.round((e.clientX - r.left) / r.width * DURATION);
+  render();
+}));
+
+/* lyric auto-advance */
+const lines = [...document.querySelectorAll('.lyric-line')];
+const scroller = document.getElementById('lyrics-scroll');
+let li = lines.findIndex(l => l.classList.contains('current'));
+function centerLyric() {
+  const box = scroller.parentElement.getBoundingClientRect();
+  const cur = lines[li];
+  const offset = cur.offsetTop + cur.offsetHeight / 2 - box.height / 2;
+  scroller.style.transform = `translateY(${-offset}px)`;
+}
+centerLyric();
+if (!reduced) {
+  setInterval(() => {
+    if (!playing) return;
+    lines[li].classList.remove('current');
+    li = (li + 1) % lines.length;
+    lines[li].classList.add('current');
+    centerLyric();
+  }, 3200);
+}
+</script>
+</body>
+</html>

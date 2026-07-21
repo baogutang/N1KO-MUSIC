@@ -1,9 +1,10 @@
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useThemeStore } from './store/themeStore'
 import { useServerStore } from './store/serverStore'
+import { useMemberStore } from './store/memberStore'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
-import { PremiumRoute } from './components/auth/PremiumRoute'
+import { MemberUpgradeDialog } from './components/member/MemberUpgradeDialog'
 import { Loader2 } from 'lucide-react'
 import {
   MainLayoutPage,
@@ -31,6 +32,32 @@ function RouteLoading() {
       <Loader2 className="w-5 h-5 animate-spin" />
       <span className="text-sm">加载中...</span>
     </div>
+  )
+}
+
+const PREMIUM_FEATURE_LABELS: Record<string, string> = {
+  '/recommendations': '为你推荐',
+  '/favorites': '我的收藏',
+  '/stats': '听歌统计',
+}
+
+/**
+ * 会员路由守卫：非会员先展示升级弹窗，关闭弹窗后再跳回首页。
+ * 注意不能与 <Navigate> 同时渲染——Navigate 挂载即跳转，会在弹窗出现前卸载整棵子树。
+ */
+function PremiumGate({ path, children }: { path: string; children: React.ReactNode }) {
+  const isPremium = useMemberStore(s => s.isPremium)
+  const [dismissed, setDismissed] = useState(false)
+
+  if (isPremium) return <>{children}</>
+  if (dismissed) return <Navigate to="/" replace />
+
+  return (
+    <MemberUpgradeDialog
+      open
+      onOpenChange={open => { if (!open) setDismissed(true) }}
+      featureName={PREMIUM_FEATURE_LABELS[path]}
+    />
   )
 }
 
@@ -77,9 +104,9 @@ export default function App() {
               <Route
                 path="recommendations"
                 element={
-                  <PremiumRoute path="/recommendations">
+                  <PremiumGate path="/recommendations">
                     <RecommendationsPage />
-                  </PremiumRoute>
+                  </PremiumGate>
                 }
               />
               <Route path="albums" element={<AlbumsPage />} />
@@ -91,18 +118,18 @@ export default function App() {
               <Route
                 path="favorites"
                 element={
-                  <PremiumRoute path="/favorites">
+                  <PremiumGate path="/favorites">
                     <FavoritesPage />
-                  </PremiumRoute>
+                  </PremiumGate>
                 }
               />
               <Route path="history" element={<HistoryPage />} />
               <Route
                 path="stats"
                 element={
-                  <PremiumRoute path="/stats">
+                  <PremiumGate path="/stats">
                     <StatsPage />
-                  </PremiumRoute>
+                  </PremiumGate>
                 }
               />
               <Route path="settings" element={<SettingsPage />} />

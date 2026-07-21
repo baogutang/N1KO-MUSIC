@@ -66,7 +66,9 @@ export function CoverImage({
   const containerRef = useRef<HTMLDivElement>(null)
   // eager 模式初始即可见，lazy 模式需等待 IntersectionObserver
   const [isVisible, setIsVisible] = useState(!!eager)
-  const [serverError, setServerError] = useState(false)
+  // primary 与 fallback 分别记录失败：primary 出错后需降级尝试 fallback，而不是直接放弃服务器来源
+  const [primaryError, setPrimaryError] = useState(false)
+  const [fallbackError, setFallbackError] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   const coverRemoteTemplate = useSettingsStore(s => s.coverRemoteTemplate)
   const coverSource = useSettingsStore(s => s.coverSource)
@@ -97,23 +99,43 @@ export function CoverImage({
     hasCustomConfig && isVisible ? customCoverParams : null
   )
 
-  // primary 变化时重置错误和加载状态
+  // primary/fallback 变化时重置错误和加载状态
   useEffect(() => {
-    setServerError(false)
+    setPrimaryError(false)
+    setFallbackError(false)
     setIsLoaded(false)
-  }, [primary])
+  }, [primary, fallback])
+
+  // 服务器来源：primary 可用则用 primary，出错后降级到 fallback，两者都失败才算耗尽
+  const serverSrc = primary && !primaryError
+    ? primary
+    : (fallback && !fallbackError ? fallback : undefined)
 
   // 根据优先级决定展示的 URL
   let displaySrc: string | undefined
   if (isVisible) {
-    const serverSrc = primary ?? fallback
     displaySrc = pickMergedCoverDisplaySrc(
       coverSource,
       serverSrc,
-      serverError,
+      !serverSrc,
       customCoverDataUrl,
       hasCustomConfig
     )
+  }
+
+  // 标记出错的那个服务器来源（自定义封面 blob 出错不影响服务器来源）
+  const handleImgError = (failedSrc: string) => {
+    if (failedSrc === primary) {
+      if (!primaryError) {
+        setPrimaryError(true)
+        setIsLoaded(false)
+      }
+    } else if (failedSrc === fallback) {
+      if (!fallbackError) {
+        setFallbackError(true)
+        setIsLoaded(false)
+      }
+    }
   }
 
   // 通知父组件已解析的封面 URL（用于颜色提取、背景模糊等）
@@ -143,12 +165,7 @@ export function CoverImage({
               setIsLoaded(true)
               onImageResolved?.(src)
             }}
-            onError={() => {
-              if (!serverError) {
-                setServerError(true)
-                setIsLoaded(false)
-              }
-            }}
+            onError={() => handleImgError(src)}
             loading="eager"
             decoding="async"
             fetchPriority="high"
@@ -161,7 +178,7 @@ export function CoverImage({
 
   // ─── lazy 模式（非 eager）────────────────────────────────────────────────────
   const customFailed = hasCustomConfig ? !customCoverDataUrl : true
-  const serverFailed = (!primary && !fallback) || serverError
+  const serverFailed = !serverSrc
   const showPlaceholder = !isVisible || ((serverFailed && customFailed) && !displaySrc)
 
   if (showPlaceholder) {
@@ -202,12 +219,7 @@ export function CoverImage({
         alt={alt}
         className={cn('w-full h-full object-cover', !isLoaded && 'opacity-0')}
         onLoad={() => setIsLoaded(true)}
-        onError={() => {
-          if (!serverError) {
-            setServerError(true)
-            setIsLoaded(false)
-          }
-        }}
+        onError={() => displaySrc && handleImgError(displaySrc)}
         loading="lazy"
         decoding="async"
         fetchPriority="low"

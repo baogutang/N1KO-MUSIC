@@ -106,28 +106,37 @@ router.post('/:id/songs', (req: Request, res: Response) => {
     'SELECT MAX(position) as max_pos FROM playlist_songs WHERE playlist_id = ?'
   ).get(req.params.id) as { max_pos: number | null })?.max_pos ?? -1
 
+  // 已存在的歌曲（同服务器同 id）跳过而非 REPLACE，避免覆盖已有行的位置/快照
   const insertSong = db.prepare(`
-    INSERT OR REPLACE INTO playlist_songs (playlist_id, song_id, server_id, song_data, position, added_at)
+    INSERT INTO playlist_songs (playlist_id, song_id, server_id, song_data, position, added_at)
     VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(playlist_id, server_id, song_id) DO NOTHING
   `)
 
   const now = Math.floor(Date.now() / 1000)
-  const insertMany = db.transaction((songs: any[]) => {
-    songs.forEach((song, i) => {
-      insertSong.run(
+  const insertMany = db.transaction((songs: any[]): number => {
+    let inserted = 0
+    let pos = maxPos + 1
+    for (const song of songs) {
+      const result = insertSong.run(
         req.params.id, song.id, serverId,
-        JSON.stringify(song), maxPos + 1 + i, now
+        JSON.stringify(song), pos, now
       )
-    })
+      if (result.changes) {
+        inserted++
+        pos++
+      }
+    }
+    return inserted
   })
 
-  insertMany(songs)
+  const inserted = insertMany(songs)
 
   // Update playlist updated_at
   db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ? AND user_id = ?')
     .run(now, req.params.id, req.user!.userId)
 
-  return res.json({ message: `Added ${songs.length} songs` })
+  return res.json({ message: `Added ${inserted} songs` })
 })
 
 // DELETE /api/playlists/:id/songs/:songId

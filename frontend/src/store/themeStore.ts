@@ -33,6 +33,48 @@ function getSystemTheme(): 'dark' | 'light' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+/**
+ * 主题色 CSS 变量映射
+ * 深浅主题各配一组，保证对比度达标（深色底用中亮度色，浅色底用深色）
+ */
+interface AccentVars {
+  primary: string
+  primaryForeground: string
+}
+
+const accentCssVars: Record<AccentColor, { dark: AccentVars; light: AccentVars }> = {
+  green: {
+    dark: { primary: '152 62% 47%', primaryForeground: '155 52% 5%' },
+    light: { primary: '152 71% 28%', primaryForeground: '40 30% 98%' },
+  },
+  red: {
+    dark: { primary: '356 70% 60%', primaryForeground: '0 35% 6%' },
+    light: { primary: '356 68% 44%', primaryForeground: '0 0% 100%' },
+  },
+  blue: {
+    dark: { primary: '214 82% 62%', primaryForeground: '220 45% 7%' },
+    light: { primary: '214 78% 42%', primaryForeground: '0 0% 100%' },
+  },
+  purple: {
+    dark: { primary: '262 66% 68%', primaryForeground: '262 40% 8%' },
+    light: { primary: '262 48% 46%', primaryForeground: '0 0% 100%' },
+  },
+  orange: {
+    dark: { primary: '28 84% 58%', primaryForeground: '25 50% 7%' },
+    light: { primary: '27 85% 40%', primaryForeground: '0 0% 100%' },
+  },
+}
+
+/** 将主题色应用到 DOM（跟随当前深浅主题取值）*/
+function applyAccentColor(color: AccentColor, resolved: 'dark' | 'light'): void {
+  const vars = accentCssVars[color]?.[resolved]
+  if (!vars) return
+  const root = document.documentElement
+  root.style.setProperty('--primary', vars.primary)
+  root.style.setProperty('--primary-foreground', vars.primaryForeground)
+  root.style.setProperty('--ring', vars.primary)
+}
+
 /** 将主题应用到 DOM */
 function applyTheme(resolved: 'dark' | 'light'): void {
   const root = document.documentElement
@@ -43,23 +85,6 @@ function applyTheme(resolved: 'dark' | 'light'): void {
     root.classList.remove('light')
     root.classList.add('dark')
   }
-}
-
-/** 主题色 CSS 变量映射 */
-const accentCssVars: Record<AccentColor, { primary: string; ring: string }> = {
-  green: { primary: '141 69% 52%', ring: '141 69% 52%' },
-  red: { primary: '354 96% 57%', ring: '354 96% 57%' },
-  blue: { primary: '217 91% 60%', ring: '217 91% 60%' },
-  purple: { primary: '267 84% 68%', ring: '267 84% 68%' },
-  orange: { primary: '25 95% 53%', ring: '25 95% 53%' },
-}
-
-function applyAccentColor(color: AccentColor): void {
-  const vars = accentCssVars[color]
-  if (!vars) return
-  const root = document.documentElement
-  root.style.setProperty('--primary', vars.primary)
-  root.style.setProperty('--ring', vars.ring)
 }
 
 export const useThemeStore = create<ThemeState>()(
@@ -74,18 +99,21 @@ export const useThemeStore = create<ThemeState>()(
       setTheme: (theme) => {
         const resolved = theme === 'system' ? getSystemTheme() : theme
         applyTheme(resolved)
+        // 深浅主题的强调色取值不同，切主题时需要重新应用
+        applyAccentColor(get().accentColor, resolved)
         set({ theme, resolvedTheme: resolved })
       },
 
       setAccentColor: (color) => {
-        applyAccentColor(color)
+        applyAccentColor(color, get().resolvedTheme)
         set({ accentColor: color })
       },
 
       toggleTheme: () => {
-        const { resolvedTheme } = get()
+        const { resolvedTheme, accentColor } = get()
         const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
         applyTheme(newTheme)
+        applyAccentColor(accentColor, newTheme)
         set({ theme: newTheme, resolvedTheme: newTheme })
       },
 
@@ -100,7 +128,7 @@ export const useThemeStore = create<ThemeState>()(
           const resolved =
             state.theme === 'system' ? getSystemTheme() : state.theme
           applyTheme(resolved)
-          applyAccentColor(state.accentColor)
+          applyAccentColor(state.accentColor, resolved)
           state.resolvedTheme = resolved
         }
       },

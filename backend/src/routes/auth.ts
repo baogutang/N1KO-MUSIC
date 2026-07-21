@@ -28,9 +28,14 @@ router.post('/register', async (req: Request, res: Response) => {
       userId, username, hashedPassword
     )
 
-    const token = signToken({ userId, username })
+    const token = signToken({ userId, username, tokenVersion: 0 })
     return res.status(201).json({ token, userId, username })
   } catch (err) {
+    // 并发注册同名用户时，两个请求可能都通过上面的存在性检查（bcrypt 为异步），
+    // 第二个 INSERT 会触发 UNIQUE 约束，此处映射为 409 而非 500
+    if ((err as { code?: string })?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Username already exists' })
+    }
     console.error('Register error:', err)
     return res.status(500).json({ error: 'Internal server error' })
   }
@@ -45,13 +50,13 @@ router.post('/login', async (req: Request, res: Response) => {
 
   try {
     const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as
-      { id: string; username: string; password: string } | undefined
+      { id: string; username: string; password: string; token_version: number } | undefined
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
-    const token = signToken({ userId: user.id, username: user.username })
+    const token = signToken({ userId: user.id, username: user.username, tokenVersion: user.token_version })
     return res.json({ token, userId: user.id, username: user.username })
   } catch (err) {
     console.error('Login error:', err)
@@ -80,8 +85,14 @@ router.post('/change-password', authMiddleware, async (req: Request, res: Respon
     }
 
     const hashed = await bcrypt.hash(newPassword, 10)
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashed, user.id)
-    return res.json({ message: 'Password updated successfully' })
+    // 递增 token_version，使改密前签发的所有令牌立即失效
+    db.prepare('UPDATE users SET password = ?, token_version = token_version + 1 WHERE id = ?')
+      .run(hashed, user.id)
+    const { token_version } = db.prepare('SELECT token_version FROM users WHERE id = ?').get(user.id) as
+      { token_version: number }
+    // 返回新令牌，当前会话可无缝续用
+    const token = signToken({ userId: user.id, username: req.user!.username, tokenVersion: token_version })
+    return res.json({ message: 'Password updated successfully', token })
   } catch (err) {
     console.error('Change password error:', err)
     return res.status(500).json({ error: 'Internal server error' })

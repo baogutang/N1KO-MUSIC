@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Music, Disc3, Mic2, ListMusic, LayoutGrid, List, Play, Shuffle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useAlbums, useArtists, useSongsInfinite } from '@/hooks/useServerQueries'
+import { useAlbumsInfinite, useArtists, useSongsInfinite } from '@/hooks/useServerQueries'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { ArtistCard } from '@/components/music/ArtistCard'
 import { SongList } from '@/components/music/SongList'
@@ -18,7 +18,13 @@ export default function Library() {
   const [activeTab, setActiveTab] = useState<LibraryTab>('songs')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
-  const { data: albumPage } = useAlbums({ size: 200, sortBy: 'alphabeticalByName' })
+  // 分页加载专辑，避免静默截断在前 200 张（type 为 Subsonic getAlbumList2 的排序类型）
+  const {
+    data: albumsData,
+    fetchNextPage: fetchNextAlbums,
+    hasNextPage: hasNextAlbums,
+    isFetchingNextPage: isFetchingNextAlbums,
+  } = useAlbumsInfinite(50, 'alphabeticalByName')
   const { data: artists } = useArtists()
   const {
     data: songsData,
@@ -28,7 +34,7 @@ export default function Library() {
     isFetchingNextPage,
   } = useSongsInfinite(100)
 
-  const albums = albumPage?.items ?? []
+  const albums = albumsData?.pages.flatMap(p => p.items) ?? []
   const songs = songsData?.pages.flatMap(p => p.items) ?? []
 
   const tabs: { id: LibraryTab; label: string; icon: React.ComponentType<{className?: string}> }[] = [
@@ -140,7 +146,8 @@ export default function Library() {
         )}
 
         {activeTab === 'albums' && (
-          viewMode === 'grid' ? (
+          <>
+          {viewMode === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {albums.map(album => (
                 <AlbumCard key={album.id} album={album} />
@@ -174,7 +181,20 @@ export default function Library() {
                 </div>
               ))}
             </div>
-          )
+          )}
+          {hasNextAlbums && (
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={() => fetchNextAlbums()}
+                disabled={isFetchingNextAlbums}
+                className="px-6 py-2 rounded-full bg-secondary text-sm hover:bg-accent transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {isFetchingNextAlbums && <Loader2 className="w-4 h-4 animate-spin" />}
+                加载更多专辑
+              </button>
+            </div>
+          )}
+          </>
         )}
 
         {activeTab === 'artists' && (

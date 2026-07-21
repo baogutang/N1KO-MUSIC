@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ListMusic, Plus, Music2, MoreHorizontal, Trash2, Play, Shuffle } from 'lucide-react'
-import { usePlaylists } from '@/hooks/useServerQueries'
+import { usePlaylists, useDeletePlaylist, queryKeys } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/ui/use-toast'
@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
@@ -20,9 +20,11 @@ export default function Playlists() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: playlists, isLoading } = usePlaylists()
+  const deletePlaylist = useDeletePlaylist()
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
   async function handleCreate() {
     if (!newName.trim()) return
@@ -30,7 +32,7 @@ export default function Playlists() {
     try {
       const adapter = getAdapter()
       await adapter.createPlaylist(newName.trim())
-      queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
       toast({ title: `歌单"${newName}"已创建` })
       setShowCreate(false)
       setNewName('')
@@ -56,6 +58,18 @@ export default function Playlists() {
       }
     } catch {
       toast({ title: '加载歌单失败', variant: 'destructive' })
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    try {
+      await deletePlaylist.mutateAsync(deleteTarget.id)
+      toast({ title: `歌单"${deleteTarget.name}"已删除` })
+    } catch {
+      toast({ title: '删除失败', variant: 'destructive' })
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
@@ -137,7 +151,10 @@ export default function Playlists() {
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="text-destructive gap-2">
+                        <DropdownMenuItem
+                          className="text-destructive gap-2"
+                          onClick={() => setDeleteTarget({ id: pl.id, name: pl.name })}
+                        >
                           <Trash2 className="w-4 h-4" />
                           删除歌单
                         </DropdownMenuItem>
@@ -175,6 +192,28 @@ export default function Playlists() {
                 {creating ? '创建中...' : '创建'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null) }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>删除歌单？</DialogTitle>
+            <DialogDescription>
+              歌单"{deleteTarget?.name}"将被删除，此操作无法撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>取消</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deletePlaylist.isPending}
+            >
+              {deletePlaylist.isPending ? '删除中...' : '删除'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

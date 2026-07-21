@@ -16,11 +16,15 @@ export function playAllInOrder(songs: Song[], startIndex = 0) {
   usePlayerStore.getState().playQueue(songs, startIndex)
 }
 
-/** 随机播放列表（开启 shuffle，由 store 生成随机顺序）*/
+/**
+ * 随机播放列表（开启 shuffle，由 store 生成随机顺序）
+ * startIndex 省略或为 0 时随机挑选起始曲，避免每次都从第一首开始
+ */
 export function playAllShuffled(songs: Song[], startIndex = 0) {
   if (!songs.length) return
   ensureShuffle(true)
-  usePlayerStore.getState().playQueue(songs, startIndex)
+  const start = startIndex > 0 ? startIndex : Math.floor(Math.random() * songs.length)
+  usePlayerStore.getState().playQueue(songs, start)
 }
 
 /** 下一首播放：插入到当前曲之后 */

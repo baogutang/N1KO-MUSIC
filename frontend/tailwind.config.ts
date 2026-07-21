@@ -52,7 +52,7 @@ export default {
         },
         // 自定义品牌色
         brand: {
-          green: '#1DB954',
+          green: '#2ec27e',
           red: '#FA233B',
         },
         surface: {

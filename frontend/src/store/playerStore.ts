@@ -146,12 +146,23 @@ export const usePlayerStore = create<PlayerState>()(
 
         let nextIndex: number
 
-        if (shuffle) {
-          const currentShufflePos = shuffledIndexes.indexOf(queueIndex)
-          const nextShufflePos = (currentShufflePos + 1) % shuffledIndexes.length
-          nextIndex = shuffledIndexes[nextShufflePos]
-        } else if (repeatMode === 'one') {
+        // 单曲循环优先于 shuffle：自然播完时重播当前曲
+        if (repeatMode === 'one') {
           nextIndex = queueIndex
+        } else if (shuffle) {
+          const currentShufflePos = shuffledIndexes.indexOf(queueIndex)
+          const nextShufflePos = currentShufflePos + 1
+          if (nextShufflePos >= shuffledIndexes.length) {
+            // 随机顺序已走完：仅列表循环时回到随机序列开头，否则停止播放
+            if (repeatMode === 'all') {
+              nextIndex = shuffledIndexes[0]
+            } else {
+              set({ isPlaying: false })
+              return
+            }
+          } else {
+            nextIndex = shuffledIndexes[nextShufflePos]
+          }
         } else if (queueIndex < queue.length - 1) {
           nextIndex = queueIndex + 1
         } else if (repeatMode === 'all') {
@@ -202,6 +213,9 @@ export const usePlayerStore = create<PlayerState>()(
           const prevShufflePos =
             (currentShufflePos - 1 + shuffledIndexes.length) % shuffledIndexes.length
           prevIndex = shuffledIndexes[prevShufflePos]
+        } else if (queueIndex === 0 && state.repeatMode === 'all') {
+          // 列表循环模式下（且无历史可回退）从第一首回绕到最后一首
+          prevIndex = queue.length - 1
         } else {
           prevIndex = Math.max(0, queueIndex - 1)
         }
@@ -251,15 +265,38 @@ export const usePlayerStore = create<PlayerState>()(
               ...songs,
               ...state.queue.slice(insertAt),
             ]
-            const shuffledIndexes = state.shuffle
-              ? generateShuffledIndexes(newQueue.length, state.queueIndex)
-              : state.shuffledIndexes
+            let shuffledIndexes = state.shuffledIndexes
+            if (state.shuffle) {
+              // 保持既有随机顺序：把新歌插到当前曲的随机位置之后，而不是整体重洗
+              const remapped = state.shuffledIndexes.map(i =>
+                i >= insertAt ? i + songs.length : i
+              )
+              const currentShufflePos = remapped.indexOf(state.queueIndex)
+              const newIndexes = songs.map((_, i) => insertAt + i)
+              shuffledIndexes = [
+                ...remapped.slice(0, currentShufflePos + 1),
+                ...newIndexes,
+                ...remapped.slice(currentShufflePos + 1),
+              ]
+            }
             return { queue: newQueue, shuffledIndexes }
           }
           const newQueue = [...state.queue, ...songs]
-          const shuffledIndexes = state.shuffle
-            ? generateShuffledIndexes(newQueue.length, state.queueIndex)
-            : state.shuffledIndexes
+          let shuffledIndexes = state.shuffledIndexes
+          if (state.shuffle) {
+            // 保留已播放的前缀顺序，仅把新歌随机混入尚未播放的部分
+            const currentShufflePos = state.shuffledIndexes.indexOf(state.queueIndex)
+            const playedPrefix = state.shuffledIndexes.slice(0, currentShufflePos + 1)
+            const upcoming = [
+              ...state.shuffledIndexes.slice(currentShufflePos + 1),
+              ...songs.map((_, i) => state.queue.length + i),
+            ]
+            for (let i = upcoming.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1))
+              ;[upcoming[i], upcoming[j]] = [upcoming[j], upcoming[i]]
+            }
+            shuffledIndexes = [...playedPrefix, ...upcoming]
+          }
           return { queue: newQueue, shuffledIndexes }
         })
       },
@@ -281,6 +318,10 @@ export const usePlayerStore = create<PlayerState>()(
             }
           }
 
+          // 无损删除：不重洗随机顺序，仅移除该下标并顺移其后的下标
+          const remapAfterRemoval = (indexes: number[]) =>
+            indexes.filter(i => i !== index).map(i => (i > index ? i - 1 : i))
+
           let queueIndex = state.queueIndex
           if (index < state.queueIndex) {
             queueIndex = state.queueIndex - 1
@@ -294,14 +335,14 @@ export const usePlayerStore = create<PlayerState>()(
               isPlaying: state.isPlaying,
               currentTime: 0,
               shuffledIndexes: state.shuffle
-                ? generateShuffledIndexes(queue.length, queueIndex)
+                ? remapAfterRemoval(state.shuffledIndexes)
                 : queue.map((_, i) => i),
               playVersion: state.playVersion + 1,
             }
           }
 
           const shuffledIndexes = state.shuffle
-            ? generateShuffledIndexes(queue.length, queueIndex)
+            ? remapAfterRemoval(state.shuffledIndexes)
             : queue.map((_, i) => i)
 
           return { queue, queueIndex, shuffledIndexes }
@@ -323,17 +364,18 @@ export const usePlayerStore = create<PlayerState>()(
           const [moved] = queue.splice(fromIndex, 1)
           queue.splice(toIndex, 0, moved)
 
-          let queueIndex = state.queueIndex
-          if (state.queueIndex === fromIndex) {
-            queueIndex = toIndex
-          } else if (fromIndex < state.queueIndex && toIndex >= state.queueIndex) {
-            queueIndex = state.queueIndex - 1
-          } else if (fromIndex > state.queueIndex && toIndex <= state.queueIndex) {
-            queueIndex = state.queueIndex + 1
+          // 与 queueIndex 相同的移动映射：随机顺序无损跟随队列重排，不重洗
+          const mapMovedIndex = (i: number) => {
+            if (i === fromIndex) return toIndex
+            if (fromIndex < i && toIndex >= i) return i - 1
+            if (fromIndex > i && toIndex <= i) return i + 1
+            return i
           }
 
+          const queueIndex = mapMovedIndex(state.queueIndex)
+
           const shuffledIndexes = state.shuffle
-            ? generateShuffledIndexes(queue.length, queueIndex)
+            ? state.shuffledIndexes.map(mapMovedIndex)
             : queue.map((_, i) => i)
 
           return { queue, queueIndex, shuffledIndexes }

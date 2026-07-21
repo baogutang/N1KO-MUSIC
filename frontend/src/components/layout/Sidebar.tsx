@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MemberUpgradeDialog } from '@/components/member/MemberUpgradeDialog'
+import { toast } from '@/components/ui/use-toast'
 
 const mainNavItems = [
   { to: '/', icon: Home, label: '首页', premium: false },
@@ -84,7 +85,15 @@ export function Sidebar() {
             {servers.map(server => (
               <DropdownMenuItem
                 key={server.id}
-                onClick={() => activateServer(server.id)}
+                onClick={() => {
+                  if (!activateServer(server.id)) {
+                    toast({
+                      title: '该服务器需要重新登录',
+                      description: '登录凭据已升级，请在登录页重新连接',
+                      variant: 'destructive',
+                    })
+                  }
+                }}
                 className={cn(activeServerId === server.id && 'text-primary')}
               >
                 <Music2 className="w-4 h-4 mr-2" />

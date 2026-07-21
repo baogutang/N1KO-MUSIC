@@ -16,6 +16,7 @@ import {
 } from '@tanstack/react-query'
 import { getAdapter } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
+import { useServerStore } from '@/store/serverStore'
 import { useLyricCacheStore } from '@/store/o3icCacheStore'
 import { parseLrc } from '@/hooks/useLyrics'
 import type { ListParams, Lyrics, Song } from '@/api/types'
@@ -23,21 +24,28 @@ import type { ListParams, Lyrics, Song } from '@/api/types'
 // ===================================================
 // Query Keys - 统一管理缓存键
 // ===================================================
+
+/**
+ * 所有服务器数据的缓存键均以当前激活服务器 id 作为前缀，
+ * 避免切换服务器后命中上一个服务器的缓存（不同服务器的同名键/同 id 会互相污染）。
+ */
+const serverKey = () => useServerStore.getState().activeServerId ?? 'no-server'
+
 export const queryKeys = {
-  songs: (params?: ListParams) => ['songs', params] as const,
-  songDetail: (id: string) => ['songs', 'detail', id] as const,
-  randomSongs: (size?: number) => ['songs', 'random', size] as const,
-  search: (query: string) => ['search', query] as const,
-  albums: (params?: ListParams) => ['albums', params] as const,
-  albumDetail: (id: string) => ['albums', id] as const,
-  recentAlbums: (size?: number) => ['albums', 'recent', size] as const,
-  artists: () => ['artists'] as const,
-  artistDetail: (id: string) => ['artists', id] as const,
-  playlists: () => ['playlists'] as const,
-  playlistDetail: (id: string) => ['playlists', id] as const,
-  starred: () => ['starred'] as const,
-  genres: () => ['genres'] as const,
-  o3ics: (songId: string) => ['o3ics', songId] as const,
+  songs: (params?: ListParams) => [serverKey(), 'songs', params] as const,
+  songDetail: (id: string) => [serverKey(), 'songs', 'detail', id] as const,
+  randomSongs: (size?: number) => [serverKey(), 'songs', 'random', size] as const,
+  search: (query: string) => [serverKey(), 'search', query] as const,
+  albums: (params?: ListParams) => [serverKey(), 'albums', params] as const,
+  albumDetail: (id: string) => [serverKey(), 'albums', id] as const,
+  recentAlbums: (size?: number) => [serverKey(), 'albums', 'recent', size] as const,
+  artists: () => [serverKey(), 'artists'] as const,
+  artistDetail: (id: string) => [serverKey(), 'artists', id] as const,
+  playlists: () => [serverKey(), 'playlists'] as const,
+  playlistDetail: (id: string) => [serverKey(), 'playlists', id] as const,
+  starred: () => [serverKey(), 'starred'] as const,
+  genres: () => [serverKey(), 'genres'] as const,
+  o3ics: (songId: string) => [serverKey(), 'o3ics', songId] as const,
 }
 
 /**
@@ -75,7 +83,7 @@ export function useRandomSongs(size = 50) {
 /** 获取所有歌曲（音乐库歌曲列表）*/
 export function useSongs(params: ListParams = {}) {
   return useQuery({
-    queryKey: ['songs', 'all', params] as const,
+    queryKey: [serverKey(), 'songs', 'all', params] as const,
     queryFn: () => getAdapter().getSongs(params),
     staleTime: 5 * 60 * 1000,
   })
@@ -84,7 +92,7 @@ export function useSongs(params: ListParams = {}) {
 /** 无限滚动加载歌曲（音乐库）*/
 export function useSongsInfinite(size = 100) {
   return useInfiniteQuery({
-    queryKey: ['songs', 'infinite', size] as const,
+    queryKey: [serverKey(), 'songs', 'infinite', size] as const,
     queryFn: ({ pageParam = 0 }) =>
       getAdapter().getSongs({ size, offset: pageParam as number }),
     initialPageParam: 0,
@@ -171,7 +179,7 @@ export function useLyricsQuery(
 
   // 远程歌词（需要启用远程歌词源 + 配置模板）
   const remoteQuery = useQuery({
-    queryKey: ['o3ics-remote', songId, remoteUrl],
+    queryKey: [serverKey(), 'o3ics-remote', songId, remoteUrl],
     queryFn: async (): Promise<Lyrics | null> => {
       if (!remoteUrl) return null
       const headers: Record<string, string> = {}
@@ -338,7 +346,7 @@ export function useAlbums(params: ListParams = {}) {
 /** 无限滚动加载专辑 */
 export function useAlbumsInfinite(size = 50, type = 'newest') {
   return useInfiniteQuery({
-    queryKey: ['albums', 'infinite', type],
+    queryKey: [serverKey(), 'albums', 'infinite', type],
     queryFn: ({ pageParam = 0 }) =>
       getAdapter().getAlbums({ size, offset: pageParam as number, type }),
     initialPageParam: 0,
@@ -480,7 +488,12 @@ export function useToggleStar() {
       return isStarred ? adapter.unstar(id, type) : adapter.star(id, type)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.starred() })
+      // starred 标记散布在歌曲/专辑/歌手/搜索/歌单等各类查询缓存中，
+      // 只失效 starred 会导致其他页面重挂载时读到旧的收藏状态
+      const sid = serverKey()
+      for (const family of ['starred', 'songs', 'albums', 'artists', 'search', 'playlists'] as const) {
+        queryClient.invalidateQueries({ queryKey: [sid, family] })
+      }
     },
   })
 }

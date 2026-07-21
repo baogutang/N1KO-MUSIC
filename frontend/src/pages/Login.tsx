@@ -35,8 +35,18 @@ export default function LoginPage() {
   const [error, setError] = useState('')
 
   const handleQuickConnect = (serverId: string) => {
-    activateServer(serverId)
-    navigate('/')
+    if (activateServer(serverId)) {
+      navigate('/')
+      return
+    }
+    // 旧版 Jellyfin/Emby 凭据已失效：预填表单引导重新登录
+    const server = servers.find(s => s.id === serverId)
+    if (server) {
+      setSelectedType(server.type)
+      setForm({ url: server.url, username: server.username, password: '', name: server.name })
+      setStep('credentials')
+      setError('登录凭据已升级，请重新输入密码完成连接')
+    }
   }
 
   const handleTypeSelect = (type: ServerType) => {
@@ -113,6 +123,7 @@ export default function LoginPage() {
           url,
           username: form.username,
           token: result.token,
+          userId: result.userId,
           isActive: true,
         })
         activateServer(serverId)

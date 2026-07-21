@@ -9,7 +9,7 @@
  * - hover 状态用 CSS group-hover 实现，零 re-render 开销
  */
 
-import { useCallback, useEffect, memo, useRef } from 'react'
+import { useCallback, useEffect, memo, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
@@ -36,8 +36,19 @@ const ProgressBar = memo(function ProgressBar() {
   const duration = usePlayerStore(s => s.duration)
   const buffered = usePlayerStore(s => s.buffered)
 
+  // 拖动中的本地进度值：拖动期间忽略 store currentTime，松开时才真正 seek
+  const [dragValue, setDragValue] = useState<number | null>(null)
+  // 松开后的短暂保护窗口：seek 前排队的 timeupdate 会带回旧位置，此窗口内仍渲染 seek 目标
+  const releaseGuardRef = useRef<{ target: number; until: number } | null>(null)
+
   const safeDuration = isFinite(duration) && duration > 0 ? duration : 1
-  const playPercent = Math.min(100, (currentTime / safeDuration) * 100)
+  const guard = releaseGuardRef.current
+  const displayTime = dragValue !== null
+    ? dragValue
+    : guard && performance.now() < guard.until && Math.abs(currentTime - guard.target) > 1
+      ? guard.target
+      : currentTime
+  const playPercent = Math.min(100, (displayTime / safeDuration) * 100)
   const bufferPercent = Math.min(100, buffered * 100)
 
   const progressRef = useRef<HTMLDivElement>(null)
@@ -58,7 +69,10 @@ const ProgressBar = memo(function ProgressBar() {
   }, [])
 
   useEffect(() => {
-    const onBlur = () => clearDragListeners()
+    const onBlur = () => {
+      clearDragListeners()
+      setDragValue(null)
+    }
     window.addEventListener('blur', onBlur)
     return () => {
       window.removeEventListener('blur', onBlur)
@@ -71,13 +85,17 @@ const ProgressBar = memo(function ProgressBar() {
     const rect = progressRef.current?.getBoundingClientRect()
     if (!rect) return
     const getR = (cx: number) => Math.max(0, Math.min(1, (cx - rect.left) / rect.width))
-    seekHowl(getR(e.clientX) * safeDurationRef.current)
+    // 按下时只更新本地拖动值，不 seek 音频，避免 timeupdate 与拖动位置互相覆盖
+    setDragValue(getR(e.clientX) * safeDurationRef.current)
 
     const onMove = (me: globalThis.MouseEvent) => {
-      usePlayerStore.getState().seekTo(getR(me.clientX) * safeDurationRef.current)
+      setDragValue(getR(me.clientX) * safeDurationRef.current)
     }
     const onUp = (me: globalThis.MouseEvent) => {
-      seekHowl(getR(me.clientX) * safeDurationRef.current)
+      const target = getR(me.clientX) * safeDurationRef.current
+      releaseGuardRef.current = { target, until: performance.now() + 500 }
+      seekHowl(target)
+      setDragValue(null)
       clearDragListeners()
     }
     clearDragListeners()

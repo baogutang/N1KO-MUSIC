@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   id         TEXT PRIMARY KEY,
   username   TEXT NOT NULL UNIQUE,
   password   TEXT NOT NULL,           -- bcrypt hash
+  token_version INTEGER NOT NULL DEFAULT 0, -- 修改密码后递增，使旧令牌失效
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
@@ -53,7 +54,7 @@ CREATE TABLE IF NOT EXISTS playlist_songs (
   song_data   TEXT NOT NULL,          -- JSON: 歌曲元数据快照
   position    INTEGER NOT NULL DEFAULT 0,
   added_at    INTEGER NOT NULL DEFAULT (unixepoch()),
-  PRIMARY KEY (playlist_id, song_id),
+  PRIMARY KEY (playlist_id, server_id, song_id), -- 含 server_id，避免不同服务器同 id 歌曲互相覆盖
   FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
 );
 

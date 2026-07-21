@@ -89,9 +89,18 @@ router.get('/summary', (req: Request, res: Response) => {
     .slice(0, 10)
 
   // Monthly data (last 12 months)
+  // 按用户本地时区分桶：客户端可传 ?tzOffsetMinutes=（UTC 以东为正，如 UTC+8 传 480）；
+  // 未传时退回服务器本地时区（'localtime'）。纯 UTC 分桶会把月初边界附近的播放记入错误月份
+  const rawTz = Number(req.query.tzOffsetMinutes)
+  const tzOffsetMinutes = Number.isFinite(rawTz)
+    ? Math.max(-840, Math.min(840, Math.trunc(rawTz)))
+    : null
+  const monthExpr = tzOffsetMinutes !== null
+    ? `strftime('%Y-%m', played_at + ${tzOffsetMinutes * 60}, 'unixepoch')`
+    : `strftime('%Y-%m', played_at, 'unixepoch', 'localtime')`
   const monthlyData = db.prepare(`
     SELECT
-      strftime('%Y-%m', played_at, 'unixepoch') as month,
+      ${monthExpr} as month,
       COUNT(*) as plays,
       SUM(COALESCE(duration, 0)) as duration
     FROM play_history WHERE user_id = ?

@@ -23,7 +23,7 @@ export default function SearchPage() {
     return () => clearTimeout(timerRef.current)
   }, [query])
 
-  const { data: results, isLoading } = useSearch(debouncedQuery)
+  const { data: results, isLoading, isFetching } = useSearch(debouncedQuery)
 
   const handleClear = useCallback(() => setQuery(''), [])
 
@@ -32,6 +32,10 @@ export default function SearchPage() {
     results.albums.length > 0 ||
     results.artists.length > 0
   )
+
+  // UI 必须以 debouncedQuery 为准展示结果：
+  // 清空输入后 keepPreviousData 仍会保留上次结果，query 刚变化时结果也还是旧查询的
+  const showResults = query.trim().length > 0 && debouncedQuery.trim().length > 0
 
   return (
     <div className="flex flex-col h-full">
@@ -78,15 +82,15 @@ export default function SearchPage() {
               </div>
             )}
 
-            {/* 无结果 */}
-            {query && !isLoading && !hasResults && (
+            {/* 无结果（等待防抖或请求进行中时不提前展示） */}
+            {showResults && !isLoading && !isFetching && !hasResults && (
               <div className="text-center py-16">
                 <p className="text-muted-foreground">未找到「{query}」相关内容</p>
               </div>
             )}
 
             {/* 歌手 */}
-            {results?.artists && results.artists.length > 0 && (
+            {showResults && results?.artists && results.artists.length > 0 && (
               <section>
                 <h2 className="text-base font-semibold text-foreground mb-4">
                   歌手 <span className="text-muted-foreground font-normal text-sm">({results.artists.length})</span>
@@ -100,7 +104,7 @@ export default function SearchPage() {
             )}
 
             {/* 专辑 */}
-            {results?.albums && results.albums.length > 0 && (
+            {showResults && results?.albums && results.albums.length > 0 && (
               <section>
                 <h2 className="text-base font-semibold text-foreground mb-4">
                   专辑 <span className="text-muted-foreground font-normal text-sm">({results.albums.length})</span>
@@ -114,7 +118,7 @@ export default function SearchPage() {
             )}
 
             {/* 歌曲 */}
-            {results?.songs && results.songs.length > 0 && (
+            {showResults && results?.songs && results.songs.length > 0 && (
               <section>
                 <h2 className="text-base font-semibold text-foreground mb-4">
                   歌曲 <span className="text-muted-foreground font-normal text-sm">({results.songs.length})</span>

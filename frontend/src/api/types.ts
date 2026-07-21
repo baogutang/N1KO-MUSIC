@@ -21,6 +21,8 @@ export interface ServerConfig {
   token: string
   /** 额外 salt（Subsonic 需要）*/
   salt?: string
+  /** 服务端用户 ID（Jellyfin/Emby 需要，登录响应返回；不可用 token 代替）*/
+  userId?: string
   isActive: boolean
   createdAt: number
   /** 服务器版本信息 */

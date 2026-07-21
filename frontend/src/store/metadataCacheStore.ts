@@ -11,6 +11,16 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Song } from '@/api/types'
+import { useServerStore } from './serverStore'
+
+/**
+ * 组合缓存 key：serverId:songId
+ * 不同服务器的歌曲 ID 可能相同，必须按服务器隔离
+ */
+function scopedKey(songId: string): string {
+  const serverId = useServerStore.getState().activeServerId ?? 'default'
+  return `${serverId}:${songId}`
+}
 
 interface MetadataCacheEntry {
   /** 修改后的元信息（只存变化的字段） */
@@ -51,7 +61,7 @@ export const useMetadataCacheStore = create<MetadataCacheState>()(
         set(state => ({
           cache: {
             ...state.cache,
-            [songId]: {
+            [scopedKey(songId)]: {
               metadata,
               savedAt: Date.now(),
             },
@@ -60,12 +70,14 @@ export const useMetadataCacheStore = create<MetadataCacheState>()(
       },
 
       getMetadata: (songId: string) => {
-        return get().cache[songId]?.metadata ?? null
+        const cache = get().cache
+        // 旧版数据用裸 songId 作 key，找不到作用域 key 时兼容回退
+        return cache[scopedKey(songId)]?.metadata ?? cache[songId]?.metadata ?? null
       },
 
       removeMetadata: (songId: string) => {
         set(state => {
-          const { [songId]: _, ...rest } = state.cache
+          const { [scopedKey(songId)]: _, [songId]: __, ...rest } = state.cache
           return { cache: rest }
         })
       },
@@ -75,7 +87,8 @@ export const useMetadataCacheStore = create<MetadataCacheState>()(
       },
 
       getMergedSong: (song: Song) => {
-        const cached = get().cache[song.id]?.metadata
+        const cache = get().cache
+        const cached = cache[scopedKey(song.id)]?.metadata ?? cache[song.id]?.metadata
         if (!cached) return song
         return { ...song, ...cached }
       },

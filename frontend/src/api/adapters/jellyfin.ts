@@ -98,15 +98,18 @@ export class JellyfinAdapter implements MusicServerAdapter {
   /** Jellyfin 歌曲字段映射 */
   private mapSong(item: Record<string, unknown>): Song {
     const albumArtist = (item.AlbumArtists as Array<Record<string, string>> | undefined)?.[0]
+    // ArtistItems 提供音轨歌手的 Name+Id 配对；AlbumArtists 是专辑歌手，合辑下两者不同，仅作回退
+    const artistItem = (item.ArtistItems as Array<Record<string, string>> | undefined)?.[0]
     return {
       id: String(item.Id),
       title: String(item.Name || ''),
       artist: String(
+        artistItem?.Name ||
         (item.Artists as string[] | undefined)?.[0] ||
         albumArtist?.Name ||
         item.AlbumArtist || ''
       ),
-      artistId: albumArtist?.Id,
+      artistId: artistItem?.Id ?? albumArtist?.Id,
       album: String(item.Album || ''),
       albumId: item.AlbumId ? String(item.AlbumId) : undefined,
       coverArt: this.resolveSongCoverArtId(item),
@@ -175,7 +178,8 @@ export class JellyfinAdapter implements MusicServerAdapter {
       params: this.itemsParams({
         IncludeItemTypes: 'Audio',
         Fields: 'MediaStreams,RunTimeTicks,UserData,Genres,ImageTags',
-        SortBy: 'Random',
+        // 分页列表必须用确定性排序：Random 每次请求都重新洗牌，翻页会重复/漏项
+        SortBy: 'SortName',
         Limit: params.size ?? 50,
         StartIndex: params.offset ?? 0,
       }),
@@ -236,13 +240,21 @@ export class JellyfinAdapter implements MusicServerAdapter {
 
   getStreamUrl(
     songId: string,
-    _maxBitrate: number,
-    _format: string = '',
+    maxBitrate: number,
+    format: string = '',
     _contentType?: string,
     _path?: string,
     _suffix?: string
   ): string {
-    return `${this.baseUrl}/Audio/${songId}/universal?UserId=${this.userId}&api_key=${this.token}&Container=opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac`
+    // 限码率时须从 Container 中去掉 flac/wav，否则服务器直连无损、忽略码率上限
+    const container = format
+      ? format
+      : maxBitrate > 0
+        ? 'opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,ogg'
+        : 'opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg'
+    // maxBitrate 单位为 kbps，Jellyfin MaxStreamingBitrate 单位为 bps
+    const bitrateParam = maxBitrate > 0 ? `&MaxStreamingBitrate=${maxBitrate * 1000}` : ''
+    return `${this.baseUrl}/Audio/${songId}/universal?UserId=${this.userId}&api_key=${this.token}&Container=${container}&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac${bitrateParam}`
   }
 
   getCoverUrl(id: string, size = 300): string {
@@ -337,8 +349,15 @@ export class JellyfinAdapter implements MusicServerAdapter {
   }
 
   async getRandomSongs(size = 50): Promise<Song[]> {
-    const data = await this.getSongs({ size })
-    return data.items
+    const resp = await this.client.get('/Items', {
+      params: this.itemsParams({
+        IncludeItemTypes: 'Audio',
+        Fields: 'MediaStreams,RunTimeTicks,UserData,Genres,ImageTags',
+        SortBy: 'Random',
+        Limit: size,
+      }),
+    })
+    return ((resp.data.Items ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
   }
 
   async getArtists(): Promise<Artist[]> {

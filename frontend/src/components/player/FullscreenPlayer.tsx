@@ -53,8 +53,19 @@ const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolea
   const duration = usePlayerStore(s => s.duration)
   const buffered = usePlayerStore(s => s.buffered)
 
+  // 拖动中的本地进度值：拖动期间忽略 store currentTime，松开时才真正 seek
+  const [dragValue, setDragValue] = useState<number | null>(null)
+  // 松开后的短暂保护窗口：seek 前排队的 timeupdate 会带回旧位置，此窗口内仍渲染 seek 目标
+  const releaseGuardRef = useRef<{ target: number; until: number } | null>(null)
+
   const safeDuration = isFinite(duration) && duration > 0 ? duration : 1
-  const playPercent = Math.min(100, (currentTime / safeDuration) * 100)
+  const guard = releaseGuardRef.current
+  const displayTime = dragValue !== null
+    ? dragValue
+    : guard && performance.now() < guard.until && Math.abs(currentTime - guard.target) > 1
+      ? guard.target
+      : currentTime
+  const playPercent = Math.min(100, (displayTime / safeDuration) * 100)
   const bufferPercent = Math.min(100, buffered * 100)
 
   const progressRef = useRef<HTMLDivElement>(null)
@@ -75,7 +86,10 @@ const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolea
   }, [])
 
   useEffect(() => {
-    const onBlur = () => clearDragListeners()
+    const onBlur = () => {
+      clearDragListeners()
+      setDragValue(null)
+    }
     window.addEventListener('blur', onBlur)
     return () => {
       window.removeEventListener('blur', onBlur)
@@ -88,16 +102,19 @@ const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolea
     const rect = progressRef.current?.getBoundingClientRect()
     if (!rect) return
     const getR = (cx: number) => Math.max(0, Math.min(1, (cx - rect.left) / rect.width))
-    // 鼠标按下时立即 seek
-    seekHowl(getR(e.clientX) * safeDurationRef.current)
+    // 按下时只更新本地拖动值，不 seek 音频，避免 timeupdate 与拖动位置互相覆盖
+    setDragValue(getR(e.clientX) * safeDurationRef.current)
 
     const onMove = (me: globalThis.MouseEvent) => {
-      // 拖动过程中只更新视觉进度，不触发音频 seek
-      usePlayerStore.getState().seekTo(getR(me.clientX) * safeDurationRef.current)
+      // 拖动过程中只更新本地视觉进度，不触发音频 seek
+      setDragValue(getR(me.clientX) * safeDurationRef.current)
     }
     const onUp = (me: globalThis.MouseEvent) => {
       // 松开时才实际 seek 音频
-      seekHowl(getR(me.clientX) * safeDurationRef.current)
+      const target = getR(me.clientX) * safeDurationRef.current
+      releaseGuardRef.current = { target, until: performance.now() + 500 }
+      seekHowl(target)
+      setDragValue(null)
       clearDragListeners()
     }
     clearDragListeners()
@@ -134,7 +151,7 @@ const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolea
         'flex justify-between text-xs tabular-nums',
         isLight ? 'text-black/40' : 'text-white/40'
       )}>
-        <span>{formatDuration(currentTime)}</span>
+        <span>{formatDuration(displayTime)}</span>
         <span>{formatDuration(duration)}</span>
       </div>
     </div>
@@ -476,7 +493,7 @@ export function FullscreenPlayer() {
             <LyricDisplay
               lines={lyrics.lines}
               variant="fullscreen"
-              baseColor="white"
+              baseColor={isLight ? 'default' : 'white'}
               className="flex-1"
             />
           </div>
@@ -598,8 +615,8 @@ export function FullscreenPlayer() {
                         type="range" min={0} max={1} step={0.01}
                         value={muted ? 0 : volume}
                         onChange={e => {
+                          // setVolume 内部已将 muted 置为 false，这里不能再 toggleMute（会重新静音）
                           setVolume(Number(e.target.value))
-                          if (muted && Number(e.target.value) > 0) toggleMute()
                         }}
                         className="absolute inset-0 opacity-0 cursor-pointer"
                         style={{ writingMode: 'vertical-lr', direction: 'rtl', width: '100%', height: '100%' }}

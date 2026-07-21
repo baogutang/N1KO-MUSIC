@@ -95,10 +95,12 @@ export default function Stats() {
       .slice(0, 5)
 
     // Daily chart (last 7 days)
-    const now = Date.now()
+    // 以本地零点为分桶边界，否则"今天"的窗口落在未来，早于当前时刻的播放会被记到前一天
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
     const DAY = 86400000
     const dailyCounts = Array.from({ length: 7 }, (_, i) => {
-      const dayStart = now - (6 - i) * DAY
+      const dayStart = startOfToday.getTime() - (6 - i) * DAY
       const dayEnd = dayStart + DAY
       const count = history.filter(e => e.playedAt >= dayStart && e.playedAt < dayEnd).length
       const d = new Date(dayStart)
