@@ -178,10 +178,13 @@ export class SubsonicAdapter implements MusicServerAdapter {
   async getSongs(params: ListParams = {}): Promise<PageResult<Song>> {
     const size = params.size ?? 50
     const offset = params.offset ?? 0
+    // OpenSubsonic 约定：search3 的 query 传空字符串（query=""）表示返回全部内容，
+    // 配合 songCount/songOffset 分页即可遍历整个曲库。
+    // 注意不能传 "*"：Navidrome 会把它当作普通全文检索词，匹配不到任何歌曲，导致列表为空。
     const data = await this.request<{
       searchResult3?: { song?: unknown[]; totalMatched?: number }
     }>('/search3', {
-      query: '*',
+      query: '',
       songCount: size,
       albumCount: 0,
       artistCount: 0,
@@ -638,7 +641,8 @@ export function parseLrcText(text: string): LyricLine[] {
   const lrcOffset = offsetMatch ? parseInt(offsetMatch[1]) : 0
 
   // LRC 元数据标签正则：匹配 [tag] 或 [tag:value] 格式
-  const metaTagRegex = /^\[(?:id|ar|ti|al|by|hash|sign|qq|total|offset|lang|length|desc|album|artist|title|author|maker|version|re|ve|encoding|file|rcv|usr|uid|msid|msas|mscv|msp|msu|cap|cta|cla|cla2|com|tag|instrument|role|track|lrcx)\s*(?::[^]]*)?\]$/i
+  // 注意 [^\]] 的反斜杠不可省：JS 里 [^]] 会被解析为「任意字符 + 字面 ]」，导致多字符元数据值（如 [ar:周杰伦]）漏过滤
+  const metaTagRegex = /^\[(?:id|ar|ti|al|by|hash|sign|qq|total|offset|lang|length|desc|album|artist|title|author|maker|version|re|ve|encoding|file|rcv|usr|uid|msid|msas|mscv|msp|msu|cap|cta|cla|cla2|com|tag|instrument|role|track|lrcx)\s*(?::[^\]]*)?\]$/i
 
   // 标准时间戳正则
   const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g
@@ -668,13 +672,27 @@ export function parseLrcText(text: string): LyricLine[] {
     const lyricText = trimmed.replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, '').trim()
     if (!lyricText) continue
 
-    for (const time of times) {
-      lines.push({ time: Math.max(0, time - lrcOffset), text: lyricText })
-    }
-
     // 无时间戳的纯文本行
     if (times.length === 0) {
       lines.push({ time: 0, text: lyricText })
+      continue
+    }
+
+    // 区分两种多时间戳格式：
+    // 1) 重复副歌简写：所有时间标签连续出现在行首（[t1][t2]歌词），每个标签各生成一行
+    // 2) 卡拉OK逐字标签：时间标签内联在文字之间（如 "有[01:02.40]一[01:02.60]点[01:02.79]"，
+    //    行首可能没有标签），整行只生成一条记录，时间取该行最早的时间戳
+    // 行首标签之间允许空白（如 "[00:12.34] [01:45.00]text" 的重复副歌简写）
+    const leadingTags = /^(?:\[\d{2}:\d{2}\.\d{2,3}\]\s*)+/.exec(trimmed)
+    const leadingCount = leadingTags ? (leadingTags[0].match(/\[/g) ?? []).length : 0
+
+    if (leadingCount === times.length) {
+      for (const time of times) {
+        lines.push({ time: Math.max(0, time - lrcOffset), text: lyricText })
+      }
+    } else {
+      const earliest = Math.min(...times)
+      lines.push({ time: Math.max(0, earliest - lrcOffset), text: lyricText })
     }
   }
 

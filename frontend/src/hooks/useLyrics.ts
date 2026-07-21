@@ -22,7 +22,8 @@ export function parseLrc(text: string): LyricLine[] {
   const lines: LyricLine[] = []
 
   // LRC 元数据标签正则：匹配 [tag] 或 [tag:value] 格式
-  const metaPattern = /^\[(?:id|ar|ti|al|by|hash|sign|qq|total|offset|lang|length|desc|album|artist|title|author|maker|version|re|ve|encoding|file|rcv|usr|uid|msid|msas|mscv|msp|msu|cap|cta|cla|cla2|com|tag|instrument|role|track|lrcx)\s*(?::[^]]*)?\]$/i
+  // 注意 [^\]] 的反斜杠不可省：JS 里 [^]] 会被解析为「任意字符 + 字面 ]」，导致多字符元数据值（如 [ar:周杰伦]）漏过滤
+  const metaPattern = /^\[(?:id|ar|ti|al|by|hash|sign|qq|total|offset|lang|length|desc|album|artist|title|author|maker|version|re|ve|encoding|file|rcv|usr|uid|msid|msas|mscv|msp|msu|cap|cta|cla|cla2|com|tag|instrument|role|track|lrcx)\s*(?::[^\]]*)?\]$/i
 
   // [offset:±毫秒] 全局偏移标签：LRC 约定正值表示歌词提前显示（即时间戳减去偏移）
   const offsetPattern = /^\[offset:\s*([+-]?\d+)\s*\]$/i

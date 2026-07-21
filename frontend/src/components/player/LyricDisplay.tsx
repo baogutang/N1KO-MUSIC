@@ -12,13 +12,25 @@
  * - 移除昂贵的 per-line filter: blur()，改用纯 opacity 实现远近效果
  */
 
-import { useRef, useEffect, useCallback, memo } from 'react'
+import { useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import { cn } from '@/lib/utils'
 import { useLyrics } from '@/hooks/useLyrics'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import type { LyricLine } from '@/api/types'
+
+/**
+ * 清洗歌词行文本：剥离增强 LRC（A2 逐字时间戳）残留。
+ * 服务器结构化歌词（如 Navidrome lyricsList）只摘掉了行首时间，
+ * value 中可能残留 [mm:ss.xx] / <mm:ss.xx> 逐字标签，直接渲染会满屏括号
+ */
+function cleanLyricText(text: string): string {
+  return text
+    .replace(/[[<]\d{1,2}:\d{2}(?:[.:]\d{1,3})?[\]>]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
 
 interface LyricDisplayProps {
   lines: LyricLine[]
@@ -49,6 +61,12 @@ export const LyricDisplay = memo(function LyricDisplay({
   })
 
   const { lyricsHighlightColor, lyricsFontSize } = useSettingsStore()
+
+  // 展示用文本：剥离逐字时间戳残留；纯时间行（清洗后为空）显示 ♪ 占位
+  const displayTexts = useMemo(
+    () => lines.map(l => cleanLyricText(l.text) || '♪'),
+    [lines]
+  )
 
   const containerRef = useRef<HTMLDivElement>(null)
   const activeLineRef = useRef<HTMLParagraphElement>(null)
@@ -189,7 +207,7 @@ export const LyricDisplay = memo(function LyricDisplay({
                 transition: 'opacity 0.45s ease, transform 0.45s ease, color 0.45s ease',
               }}
             >
-              {line.text}
+              {displayTexts[index]}
             </p>
           )
         })}

@@ -37,6 +37,12 @@ export default function Library() {
   const albums = albumsData?.pages.flatMap(p => p.items) ?? []
   const songs = songsData?.pages.flatMap(p => p.items) ?? []
 
+  // 计数展示：服务器返回精确总数时直接显示总数；否则显示已加载数量，还有更多页时以 + 提示
+  const songsTotal = songsData?.pages[0]?.total
+  const songCountText = songsTotal != null ? String(songsTotal) : `${songs.length}${hasNextPage ? '+' : ''}`
+  const albumsTotal = albumsData?.pages[0]?.total
+  const albumCountText = albumsTotal != null ? String(albumsTotal) : `${albums.length}${hasNextAlbums ? '+' : ''}`
+
   const tabs: { id: LibraryTab; label: string }[] = [
     { id: 'songs', label: '歌曲' },
     { id: 'albums', label: '专辑' },
@@ -51,7 +57,7 @@ export default function Library() {
           <div className="min-w-0">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">音乐库</h1>
             <p className="text-sm text-muted-foreground mt-1.5">
-              <span className="font-num">{songs.length}{hasNextPage ? '+' : ''}</span> 首歌曲 · <span className="font-num">{albums.length}{hasNextAlbums ? '+' : ''}</span> 张专辑 · <span className="font-num">{(artists ?? []).length}</span> 位歌手
+              <span className="font-num">{songCountText}</span> 首歌曲 · <span className="font-num">{albumCountText}</span> 张专辑 · <span className="font-num">{(artists ?? []).length}</span> 位歌手
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -121,7 +127,7 @@ export default function Library() {
                   <Shuffle size={16} />
                   随机播放
                 </button>
-                <span className="text-sm text-muted-foreground ml-2"><span className="font-num">{songs.length}</span> 首歌曲{hasNextPage ? '+' : ''}</span>
+                <span className="text-sm text-muted-foreground ml-2">已加载 <span className="font-num">{songs.length}</span> 首</span>
               </div>
             )}
             {songsLoading ? (
