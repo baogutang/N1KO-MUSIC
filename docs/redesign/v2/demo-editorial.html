@@ -613,7 +613,7 @@ const ICON_PAUSE = '<svg viewBox="0 0 16 16"><path d="M3 2h3.4v12H3zM9.6 2H13v12
 const state = { track:TRACKS[1], playing:false, t:96, timer:null, albumIdx:0, albumCtx:0 };
 
 function tick(){
-  state.t += 0.5;
+  state.t += 0.5 * FF;
   if(state.t >= state.track.dur){ nextTrack(); return; }
   renderProgress(); renderLyrics();
 }
@@ -752,7 +752,9 @@ $('#pbProgress').addEventListener('click', e => {
 });
 
 /* ==================== 启动 ==================== */
+const FF = (location.search.match(/ff=(\d+)/) || [0,1])[1] * 1;
 renderPlayer(); renderNowPlaying(); renderRowStates(); route();
+if(location.search.indexOf('bare') > -1){ document.querySelectorAll('.back-link,.scheme-tag').forEach(el => el.style.visibility = 'hidden'); }
 if(location.search.indexOf('autoplay') > -1){ playTrack(TRACKS[1]); }
 </script>
 </body>

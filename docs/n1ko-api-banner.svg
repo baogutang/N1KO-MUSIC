@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300">
+  <!-- N1KO-API 宣传横幅：与 N1KO MUSIC 同一套 纸·墨·朱 语言 -->
+  <defs>
+    <pattern id="grain" width="140" height="140" patternUnits="userSpaceOnUse">
+      <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0"/></filter>
+      <rect width="140" height="140" filter="url(#n)"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="300" rx="12" fill="#f4efe3"/>
+  <rect width="1200" height="300" rx="12" fill="url(#grain)"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="298.5" rx="11.25" fill="none" stroke="#1d1a15" stroke-opacity="0.22" stroke-width="1.5"/>
+
+  <!-- 左：品牌区 -->
+  <text x="64" y="76" font-family="'JetBrains Mono','SF Mono',Menlo,monospace" font-size="15" letter-spacing="6" fill="#b8442a">N1KO · API RELAY</text>
+  <text x="62" y="142" font-family="'Source Serif 4','Songti SC','STSong',serif" font-weight="900" font-size="56" letter-spacing="-1" fill="#1d1a15">一个密钥，无限模型</text>
+  <text x="64" y="184" font-family="'Hanken Grotesk','PingFang SC',sans-serif" font-size="19" fill="#5c564a">Claude · GPT · Gemini 全系接入，OpenAI 兼容，按量计费</text>
+
+  <!-- 指标行 -->
+  <g font-family="'JetBrains Mono','SF Mono',Menlo,monospace">
+    <text x="64" y="246" font-size="15" fill="#1d1a15" font-weight="700">99.9%<tspan fill="#8d8676" font-weight="400"> SLA</tspan></text>
+    <text x="184" y="246" font-size="15" fill="#b8442a">·</text>
+    <text x="208" y="246" font-size="15" fill="#1d1a15" font-weight="700">16+<tspan fill="#8d8676" font-weight="400"> 模型</tspan></text>
+    <text x="304" y="246" font-size="15" fill="#b8442a">·</text>
+    <text x="328" y="246" font-size="15" fill="#1d1a15" font-weight="700">智能路由<tspan fill="#8d8676" font-weight="400"> 故障秒切</tspan></text>
+  </g>
+
+  <!-- 右：终端卡片 -->
+  <g>
+    <rect x="780" y="62" width="356" height="176" rx="10" fill="#1d1a15"/>
+    <circle cx="806" cy="86" r="5" fill="#b8442a" fill-opacity=".85"/>
+    <circle cx="824" cy="86" r="5" fill="#f4efe3" fill-opacity=".35"/>
+    <circle cx="842" cy="86" r="5" fill="#f4efe3" fill-opacity=".2"/>
+    <text x="864" y="91" font-family="'JetBrains Mono',Menlo,monospace" font-size="12" fill="#f4efe3" fill-opacity=".45">n1ko-api · relay</text>
+    <text x="804" y="128" font-family="'JetBrains Mono',Menlo,monospace" font-size="14.5" fill="#f4efe3" fill-opacity=".85">$ curl token.baogutang.top</text>
+    <text x="804" y="156" font-family="'JetBrains Mono',Menlo,monospace" font-size="14.5" fill="#f4efe3" fill-opacity=".45">  → routing to best upstream…</text>
+    <text x="804" y="184" font-family="'JetBrains Mono',Menlo,monospace" font-size="14.5" fill="#2ec27e">  200 OK · Claude · GPT · Gemini</text>
+    <text x="804" y="214" font-family="'JetBrains Mono',Menlo,monospace" font-size="14.5" fill="#f4efe3">▌</text>
+  </g>
+
+  <!-- 右下 CTA -->
+  <text x="1136" y="270" text-anchor="end" font-family="'JetBrains Mono','SF Mono',Menlo,monospace" font-size="15" letter-spacing="1" fill="#b8442a">token.baogutang.top →</text>
+</svg>

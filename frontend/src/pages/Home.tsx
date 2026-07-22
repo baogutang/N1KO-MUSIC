@@ -91,28 +91,28 @@ export default function HomePage() {
     <div className="animate-fade-in">
       {/* ============ 本期封面 · 头条区 ============ */}
       {heroAlbum && (
-        <article className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] items-end gap-12 lg:gap-16 pt-12 pb-14 border-b border-hair">
+        <article className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] items-center gap-10 lg:gap-14 pt-10 pb-12 border-b border-hair">
           <div className="min-w-0">
-            <p className="flex items-center gap-3.5 mb-7 text-[11px] tracking-[0.34em] text-primary">
+            <p className="flex items-center gap-3.5 mb-5 text-[11px] tracking-[0.34em] text-primary">
               本期封面 · FEATURED ALBUM
               <span aria-hidden className="h-px w-14 bg-primary" />
             </p>
             <h1
-              className="font-serif font-black text-[40px] lg:text-[56px] leading-[1.06] tracking-[-0.01em] text-balance cursor-pointer hover:text-primary transition-colors duration-200"
+              className="font-serif font-black text-[36px] lg:text-[48px] leading-[1.08] tracking-[-0.01em] text-balance cursor-pointer hover:text-primary transition-colors duration-200"
               onClick={() => navigate(`/albums/${heroAlbum.id}`)}
             >
               {heroAlbum.name}
             </h1>
-            <p className="num mt-4 text-[12px] tracking-[0.16em] text-ink-soft">
+            <p className="num mt-3 text-[12px] tracking-[0.16em] text-ink-soft">
               {heroAlbum.artist}
               {heroAlbum.year ? ` · ${heroAlbum.year}` : ''}
             </p>
             {heroLede && (
-              <p className="mt-7 max-w-[46ch] text-[14px] leading-relaxed text-ink-soft">
+              <p className="mt-5 max-w-[46ch] text-[14px] leading-relaxed text-ink-soft">
                 {heroLede}
               </p>
             )}
-            <div className="mt-9 flex items-center gap-7">
+            <div className="mt-7 flex items-center gap-7">
               <button
                 onClick={handleHeroPlay}
                 className="inline-flex items-center gap-2.5 pb-1.5 text-[13.5px] font-semibold tracking-[0.12em] text-foreground border-b border-foreground hover:text-primary hover:border-primary transition-colors duration-200 active:scale-[0.97]"
@@ -129,7 +129,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <figure className="group w-full max-w-[400px] lg:justify-self-end">
+          <figure className="group w-full max-w-[300px] lg:justify-self-end">
             <button
               onClick={() => navigate(`/albums/${heroAlbum.id}`)}
               aria-label={`查看专辑《${heroAlbum.name}》`}

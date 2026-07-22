@@ -1,19 +1,19 @@
 <div align="center">
 
-<img src="docs/logo.png" alt="N1KO MUSIC" width="88" height="88" />
+<img src="docs/logo.png" alt="N1KO MUSIC" width="96" height="96" />
 
 # N1KO MUSIC
 
-**为 NAS 而生的现代 Hi-Fi 音乐播放器**
+**一本可以播放的音乐杂志**
 
-连接 Navidrome / Subsonic / Jellyfin / Emby，把你的私人曲库变成一流的流媒体体验。
+连接 Navidrome / Subsonic / Jellyfin / Emby，把你的私人曲库，读成一本编排精良的刊物。
 
 <br/>
 
-[![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=2ec27e&label=最新版本)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
-[![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=2ec27e&label=Stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
-[![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=flat-square&color=555&label=许可证)](LICENSE)
-[![Platform](https://img.shields.io/badge/平台-macOS%20·%20Windows%20·%20Linux-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
+[![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
+[![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
+[![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=flat-square&color=555)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 
 <br/>
 
@@ -23,11 +23,24 @@
 
 <br/>
 
+## 由同一作者出品 · N1KO-API
+
+[![N1KO-API · 一个密钥，无限模型 — Claude / GPT / Gemini 全系接入，OpenAI 兼容，按量计费](docs/n1ko-api-banner.svg)](https://token.baogutang.top)
+
+> 写代码的、做产品的、折腾 AI 的，大概率用得上：**[N1KO-API](https://token.baogutang.top)** —— 订阅转 API 中转平台。一个密钥调用 Claude、GPT、Gemini 全系顶级模型，智能路由 + 故障秒切，SLA 99.9%，按量计费无月费。技术支持 QQ：783246411。
+
+<br/>
+
 ## 设计哲学
 
-N1KO MUSIC 不是又一个「能播歌的工具」。它以高端音响器材的审美打造：深墨画布、单一祖母绿强调色、等宽数字时间码、悬浮玻璃播放控制台，以及从专辑封面实时提取的氛围光。深浅双主题共享同一套设计语言，每一个界面都保持统一的克制与精确。
+大多数音乐客户端长得像管理后台。N1KO MUSIC 想做的是一本**可以播放的杂志**：
 
-音质上，它支持 FLAC / WAV / ALAC 无损直通，也提供 320kbps 到 128kbps 的转码档位，让你在书房和地铁里都有合适的选择。
+- **文字即界面** —— 没有卡片、没有阴影堆叠、没有圆角药丸按钮。排版、发丝线与留白承担全部结构职责
+- **封面即内容** —— 专辑封面是唯一的大面积色块，其余位置保持纸面的克制
+- **衬线排印** —— 自托管 Source Serif 4 / Hanken Grotesk / JetBrains Mono（Claude 同款字腔），歌名用衬线，数据用等宽
+- **纸 · 墨 · 朱** —— 米白纸面 `#f4efe3`、墨色文字、唯一朱红强调色 `#b8442a`；深色模式是同气质变体，不是简单反色
+
+音质同样不妥协：FLAC / WAV / ALAC 无损直通，外出时可选 320 / 192 / 128kbps 转码档。
 
 N1KO MUSIC 完全免费开源，所有功能开箱即用。
 
@@ -35,39 +48,29 @@ N1KO MUSIC 完全免费开源，所有功能开箱即用。
 
 ## 界面预览
 
+### 正在播放
+
+封面晕染氛围、衬线歌词流、当前句朱红标记，点击任意一句跳转。
+
+![正在播放](docs/screenshots/v2/player.gif)
+
+### 首页 · 杂志封面
+
+本期封面头条、最近添加编号列表、热门歌手文字索引——像翻开一本刊物的目录页。
+
+![首页](docs/screenshots/v2/home.png)
+
+### 专辑 · 内页档案
+
+大封面、档案式元信息、发丝线曲目表。
+
+![专辑详情](docs/screenshots/v2/album.png)
+
 ### 连接服务器
 
-支持 Navidrome、Subsonic、Jellyfin、Emby 四种主流音乐服务器，一键连接你的私人音乐库。
+Navidrome / Subsonic / Jellyfin / Emby，即连即用。
 
-| 选择服务器 | 登录连接 |
-|:---------:|:-------:|
-| ![服务器选择](docs/screenshots/connect.png) | ![登录连接](docs/screenshots/login.png) |
-
-### 首页
-
-最新专辑、最近添加、热门歌手一览无余，深浅双主题一键切换。
-
-| 深色模式 | 浅色模式 |
-|:-------:|:-------:|
-| ![深色模式](docs/screenshots/home-dark.png) | ![浅色模式](docs/screenshots/home-light.png) |
-
-### 全屏播放器
-
-封面取色的沉浸式氛围背景，实时滚动歌词，点击任意一句即可跳转。
-
-![全屏播放器](docs/screenshots/player.png)
-
-### 听歌统计
-
-你的音乐数据报告：播放次数、总时长、最爱歌曲 / 歌手 / 专辑，一目了然。
-
-![听歌统计](docs/screenshots/stats.png)
-
-### 设置
-
-服务器管理、主题与强调色、音质档位、自定义封面与歌词接口。
-
-![设置](docs/screenshots/settings.png)
+![连接服务器](docs/screenshots/v2/login.png)
 
 <br/>
 
@@ -75,28 +78,28 @@ N1KO MUSIC 完全免费开源，所有功能开箱即用。
 
 **播放体验**
 
-- 沉浸式全屏播放器，封面取色氛围背景与实时同步歌词
+- 杂志式全屏播放器：封面取色晕染、衬线歌词流、点击歌词跳转
 - 无损直通（FLAC / WAV / ALAC）与 320 / 192 / 128kbps 转码档位
 - 完整播放队列：随机、循环、单曲循环、拖拽排序、下一首插队
-- 全局键盘快捷键与系统媒体键（MediaSession）支持
+- 全局键盘快捷键与系统媒体键（MediaSession）
 
 **音乐库与发现**
 
-- 歌曲、专辑、歌手、歌单一体化浏览，无限滚动加载
-- 跨全库的即时搜索，为你推荐随机发现
-- 本地播放历史与可视化听歌统计
+- 歌曲、专辑、歌手、歌单一体化浏览，无限滚动
+- 跨全库即时搜索；「为你推荐」按收听、收藏与跳过行为动态生成
+- 本地播放历史与杂志数据版式的听歌统计
 - 播放行为按真实收听时长上报服务器（兼容 Last.fm Scrobble）
 
 **自定义接口**
 
 - 自定义封面与歌词 API，支持 `{artist}` / `{album}` / `{title}` 占位符
-- 服务器数据与自定义接口的优先级可控
+- 服务器数据与自定义接口优先级可控，歌词可手动搜索并缓存
 
 **桌面应用**
 
-- macOS（Apple Silicon + Intel）、Windows、Linux 三平台原生构建
-- 深浅主题跟随系统，五种强调色预设
-- 基于 Tauri 2，安装包轻量、内存占用远低于 Electron
+- macOS（Apple Silicon + Intel）、Windows、Linux 原生构建
+- 深浅主题跟随系统；黑胶 / 方形封面两种播放器形态
+- 基于 Tauri 2：安装包 ~4MB，内存占用远低于 Electron
 
 <br/>
 
@@ -119,7 +122,7 @@ N1KO MUSIC 完全免费开源，所有功能开箱即用。
 
 ## 下载安装
 
-前往 **[Releases](https://github.com/baogutang/N1KO-MUSIC/releases/latest)** 页面下载对应平台的安装包：
+前往 **[Releases](https://github.com/baogutang/N1KO-MUSIC/releases/latest)** 下载对应平台安装包：
 
 | 平台 | 安装包 |
 |------|--------|
@@ -137,7 +140,7 @@ N1KO MUSIC 完全免费开源，所有功能开箱即用。
 | 模块 | 技术 |
 |------|-----|
 | 前端 | React 18 · TypeScript · Vite 5 · Tailwind CSS |
-| UI | Radix UI · shadcn/ui · Phosphor Icons |
+| UI | Radix UI · Phosphor Icons · 自托管字体（Source Serif 4 / Hanken Grotesk / JetBrains Mono） |
 | 状态与数据 | Zustand · TanStack Query v5 |
 | 音频引擎 | 原生 HTML5 Audio |
 | 桌面框架 | Tauri 2 (Rust) |
@@ -187,7 +190,7 @@ N1KO MUSIC 的诞生离不开以下优秀开源项目的启发与支持：
 
 - [StreamMusic](https://github.com/gitbobobo/StreamMusic) 一款优秀的 Flutter 移动端 NAS 音乐播放器，精良的 UI 与 UX 给了本项目很多灵感
 - [Navidrome](https://www.navidrome.org/) 出色的开源 Subsonic 服务端
-- [Radix UI](https://www.radix-ui.com/) · [shadcn/ui](https://ui.shadcn.com/) · [TanStack Query](https://tanstack.com/query) · [Zustand](https://github.com/pmndrs/zustand)
+- [Radix UI](https://www.radix-ui.com/) · [TanStack Query](https://tanstack.com/query) · [Zustand](https://github.com/pmndrs/zustand)
 
 <br/>
 
@@ -206,7 +209,7 @@ N1KO MUSIC 的诞生离不开以下优秀开源项目的启发与支持：
 
 <div align="center">
 
-由 [N1KO](https://github.com/baogutang) 打造
+由 [N1KO](https://github.com/baogutang) 打造 · 顺便看看 **[N1KO-API](https://token.baogutang.top)**
 
 如果 N1KO MUSIC 对你有帮助，请点一个 ⭐，这对我意义非凡。
 
