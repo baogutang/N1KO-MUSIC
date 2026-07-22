@@ -1,15 +1,16 @@
 /**
- * 歌词同步显示组件
- * - 自动滚动、高亮当前行（Apple Music 风格）
- * - 手动滚动后暂停自动滚动 3 秒，然后恢复
- * - 支持自定义高亮颜色（读取 settingsStore）
+ * 歌词同步显示组件 — 杂志编辑风（docs/redesign/v2/DESIGN.md §4.3）
+ * - 衬线歌词流：过去行 ink-faint / 当前行 ink 700 + 前导 accent 短红线 / 未来行 ink-soft
+ * - 自动滚动、高亮当前行；手动滚动后暂停自动滚动 3 秒，然后恢复
+ * - 高亮色统一跟随 accent（DESIGN §1.3 单一强调色）：
+ *   settingsStore 的 lyricsHighlightColor 自定义字段按重构约定忽略
  * - 点击歌词行跳转到对应时间
  *
  * 性能优化：
  * - 自行订阅 playerStore.currentTime（不再由父组件 prop 传递，
  *   避免父组件因 currentTime 高频更新而重渲染）
  * - 只在 currentIndex 变化时更新 DOM 样式
- * - 移除昂贵的 per-line filter: blur()，改用纯 opacity 实现远近效果
+ * - 纯 color/transform 过渡，无 per-line filter 等昂贵效果
  */
 
 import { useRef, useEffect, useCallback, useMemo, memo } from 'react'
@@ -38,8 +39,6 @@ interface LyricDisplayProps {
   currentTimeSec?: number
   /** 是否紧凑模式（全屏播放器用大字，侧边栏用小字）*/
   variant?: 'fullscreen' | 'panel'
-  /** 非高亮行的基础颜色，全屏播放器传 'white'，普通模式不传 */
-  baseColor?: 'white' | 'default'
   className?: string
 }
 
@@ -47,7 +46,6 @@ export const LyricDisplay = memo(function LyricDisplay({
   lines,
   currentTimeSec: externalTime,
   variant = 'fullscreen',
-  baseColor = 'default',
   className,
 }: LyricDisplayProps) {
   // 自行从 store 订阅 currentTime（如果外部没传）
@@ -60,7 +58,8 @@ export const LyricDisplay = memo(function LyricDisplay({
     offset: 500,
   })
 
-  const { lyricsHighlightColor, lyricsFontSize } = useSettingsStore()
+  // 歌词字号设置（14–36px）仍然生效，基准改为衬线
+  const lyricsFontSize = useSettingsStore(s => s.lyricsFontSize)
 
   // 展示用文本：剥离逐字时间戳残留；纯时间行（清洗后为空）显示 ♪ 占位
   const displayTexts = useMemo(
@@ -148,7 +147,7 @@ export const LyricDisplay = memo(function LyricDisplay({
   if (!hasLyrics) {
     return (
       <div className={cn('flex items-center justify-center h-full', className)}>
-        <p className="text-muted-foreground text-sm">暂无歌词</p>
+        <p className="font-serif text-[15px] text-ink-faint">纯音乐，或无歌词可用</p>
       </div>
     )
   }
@@ -163,7 +162,7 @@ export const LyricDisplay = memo(function LyricDisplay({
       )}
       style={{
         scrollBehavior: 'smooth',
-        // 上下 22% 渐隐遮罩（DESIGN.md §4 全屏播放页）
+        // 上下 22% 渐隐遮罩（DESIGN.md §4.3 正在播放页）
         ...(variant === 'fullscreen'
           ? {
               maskImage: 'linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent)',
@@ -177,12 +176,8 @@ export const LyricDisplay = memo(function LyricDisplay({
         variant === 'fullscreen' ? 'min-h-full flex flex-col justify-center' : ''
       )}>
         {lines.map((line, index) => {
-          const isActive = index === currentIndex
+          const isActive = isSynced && index === currentIndex
           const isClickable = isSynced && line.time >= 0
-
-          // 纯 opacity 方案（移除昂贵的 per-line filter: blur()）：
-          // 当前行 1，非当前行 0.55（DESIGN.md §4），未同步歌词整体 0.85
-          const lineOpacity = isActive ? 1 : isSynced ? 0.55 : 0.85
 
           return (
             <p
@@ -190,24 +185,28 @@ export const LyricDisplay = memo(function LyricDisplay({
               ref={isActive ? activeLineRef : null}
               onClick={() => handleLineClick(line)}
               className={cn(
-                'leading-relaxed text-center',
+                'flex items-center font-serif leading-relaxed text-left origin-left',
+                'transition-[color,transform] duration-300 ease-[var(--ease)]',
+                // 过去行 ink-faint / 当前行 ink 700 / 未来行 ink-soft；未同步整体 ink-soft
+                isActive
+                  ? 'text-ink font-bold translate-x-1'
+                  : isSynced && index < currentIndex
+                    ? 'text-ink-faint'
+                    : 'text-ink-soft',
                 isClickable ? 'cursor-pointer select-none' : 'select-none',
-                isClickable && !isActive && 'hover:scale-[1.02]',
-                !isActive && baseColor === 'default' && 'text-muted-foreground',
+                isClickable && !isActive && 'hover:text-ink hover:translate-x-1',
               )}
               style={{
-                fontSize: variant === 'fullscreen' ? `${lyricsFontSize}px` : undefined,
-                fontWeight: variant === 'fullscreen' ? 700 : undefined,
-                color: isActive
-                  ? lyricsHighlightColor
-                  : baseColor === 'white' ? 'rgba(255,255,255,0.85)' : undefined,
-                opacity: lineOpacity,
-                transform: isActive ? 'scale(1.05)' : undefined,
-                transformOrigin: 'center center',
-                transition: 'opacity 0.45s ease, transform 0.45s ease, color 0.45s ease',
+                fontSize: variant === 'fullscreen' ? `${lyricsFontSize}px` : '14px',
               }}
             >
-              {displayTexts[index]}
+              {/* 前导 accent 短红线（2px × 18px），仅当前行可见；占位固定避免行间错位 */}
+              <span
+                aria-hidden="true"
+                className="flex-none w-[18px] h-[2px] mr-3 rounded-full bg-primary transition-opacity duration-300"
+                style={{ opacity: isActive ? 1 : 0 }}
+              />
+              <span className="min-w-0">{displayTexts[index]}</span>
             </p>
           )
         })}

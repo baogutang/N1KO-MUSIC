@@ -31,49 +31,14 @@ import { useServerStore } from '@/store/serverStore'
 import { useSettingsStore, QUALITY_MAX_BITRATE } from '@/store/settingsStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
-
-/** 本地播放历史写入（与 History.tsx 共用同一格式）*/
-const HISTORY_KEY = 'msp-play-history'
-
-/**
- * 清理 localStorage 中的封面缓存，释放配额空间
- * 当历史写入因 QuotaExceededError 失败时调用
- */
-function clearCoverCache() {
-  const keysToRemove: string[] = []
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (key?.startsWith('msp-cover:')) keysToRemove.push(key)
-  }
-  keysToRemove.forEach(k => localStorage.removeItem(k))
-  if (keysToRemove.length) {
-    console.info('[History] cleared', keysToRemove.length, 'cover cache entries to free space')
-  }
-}
-
-function recordPlayToHistory(song: ReturnType<typeof usePlayerStore.getState>['currentSong']) {
-  if (!song) return
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY)
-    const history: Array<{ song: typeof song; playedAt: number }> = raw ? JSON.parse(raw) : []
-    const filtered = history.filter(e => e.song?.id !== song.id)
-    const updated = [{ song, playedAt: Date.now() }, ...filtered].slice(0, 500)
-    const payload = JSON.stringify(updated)
-    try {
-      localStorage.setItem(HISTORY_KEY, payload)
-    } catch {
-      // QuotaExceededError：清理封面缓存后重试
-      console.warn('[History] localStorage quota exceeded, clearing cover cache...')
-      clearCoverCache()
-      localStorage.setItem(HISTORY_KEY, payload)
-    }
-    // 通知订阅者（History / Stats 页面）历史已更新
-    window.dispatchEvent(new CustomEvent('msp-history-updated'))
-    console.info('[History] recorded:', song.title)
-  } catch (e) {
-    console.error('[History] failed to write localStorage:', e)
-  }
-}
+import type { Song } from '@/api/types'
+import {
+  createListeningEventId,
+  deriveListeningOutcome,
+  getScrobbleThreshold,
+  upsertListeningEvent,
+  type ListeningOutcome,
+} from '@/services/listeningHistory'
 
 /**
  * 强制中止所有未完成的 <img> HTTP 请求，立即释放同源连接池
@@ -130,6 +95,47 @@ let listenedPrevT = -1
 let nowPlayingSent = false
 /** submission=true 的播放提交（及历史记录）是否已完成 */
 let playSubmitted = false
+/** 当前播放会话。使用 eventId upsert，阈值记录与结束记录不会生成两条播放。 */
+let playEventId: string | null = null
+let playEventSong: Song | null = null
+let playEventServerId: string | null = null
+let playEventStartedAt = 0
+let lastPersistedListenedSec = 0
+
+function resetListeningSession() {
+  playEventId = null
+  playEventSong = null
+  playEventServerId = null
+  playEventStartedAt = 0
+  lastPersistedListenedSec = 0
+}
+
+function startListeningSession(song: Song, serverId: string) {
+  if (playEventId) return
+  playEventId = createListeningEventId()
+  playEventSong = { ...song, serverId }
+  playEventServerId = serverId
+  playEventStartedAt = Date.now()
+  lastPersistedListenedSec = 0
+}
+
+function persistListeningSession(outcomeOverride?: ListeningOutcome) {
+  if (!playEventId || !playEventSong || !playEventServerId || listenedSec < 1) return
+  const duration = Math.max(0, playEventSong.duration || 0)
+  const outcome = outcomeOverride ?? deriveListeningOutcome(listenedSec, duration)
+  upsertListeningEvent({
+    version: 2,
+    eventId: playEventId,
+    serverId: playEventServerId,
+    song: playEventSong,
+    startedAt: playEventStartedAt || Date.now() - listenedSec * 1000,
+    endedAt: Date.now(),
+    listenedSeconds: Math.round(listenedSec * 10) / 10,
+    completionRate: duration > 0 ? Math.max(0, Math.min(1, listenedSec / duration)) : 0,
+    outcome,
+  })
+  lastPersistedListenedSec = listenedSec
+}
 
 /**
  * 模块级「最近真实播放位置」— 由 timeupdate 持续记录，load() 复位到 0 不覆盖。
@@ -187,10 +193,12 @@ function isAtBufferedTail(audio: HTMLAudioElement, currentTime: number, gapSec =
 
 export function useAudioEngine() {
   const currentSong = usePlayerStore(s => s.currentSong)
+  const currentSongId = currentSong?.id ?? null
   const isPlaying   = usePlayerStore(s => s.isPlaying)
   const volume      = usePlayerStore(s => s.volume)
   const muted       = usePlayerStore(s => s.muted)
   const isConnected = useServerStore(s => s.isConnected)
+  const activeServerId = useServerStore(s => s.activeServerId)
   const audioQuality = useSettingsStore(s => s.audioQuality)
   const playVersion  = usePlayerStore(s => s.playVersion)
   const effectiveQuality = audioQuality
@@ -200,14 +208,24 @@ export function useAudioEngine() {
 
   const volumeRef   = useRef(volume)
   const mutedRef    = useRef(muted)
+  const currentSongRef = useRef(currentSong)
   volumeRef.current = volume
   mutedRef.current  = muted
+  currentSongRef.current = currentSong
 
   // --- 核心：歌曲变化 / 连接就绪 / 音质变化 时加载音频 ---
   useEffect(() => {
-    const songId = currentSong?.id ?? null
+    const activeSong = currentSongRef.current
+    const songId = currentSongId
 
-    if (!songId || !currentSong) {
+    if (!songId || !activeSong) {
+      persistListeningSession()
+      resetListeningSession()
+      playStatKey = null
+      listenedSec = 0
+      listenedPrevT = -1
+      nowPlayingSent = false
+      playSubmitted = false
       // 清除未触发的 debounce
       if (loadDebounceTimer !== null) {
         clearTimeout(loadDebounceTimer)
@@ -227,17 +245,24 @@ export function useAudioEngine() {
       return
     }
 
-    if (!isConnected || !hasAdapter()) {
+    if (!isConnected || !activeServerId || !hasAdapter()) {
+      persistListeningSession()
+      resetListeningSession()
+      if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
+      audioEl.pause()
+      audioEl.src = ''
+      loadedKey = null
       usePlayerStore.getState().setStreamBuffering(false)
       return
     }
 
-    const currentKey = `${songId}@${effectiveQuality}@${playVersion}`
+    const currentKey = `${activeServerId}:${songId}@${effectiveQuality}@${playVersion}`
 
     // 捕获当前歌曲 id，供 debounce 内校验
     const capturedSongId = songId
     const capturedKey = currentKey
-    const capturedSong = currentSong
+    const capturedSong = activeSong
+    const capturedServerId = activeServerId
 
     /**
      * 同曲同版本、仅音质变化（会员状态/音质设置变更）触发的重载：
@@ -394,11 +419,14 @@ export function useAudioEngine() {
         if (playSubmitted || playStatKey !== capturedKey) return
         const st = usePlayerStore.getState()
         const dur = capturedSong.duration || st.duration || 0
-        const threshold = dur > 0 ? Math.min(dur / 2, 240) : 240
+        const threshold = getScrobbleThreshold(dur)
         if (listenedSec < threshold) return
         playSubmitted = true
-        try { getAdapter().scrobble(capturedSongId, true) } catch { /* ignore */ }
-        recordPlayToHistory(st.currentSong?.id === capturedSongId ? st.currentSong : capturedSong)
+        void getAdapter().scrobble(capturedSongId, true).catch(error => {
+          playSubmitted = false
+          console.warn('[AudioEngine] scrobble submission failed; will retry:', error)
+        })
+        persistListeningSession('qualified')
       }
 
       // timeupdate 节流：浏览器原生约 250ms 触发一次，但 zustand 广播开销不低
@@ -436,6 +464,9 @@ export function useAudioEngine() {
                 recoverAttempts = 0
                 healthyPlaySec = 0
               }
+            }
+            if (listenedSec - lastPersistedListenedSec >= 30) {
+              persistListeningSession()
             }
           }
           listenedPrevT = t
@@ -486,11 +517,15 @@ export function useAudioEngine() {
 
       const onPlay = () => {
         usePlayerStore.getState().resume()
+        startListeningSession(capturedSong, capturedServerId)
         // now-playing 通知在真正开始播放时才发送一次
         // （启动时 rehydrate 的歌只加载不播放，不应上报）
         if (!nowPlayingSent && playStatKey === capturedKey) {
           nowPlayingSent = true
-          try { getAdapter().scrobble(capturedSongId, false) } catch { /* ignore */ }
+          void getAdapter().scrobble(capturedSongId, false).catch(error => {
+            nowPlayingSent = false
+            console.warn('[AudioEngine] now-playing report failed; will retry:', error)
+          })
         }
       }
 
@@ -548,7 +583,9 @@ export function useAudioEngine() {
         }
         clearStallWatch()
         maybeSubmitPlay()
-        usePlayerStore.getState().next()
+        persistListeningSession('completed')
+        resetListeningSession()
+        usePlayerStore.getState().advanceOnEnded()
       }
 
       stallWatchInterval = setInterval(() => {
@@ -598,7 +635,9 @@ export function useAudioEngine() {
             { currentTime: t, songDur, audioDur }
           )
           clearStallWatch()
-          st.next()
+          persistListeningSession('completed')
+          resetListeningSession()
+          st.advanceOnEnded()
           return
         }
 
@@ -704,6 +743,7 @@ export function useAudioEngine() {
           variant: 'destructive',
         })
         usePlayerStore.getState().setStreamBuffering(false)
+        persistListeningSession()
         usePlayerStore.getState().pause()
       }
 
@@ -736,13 +776,22 @@ export function useAudioEngine() {
         audio.volume = mutedRef.current ? 0 : volumeRef.current
         audio.load()
 
-        // 新的一次播放：重置播放统计（now-playing / scrobble 提交 / 历史都归本次）
-        // 模块级状态脱离 React 生命周期，reattach（同 key 重挂监听）时不重置
+        // 音质切换属于同一次收听，保留累计时长和 eventId；真正切歌才结算旧会话。
+        const continuingQualitySwitch =
+          qualitySwitchResumeAt !== null &&
+          playEventSong?.id === capturedSongId &&
+          playEventServerId === capturedServerId
+        if (!continuingQualitySwitch) {
+          persistListeningSession()
+          resetListeningSession()
+          listenedSec = 0
+          listenedPrevT = -1
+          nowPlayingSent = false
+          playSubmitted = false
+        } else {
+          listenedPrevT = qualitySwitchResumeAt ?? -1
+        }
         playStatKey = capturedKey
-        listenedSec = 0
-        listenedPrevT = -1
-        nowPlayingSent = false
-        playSubmitted = false
 
         // 恢复状态归本次加载：音质切换重载时带上切换前位置，其余从头开始
         recoverAttempts = 0
@@ -809,7 +858,12 @@ export function useAudioEngine() {
       // songId 可能含 @，从右侧解析）：这类重载必须保位续播，不能从头重播。
       // playVersion 相同说明不是用户切歌/重播（那些都会 bump version）
       const m = /^(.+)@([^@]+)@([^@]+)$/.exec(loadedKey)
-      if (m && m[1] === songId && m[3] === String(playVersion) && m[2] !== effectiveQuality) {
+      if (
+        m &&
+        m[1] === `${activeServerId}:${songId}` &&
+        m[3] === String(playVersion) &&
+        m[2] !== effectiveQuality
+      ) {
         const st = usePlayerStore.getState()
         qualitySwitchResumeAt = Math.max(
           st.currentTime || 0,
@@ -831,7 +885,7 @@ export function useAudioEngine() {
     // 重置进度（音质切换保留原位置），用服务器返回的 duration 作为初始值（避免进度条为 0）
     usePlayerStore.getState().setCurrentTime(qualitySwitchResumeAt ?? 0)
     usePlayerStore.getState().setBuffered(0)
-    const knownDurationEarly = currentSong.duration ?? 0
+    const knownDurationEarly = activeSong.duration ?? 0
     usePlayerStore.getState().setDuration(knownDurationEarly > 0 ? knownDurationEarly : 0)
 
     if (isFirstPlay) {
@@ -856,7 +910,21 @@ export function useAudioEngine() {
 
     // 依赖歌曲 id 而非对象引用：updateCurrentSong（如收藏切换）只替换引用不换歌，
     // 不应触发本 effect，否则会 cleanup 后重载导致从头重播
-  }, [currentSong?.id, playVersion, isConnected, effectiveQuality, queryClient])
+  }, [currentSongId, playVersion, isConnected, activeServerId, effectiveQuality, queryClient])
+
+  // MainLayout 卸载（登出/断开连接）时模块级 Audio 仍会存活，必须显式停止。
+  useEffect(() => () => {
+    persistListeningSession()
+    resetListeningSession()
+    if (loadDebounceTimer !== null) {
+      clearTimeout(loadDebounceTimer)
+      loadDebounceTimer = null
+    }
+    if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
+    audioEl.pause()
+    audioEl.src = ''
+    loadedKey = null
+  }, [])
 
   // --- 播放/暂停控制 ---
   useEffect(() => {
@@ -878,12 +946,4 @@ export function useAudioEngine() {
     audioEl.volume = muted ? 0 : volume
   }, [volume, muted])
 
-  // --- 卸载清理 ---
-  useEffect(() => () => {
-    if (loadDebounceTimer !== null) {
-      clearTimeout(loadDebounceTimer)
-      loadDebounceTimer = null
-    }
-    if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
-  }, [])
 }

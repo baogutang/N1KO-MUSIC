@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N1KO MUSIC · 重构方案选择</title>
+<style>
+  :root {
+    --paper: #f7f5f0;
+    --ink: #1c1b17;
+    --ink-2: #6f6a5e;
+    --hairline: #ddd8cc;
+    --accent: #d9482b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 28px 48px 20px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .brand { font-size: 13px; letter-spacing: .22em; font-weight: 600; }
+  .meta { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  main {
+    flex: 1;
+    max-width: 1080px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 72px 48px 96px;
+  }
+  h1 {
+    font-family: "Songti SC", "Noto Serif SC", "SimSun", serif;
+    font-size: 44px;
+    font-weight: 900;
+    letter-spacing: -.01em;
+    line-height: 1.2;
+    margin-bottom: 14px;
+  }
+  .lede { color: var(--ink-2); font-size: 15px; max-width: 56ch; line-height: 1.8; margin-bottom: 64px; }
+  .options { display: flex; flex-direction: column; }
+  a.option {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    align-items: baseline;
+    gap: 28px;
+    padding: 30px 8px;
+    border-top: 1px solid var(--hairline);
+    text-decoration: none;
+    color: inherit;
+    transition: background .25s ease, padding-left .25s ease;
+  }
+  a.option:last-child { border-bottom: 1px solid var(--hairline); }
+  a.option:hover { background: #fffdf8; padding-left: 20px; }
+  .num {
+    font-family: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+    font-size: 13px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .name {
+    font-family: "Songti SC", "Noto Serif SC", serif;
+    font-size: 26px;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .desc { font-size: 13.5px; color: var(--ink-2); line-height: 1.7; max-width: 62ch; }
+  .go {
+    font-size: 12px;
+    letter-spacing: .14em;
+    color: var(--ink-2);
+    transition: color .25s ease, transform .25s ease;
+  }
+  a.option:hover .go { color: var(--accent); transform: translateX(4px); }
+  footer {
+    padding: 20px 48px;
+    border-top: 1px solid var(--hairline);
+    font-size: 12px;
+    color: var(--ink-2);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">N1KO MUSIC</div>
+    <div class="meta">前端重构 · 设计方向评审 · 2026-07-21</div>
+  </header>
+  <main>
+    <h1>三个方向，挑一个。</h1>
+    <p class="lede">每版都是可点击的高保真 demo：播放、切歌、进度、浮层均为真实交互逻辑。确认方向后，将按该方案重构整个前端（React + Tailwind，保持现有功能不变）。</p>
+    <div class="options">
+      <a class="option" href="./demo-editorial.html">
+        <span class="num">A</span>
+        <span>
+          <span class="name">杂志编辑风</span>
+          <span class="desc">大衬线标题、编号列表、发丝线，封面即内容。像一本可播放的音乐杂志——与 Spotify 式界面差异最大，高级感最强。</span>
+        </span>
+        <span class="go">查看 →</span>
+      </a>
+      <a class="option" href="./demo-player.html">
+        <span class="num">B</span>
+        <span>
+          <span class="name">沉浸播放中枢</span>
+          <span class="desc">「正在播放」就是 App 本身：封面取色晕染背景，曲库以浮层唤出。最激进，交互重构最大，氛围感最强。</span>
+        </span>
+        <span class="go">查看 →</span>
+      </a>
+      <a class="option" href="./demo-console.html">
+        <span class="num">C</span>
+        <span>
+          <span class="name">音响控制台</span>
+          <span class="desc">浅色硬件设备感：LCD 读数条、VU 表、音量旋钮、密集曲目表。Braun / Teenage Engineering 美学，最极客。</span>
+        </span>
+        <span class="go">查看 →</span>
+      </a>
+    </div>
+  </main>
+  <footer>
+    <span>docs/redesign/v2/</span>
+    <span>确认方向后开始全量重构</span>
+  </footer>
+</body>
+</html>

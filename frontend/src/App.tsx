@@ -46,14 +46,8 @@ export default function App() {
   const { resolvedTheme } = useThemeStore()
 
   useEffect(() => {
-    const root = document.documentElement
-    if (resolvedTheme === 'light') {
-      root.classList.add('light')
-      root.classList.remove('dark')
-    } else {
-      root.classList.remove('light')
-      root.classList.add('dark')
-    }
+    // 浅色为默认（无 class），深色为 'dark' class
+    document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
   }, [resolvedTheme])
 
   return (

@@ -1,6 +1,6 @@
 /**
- * 专辑卡片组件
- * 用于网格列表展示专辑
+ * 专辑卡片组件 —— 封面墙单元（DESIGN v2 §3「封面即内容」）
+ * 去卡片边框与阴影盒：纯封面 + 图注（衬线专辑名 + 小字歌手）
  */
 
 import { Play } from '@phosphor-icons/react'
@@ -54,9 +54,9 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
       className={cn('group cursor-pointer min-w-0', className)}
       onClick={() => navigate(`/albums/${album.id}`)}
     >
-      {/* 封面 */}
-      <div className="relative mb-3">
-        <div className="aspect-square overflow-hidden rounded-lg ring-1 ring-border shadow-md transition-all duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-xl">
+      {/* 封面：无卡片盒，hover 微放大 + 唯一允许的淡投影 */}
+      <div className="relative mb-2.5">
+        <div className="aspect-square overflow-hidden rounded-md ring-1 ring-hair-soft transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:shadow-float">
           <ImageWithFallback
             src={coverUrl}
             alt={album.name}
@@ -65,24 +65,25 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
             customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
           />
         </div>
-        {/* 播放按钮悬停浮现 */}
+        {/* 播放键：细线圆，hover 浮现；再 hover 填充 accent */}
         <button
           onClick={handlePlay}
-          className="absolute right-2.5 bottom-2.5 w-[38px] h-[38px] rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 hover:brightness-110 active:scale-[0.94]"
+          aria-label="播放整张专辑"
+          className="absolute right-2.5 bottom-2.5 w-9 h-9 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 hover:bg-primary hover:border-primary active:scale-[0.94]"
         >
-          <Play className="w-[17px] h-[17px] ml-0.5" weight="fill" />
+          <Play className="w-3.5 h-3.5 ml-px" weight="fill" />
         </button>
       </div>
 
-      {/* 信息 */}
-      <div className="min-w-0 px-1 pb-2">
-        <p className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">
+      {/* 图注：衬线专辑名 + 小字歌手 */}
+      <div className="min-w-0 px-0.5">
+        <p className="font-serif font-semibold text-[15px] leading-snug text-foreground truncate group-hover:text-primary transition-colors">
           {album.name}
         </p>
-        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+        <p className="text-xs text-ink-soft mt-0.5 truncate">
           {album.artist}
           {album.year && (
-            <span className="ml-1 font-num text-muted-foreground/60">· {album.year}</span>
+            <span className="ml-1 font-num text-ink-faint">· {album.year}</span>
           )}
         </p>
       </div>

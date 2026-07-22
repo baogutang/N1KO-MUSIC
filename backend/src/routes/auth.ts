@@ -1,20 +1,38 @@
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
-import { v4 as uuidv4 } from 'uuid'
+import { randomUUID } from 'crypto'
 import db from '../db/database'
 import { signToken, authMiddleware } from '../middleware/auth'
+import { BCRYPT_ROUNDS } from '../config'
+import { parseRequest, passwordSchema, usernameSchema } from '../validation'
+import { z } from 'zod'
 
 const router = Router()
+const existingPasswordSchema = z.string().min(1).max(128).refine(
+  value => Buffer.byteLength(value, 'utf8') <= 72,
+  'Password must not exceed 72 UTF-8 bytes',
+)
+const registerSchema = z.object({
+  username: usernameSchema,
+  password: passwordSchema,
+}).strict()
+const loginSchema = z.object({
+  // Do not normalize here: legacy versions allowed surrounding whitespace in stored usernames.
+  username: z.string().min(1).max(256),
+  password: existingPasswordSchema,
+}).strict()
+const changePasswordSchema = z.object({
+  currentPassword: existingPasswordSchema,
+  newPassword: passwordSchema,
+}).strict()
+// Keep the expensive bcrypt path for unknown users to reduce username timing leakage.
+const dummyPasswordHash = bcrypt.hashSync('n1ko-music-dummy-password', BCRYPT_ROUNDS)
 
 // POST /api/auth/register
 router.post('/register', async (req: Request, res: Response) => {
-  const { username, password } = req.body
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required' })
-  }
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters' })
-  }
+  const parsed = parseRequest(registerSchema, req.body, res)
+  if (!parsed.success) return
+  const { username, password } = parsed.data
 
   try {
     const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username)
@@ -22,8 +40,8 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'Username already exists' })
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10)
-    const userId = uuidv4()
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS)
+    const userId = randomUUID()
     db.prepare('INSERT INTO users (id, username, password) VALUES (?, ?, ?)').run(
       userId, username, hashedPassword
     )
@@ -43,16 +61,16 @@ router.post('/register', async (req: Request, res: Response) => {
 
 // POST /api/auth/login
 router.post('/login', async (req: Request, res: Response) => {
-  const { username, password } = req.body
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required' })
-  }
+  const parsed = parseRequest(loginSchema, req.body, res)
+  if (!parsed.success) return
+  const { username, password } = parsed.data
 
   try {
     const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as
       { id: string; username: string; password: string; token_version: number } | undefined
 
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    const passwordMatches = await bcrypt.compare(password, user?.password ?? dummyPasswordHash)
+    if (!user || !passwordMatches) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
@@ -71,9 +89,11 @@ router.get('/me', authMiddleware, (req: Request, res: Response) => {
 
 // POST /api/auth/change-password
 router.post('/change-password', authMiddleware, async (req: Request, res: Response) => {
-  const { currentPassword, newPassword } = req.body
-  if (!currentPassword || !newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: 'Invalid request' })
+  const parsed = parseRequest(changePasswordSchema, req.body, res)
+  if (!parsed.success) return
+  const { currentPassword, newPassword } = parsed.data
+  if (currentPassword === newPassword) {
+    return res.status(400).json({ error: 'New password must be different from current password' })
   }
 
   try {
@@ -84,7 +104,7 @@ router.post('/change-password', authMiddleware, async (req: Request, res: Respon
       return res.status(401).json({ error: 'Current password is incorrect' })
     }
 
-    const hashed = await bcrypt.hash(newPassword, 10)
+    const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
     // 递增 token_version，使改密前签发的所有令牌立即失效
     db.prepare('UPDATE users SET password = ?, token_version = token_version + 1 WHERE id = ?')
       .run(hashed, user.id)

@@ -141,7 +141,7 @@ N1KO MUSIC 完全免费开源，所有功能开箱即用。
 | 状态与数据 | Zustand · TanStack Query v5 |
 | 音频引擎 | 原生 HTML5 Audio |
 | 桌面框架 | Tauri 2 (Rust) |
-| 数据后端 | Node.js (Express) · SQLite |
+| 可选同步服务 | Node.js 24 · Express · SQLite |
 
 ### 本地开发
 
@@ -152,6 +152,32 @@ npm install
 npm run dev          # Web 开发模式
 npm run tauri:dev    # 桌面应用开发模式
 ```
+
+### 可选同步服务
+
+`backend/` 提供账号、本地歌单和播放历史 API，面向后续跨设备同步或第三方客户端。
+当前发布的桌面客户端仍直接连接音乐服务器，**不会自动连接该服务**。
+
+```bash
+cd backend
+npm ci
+npm test
+JWT_SECRET="请替换为足够长的随机值" DATA_DIR=./data npm start
+```
+
+Docker 部署时必须挂载 `/app/data`，否则容器重建后数据库与自动生成的 JWT 密钥会丢失：
+
+```bash
+docker build -t n1ko-music-backend backend
+docker run -d --name n1ko-music-backend \
+  -p 3001:3001 \
+  -v n1ko-music-data:/app/data \
+  -e JWT_SECRET="请替换为足够长的随机值" \
+  n1ko-music-backend
+```
+
+可用环境变量：`PORT`、`DATA_DIR`、`JWT_SECRET`、`FRONTEND_URLS`（逗号分隔）、
+`TRUST_PROXY_HOPS`、`RATE_LIMIT_MAX`、`AUTH_RATE_LIMIT_MAX`。数据库升级前会在数据目录自动创建一致性备份。
 
 <br/>
 

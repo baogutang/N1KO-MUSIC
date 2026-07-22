@@ -1,37 +1,44 @@
 {
   "name": "n1ko-music-backend",
   "version": "1.2.5",
-  "description": "N1KO MUSIC - Minimal Node.js backend for local playlist & stats",
+  "description": "Optional N1KO MUSIC sync service for accounts, playlists and listening history",
+  "license": "MIT",
+  "repository": "https://github.com/baogutang/N1KO-MUSIC",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});\" && tsc && node -e \"const fs=require('fs');fs.mkdirSync('dist/db',{recursive:true});fs.copyFileSync('src/db/schema.sql','dist/db/schema.sql');\"",
     "start": "node dist/index.js",
-    "db:init": "npm run build && node dist/db/init.js"
+    "db:init": "npm run build && node dist/db/init.js",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "check": "npm test && npm audit --omit=dev"
   },
   "dependencies": {
-    "better-sqlite3": "^9.4.3",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.11.1",
     "cors": "^2.8.5",
     "express": "^4.18.3",
-    "jsonwebtoken": "^9.0.2",
-    "bcryptjs": "^2.4.3",
+    "express-rate-limit": "^8.6.0",
     "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "uuid": "^9.0.1"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.6",
-    "@types/bcryptjs": "^2.4.6",
     "@types/morgan": "^1.9.9",
-    "@types/node": "^20.11.24",
-    "@types/uuid": "^9.0.8",
+    "@types/node": "^24.13.3",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.2"
+    "typescript": "~5.9.3"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24 <25"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
   }
 }

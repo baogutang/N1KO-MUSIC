@@ -122,7 +122,13 @@ export const useSettingsStore = create<SettingsState>()(
       translateType: '无',
       audioQuality: 'lossless',
 
-      setApiPreferServer: (v) => set({ apiPreferServer: v }),
+      // 全局来源优先级同时驱动封面和歌词，避免设置项只被持久化却不产生任何效果。
+      // 用户仍可在下方用更细粒度的开关覆盖歌词策略。
+      setApiPreferServer: (v) => set({
+        apiPreferServer: v,
+        coverSource: v ? 'server_first' : 'remote_first',
+        lyricsPreferRemote: !v,
+      }),
       setApiAuthToken: (t) => set({ apiAuthToken: t }),
       setCoverRemoteTemplate: (t) => set({ coverRemoteTemplate: t }),
       setCoverSource: (s) => set({ coverSource: s }),

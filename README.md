@@ -141,7 +141,7 @@ Grab the installer for your platform from **[Releases](https://github.com/baogut
 | State and data | Zustand · TanStack Query v5 |
 | Audio engine | Native HTML5 Audio |
 | Desktop shell | Tauri 2 (Rust) |
-| Data backend | Node.js (Express) · SQLite |
+| Optional sync service | Node.js 24 · Express · SQLite |
 
 ### Development
 
@@ -152,6 +152,32 @@ npm install
 npm run dev          # web dev mode
 npm run tauri:dev    # desktop dev mode
 ```
+
+### Optional sync service
+
+`backend/` exposes account, local-playlist and listening-history APIs for future cross-device sync or third-party clients.
+The released desktop client still connects directly to your music server and **does not automatically use this service**.
+
+```bash
+cd backend
+npm ci
+npm test
+JWT_SECRET="replace-with-a-long-random-value" DATA_DIR=./data npm start
+```
+
+Docker deployments must mount `/app/data`; otherwise recreating the container loses both the database and the generated JWT secret:
+
+```bash
+docker build -t n1ko-music-backend backend
+docker run -d --name n1ko-music-backend \
+  -p 3001:3001 \
+  -v n1ko-music-data:/app/data \
+  -e JWT_SECRET="replace-with-a-long-random-value" \
+  n1ko-music-backend
+```
+
+Supported environment variables include `PORT`, `DATA_DIR`, `JWT_SECRET`, comma-separated `FRONTEND_URLS`,
+`TRUST_PROXY_HOPS`, `RATE_LIMIT_MAX`, and `AUTH_RATE_LIMIT_MAX`. A consistent backup is created in the data directory before database migrations.
 
 <br/>
 

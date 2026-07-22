@@ -1,10 +1,10 @@
 [package]
 name = "app"
-version = "1.4.0"
+version = "1.5.0"
 description = "N1KO MUSIC - Modern Music Streaming Desktop App"
 authors = ["N1KO"]
-license = ""
-repository = ""
+license = "MIT"
+repository = "https://github.com/baogutang/N1KO-MUSIC"
 edition = "2021"
 rust-version = "1.77.2"
 
@@ -19,5 +19,4 @@ tauri-build = { version = "2.5.6", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2.10.3", features = [] }
-tauri-plugin-shell = "2"
 tauri-plugin-single-instance = "2"

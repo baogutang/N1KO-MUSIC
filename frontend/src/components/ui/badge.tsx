@@ -3,16 +3,17 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium tracking-wide transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-primary text-primary-foreground hover:brightness-110',
-        secondary: 'border-transparent bg-accent text-foreground hover:bg-surface-hover',
-        destructive: 'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
-        outline: 'border-border text-foreground',
-        success: 'border-transparent bg-primary/15 text-primary',
-        warning: 'border-amber-500/35 bg-amber-500/10 text-amber-400',
+        // 方形细线徽章，不要 pill（DESIGN v2 §4）
+        default: 'border-border bg-transparent text-foreground',
+        secondary: 'border-transparent bg-secondary text-secondary-foreground',
+        destructive: 'border-destructive/50 bg-transparent text-destructive',
+        outline: 'border-border text-muted-foreground',
+        success: 'border-primary/40 bg-primary/10 text-primary',
+        warning: 'border-amber-600/40 bg-amber-500/10 text-amber-800 dark:text-amber-400',
       },
     },
     defaultVariants: { variant: 'default' },

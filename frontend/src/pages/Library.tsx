@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MicrophoneStage, SquaresFour, List, Play, Shuffle, CircleNotch } from '@phosphor-icons/react'
+import { MicrophoneStage, SquaresFour, List, Play, Shuffle } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useAlbumsInfinite, useArtists, useSongsInfinite } from '@/hooks/useServerQueries'
 import { AlbumCard } from '@/components/music/AlbumCard'
@@ -12,6 +12,25 @@ import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 
 type LibraryTab = 'songs' | 'albums' | 'artists' | 'playlists'
 type ViewMode = 'grid' | 'list'
+
+/** 骨架行（hair-soft 底色闪烁，DESIGN §4.5，不用 spinner） */
+function SkeletonRows({ count, cover }: { count: number; cover: boolean }) {
+  return (
+    <div className="border-t border-hair divide-y divide-hair-soft">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-3 py-2.5">
+          <div className="h-3 w-8 rounded-sm bg-hair-soft animate-pulse" />
+          {cover && <div className="h-10 w-10 rounded-sm bg-hair-soft animate-pulse" />}
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-1/3 rounded-sm bg-hair-soft animate-pulse" />
+            <div className="h-2.5 w-1/5 rounded-sm bg-hair-soft animate-pulse" />
+          </div>
+          <div className="h-3 w-10 rounded-sm bg-hair-soft animate-pulse" />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function Library() {
   const navigate = useNavigate()
@@ -51,102 +70,105 @@ export default function Library() {
   ]
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-8 pt-8 flex-shrink-0 w-full max-w-[1320px] mx-auto">
-        <div className="flex items-end justify-between mb-6">
-          <div className="min-w-0">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">音乐库</h1>
-            <p className="text-sm text-muted-foreground mt-1.5">
-              <span className="font-num">{songCountText}</span> 首歌曲 · <span className="font-num">{albumCountText}</span> 张专辑 · <span className="font-num">{(artists ?? []).length}</span> 位歌手
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={cn(
-                  'w-8 h-8 grid place-items-center rounded-md transition-colors active:scale-[0.94]',
-                  viewMode === 'grid' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-                aria-label="网格视图"
-              >
-                <SquaresFour size={16} />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={cn(
-                  'w-8 h-8 grid place-items-center rounded-md transition-colors active:scale-[0.94]',
-                  viewMode === 'list' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-                aria-label="列表视图"
-              >
-                <List size={16} />
-              </button>
-            </div>
-          </div>
+    <div className="pt-9 animate-fade-in">
+      {/* 页头：衬线标题 + mono 计数；右侧细线小图标键切换视图 */}
+      <div className="flex items-end justify-between gap-6">
+        <div className="min-w-0">
+          <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">音乐库</h1>
+          <p className="text-sm text-ink-soft mt-1.5">
+            <span className="num">{songCountText}</span> 首歌曲 · <span className="num">{albumCountText}</span> 张专辑 · <span className="num">{(artists ?? []).length}</span> 位歌手
+          </p>
         </div>
-
-        <div className="flex items-center gap-6 border-b border-border">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => tab.id === 'playlists' ? navigate('/playlists') : setActiveTab(tab.id)}
-              className={cn(
-                'relative pt-1 pb-3 text-sm transition-colors',
-                activeTab === tab.id
-                  ? 'text-foreground font-semibold'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tab.label}
-              {activeTab === tab.id && (
-                <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-primary" />
-              )}
-            </button>
-          ))}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={cn(
+              'w-8 h-8 grid place-items-center rounded-full border transition-colors duration-200 active:scale-[0.94]',
+              viewMode === 'grid'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-ink-soft hover:border-hair hover:text-ink'
+            )}
+            aria-label="网格视图"
+          >
+            <SquaresFour size={16} />
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={cn(
+              'w-8 h-8 grid place-items-center rounded-full border transition-colors duration-200 active:scale-[0.94]',
+              viewMode === 'list'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-ink-soft hover:border-hair hover:text-ink'
+            )}
+            aria-label="列表视图"
+          >
+            <List size={16} />
+          </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-8 pt-7 pb-10 w-full max-w-[1320px] mx-auto">
+      {/* 文字 tab：sans 小标签 wide-tracking，当前项 accent + 2px 短划线（DESIGN §3 导航范式） */}
+      <div className="mt-7 flex items-center gap-8 border-b border-hair">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => tab.id === 'playlists' ? navigate('/playlists') : setActiveTab(tab.id)}
+            className={cn(
+              'relative pb-3 text-[13px] tracking-[0.2em] transition-colors duration-200',
+              activeTab === tab.id
+                ? 'text-primary font-semibold'
+                : 'text-ink-soft hover:text-primary'
+            )}
+          >
+            {tab.label}
+            {activeTab === tab.id && (
+              <span className="absolute -bottom-px left-1/2 h-[2px] w-6 -translate-x-1/2 bg-primary" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="pt-8">
         {activeTab === 'songs' && (
           <div>
             {!songsLoading && songs.length > 0 && (
-              <div className="flex items-center gap-3 mb-6">
-                <button
-                  onClick={() => playAllInOrder(songs, 0)}
-                  className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors active:scale-[0.97]"
-                >
-                  <Play size={16} weight="fill" />
-                  播放全部
-                </button>
-                <button
-                  onClick={() => playAllShuffled(songs, 0)}
-                  className="inline-flex items-center gap-2 h-10 px-5 rounded-full border border-border text-sm font-semibold text-foreground hover:border-primary hover:text-primary transition-colors active:scale-[0.97]"
-                >
-                  <Shuffle size={16} />
-                  随机播放
-                </button>
-                <span className="text-sm text-muted-foreground ml-2">已加载 <span className="font-num">{songs.length}</span> 首</span>
+              <div className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+                <div className="flex items-baseline gap-3">
+                  <h2 className="font-serif text-xl font-bold text-ink">全部歌曲</h2>
+                  <span className="num text-xs text-ink-faint">已加载 {songs.length} 首</span>
+                </div>
+                <div className="flex items-center gap-6">
+                  {/* 主操作：纯文字 ▶ + 发丝下划线，hover 变 accent（DESIGN §4.1） */}
+                  <button
+                    onClick={() => playAllInOrder(songs, 0)}
+                    className="inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
+                  >
+                    <Play size={13} weight="fill" />
+                    播放全部
+                  </button>
+                  {/* 次操作：细线小钮，hover 边框变 ink（DESIGN §4.1） */}
+                  <button
+                    onClick={() => playAllShuffled(songs, 0)}
+                    className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                  >
+                    <Shuffle size={14} />
+                    随机播放
+                  </button>
+                </div>
               </div>
             )}
             {songsLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <div key={i} className="h-14 rounded-lg bg-accent animate-pulse" />
-                ))}
-              </div>
+              <SkeletonRows count={10} cover />
             ) : (
               <>
                 <SongList songs={songs} showCover showAlbum showIndex />
-                {hasNextPage && (
-                  <div className="flex justify-center mt-6">
+                {isFetchingNextPage && <SkeletonRows count={3} cover />}
+                {hasNextPage && !isFetchingNextPage && (
+                  <div className="mt-8 flex justify-center">
                     <button
                       onClick={() => fetchNextPage()}
-                      disabled={isFetchingNextPage}
-                      className="inline-flex items-center gap-2 h-10 px-6 rounded-full border border-border text-sm text-foreground hover:border-primary hover:text-primary transition-colors active:scale-[0.97] disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
                     >
-                      {isFetchingNextPage && <CircleNotch size={16} className="animate-spin" />}
                       加载更多歌曲
                     </button>
                   </div>
@@ -158,72 +180,81 @@ export default function Library() {
 
         {activeTab === 'albums' && (
           <>
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-6 [&>*]:min-w-0">
-              {albums.map(album => (
-                <AlbumCard key={album.id} album={album} />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {albums.map(album => (
-                <div
-                  key={album.id}
-                  onClick={() => navigate(`/albums/${album.id}`)}
-                  className="flex items-center gap-4 px-3 py-2.5 rounded-lg hover:bg-surface cursor-pointer transition-colors group"
-                >
-                  <div className="w-12 h-12 rounded-md overflow-hidden ring-1 ring-border flex-shrink-0">
-                    <ImageWithFallback
-                      src={album.coverArt && hasAdapter() ? getAdapter().getCoverUrl(album.coverArt, 96) : undefined}
-                      alt={album.name}
-                      fallbackType="album"
-                      className="w-full h-full"
-                      customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
-                    />
+            {viewMode === 'grid' ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7 [&>*]:min-w-0">
+                {albums.map(album => (
+                  <AlbumCard key={album.id} album={album} />
+                ))}
+              </div>
+            ) : (
+              <div className="border-t border-hair divide-y divide-hair-soft">
+                {albums.map(album => (
+                  <div
+                    key={album.id}
+                    onClick={() => navigate(`/albums/${album.id}`)}
+                    className="group flex cursor-pointer items-center gap-4 px-2 py-3 transition-all duration-200 hover:translate-x-1 hover:bg-paper-deep"
+                  >
+                    <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-hair-soft">
+                      <ImageWithFallback
+                        src={album.coverArt && hasAdapter() ? getAdapter().getCoverUrl(album.coverArt, 96) : undefined}
+                        alt={album.name}
+                        fallbackType="album"
+                        className="w-full h-full"
+                        customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-serif text-[15px] font-semibold truncate transition-colors group-hover:text-primary">{album.name}</p>
+                      <p className="text-xs text-ink-soft truncate mt-0.5">{album.artist}</p>
+                    </div>
+                    <div className="num flex-shrink-0 text-xs text-ink-faint">
+                      {album.year && <span>{album.year}</span>}
+                      {album.songCount != null && <span className="ml-3">{album.songCount} 首</span>}
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{album.name}</p>
-                    <p className="text-sm text-muted-foreground truncate">{album.artist}</p>
-                  </div>
-                  <div className="text-sm text-muted-foreground font-num flex-shrink-0">
-                    {album.year && <span>{album.year}</span>}
-                    {album.songCount && <span className="ml-2">{album.songCount} 首</span>}
-                  </div>
+                ))}
+              </div>
+            )}
+            {isFetchingNextAlbums && (
+              viewMode === 'grid' ? (
+                <div className="mt-7 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="aspect-square rounded-md bg-hair-soft animate-pulse" />
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-          {hasNextAlbums && (
-            <div className="flex justify-center mt-6">
-              <button
-                onClick={() => fetchNextAlbums()}
-                disabled={isFetchingNextAlbums}
-                className="inline-flex items-center gap-2 h-10 px-6 rounded-full border border-border text-sm text-foreground hover:border-primary hover:text-primary transition-colors active:scale-[0.97] disabled:opacity-50"
-              >
-                {isFetchingNextAlbums && <CircleNotch size={16} className="animate-spin" />}
-                加载更多专辑
-              </button>
-            </div>
-          )}
+              ) : (
+                <SkeletonRows count={3} cover />
+              )
+            )}
+            {hasNextAlbums && !isFetchingNextAlbums && (
+              <div className="mt-8 flex justify-center">
+                <button
+                  onClick={() => fetchNextAlbums()}
+                  className="inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                >
+                  加载更多专辑
+                </button>
+              </div>
+            )}
           </>
         )}
 
         {activeTab === 'artists' && (
           viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-6 [&>*]:min-w-0">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7 [&>*]:min-w-0">
               {(artists ?? []).map(artist => (
                 <ArtistCard key={artist.id} artist={artist} />
               ))}
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="border-t border-hair divide-y divide-hair-soft">
               {(artists ?? []).map(artist => (
                 <div
                   key={artist.id}
                   onClick={() => navigate(`/artists/${artist.id}`)}
-                  className="flex items-center gap-4 px-3 py-2.5 rounded-lg hover:bg-surface cursor-pointer transition-colors group"
+                  className="group flex cursor-pointer items-center gap-4 px-2 py-3 transition-all duration-200 hover:translate-x-1 hover:bg-paper-deep"
                 >
-                  <div className="w-12 h-12 rounded-full bg-accent ring-1 ring-border flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-full ring-1 ring-hair-soft">
                     {artist.coverArt ? (
                       <ImageWithFallback
                         src={hasAdapter() ? getAdapter().getCoverUrl(artist.coverArt, 96) : artist.coverArt}
@@ -232,13 +263,15 @@ export default function Library() {
                         className="w-full h-full"
                       />
                     ) : (
-                      <MicrophoneStage size={20} className="text-muted-foreground" />
+                      <div className="grid h-full w-full place-items-center bg-paper-deep">
+                        <MicrophoneStage size={18} className="text-ink-faint" />
+                      </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{artist.name}</p>
-                    {artist.albumCount && (
-                      <p className="text-sm text-muted-foreground"><span className="font-num">{artist.albumCount}</span> 张专辑</p>
+                    <p className="font-serif text-[15px] font-semibold truncate transition-colors group-hover:text-primary">{artist.name}</p>
+                    {artist.albumCount != null && (
+                      <p className="text-xs text-ink-soft mt-0.5"><span className="num">{artist.albumCount}</span> 张专辑</p>
                     )}
                   </div>
                 </div>
@@ -246,7 +279,6 @@ export default function Library() {
             </div>
           )
         )}
-        </div>
       </div>
     </div>
   )

@@ -1,18 +1,26 @@
 /**
  * 主题状态管理
- * 管理深色/浅色模式、主题色、布局偏好
+ * 杂志编辑风（DESIGN v2）：浅色纸面为默认主题（<html> 无 class），
+ * 深色为变体（<html> 加 'dark' class）。system 模式跟随系统。
  */
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export type Theme = 'dark' | 'light' | 'system'
+
+/**
+ * @deprecated 编辑风只保留单一朱红 accent（DESIGN v2 §1.3），多色 accent 预设已移除。
+ * 该类型与 accentColor 字段仅为兼容 Settings 页旧 UI 与旧持久化数据而暂时保留，
+ * store 不再向 DOM 注入任何 --primary/--ring 覆盖；设置页 accent UI 随后续 Phase 删除。
+ */
 export type AccentColor = 'green' | 'red' | 'blue' | 'purple' | 'orange'
 
 interface ThemeState {
   theme: Theme
   /** 当前实际应用的主题（解析 system 后）*/
   resolvedTheme: 'dark' | 'light'
+  /** @deprecated 见 AccentColor 注释，仅作持久化兼容保留，不产生任何视觉效果 */
   accentColor: AccentColor
   /** 是否显示侧边栏（移动端收起）*/
   sidebarCollapsed: boolean
@@ -20,6 +28,7 @@ interface ThemeState {
   visualizerEnabled: boolean
 
   setTheme: (theme: Theme) => void
+  /** @deprecated 不再注入 accent 覆盖，仅更新字段（后续 Phase 随设置页一并移除）*/
   setAccentColor: (color: AccentColor) => void
   toggleTheme: () => void
   setSidebarCollapsed: (collapsed: boolean) => void
@@ -29,69 +38,20 @@ interface ThemeState {
 
 /** 检测系统主题偏好 */
 function getSystemTheme(): 'dark' | 'light' {
-  if (typeof window === 'undefined') return 'dark'
+  if (typeof window === 'undefined') return 'light'
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-/**
- * 主题色 CSS 变量映射
- * 深浅主题各配一组，保证对比度达标（深色底用中亮度色，浅色底用深色）
- */
-interface AccentVars {
-  primary: string
-  primaryForeground: string
-}
-
-const accentCssVars: Record<AccentColor, { dark: AccentVars; light: AccentVars }> = {
-  green: {
-    dark: { primary: '152 62% 47%', primaryForeground: '155 52% 5%' },
-    light: { primary: '152 71% 28%', primaryForeground: '40 30% 98%' },
-  },
-  red: {
-    dark: { primary: '356 70% 60%', primaryForeground: '0 35% 6%' },
-    light: { primary: '356 68% 44%', primaryForeground: '0 0% 100%' },
-  },
-  blue: {
-    dark: { primary: '214 82% 62%', primaryForeground: '220 45% 7%' },
-    light: { primary: '214 78% 42%', primaryForeground: '0 0% 100%' },
-  },
-  purple: {
-    dark: { primary: '262 66% 68%', primaryForeground: '262 40% 8%' },
-    light: { primary: '262 48% 46%', primaryForeground: '0 0% 100%' },
-  },
-  orange: {
-    dark: { primary: '28 84% 58%', primaryForeground: '25 50% 7%' },
-    light: { primary: '27 85% 40%', primaryForeground: '0 0% 100%' },
-  },
-}
-
-/** 将主题色应用到 DOM（跟随当前深浅主题取值）*/
-function applyAccentColor(color: AccentColor, resolved: 'dark' | 'light'): void {
-  const vars = accentCssVars[color]?.[resolved]
-  if (!vars) return
-  const root = document.documentElement
-  root.style.setProperty('--primary', vars.primary)
-  root.style.setProperty('--primary-foreground', vars.primaryForeground)
-  root.style.setProperty('--ring', vars.primary)
-}
-
-/** 将主题应用到 DOM */
+/** 将主题应用到 DOM：浅色 = 默认（无 class），深色 = 'dark' class */
 function applyTheme(resolved: 'dark' | 'light'): void {
-  const root = document.documentElement
-  if (resolved === 'light') {
-    root.classList.add('light')
-    root.classList.remove('dark')
-  } else {
-    root.classList.remove('light')
-    root.classList.add('dark')
-  }
+  document.documentElement.classList.toggle('dark', resolved === 'dark')
 }
 
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
-      theme: 'dark',
-      resolvedTheme: 'dark',
+      theme: 'light',
+      resolvedTheme: 'light',
       accentColor: 'green',
       sidebarCollapsed: false,
       visualizerEnabled: true,
@@ -99,21 +59,15 @@ export const useThemeStore = create<ThemeState>()(
       setTheme: (theme) => {
         const resolved = theme === 'system' ? getSystemTheme() : theme
         applyTheme(resolved)
-        // 深浅主题的强调色取值不同，切主题时需要重新应用
-        applyAccentColor(get().accentColor, resolved)
         set({ theme, resolvedTheme: resolved })
       },
 
-      setAccentColor: (color) => {
-        applyAccentColor(color, get().resolvedTheme)
-        set({ accentColor: color })
-      },
+      setAccentColor: (color) => set({ accentColor: color }),
 
       toggleTheme: () => {
-        const { resolvedTheme, accentColor } = get()
+        const { resolvedTheme } = get()
         const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
         applyTheme(newTheme)
-        applyAccentColor(accentColor, newTheme)
         set({ theme: newTheme, resolvedTheme: newTheme })
       },
 
@@ -128,7 +82,6 @@ export const useThemeStore = create<ThemeState>()(
           const resolved =
             state.theme === 'system' ? getSystemTheme() : state.theme
           applyTheme(resolved)
-          applyAccentColor(state.accentColor, resolved)
           state.resolvedTheme = resolved
         }
       },

@@ -1,193 +1,330 @@
 /**
- * 首页
- * 展示：欢迎横幅、最近专辑、随机推荐歌曲、歌手推荐
+ * 首页 —— 杂志封面页（DESIGN v2 §3，demo 首页范式）
+ * 首屏「本期封面」头条区（最新专辑）｜最近添加编号行｜热门歌手文字索引｜为你推荐编号列表
  */
 
+import { Fragment, useCallback, useMemo } from 'react'
 import { Play, Shuffle } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
-import { AlbumCard } from '@/components/music/AlbumCard'
-import { ArtistCard } from '@/components/music/ArtistCard'
+import { useQueryClient } from '@tanstack/react-query'
 import { SongList } from '@/components/music/SongList'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { useRecentAlbums, useRandomSongs, useArtists, queryKeys } from '@/hooks/useServerQueries'
-import { usePlayerStore } from '@/store/playerStore'
-import { useServerStore } from '@/store/serverStore'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { useRecentAlbums, useArtists, queryKeys } from '@/hooks/useServerQueries'
+import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
+import { rankArtistsByAffinity } from '@/services/recommendationEngine'
+import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
-import { useQueryClient } from '@tanstack/react-query'
-import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { playAllShuffled } from '@/utils/playActions'
+import type { Album } from '@/api/types'
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { username } = useServerStore()
-  const playQueue     = usePlayerStore(s => s.playQueue)
+  const playQueue = usePlayerStore(s => s.playQueue)
   const queryClient = useQueryClient()
 
   const { data: recentAlbums, isLoading: albumsLoading } = useRecentAlbums(20)
-  const { data: randomSongs, isLoading: songsLoading } = useRandomSongs(30)
+  const {
+    data: randomSongs,
+    isLoading: songsLoading,
+    profile,
+  } = usePersonalizedRecommendations(30)
   const { data: artists, isLoading: artistsLoading } = useArtists()
+  const recommendedArtists = useMemo(
+    () => rankArtistsByAffinity(artists ?? [], profile),
+    [artists, profile]
+  )
 
-  const greeting = () => {
-    const h = new Date().getHours()
-    if (h < 12) return '早上好'
-    if (h < 18) return '下午好'
-    return '晚上好'
-  }
-
-  // 精选专辑（第一张，用于 Hero Banner）
+  // 本期封面：最近添加的第一张专辑
   const heroAlbum = recentAlbums?.[0]
   const heroCoverUrl = heroAlbum?.coverArt && hasAdapter()
-    ? getAdapter().getCoverUrl(heroAlbum.coverArt, 400)
+    ? getAdapter().getCoverUrl(heroAlbum.coverArt, 600)
     : undefined
 
-  const handleHeroPlay = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!heroAlbum) return
-    try {
-      const cached = queryClient.getQueryData(queryKeys.albumDetail(heroAlbum.id))
-      if (cached && (cached as { songs?: unknown[] }).songs) {
-        const detail = cached as { songs: Parameters<typeof playQueue>[0] }
-        playQueue(detail.songs as Parameters<typeof playQueue>[0])
-        return
-      }
-      const detail = await getAdapter().getAlbumDetail(heroAlbum.id)
-      queryClient.setQueryData(queryKeys.albumDetail(heroAlbum.id), detail)
-      if (detail.songs.length) playQueue(detail.songs)
-    } catch (err) {
-      console.error('Failed to play hero album:', err)
+  // 头条说明：全部由真实数据拼成（曲目数/总时长/年份/流派），不虚构编辑文案
+  const heroLede = useMemo(() => {
+    if (!heroAlbum) return ''
+    const sentences: string[] = []
+    if (heroAlbum.songCount) {
+      sentences.push(
+        `共收录 ${heroAlbum.songCount} 首曲目` +
+          (heroAlbum.duration ? `，总时长 ${formatDuration(heroAlbum.duration)}` : '') +
+          '。'
+      )
     }
+    const issue: string[] = []
+    if (heroAlbum.year) issue.push(`${heroAlbum.year} 年发行`)
+    if (heroAlbum.genre) issue.push(`流派 ${heroAlbum.genre}`)
+    if (issue.length) sentences.push(issue.join('，') + '。')
+    return sentences.join('')
+  }, [heroAlbum])
+
+  // 播放整张专辑（先查缓存再拉详情，与 AlbumCard 同一策略）
+  const playAlbum = useCallback(
+    async (album: Album) => {
+      try {
+        const cached = queryClient.getQueryData(queryKeys.albumDetail(album.id))
+        if (cached && (cached as { songs?: unknown[] }).songs) {
+          playQueue((cached as { songs: Parameters<typeof playQueue>[0] }).songs)
+          return
+        }
+        const detail = await getAdapter().getAlbumDetail(album.id)
+        queryClient.setQueryData(queryKeys.albumDetail(album.id), detail)
+        if (detail.songs.length) playQueue(detail.songs)
+      } catch (err) {
+        console.error('Failed to play album:', err)
+      }
+    },
+    [playQueue, queryClient]
+  )
+
+  const handleHeroPlay = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (heroAlbum) void playAlbum(heroAlbum)
   }
 
+  // 头条区占去第一张，编号行从第二张开始
+  const recentList = recentAlbums?.slice(heroAlbum ? 1 : 0, 13) ?? []
+
   return (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1">
-        <div className="px-8 pt-9 pb-10 max-w-[1320px] mx-auto animate-fade-in">
-
-          {/* 问候语 */}
-          <div className="flex items-end justify-between gap-6">
-            <div className="min-w-0">
-              <h1 className="text-4xl font-bold tracking-tight text-foreground truncate">
-                {greeting()}{username ? `，${username}` : ''}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-2">发现今天的音乐</p>
-            </div>
-            {randomSongs && randomSongs.length > 0 && (
-              <button
-                onClick={() => playAllShuffled(randomSongs, 0)}
-                className="inline-flex items-center gap-2 h-10 px-5 rounded-full border border-border text-sm font-semibold text-foreground hover:border-primary hover:text-primary transition-colors active:scale-[0.97] flex-shrink-0"
-              >
-                <Shuffle size={16} />
-                随机播放
-              </button>
-            )}
-          </div>
-
-          {/* 精选专辑：非对称分栏 */}
-          {heroAlbum && (
-            <section
-              className="mt-10 border-t border-border pt-10 pb-2 grid grid-cols-1 lg:grid-cols-[1fr_360px] items-center gap-10 lg:gap-[72px] cursor-pointer group"
+    <div className="animate-fade-in">
+      {/* ============ 本期封面 · 头条区 ============ */}
+      {heroAlbum && (
+        <article className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] items-end gap-12 lg:gap-16 pt-12 pb-14 border-b border-hair">
+          <div className="min-w-0">
+            <p className="flex items-center gap-3.5 mb-7 text-[11px] tracking-[0.34em] text-primary">
+              本期封面 · FEATURED ALBUM
+              <span aria-hidden className="h-px w-14 bg-primary" />
+            </p>
+            <h1
+              className="font-serif font-black text-[40px] lg:text-[56px] leading-[1.06] tracking-[-0.01em] text-balance cursor-pointer hover:text-primary transition-colors duration-200"
               onClick={() => navigate(`/albums/${heroAlbum.id}`)}
             >
-              {/* 左：文本块 */}
-              <div className="min-w-0">
-                <p className="text-[11.5px] uppercase tracking-[0.14em] text-primary mb-3">最新专辑</p>
-                <h2 className="text-3xl lg:text-4xl font-bold tracking-tight leading-tight text-foreground truncate mb-2">
-                  {heroAlbum.name}
-                </h2>
-                <p className="text-sm text-muted-foreground mb-7 truncate">{heroAlbum.artist}</p>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleHeroPlay}
-                    className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors active:scale-[0.97]"
-                  >
-                    <Play size={16} weight="fill" />
-                    播放
-                  </button>
-                </div>
-              </div>
-              {/* 右：封面 + 氛围光 */}
-              <div className="relative w-full max-w-[360px] mx-auto lg:mx-0">
-                <div aria-hidden className="absolute inset-[8%] rounded-[40%] bg-primary/20 blur-[56px]" />
-                <div className="relative aspect-square rounded-lg overflow-hidden ring-1 ring-border shadow-2xl shadow-black/40 transition-transform duration-300 group-hover:-translate-y-1">
-                  <ImageWithFallback
-                    src={heroCoverUrl}
-                    alt={heroAlbum.name}
-                    fallbackType="album"
-                    className="w-full h-full object-cover"
-                    customCoverParams={{ type: 'album', artist: heroAlbum.artist, album: heroAlbum.name }}
-                  />
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* 最近专辑 */}
-          <section className="mt-10 border-t border-border pt-8">
-            <div className="flex items-baseline justify-between mb-5">
-              <h2 className="text-lg font-bold tracking-tight text-foreground">最近添加</h2>
+              {heroAlbum.name}
+            </h1>
+            <p className="num mt-4 text-[12px] tracking-[0.16em] text-ink-soft">
+              {heroAlbum.artist}
+              {heroAlbum.year ? ` · ${heroAlbum.year}` : ''}
+            </p>
+            {heroLede && (
+              <p className="mt-7 max-w-[46ch] text-[14px] leading-relaxed text-ink-soft">
+                {heroLede}
+              </p>
+            )}
+            <div className="mt-9 flex items-center gap-7">
               <button
-                onClick={() => navigate('/albums')}
-                className="text-[12.5px] text-muted-foreground hover:text-primary transition-colors"
+                onClick={handleHeroPlay}
+                className="inline-flex items-center gap-2.5 pb-1.5 text-[13.5px] font-semibold tracking-[0.12em] text-foreground border-b border-foreground hover:text-primary hover:border-primary transition-colors duration-200 active:scale-[0.97]"
               >
-                查看全部
+                <span aria-hidden>▶</span>
+                播放整张专辑
+              </button>
+              {heroAlbum.songCount ? (
+                <span className="num text-[11.5px] tracking-[0.14em] text-ink-faint">
+                  {heroAlbum.songCount} 首
+                  {heroAlbum.duration ? ` · ${formatDuration(heroAlbum.duration)}` : ''}
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <figure className="group w-full max-w-[400px] lg:justify-self-end">
+            <button
+              onClick={() => navigate(`/albums/${heroAlbum.id}`)}
+              aria-label={`查看专辑《${heroAlbum.name}》`}
+              className="block w-full aspect-square rounded-md overflow-hidden ring-1 ring-hair-soft shadow-float rotate-[1.5deg] transition-all duration-300 group-hover:rotate-0 group-hover:-translate-y-1.5"
+            >
+              <ImageWithFallback
+                src={heroCoverUrl}
+                alt={heroAlbum.name}
+                fallbackType="album"
+                className="w-full h-full object-cover"
+                customCoverParams={{ type: 'album', artist: heroAlbum.artist, album: heroAlbum.name }}
+              />
+            </button>
+            <figcaption className="mt-4 text-right text-[11px] tracking-[0.16em] text-ink-faint">
+              《{heroAlbum.name}》 · {heroAlbum.artist}
+              {heroAlbum.year ? ` · ${heroAlbum.year}` : ''}
+            </figcaption>
+          </figure>
+        </article>
+      )}
+
+      {/* ============ 最近添加 · 编号行 ============ */}
+      <section aria-labelledby="home-recent">
+        <div className="section-head">
+          <h2 id="home-recent">
+            最近添加<small>RECENTLY ADDED</small>
+          </h2>
+          <button className="more" onClick={() => navigate('/albums')}>
+            全部专辑 →
+          </button>
+        </div>
+        {albumsLoading ? (
+          <AlbumRowsSkeleton rows={6} />
+        ) : recentList.length > 0 ? (
+          <ol className="border-t border-hair">
+            {recentList.map((album, i) => (
+              <RecentAlbumRow
+                key={album.id}
+                album={album}
+                index={i}
+                onOpen={() => navigate(`/albums/${album.id}`)}
+                onPlay={() => void playAlbum(album)}
+              />
+            ))}
+          </ol>
+        ) : null}
+      </section>
+
+      {/* ============ 热门歌手 · 文字索引 ============ */}
+      {!artistsLoading && recommendedArtists.length > 0 && (
+        <section aria-labelledby="home-artists">
+          <div className="section-head">
+            <h2 id="home-artists">
+              热门歌手<small>ARTISTS A–Z</small>
+            </h2>
+            <button className="more" onClick={() => navigate('/artists')}>
+              全部歌手 →
+            </button>
+          </div>
+          <p className="font-serif text-[20px] lg:text-[26px] font-semibold leading-[2.1]">
+            {recommendedArtists.slice(0, 12).map((artist, i) => (
+              <Fragment key={artist.id}>
+                {i > 0 && (
+                  <span aria-hidden className="mx-2 align-middle text-[0.7em] font-normal text-ink-faint">
+                    ·
+                  </span>
+                )}
+                <button
+                  onClick={() => navigate(`/artists/${artist.id}`)}
+                  className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
+                >
+                  {artist.name}
+                  {artist.albumCount !== undefined && (
+                    <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
+                      {artist.albumCount}
+                    </span>
+                  )}
+                </button>
+              </Fragment>
+            ))}
+          </p>
+        </section>
+      )}
+
+      {/* ============ 为你推荐 · 编号列表 ============ */}
+      {!songsLoading && randomSongs && randomSongs.length > 0 && (
+        <section aria-labelledby="home-for-you">
+          <div className="section-head">
+            <h2 id="home-for-you">
+              为你推荐<small>FOR YOU</small>
+            </h2>
+            <div className="flex items-baseline gap-7">
+              <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                {randomSongs.length} 首 ·{' '}
+                {formatDuration(randomSongs.reduce((s, r) => s + r.duration, 0))}
+              </span>
+              <button
+                className="more inline-flex items-center gap-1.5"
+                onClick={() => playAllShuffled(randomSongs, 0)}
+              >
+                <Shuffle size={12} />
+                随机播放
               </button>
             </div>
-
-            {albumsLoading ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="aspect-square rounded-lg bg-accent animate-pulse" />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5 [&>*]:min-w-0">
-                {recentAlbums?.slice(0, 12).map(album => (
-                  <AlbumCard key={album.id} album={album} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* 推荐歌手 */}
-          {!artistsLoading && artists && artists.length > 0 && (
-            <section className="mt-10 border-t border-border pt-8">
-              <div className="flex items-baseline justify-between mb-5">
-                <h2 className="text-lg font-bold tracking-tight text-foreground">热门歌手</h2>
-                <button
-                  onClick={() => navigate('/artists')}
-                  className="text-[12.5px] text-muted-foreground hover:text-primary transition-colors"
-                >
-                  查看全部
-                </button>
-              </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5 [&>*]:min-w-0">
-                {artists.slice(0, 8).map(artist => (
-                  <ArtistCard key={artist.id} artist={artist} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* 今日推荐歌曲 */}
-          {!songsLoading && randomSongs && randomSongs.length > 0 && (
-            <section className="mt-10 border-t border-border pt-8">
-              <div className="flex items-baseline justify-between mb-5">
-                <h2 className="text-lg font-bold tracking-tight text-foreground">为你推荐</h2>
-                <p className="text-sm text-muted-foreground">
-                  共 <span className="font-num">{randomSongs.length}</span> 首 · <span className="font-num">{formatDuration(randomSongs.reduce((s, r) => s + r.duration, 0))}</span>
-                </p>
-              </div>
-              <SongList
-                songs={randomSongs.slice(0, 15)}
-                showCover
-                showAlbum
-                showIndex
-              />
-            </section>
-          )}
-        </div>
-      </ScrollArea>
+          </div>
+          <SongList songs={randomSongs.slice(0, 15)} showCover showAlbum showIndex />
+        </section>
+      )}
     </div>
+  )
+}
+
+/** 最近添加编号行：mono 序号｜小封面｜衬线专辑名｜歌手｜mono 元数据｜hover 细线圆播放键 */
+function RecentAlbumRow({
+  album,
+  index,
+  onOpen,
+  onPlay,
+}: {
+  album: Album
+  index: number
+  onOpen: () => void
+  onPlay: () => void
+}) {
+  const coverUrl = album.coverArt && hasAdapter()
+    ? getAdapter().getCoverUrl(album.coverArt, 64)
+    : undefined
+
+  const meta = [
+    album.songCount ? `${album.songCount} 首` : '',
+    album.year ? String(album.year) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  return (
+    <li className="border-b border-hair-soft">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onOpen}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen()
+          }
+        }}
+        className="group flex items-center gap-5 px-2 py-2.5 cursor-pointer transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
+      >
+        <span className="num w-8 flex-shrink-0 text-center text-xs text-ink-faint transition-colors group-hover:text-primary">
+          {String(index + 1).padStart(2, '0')}
+        </span>
+        <span className="w-[52px] h-[52px] flex-shrink-0 rounded-sm overflow-hidden ring-1 ring-hair-soft">
+          <ImageWithFallback
+            src={coverUrl}
+            alt={album.name}
+            fallbackType="album"
+            className="w-full h-full object-cover"
+            customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
+          />
+        </span>
+        <span className="flex-1 min-w-0 font-serif text-[16px] font-semibold truncate transition-colors group-hover:text-primary">
+          {album.name}
+        </span>
+        <span className="hidden md:block flex-1 min-w-0 text-[13px] text-ink-soft truncate">
+          {album.artist}
+        </span>
+        <span className="num flex-shrink-0 text-right text-[11.5px] text-ink-faint">{meta}</span>
+        <button
+          onClick={e => {
+            e.stopPropagation()
+            onPlay()
+          }}
+          aria-label={`播放专辑《${album.name}》`}
+          className="w-[30px] h-[30px] flex-shrink-0 grid place-items-center rounded-full border border-hair text-ink-soft opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary hover:border-primary hover:text-paper active:scale-[0.94]"
+        >
+          <Play size={11} weight="fill" />
+        </button>
+      </div>
+    </li>
+  )
+}
+
+/** 编号行加载骨架（hair-soft 行闪烁，DESIGN §4.5） */
+function AlbumRowsSkeleton({ rows }: { rows: number }) {
+  return (
+    <ol className="border-t border-hair">
+      {Array.from({ length: rows }).map((_, i) => (
+        <li key={i} className="flex items-center gap-5 px-2 py-2.5 border-b border-hair-soft">
+          <span className="w-8 h-3 rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="w-[52px] h-[52px] rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="flex-1 h-4 rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="hidden md:block flex-1 h-3.5 rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="w-16 h-3.5 rounded-sm bg-hair-soft/70 animate-pulse" />
+        </li>
+      ))}
+    </ol>
   )
 }

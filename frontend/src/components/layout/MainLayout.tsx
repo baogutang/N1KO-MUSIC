@@ -1,7 +1,8 @@
 import { Suspense, lazy, useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
+import { Masthead } from './Masthead'
+import { TopNav } from './TopNav'
 import { PlayerBar } from './PlayerBar'
 import { QueueDrawer } from '@/components/player/QueueDrawer'
 import { useAudioEngine } from '@/hooks/useAudioEngine'
@@ -18,8 +19,6 @@ import {
 const FullscreenPlayer = lazy(() =>
   import('@/components/player/FullscreenPlayer').then(mod => ({ default: mod.FullscreenPlayer }))
 )
-
-const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
 
 export default function MainLayout() {
   useAudioEngine()
@@ -66,30 +65,21 @@ export default function MainLayout() {
   return (
     <TooltipProvider>
       <div className="relative flex flex-col h-screen bg-background text-foreground overflow-hidden">
-        {isMac && (
-          <div
-            className="h-9 flex-shrink-0"
-            data-tauri-drag-region
-            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-          />
-        )}
+        {/* 顶部工具条（含 macOS 拖拽区）/ 报头 / 主导航行（DESIGN v2 §3） */}
+        <TopBar />
+        <Masthead />
+        <TopNav />
 
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          <Sidebar />
-
-          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-            <TopBar />
-
-            <div className="relative flex flex-1 min-h-0 overflow-hidden">
-              {/* 底部预留 ~120px（--player-height + 12px），避免内容藏在悬浮控制台下 */}
-              <main className="flex-1 overflow-y-auto min-w-0 pb-[calc(var(--player-height)+12px)]">
-                <Outlet />
-              </main>
-              <QueueDrawer />
+        <div className="relative flex flex-1 min-h-0 overflow-hidden">
+          <main className="flex-1 overflow-y-auto min-w-0">
+            <div className="max-w-[1180px] mx-auto px-10 pb-16 w-full">
+              <Outlet />
             </div>
-          </div>
+          </main>
+          <QueueDrawer />
         </div>
 
+        {/* 底部播放条：docked 在布局流内，不再浮空 */}
         <PlayerBar />
 
         {shouldMount && (

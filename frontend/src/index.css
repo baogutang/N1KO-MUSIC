@@ -1,86 +1,127 @@
+/* 自托管字体注册（@import 必须位于文件最前，见 src/styles/fonts.css） */
+@import './styles/fonts.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ===================================================
-   全局设计 Token —— 「现代 Hi-Fi」体系
-   深墨画布 + 祖母绿强调色，深浅双主题共用一套语义
-   规范见 docs/redesign/DESIGN.md
+   全局设计 Token —— 杂志编辑风（Editorial）
+   米白纸面 + 墨色文字 + 朱红 accent，浅色为默认主题
+   规范见 docs/redesign/v2/DESIGN.md（旧「现代 Hi-Fi」契约作废）
+   ---------------------------------------------------
+   两组变量：
+   1. 设计 token（RGB 通道，配 rgb() 使用；--hair 自带 alpha）
+   2. shadcn 语义变量（HSL 通道，配 hsl() 使用，
+      供 Tailwind 语义类与旧组件内联 hsl(var(--x)) 消费）
    =================================================== */
 :root {
-  --radius: 0.75rem;
+  --radius: 8px;
 
-  /* 深色主题（默认）*/
-  --background: 240 7% 4.3%;
-  --foreground: 45 10% 94%;
+  /* ----- 设计 token：浅色纸面（默认，DESIGN §1.1）----- */
+  --paper: 244 239 227;        /* #f4efe3 */
+  --paper-deep: 236 229 212;   /* #ece5d4 */
+  --ink: 29 26 21;             /* #1d1a15 */
+  --ink-soft: 92 86 74;        /* #5c564a */
+  --ink-faint: 141 134 118;    /* #8d8676 */
+  --hair: 29 26 21 / 0.22;     /* rgba(29,26,21,.22) */
+  --hair-soft: 29 26 21 / 0.12;/* rgba(29,26,21,.12) */
+  --accent: 184 68 42;         /* #b8442a 朱红 */
+  --accent-deep: 156 53 32;    /* #9c3520 */
 
-  --card: 240 6% 7.6%;
-  --card-foreground: 45 10% 94%;
+  /* ----- 字体栈（DESIGN §2.1，字体文件见 styles/fonts.css）----- */
+  --font-serif: 'Source Serif 4', 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  --font-sans: 'Hanken Grotesk', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
 
-  --popover: 240 6% 8%;
-  --popover-foreground: 45 10% 94%;
+  /* ----- 动效（DESIGN §5）----- */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --primary: 152 62% 47%;
-  --primary-foreground: 155 52% 5%;
+  /* 唯一允许的浮层投影（DESIGN §1.3） */
+  --shadow-float: 0 1px 2px rgb(29 26 21 / 0.06), 0 8px 24px rgb(29 26 21 / 0.08);
 
-  --secondary: 240 5% 12%;
-  --secondary-foreground: 45 10% 94%;
+  /* ----- shadcn 语义映射（HSL 通道，浅色）----- */
+  --background: 43 36% 92%;    /* paper */
+  --foreground: 36 14% 10%;    /* ink */
 
-  --muted: 240 5% 12%;
-  --muted-foreground: 45 3% 62%;
+  --card: 43 36% 92%;
+  --card-foreground: 36 14% 10%;
 
-  --accent: 240 5% 14.5%;
-  --accent-foreground: 45 10% 94%;
+  --popover: 44 38% 94%;
+  --popover-foreground: 36 14% 10%;
 
-  --destructive: 354 70% 58%;
-  --destructive-foreground: 0 0% 95%;
+  --primary: 11 62% 44%;       /* 朱红 accent */
+  --primary-foreground: 43 36% 92%;
 
-  --border: 240 6% 12.5%;
-  --input: 240 6% 14%;
-  --ring: 152 62% 47%;
+  --secondary: 41 32% 88%;     /* paper-deep */
+  --secondary-foreground: 36 14% 10%;
 
-  --surface: 240 6% 8.6%;
-  --surface-hover: 240 5% 13%;
+  --muted: 41 32% 88%;
+  --muted-foreground: 38 10% 33%;   /* ink-soft */
 
-  /* 布局常量 */
-  --player-height: 108px; /* 悬浮控制台 76px + 上下留白 */
-  --sidebar-width: 240px;
+  /* shadcn 的 accent 是「hover 底面」语义（非品牌色），映射 paper-deep；
+     品牌朱红请用 --primary / rgb(var(--accent)) */
+  --accent-surface: 41 32% 88%;
+  --accent-surface-foreground: 36 14% 10%;
+
+  --destructive: 13 66% 37%;   /* accent-deep */
+  --destructive-foreground: 43 36% 92%;
+
+  --border: 40 11% 74%;        /* hair 22% 在纸面上的合成色 */
+  --input: 40 11% 74%;
+  --ring: 11 62% 44%;
+
+  --surface: 44 38% 94%;
+  --surface-hover: 41 32% 88%;
 }
 
 /* ===================================================
-   浅色主题（瓷白 + 深祖母绿，class 切换）
+   深色主题（同气质变体，非默认，class 切换，DESIGN §1.2）
    =================================================== */
-.light {
-  --background: 240 4% 96.5%;
-  --foreground: 240 6% 9.6%;
+.dark {
+  --paper: 26 23 18;           /* #1a1712 */
+  --paper-deep: 34 30 23;      /* #221e17 */
+  --ink: 236 229 212;          /* #ece5d4 */
+  --ink-soft: 168 159 140;     /* #a89f8c */
+  --ink-faint: 110 103 89;     /* #6e6759 */
+  --hair: 236 229 212 / 0.2;   /* rgba(236,229,212,.20) */
+  --hair-soft: 236 229 212 / 0.1;
+  --accent: 217 96 63;         /* #d9603f */
+  --accent-deep: 184 68 42;    /* #b8442a */
 
-  --card: 0 0% 100%;
-  --card-foreground: 240 6% 9.6%;
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 6% 9.6%;
+  --background: 38 18% 9%;
+  --foreground: 43 39% 88%;
 
-  --primary: 152 71% 28%;
-  --primary-foreground: 40 30% 98%;
+  --card: 38 18% 9%;
+  --card-foreground: 43 39% 88%;
 
-  --secondary: 240 4% 93%;
-  --secondary-foreground: 240 6% 9.6%;
+  --popover: 38 19% 11%;
+  --popover-foreground: 43 39% 88%;
 
-  --muted: 240 4% 93%;
-  --muted-foreground: 45 3% 39%;
+  --primary: 13 67% 55%;
+  --primary-foreground: 36 14% 10%;
 
-  --accent: 240 4% 92.8%;
-  --accent-foreground: 240 6% 9.6%;
+  --secondary: 38 19% 11%;
+  --secondary-foreground: 43 39% 88%;
 
-  --destructive: 354 70% 46%;
-  --destructive-foreground: 0 0% 100%;
+  --muted: 38 19% 11%;
+  --muted-foreground: 41 14% 60%;
 
-  --border: 240 6% 89.5%;
-  --input: 240 6% 88%;
-  --ring: 152 71% 28%;
+  --accent-surface: 38 19% 11%;
+  --accent-surface-foreground: 43 39% 88%;
 
-  --surface: 0 0% 100%;
-  --surface-hover: 240 4% 93%;
+  --destructive: 13 67% 55%;
+  --destructive-foreground: 36 14% 10%;
+
+  --border: 38 9% 25%;
+  --input: 38 9% 25%;
+  --ring: 13 67% 55%;
+
+  --surface: 38 19% 11%;
+  --surface-hover: 39 20% 14%;
 }
 
 /* ===================================================
@@ -90,15 +131,27 @@
   border-color: hsl(var(--border));
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC',
-    'HarmonyOS Sans SC', 'MiSans', 'Segoe UI', 'Microsoft YaHei', Roboto, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
   height: 100vh;
+  /* 纸面噪点纹理（demo 同款 feTurbulence data-URI，DESIGN §1.3） */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.035 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+
+/* 深色模式：白色低透明度噪点 */
+.dark body {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
 }
 
 #root {
@@ -106,8 +159,23 @@ body {
   overflow: hidden;
 }
 
+/* 选中色（DESIGN §1.3） */
+::selection {
+  background: rgb(var(--accent) / 0.18);
+}
+
+.dark ::selection {
+  background: rgb(var(--accent) / 0.28);
+}
+
+/* 键盘焦点（DESIGN §4.5） */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 3px;
+}
+
 /* ===================================================
-   滚动条样式
+   滚动条样式：发丝色
    =================================================== */
 ::-webkit-scrollbar {
   width: 8px;
@@ -119,12 +187,26 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: rgb(var(--hair));
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: rgb(var(--ink-faint));
+}
+
+/* ===================================================
+   全局减动效（DESIGN §5）
+   =================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ===================================================
@@ -135,25 +217,40 @@ body {
     text-wrap: balance;
   }
 
-  /* 数字排印：时间码/统计数值/序号一律等宽 tabular（设计签名，见 DESIGN.md §2）*/
-  .font-num {
-    font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+  /* 数字排印：时间码/统计数值/序号一律等宽 tabular（DESIGN §2.2）*/
+  .font-num,
+  .num {
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
+    letter-spacing: 0.02em;
   }
 
-  /* 玻璃拟态：悬浮控制台/弹层 */
+  /* 纸面浮层：90% 不透明纸面 + 发丝线（取代旧深色玻璃拟态） */
   .glass {
-    backdrop-filter: blur(28px) saturate(160%);
-    -webkit-backdrop-filter: blur(28px) saturate(160%);
-    background: hsl(var(--card) / 0.75);
-    border: 1px solid hsl(var(--border));
+    background: hsl(var(--popover) / 0.9);
+    border: 1px solid rgb(var(--hair));
   }
 
   .glass-card {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    background: hsl(var(--card) / 0.9);
+    background: hsl(var(--popover) / 0.95);
+  }
+
+  /* 浮层淡投影（DESIGN §1.3 唯一允许的投影） */
+  .shadow-float {
+    box-shadow: var(--shadow-float);
+  }
+
+  /* 1px 发丝分隔线 */
+  .hairline {
+    height: 1px;
+    border: 0;
+    background: rgb(var(--hair));
+  }
+
+  .hairline-soft {
+    height: 1px;
+    border: 0;
+    background: rgb(var(--hair-soft));
   }
 
   /* 文字截断 */
@@ -181,7 +278,7 @@ body {
     display: none;
   }
 
-  /* 播放动画 - 均衡器三连柱 */
+  /* 播放动画 - 均衡器三连柱（accent 色，DESIGN §5） */
   .playing-bar {
     display: inline-flex;
     align-items: flex-end;
@@ -192,7 +289,7 @@ body {
   .playing-bar span {
     display: inline-block;
     width: 3px;
-    background: hsl(var(--primary));
+    background: rgb(var(--accent));
     border-radius: 2px;
     animation: equalize 1.2s ease-in-out infinite;
   }
@@ -235,47 +332,71 @@ body {
    组件层 - 通用样式
    =================================================== */
 @layer components {
-  /* 专辑/歌单卡：去盒化，hover 上浮 */
+  /* 分区标题范式：衬线大标题 + 拉丁小标签 + 上缘发丝线（DESIGN §3，demo .section-head） */
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 52px 0 18px;
+    border-top: 1px solid rgb(var(--hair));
+  }
+
+  .section-head h2 {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: 30px;
+    letter-spacing: 0.02em;
+  }
+
+  .section-head h2 small {
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: rgb(var(--ink-faint));
+    margin-left: 16px;
+    vertical-align: 4px;
+  }
+
+  .section-head .more {
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: rgb(var(--ink-soft));
+    transition: color 0.25s var(--ease);
+  }
+
+  .section-head .more:hover {
+    color: rgb(var(--accent));
+  }
+
+  /* 专辑/歌单卡：去盒化，hover 微放大（封面即内容，DESIGN §3） */
   .music-card {
-    @apply rounded-xl overflow-hidden transition-all duration-300 cursor-pointer;
+    @apply rounded-md overflow-hidden transition-transform duration-300 cursor-pointer;
   }
 
   .music-card:hover {
-    transform: translateY(-3px);
+    transform: scale(1.03);
   }
 
-  /* 歌曲行 */
+  /* 歌曲行：编号编辑列表（DESIGN §3「列表即网格」）
+     hover：底色 paper-deep + 内容右移 4px，200ms var(--ease) */
   .song-row {
-    @apply flex items-center gap-4 px-4 py-2 rounded-lg cursor-pointer
-           transition-colors duration-150 hover:bg-surface-hover;
+    @apply flex items-center gap-4 px-3 py-2.5 cursor-pointer;
+    transition: background 0.2s var(--ease), transform 0.2s var(--ease);
   }
 
-  /* 侧边栏导航项 */
-  .nav-item {
-    @apply relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
-           text-muted-foreground transition-all duration-150 cursor-pointer
-           hover:text-foreground hover:bg-surface;
+  .song-row:hover {
+    background: rgb(var(--paper-deep));
+    transform: translateX(4px);
   }
 
-  .nav-item.active {
-    @apply text-foreground bg-accent;
+  .song-row:active {
+    transform: translateX(4px) scale(0.995);
   }
 
-  /* 激活导航项左侧的强调色短竖条 */
-  .nav-item.active::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 9px;
-    bottom: 9px;
-    width: 2px;
-    border-radius: 2px;
-    background: hsl(var(--primary));
-  }
-
-  /* 封面图片容器：内描边 */
+  /* 封面图片容器：发丝内描边 */
   .cover-container {
-    @apply relative overflow-hidden rounded-lg flex-shrink-0
+    @apply relative overflow-hidden rounded-md flex-shrink-0
            ring-1 ring-border;
     background: hsl(var(--muted));
   }

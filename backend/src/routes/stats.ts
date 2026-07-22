@@ -1,128 +1,187 @@
 import { Router, Request, Response } from 'express'
+import { z } from 'zod'
 import db from '../db/database'
 import { authMiddleware } from '../middleware/auth'
+import {
+  boundedId,
+  eventIdSchema,
+  parseBoundedInteger,
+  parseRequest,
+  safeJsonObject,
+  serverIdSchema,
+  songDataSchema,
+} from '../validation'
 
 const router = Router()
 router.use(authMiddleware)
 
-// POST /api/stats/scrobble - 上报播放记录
+const scrobbleSchema = z.object({
+  eventId: eventIdSchema,
+  songId: boundedId,
+  serverId: serverIdSchema,
+  songData: songDataSchema,
+  duration: z.number().int().min(0).max(86_400).nullable().optional(),
+  playedAt: z.number().int().min(946_684_800).optional(),
+}).strict()
+
+function optionalServerId(req: Request, res: Response): { valid: boolean; value: string | null } {
+  if (req.query.serverId === undefined) return { valid: true, value: null }
+  const parsed = parseRequest(serverIdSchema, req.query.serverId, res)
+  return parsed.success
+    ? { valid: true, value: parsed.data }
+    : { valid: false, value: null }
+}
+
+function scopeSql(serverId: string | null): { where: string; params: string[] } {
+  return serverId
+    ? { where: 'user_id = ? AND server_id = ?', params: [serverId] }
+    : { where: 'user_id = ?', params: [] }
+}
+
 router.post('/scrobble', (req: Request, res: Response) => {
-  const { songId, serverId, songData, duration } = req.body
-  if (!songId || !serverId || !songData) {
-    return res.status(400).json({ error: 'songId, serverId, songData are required' })
+  const parsed = parseRequest(scrobbleSchema, req.body, res)
+  if (!parsed.success) return
+  const { eventId, songId, serverId, songData, duration, playedAt } = parsed.data
+  const now = Math.floor(Date.now() / 1000)
+  if (playedAt !== undefined && playedAt > now + 300) {
+    return res.status(400).json({ error: 'playedAt must not be more than 5 minutes in the future' })
   }
 
-  const now = Math.floor(Date.now() / 1000)
-  db.prepare(`
-    INSERT INTO play_history (user_id, song_id, server_id, song_data, played_at, duration)
-    VALUES (?, ?, ?, ?, ?, ?)
+  const result = db.prepare(`
+    INSERT INTO play_history (user_id, event_id, song_id, server_id, song_data, played_at, duration)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
   `).run(
-    req.user!.userId, songId, serverId,
-    JSON.stringify(songData), now, duration ?? null
+    req.user!.userId,
+    eventId,
+    songId,
+    serverId,
+    JSON.stringify(songData),
+    playedAt ?? now,
+    duration ?? null,
   )
 
-  return res.status(201).json({ message: 'Scrobbled' })
+  return res.status(result.changes ? 201 : 200).json({
+    message: result.changes ? 'Scrobbled' : 'Already scrobbled',
+    duplicate: result.changes === 0,
+  })
 })
 
-// GET /api/stats/history - 获取播放历史
 router.get('/history', (req: Request, res: Response) => {
-  const limit = Math.min(Number(req.query.limit ?? 100), 500)
-  const offset = Number(req.query.offset ?? 0)
+  const limit = parseBoundedInteger(req.query.limit, 100, 1, 500)
+  const offset = parseBoundedInteger(req.query.offset, 0, 0, 1_000_000)
+  if (limit === null || offset === null) {
+    return res.status(400).json({ error: 'limit must be 1–500 and offset must be 0–1000000' })
+  }
+  const server = optionalServerId(req, res)
+  if (!server.valid) return
+  const scope = scopeSql(server.value)
+  const params = [req.user!.userId, ...scope.params]
 
   const rows = db.prepare(`
-    SELECT * FROM play_history WHERE user_id = ?
-    ORDER BY played_at DESC LIMIT ? OFFSET ?
-  `).all(req.user!.userId, limit, offset) as Array<{ song_data: string; [key: string]: any }>
-
+    SELECT * FROM play_history WHERE ${scope.where}
+    ORDER BY played_at DESC, id DESC LIMIT ? OFFSET ?
+  `).all(...params, limit, offset) as Array<{ song_data: string; [key: string]: unknown }>
   const total = (db.prepare(
-    'SELECT COUNT(*) as count FROM play_history WHERE user_id = ?'
-  ).get(req.user!.userId) as { count: number }).count
+    `SELECT COUNT(*) AS count FROM play_history WHERE ${scope.where}`,
+  ).get(...params) as { count: number }).count
 
   return res.json({
-    items: rows.map(r => ({
-      ...r,
-      songData: JSON.parse(r.song_data),
-    })),
+    items: rows.map(row => {
+      const { song_data: songDataJson, ...fields } = row
+      return { ...fields, songData: safeJsonObject(songDataJson) }
+    }),
     total,
     offset,
     limit,
   })
 })
 
-// GET /api/stats/summary - 获取统计摘要
 router.get('/summary', (req: Request, res: Response) => {
   const userId = req.user!.userId
+  const server = optionalServerId(req, res)
+  if (!server.valid) return
+  const scope = scopeSql(server.value)
+  const params = [userId, ...scope.params]
 
   const totalPlays = (db.prepare(
-    'SELECT COUNT(*) as count FROM play_history WHERE user_id = ?'
-  ).get(userId) as { count: number }).count
+    `SELECT COUNT(*) AS count FROM play_history WHERE ${scope.where}`,
+  ).get(...params) as { count: number }).count
+  const totalDuration = (db.prepare(`
+    SELECT SUM(duration) AS total FROM play_history
+    WHERE ${scope.where} AND duration IS NOT NULL
+  `).get(...params) as { total: number | null }).total ?? 0
 
-  const totalDuration = (db.prepare(
-    'SELECT SUM(duration) as total FROM play_history WHERE user_id = ? AND duration IS NOT NULL'
-  ).get(userId) as { total: number | null }).total ?? 0
-
-  // Top songs
   const topSongs = db.prepare(`
-    SELECT song_id, song_data, COUNT(*) as play_count
-    FROM play_history WHERE user_id = ?
-    GROUP BY song_id
-    ORDER BY play_count DESC LIMIT 10
-  `).all(userId) as Array<{ song_data: string; play_count: number }>
+    WITH ranked AS (
+      SELECT
+        server_id,
+        song_id,
+        song_data,
+        COUNT(*) OVER (PARTITION BY server_id, song_id) AS play_count,
+        ROW_NUMBER() OVER (
+          PARTITION BY server_id, song_id ORDER BY played_at DESC, id DESC
+        ) AS snapshot_rank
+      FROM play_history
+      WHERE ${scope.where}
+    )
+    SELECT server_id, song_id, song_data, play_count
+    FROM ranked WHERE snapshot_rank = 1
+    ORDER BY play_count DESC, song_id ASC LIMIT 10
+  `).all(...params) as Array<{
+    server_id: string
+    song_id: string
+    song_data: string
+    play_count: number
+  }>
 
-  // Top artists (extracted from song_data JSON)
-  const artistCounts = new Map<string, number>()
-  const allHistory = db.prepare(
-    'SELECT song_data FROM play_history WHERE user_id = ?'
-  ).all(userId) as Array<{ song_data: string }>
+  const topArtists = db.prepare(`
+    SELECT
+      CASE
+        WHEN json_valid(song_data) AND json_type(song_data, '$.artist') = 'text'
+          THEN COALESCE(NULLIF(json_extract(song_data, '$.artist'), ''), 'Unknown')
+        ELSE 'Unknown'
+      END AS name,
+      COUNT(*) AS playCount
+    FROM play_history
+    WHERE ${scope.where}
+    GROUP BY name
+    ORDER BY playCount DESC, name ASC LIMIT 10
+  `).all(...params)
 
-  allHistory.forEach(row => {
-    try {
-      const song = JSON.parse(row.song_data)
-      const artist = song.artist ?? 'Unknown'
-      artistCounts.set(artist, (artistCounts.get(artist) ?? 0) + 1)
-    } catch { /* skip */ }
-  })
-
-  const topArtists = Array.from(artistCounts.entries())
-    .map(([name, count]) => ({ name, playCount: count }))
-    .sort((a, b) => b.playCount - a.playCount)
-    .slice(0, 10)
-
-  // Monthly data (last 12 months)
-  // 按用户本地时区分桶：客户端可传 ?tzOffsetMinutes=（UTC 以东为正，如 UTC+8 传 480）；
-  // 未传时退回服务器本地时区（'localtime'）。纯 UTC 分桶会把月初边界附近的播放记入错误月份
-  const rawTz = Number(req.query.tzOffsetMinutes)
-  const tzOffsetMinutes = Number.isFinite(rawTz)
-    ? Math.max(-840, Math.min(840, Math.trunc(rawTz)))
-    : null
-  const monthExpr = tzOffsetMinutes !== null
-    ? `strftime('%Y-%m', played_at + ${tzOffsetMinutes * 60}, 'unixepoch')`
-    : `strftime('%Y-%m', played_at, 'unixepoch', 'localtime')`
+  const tzOffsetMinutes = parseBoundedInteger(req.query.tzOffsetMinutes, 0, -840, 840)
+  if (tzOffsetMinutes === null) {
+    return res.status(400).json({ error: 'tzOffsetMinutes must be an integer between -840 and 840' })
+  }
+  const monthExpression = `strftime('%Y-%m', played_at + ?, 'unixepoch')`
   const monthlyData = db.prepare(`
     SELECT
-      ${monthExpr} as month,
-      COUNT(*) as plays,
-      SUM(COALESCE(duration, 0)) as duration
-    FROM play_history WHERE user_id = ?
+      ${monthExpression} AS month,
+      COUNT(*) AS plays,
+      SUM(COALESCE(duration, 0)) AS duration
+    FROM play_history WHERE ${scope.where}
     GROUP BY month ORDER BY month DESC LIMIT 12
-  `).all(userId)
+  `).all(tzOffsetMinutes * 60, ...params)
 
   return res.json({
     totalPlays,
     totalDuration,
-    topSongs: topSongs.map(r => ({
-      ...JSON.parse(r.song_data),
-      playCount: r.play_count,
-    })),
+    topSongs: topSongs.flatMap(row => {
+      const song = safeJsonObject(row.song_data)
+      return song ? [{ ...song, serverId: row.server_id, playCount: row.play_count }] : []
+    }),
     topArtists,
     monthlyData,
   })
 })
 
-// DELETE /api/stats/history - 清除播放历史
 router.delete('/history', (req: Request, res: Response) => {
-  db.prepare('DELETE FROM play_history WHERE user_id = ?').run(req.user!.userId)
-  return res.json({ message: 'History cleared' })
+  const server = optionalServerId(req, res)
+  if (!server.valid) return
+  const scope = scopeSql(server.value)
+  const result = db.prepare(`DELETE FROM play_history WHERE ${scope.where}`)
+    .run(req.user!.userId, ...scope.params)
+  return res.json({ message: 'History cleared', deleted: result.changes })
 })
 
 export default router

@@ -1,13 +1,13 @@
 /**
- * 专辑详情页
- * 展示专辑封面、信息、歌曲列表
+ * 专辑详情页 —— demo 专辑范式（DESIGN v2 §3，demo-editorial .album-head）
+ * 左大封面（圆角 6px + 唯一允许的浮层淡投影）｜右元信息：衬线 900 专辑名、
+ * 歌手链接、mono 年份·曲目数·总时长、文字级操作行；下方曲目表 = SongList（自带 border-t）
  */
 
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { Play, Shuffle, Heart } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAlbumDetail, useToggleStar } from '@/hooks/useServerQueries'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 
 export default function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { data: album, isLoading } = useAlbumDetail(id ?? '')
   const toggleStar = useToggleStar()
   const [starred, setStarred] = useState(false)
@@ -26,14 +27,20 @@ export default function AlbumDetailPage() {
   }, [album])
 
   const coverUrl = album?.coverArt && hasAdapter()
-    ? getAdapter().getCoverUrl(album.coverArt, 400)
+    ? getAdapter().getCoverUrl(album.coverArt, 600)
     : undefined
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="pt-10 animate-fade-in">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-[280px_minmax(0,1fr)] lg:gap-14">
+          <div className="aspect-square w-60 max-w-[320px] rounded-md bg-hair-soft animate-pulse md:w-full" />
+          <div className="space-y-4 pt-2">
+            <div className="h-3 w-28 rounded-sm bg-hair-soft animate-pulse" />
+            <div className="h-12 w-2/3 rounded-sm bg-hair-soft animate-pulse" />
+            <div className="h-3 w-40 rounded-sm bg-hair-soft animate-pulse" />
+            <div className="h-3 w-56 rounded-sm bg-hair-soft animate-pulse" />
+          </div>
         </div>
       </div>
     )
@@ -41,8 +48,8 @@ export default function AlbumDetailPage() {
 
   if (!album) {
     return (
-      <div className="flex flex-col h-full items-center justify-center text-muted-foreground">
-        <p>专辑不存在或加载失败</p>
+      <div className="pt-24 text-center">
+        <p className="font-serif text-xl text-ink-soft">专辑不存在或加载失败。</p>
       </div>
     )
   }
@@ -50,107 +57,94 @@ export default function AlbumDetailPage() {
   const totalDuration = album.songs.reduce((s, r) => s + r.duration, 0)
 
   return (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1">
-        <div className="max-w-5xl mx-auto animate-fade-in">
-          {/* 专辑 Header */}
-          <div className="px-8 pt-10 pb-8 flex gap-8 items-end">
-            {/* 封面 */}
-            <div className="relative w-40 h-40 lg:w-56 lg:h-56 flex-shrink-0">
-              <div aria-hidden className="absolute inset-[10%] rounded-[40%] bg-primary/20 blur-[48px]" />
-              <div className="relative w-full h-full rounded-lg overflow-hidden ring-1 ring-border shadow-2xl shadow-black/40">
-                <ImageWithFallback
-                  src={coverUrl}
-                  alt={album.name}
-                  fallbackType="album"
-                  className="w-full h-full"
-                  customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
-                />
-              </div>
-            </div>
-
-            {/* 信息 */}
-            <div className="flex-1 min-w-0 pb-1">
-              <p className="text-[11.5px] uppercase tracking-[0.14em] text-primary mb-2">专辑</p>
-              <h1 className="text-2xl lg:text-4xl font-bold tracking-tight text-foreground line-clamp-2 mb-2">
-                {album.name}
-              </h1>
-              <p className="text-base text-muted-foreground mb-3 truncate">{album.artist}</p>
-              <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
-                {album.year && (
-                  <>
-                    <span className="font-num">{album.year}</span>
-                    <span aria-hidden>·</span>
-                  </>
-                )}
-                {album.genre && (
-                  <>
-                    <span>{album.genre}</span>
-                    <span aria-hidden>·</span>
-                  </>
-                )}
-                <span>
-                  <span className="font-num">{album.songs.length}</span> 首歌曲 · <span className="font-num">{formatDurationNatural(totalDuration)}</span>
-                </span>
-              </div>
-
-              {/* 操作按钮 */}
-              <div className="flex items-center gap-3 mt-6">
-                <button
-                  onClick={() => playAllInOrder(album.songs)}
-                  className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors active:scale-[0.97]"
-                >
-                  <Play size={16} weight="fill" />
-                  播放全部
-                </button>
-                <button
-                  onClick={() => playAllShuffled(album.songs)}
-                  className="inline-flex items-center gap-2 h-10 px-5 rounded-full border border-border text-sm font-semibold text-foreground hover:border-primary hover:text-primary transition-colors active:scale-[0.97]"
-                >
-                  <Shuffle size={16} />
-                  随机播放
-                </button>
-                <button
-                  onClick={() => {
-                    if (!id) return
-                    const next = !starred
-                    setStarred(next)
-                    toggleStar.mutate(
-                      { id, type: 'album', isStarred: !next },
-                      { onError: () => setStarred(!next) }
-                    )
-                  }}
-                  className={cn(
-                    'w-10 h-10 grid place-items-center rounded-full transition-colors hover:bg-accent active:scale-[0.94]',
-                    starred ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                  )}
-                  aria-label={starred ? '取消收藏专辑' : '收藏专辑'}
-                >
-                  <Heart size={20} weight={starred ? 'fill' : 'regular'} />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* 歌曲列表 */}
-          <div className="px-8 pb-10 border-t border-border pt-4">
-            {/* 表头 */}
-            <div className="flex items-center gap-4 px-4 py-2 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border mb-2">
-              <span className="w-8 text-center font-num">#</span>
-              <span className="flex-1">标题</span>
-              <span className="hidden lg:block flex-1">专辑</span>
-              <span className="w-12 text-right">时长</span>
-              <span className="w-8" />
-            </div>
-            <SongList
-              songs={album.songs}
-              showCover={false}
-              showAlbum={false}
-              showIndex
+    <div className="pt-10 animate-fade-in">
+      <div className="grid grid-cols-1 gap-10 md:grid-cols-[280px_minmax(0,1fr)] lg:gap-14">
+        {/* 左：大封面（240–320px、圆角 6px、shadow-float，DESIGN §1.3 唯一允许的投影） */}
+        <div className="w-60 max-w-[320px] md:w-full">
+          <div className="aspect-square overflow-hidden rounded-md ring-1 ring-hair-soft shadow-float">
+            <ImageWithFallback
+              src={coverUrl}
+              alt={album.name}
+              fallbackType="album"
+              className="w-full h-full"
+              customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
             />
           </div>
         </div>
-      </ScrollArea>
+
+        {/* 右：元信息 */}
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">专辑 · ALBUM</p>
+          <h1 className="mt-3 font-serif text-[40px] font-black leading-[1.1] tracking-[-0.01em] text-ink text-balance lg:text-[52px]">
+            {album.name}
+          </h1>
+          <p className="mt-3 text-sm tracking-[0.06em] text-ink-soft">
+            {album.artistId ? (
+              <button
+                onClick={() => navigate(`/artists/${album.artistId}`)}
+                className="border-b border-hair pb-0.5 transition-colors duration-200 hover:border-primary hover:text-primary"
+              >
+                {album.artist}
+              </button>
+            ) : (
+              album.artist
+            )}
+          </p>
+          <p className="num mt-3 text-xs text-ink-faint">
+            {album.year && <>{album.year} 年 · </>}
+            {album.genre && <>{album.genre} · </>}
+            {album.songs.length} 首 · {formatDurationNatural(totalDuration)}
+          </p>
+
+          {/* 操作行：文字级主操作 + 细线次操作 + 心形图标键（DESIGN §4.1） */}
+          <div className="mt-7 flex items-center gap-6">
+            <button
+              onClick={() => playAllInOrder(album.songs)}
+              className="inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
+            >
+              <Play size={13} weight="fill" />
+              播放全部
+            </button>
+            <button
+              onClick={() => playAllShuffled(album.songs)}
+              className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+            >
+              <Shuffle size={14} />
+              随机播放
+            </button>
+            <button
+              onClick={() => {
+                if (!id) return
+                const next = !starred
+                setStarred(next)
+                toggleStar.mutate(
+                  { id, type: 'album', isStarred: !next },
+                  { onError: () => setStarred(!next) }
+                )
+              }}
+              className={cn(
+                'grid h-9 w-9 place-items-center rounded-full border transition-colors duration-200 active:scale-[0.94]',
+                starred
+                  ? 'border-primary text-primary'
+                  : 'border-hair text-ink-soft hover:border-primary hover:text-primary'
+              )}
+              aria-label={starred ? '取消收藏专辑' : '收藏专辑'}
+            >
+              <Heart size={17} weight={starred ? 'fill' : 'regular'} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 曲目表：SongList 自带 border-t，页面不再包带 border 的容器 */}
+      <div className="mt-12">
+        <SongList
+          songs={album.songs}
+          showCover={false}
+          showAlbum={false}
+          showIndex
+        />
+      </div>
     </div>
   )
 }

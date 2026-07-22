@@ -1,18 +1,18 @@
 /**
- * 搜索页
- * 实时搜索歌曲、专辑、歌手
+ * 搜索页 —— 杂志化检索（DESIGN v2 §4.4/§4.5）
+ * 大号无框搜索框（下缘 1px hair，focus 变 accent 2px）＋ 分区结果：
+ * 歌手文字索引 / 专辑封面墙 / 歌曲编号列表；空态为衬线一句 + ink-faint 说明
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { Fragment, useState, useCallback, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { MagnifyingGlass, X } from '@phosphor-icons/react'
-import { Input } from '@/components/ui/input'
 import { AlbumCard } from '@/components/music/AlbumCard'
-import { ArtistCard } from '@/components/music/ArtistCard'
 import { SongList } from '@/components/music/SongList'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSearch } from '@/hooks/useServerQueries'
 
 export default function SearchPage() {
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
@@ -38,98 +38,152 @@ export default function SearchPage() {
   const showResults = query.trim().length > 0 && debouncedQuery.trim().length > 0
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* 搜索框 */}
-        <div className="px-8 py-5 border-b border-border">
-          <div className="relative max-w-xl mx-auto lg:mx-0">
-            <MagnifyingGlass size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="搜索歌曲、专辑、歌手..."
-              className="pl-10 pr-10 h-11 text-base rounded-md"
-              autoFocus
-            />
-            {query && (
-              <button
-                onClick={handleClear}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors active:scale-[0.94]"
-                aria-label="清空搜索"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+    <div className="animate-fade-in">
+      {/* ============ 大搜索框 ============ */}
+      <div className="pt-12 pb-12 border-b border-hair">
+        <h1 className="font-serif text-[34px] font-bold tracking-[-0.01em] text-foreground">
+          搜索
+          <span className="ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
+            SEARCH
+          </span>
+        </h1>
+        <div className="group relative mt-9">
+          <MagnifyingGlass
+            size={20}
+            className="absolute left-0 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none"
+          />
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="搜索歌曲、专辑、歌手…"
+            autoFocus
+            aria-label="搜索"
+            className="w-full h-16 bg-transparent pl-9 pr-10 font-serif text-[22px] text-foreground placeholder:italic placeholder:text-ink-faint/70 border-b border-hair focus:outline-none transition-colors duration-200"
+          />
+          {/* focus 时下缘 accent 2px（DESIGN §4.4，group-focus-within 监听外层容器） */}
+          <span
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 h-[2px] origin-left scale-x-0 bg-primary transition-transform duration-300 group-focus-within:scale-x-100"
+          />
+          {query && (
+            <button
+              onClick={handleClear}
+              className="absolute right-0 top-1/2 -translate-y-1/2 w-8 h-8 grid place-items-center rounded-full text-ink-faint hover:text-primary transition-colors active:scale-[0.94]"
+              aria-label="清空搜索"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
-
-        <ScrollArea className="flex-1">
-          <div className="px-8 pb-10 max-w-[1320px] mx-auto divide-y divide-border">
-            {/* 无查询时展示提示 */}
-            {!query && (
-              <div className="text-center py-20">
-                <MagnifyingGlass size={44} className="text-muted-foreground/30 mx-auto mb-4" />
-                <p className="text-muted-foreground">输入关键词开始搜索</p>
-                <p className="text-xs text-muted-foreground/50 mt-1.5">
-                  支持歌曲名、专辑名、歌手名
-                </p>
-              </div>
-            )}
-
-            {/* 加载中 */}
-            {isLoading && (
-              <div className="text-center py-10">
-                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-              </div>
-            )}
-
-            {/* 无结果（等待防抖或请求进行中时不提前展示） */}
-            {showResults && !isLoading && !isFetching && !hasResults && (
-              <div className="text-center py-20">
-                <p className="text-muted-foreground">未找到「{query}」相关内容</p>
-              </div>
-            )}
-
-            {/* 歌手 */}
-            {showResults && results?.artists && results.artists.length > 0 && (
-              <section className="py-8">
-                <h2 className="text-lg font-bold tracking-tight text-foreground mb-5">
-                  歌手 <span className="font-num text-sm font-normal text-muted-foreground">({results.artists.length})</span>
-                </h2>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5 [&>*]:min-w-0">
-                  {results.artists.map(artist => (
-                    <ArtistCard key={artist.id} artist={artist} />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* 专辑 */}
-            {showResults && results?.albums && results.albums.length > 0 && (
-              <section className="py-8">
-                <h2 className="text-lg font-bold tracking-tight text-foreground mb-5">
-                  专辑 <span className="font-num text-sm font-normal text-muted-foreground">({results.albums.length})</span>
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-6 [&>*]:min-w-0">
-                  {results.albums.map(album => (
-                    <AlbumCard key={album.id} album={album} />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* 歌曲 */}
-            {showResults && results?.songs && results.songs.length > 0 && (
-              <section className="py-8">
-                <h2 className="text-lg font-bold tracking-tight text-foreground mb-5">
-                  歌曲 <span className="font-num text-sm font-normal text-muted-foreground">({results.songs.length})</span>
-                </h2>
-                <SongList songs={results.songs} showCover showAlbum showIndex />
-              </section>
-            )}
-          </div>
-        </ScrollArea>
       </div>
+
+      {/* 空态：衬线一句 + ink-faint 说明（DESIGN §4.5） */}
+      {!query && (
+        <div className="py-24 text-center">
+          <p className="font-serif text-[22px] font-semibold text-foreground">想找什么，直接输入。</p>
+          <p className="mt-3 text-[13px] text-ink-faint">支持歌曲名、专辑名、歌手名，输入即搜。</p>
+        </div>
+      )}
+
+      {/* 加载骨架（hair-soft 行闪烁，不用 spinner） */}
+      {showResults && isLoading && <SongRowsSkeleton rows={6} />}
+
+      {/* 无结果（等待防抖或请求进行中时不提前展示） */}
+      {showResults && !isLoading && !isFetching && !hasResults && (
+        <div className="py-24 text-center">
+          <p className="font-serif text-[22px] font-semibold text-foreground">
+            没有找到与「{query}」相关的内容。
+          </p>
+          <p className="mt-3 text-[13px] text-ink-faint">换个关键词，或检查拼写后再试。</p>
+        </div>
+      )}
+
+      {/* ============ 歌手 · 文字索引 ============ */}
+      {showResults && results?.artists && results.artists.length > 0 && (
+        <section aria-labelledby="search-artists">
+          <div className="section-head">
+            <h2 id="search-artists">
+              歌手<small>ARTISTS</small>
+            </h2>
+            <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+              {results.artists.length} 位
+            </span>
+          </div>
+          <p className="font-serif text-[19px] lg:text-[22px] font-semibold leading-[2.1]">
+            {results.artists.map((artist, i) => (
+              <Fragment key={artist.id}>
+                {i > 0 && (
+                  <span aria-hidden className="mx-2 align-middle text-[0.7em] font-normal text-ink-faint">
+                    ·
+                  </span>
+                )}
+                <button
+                  onClick={() => navigate(`/artists/${artist.id}`)}
+                  className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
+                >
+                  {artist.name}
+                  {artist.albumCount !== undefined && (
+                    <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
+                      {artist.albumCount}
+                    </span>
+                  )}
+                </button>
+              </Fragment>
+            ))}
+          </p>
+        </section>
+      )}
+
+      {/* ============ 专辑 · 封面墙 ============ */}
+      {showResults && results?.albums && results.albums.length > 0 && (
+        <section aria-labelledby="search-albums">
+          <div className="section-head">
+            <h2 id="search-albums">
+              专辑<small>ALBUMS</small>
+            </h2>
+            <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+              {results.albums.length} 张
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7 [&>*]:min-w-0">
+            {results.albums.map(album => (
+              <AlbumCard key={album.id} album={album} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ============ 歌曲 · 编号列表 ============ */}
+      {showResults && results?.songs && results.songs.length > 0 && (
+        <section aria-labelledby="search-songs">
+          <div className="section-head">
+            <h2 id="search-songs">
+              歌曲<small>SONGS</small>
+            </h2>
+            <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+              {results.songs.length} 首
+            </span>
+          </div>
+          <SongList songs={results.songs} showCover showAlbum showIndex />
+        </section>
+      )}
+    </div>
+  )
+}
+
+/** 搜索结果加载骨架：hair-soft 行闪烁（DESIGN §4.5） */
+function SongRowsSkeleton({ rows }: { rows: number }) {
+  return (
+    <div className="border-t border-hair">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-3 py-3 border-b border-hair-soft">
+          <span className="w-8 h-3 rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="w-10 h-10 rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="flex-1 h-4 rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="hidden lg:block flex-1 h-3.5 rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="w-12 h-3.5 rounded-sm bg-hair-soft/70 animate-pulse" />
+        </div>
+      ))}
     </div>
   )
 }

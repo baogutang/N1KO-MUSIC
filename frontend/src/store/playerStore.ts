@@ -55,6 +55,8 @@ interface PlayerState {
   pause: () => void
   resume: () => void
   next: () => void
+  /** 自然播放结束时前进；单曲循环只在此路径生效 */
+  advanceOnEnded: () => void
   prev: () => void
   seekTo: (time: number) => void
   setCurrentTime: (time: number) => void
@@ -74,6 +76,8 @@ interface PlayerState {
   setQueueOpen: (open: boolean) => void
   setStreamBuffering: (buffering: boolean) => void
   updateCurrentSong: (song: Partial<Song>) => void
+  /** 切换/断开服务器时清空所有与旧服务器绑定的播放状态 */
+  resetForServerChange: () => void
 }
 
 export const usePlayerStore = create<PlayerState>()(
@@ -147,9 +151,7 @@ export const usePlayerStore = create<PlayerState>()(
         let nextIndex: number
 
         // 单曲循环优先于 shuffle：自然播完时重播当前曲
-        if (repeatMode === 'one') {
-          nextIndex = queueIndex
-        } else if (shuffle) {
+        if (shuffle) {
           const currentShufflePos = shuffledIndexes.indexOf(queueIndex)
           const nextShufflePos = currentShufflePos + 1
           if (nextShufflePos >= shuffledIndexes.length) {
@@ -176,6 +178,21 @@ export const usePlayerStore = create<PlayerState>()(
           history: appendHistory(state.history, currentSong),
           currentSong: queue[nextIndex],
           queueIndex: nextIndex,
+          isPlaying: true,
+          currentTime: 0,
+          playVersion: state.playVersion + 1,
+        })
+      },
+
+      advanceOnEnded: () => {
+        const state = get()
+        if (state.repeatMode !== 'one') {
+          state.next()
+          return
+        }
+        if (!canSwitch() || !state.currentSong) return
+        set({
+          currentSong: state.currentSong,
           isPlaying: true,
           currentTime: 0,
           playVersion: state.playVersion + 1,
@@ -417,6 +434,24 @@ export const usePlayerStore = create<PlayerState>()(
       updateCurrentSong: (songPatch) => {
         set(state => ({
           currentSong: state.currentSong ? { ...state.currentSong, ...songPatch } : null,
+        }))
+      },
+
+      resetForServerChange: () => {
+        set(state => ({
+          currentSong: null,
+          isPlaying: false,
+          currentTime: 0,
+          duration: 0,
+          buffered: 0,
+          queue: [],
+          queueIndex: -1,
+          history: [],
+          shuffledIndexes: [],
+          isFullscreen: false,
+          isQueueOpen: false,
+          streamBuffering: false,
+          playVersion: state.playVersion + 1,
         }))
       },
     }),

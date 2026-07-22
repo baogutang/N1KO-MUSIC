@@ -8,6 +8,7 @@ import { persist } from 'zustand/middleware'
 import type { ServerConfig, ServerType } from '@/api/types'
 import { createAdapter, setActiveAdapter, clearAdapter } from '@/api'
 import { queryClient } from '@/lib/queryClient'
+import { usePlayerStore } from '@/store/playerStore'
 
 interface ServerState {
   /** 已配置的服务器列表 */
@@ -58,6 +59,10 @@ export const useServerStore = create<ServerState>()(
       },
 
       removeServer: (id) => {
+        const removingActiveServer = get().activeServerId === id
+        if (removingActiveServer) {
+          usePlayerStore.getState().resetForServerChange()
+        }
         set(state => {
           const servers = state.servers.filter(s => s.id !== id)
           const activeServerId = state.activeServerId === id ? null : state.activeServerId
@@ -81,6 +86,7 @@ export const useServerStore = create<ServerState>()(
         if ((server.type === 'jellyfin' || server.type === 'emby') && !server.userId) {
           const wasActive = get().activeServerId === id
           if (wasActive) {
+            usePlayerStore.getState().resetForServerChange()
             clearAdapter()
             queryClient.clear()
           }
@@ -94,8 +100,11 @@ export const useServerStore = create<ServerState>()(
         try {
           const prevActiveId = get().activeServerId
           const adapter = createAdapter(server)
+          if (prevActiveId !== id) {
+            usePlayerStore.getState().resetForServerChange()
+          }
           setActiveAdapter(adapter)
-          // 切换到不同服务器时清空查询缓存（查询 key 不含服务器 ID，否则会展示旧服务器数据）
+          // 查询 key 已按服务器隔离；切换时仍清理 blob URL 等会话资源，控制内存占用。
           if (prevActiveId !== id) {
             queryClient.clear()
           }
@@ -116,6 +125,7 @@ export const useServerStore = create<ServerState>()(
       },
 
       disconnect: () => {
+        usePlayerStore.getState().resetForServerChange()
         clearAdapter()
         // 登出时清空查询缓存，避免下次登录其他服务器时命中旧数据
         queryClient.clear()

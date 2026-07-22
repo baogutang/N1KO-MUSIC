@@ -1,11 +1,14 @@
 /**
- * 服务器登录页
+ * 服务器登录页 —— 纸面杂志化（DESIGN v2 §4.4/§4.5）
+ * 居中窄栏：品牌报头 + 衬线大标题；服务器类型为发丝线行式单选，
+ * 已存服务器为编号行式快速连接；错误直接陈述
  * 支持 Subsonic/Navidrome/Jellyfin/Emby 四种服务器类型
  */
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Waveform, CircleNotch, Eye, EyeSlash, CaretRight, HardDrives, MusicNote } from '@phosphor-icons/react'
+import { ArrowLeft, CaretRight, CircleNotch, Eye, EyeSlash } from '@phosphor-icons/react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
@@ -137,90 +140,132 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      {/* 背景氛围光 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/2 -left-1/2 w-full h-full rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full bg-primary/5 blur-3xl" />
-      </div>
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-md animate-fade-in">
+        {/* 品牌报头：下缘 3px double 发丝线（同主报头范式） */}
+        <header className="mb-12 pb-5 border-b-[3px] border-double border-hair text-center">
+          <p className="font-sans text-[14px] font-bold tracking-[0.34em] text-foreground">
+            N1KO MUSIC
+          </p>
+          <p className="num mt-1.5 text-[10.5px] tracking-[0.24em] text-ink-faint">
+            PERSONAL MUSIC CLIENT
+          </p>
+        </header>
 
-      <div className="relative z-10 w-full max-w-md animate-fade-in">
-        {/* 品牌 */}
-        <div className="flex flex-col items-center mb-10">
-          <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center mb-4 shadow-lg">
-            <Waveform weight="fill" className="w-7 h-7 text-primary-foreground" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">N1KO MUSIC</h1>
-          <p className="text-sm text-muted-foreground mt-1.5">连接到你的音乐服务器</p>
-        </div>
+        <h1 className="text-center font-serif text-[28px] font-bold tracking-[-0.01em] text-foreground">
+          连接你的音乐服务器
+        </h1>
+        <p className="mt-3 mb-10 text-center text-[13.5px] leading-relaxed text-ink-soft">
+          {step === 'type'
+            ? '选择服务器类型，或从已保存的服务器快速连接。'
+            : `正在配置 ${SERVER_TYPES.find(t => t.type === selectedType)?.label ?? ''} 的连接信息。`}
+        </p>
 
         {step === 'type' ? (
-          /* 选择服务器类型 */
-          <div className="space-y-2">
+          <div>
+            {/* 已保存的服务器：编号行式快速连接 */}
             {servers.length > 0 && (
-              <div className="mb-8 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground tracking-widest text-center mb-3">
-                  已保存的服务器
+              <div className="mb-10">
+                <p className="mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
+                  已保存的服务器 · SAVED
                 </p>
-                {servers.map(server => (
-                  <button
-                    key={server.id}
-                    onClick={() => handleQuickConnect(server.id)}
-                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-lg border border-border hover:border-primary transition-colors duration-150 group text-left active:scale-[0.98]"
-                  >
-                    <div className="w-9 h-9 rounded-md bg-accent flex items-center justify-center flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors duration-150">
-                      <MusicNote size={18} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-foreground truncate">{server.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{server.url}</p>
-                      <p className="text-xs text-muted-foreground">{getServerTypeLabel(server.type)} · {server.username}</p>
-                    </div>
-                    <CaretRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors duration-150 flex-shrink-0" />
-                  </button>
-                ))}
-                <p className="text-xs text-muted-foreground text-center pt-2">或添加新服务器</p>
+                <ol className="border-t border-hair">
+                  {servers.map((server, i) => (
+                    <li key={server.id} className="border-b border-hair-soft">
+                      <button
+                        onClick={() => handleQuickConnect(server.id)}
+                        className="group flex w-full items-center gap-4 px-2 py-3 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
+                      >
+                        <span className="num w-6 flex-shrink-0 text-[11.5px] text-ink-faint transition-colors group-hover:text-primary">
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-serif text-[15px] font-semibold text-foreground transition-colors group-hover:text-primary">
+                            {server.name}
+                          </span>
+                          <span className="block truncate text-[11.5px] text-ink-faint">
+                            {getServerTypeLabel(server.type)} · {server.username}
+                          </span>
+                        </span>
+                        <span className="num hidden sm:block max-w-[150px] truncate text-[10.5px] text-ink-faint">
+                          {server.url}
+                        </span>
+                        <CaretRight
+                          size={13}
+                          className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary"
+                        />
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+                <p className="pt-3 text-center text-[12px] text-ink-faint">或添加新服务器</p>
               </div>
             )}
-            <p className="text-xs font-medium text-muted-foreground tracking-widest text-center mb-3">
-              选择服务器类型
+
+            {/* 服务器类型：发丝线行式单选（当前项 accent + 左 2px 竖线） */}
+            <p className="mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
+              选择服务器类型 · SERVER TYPE
             </p>
-            {SERVER_TYPES.map(({ type, label, desc }) => (
-              <button
-                key={type}
-                onClick={() => handleTypeSelect(type)}
-                className="w-full flex items-center gap-4 px-4 py-3.5 rounded-lg border border-border hover:border-primary transition-colors duration-150 group text-left active:scale-[0.98]"
-              >
-                <div className="w-9 h-9 rounded-md bg-accent flex items-center justify-center flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors duration-150">
-                  <HardDrives size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-foreground">{label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
-                </div>
-                <CaretRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors duration-150 flex-shrink-0" />
-              </button>
-            ))}
+            <div className="border-t border-hair">
+              {SERVER_TYPES.map(({ type, label, desc }) => {
+                const active = selectedType === type
+                return (
+                  <button
+                    key={type}
+                    onClick={() => handleTypeSelect(type)}
+                    aria-pressed={active}
+                    className={cn(
+                      'group relative flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1',
+                      active && 'bg-paper-deep/50'
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'absolute left-0 top-0 h-full w-[2px] bg-primary transition-opacity duration-200',
+                        active ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          'block font-serif text-[15.5px] font-semibold transition-colors',
+                          active ? 'text-primary' : 'text-foreground group-hover:text-primary'
+                        )}
+                      >
+                        {label}
+                      </span>
+                      <span className="block text-[12px] text-ink-faint">{desc}</span>
+                    </span>
+                    <CaretRight
+                      size={13}
+                      className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary"
+                    />
+                  </button>
+                )
+              })}
+            </div>
           </div>
         ) : (
           /* 填写连接信息 */
-          <div className="border-t border-border pt-6 space-y-4">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="space-y-5 border-t border-hair pt-7">
+            <div className="flex items-center gap-2.5">
               <button
                 onClick={() => setStep('type')}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-150"
+                className="inline-flex items-center gap-1.5 text-[12.5px] tracking-[0.08em] text-ink-soft hover:text-primary transition-colors"
               >
-                ← 返回
+                <ArrowLeft size={13} />
+                返回
               </button>
-              <span className="text-sm text-muted-foreground">·</span>
-              <span className="text-sm font-medium text-foreground capitalize">
+              <span className="text-ink-faint">·</span>
+              <span className="font-serif text-[14px] font-semibold text-foreground">
                 {SERVER_TYPES.find(t => t.type === selectedType)?.label}
               </span>
             </div>
 
             {/* 服务器名称（可选）*/}
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
                 服务器名称（可选）
               </label>
               <Input
@@ -232,7 +277,7 @@ export default function LoginPage() {
 
             {/* 服务器地址 */}
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
                 服务器地址 <span className="text-destructive">*</span>
               </label>
               <Input
@@ -245,7 +290,7 @@ export default function LoginPage() {
 
             {/* 用户名 */}
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
                 用户名 <span className="text-destructive">*</span>
               </label>
               <Input
@@ -257,7 +302,7 @@ export default function LoginPage() {
 
             {/* 密码 */}
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
                 密码 <span className="text-destructive">*</span>
               </label>
               <div className="relative">
@@ -272,35 +317,37 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors duration-150"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint hover:text-foreground transition-colors duration-200"
+                  aria-label={showPassword ? '隐藏密码' : '显示密码'}
                 >
                   {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
-            {/* 错误提示 */}
+            {/* 错误提示：直接陈述，左侧 2px 竖线 */}
             {error && (
-              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+              <p className="border-l-2 border-destructive pl-3 text-[13px] leading-relaxed text-destructive">
                 {error}
               </p>
             )}
 
-            {/* 连接按钮 */}
-            <Button
-              className="w-full h-10 font-semibold"
-              onClick={handleConnect}
-              disabled={isLoading || !form.url || !form.username || !form.password}
-            >
-              {isLoading ? (
-                <>
-                  <CircleNotch className="w-4 h-4 mr-2 animate-spin" />
-                  正在连接...
-                </>
-              ) : (
-                '连接服务器'
-              )}
-            </Button>
+            {/* 连接按钮：文字级主操作 + 下划线（DESIGN §4.1） */}
+            <div className="pt-2 text-center">
+              <Button
+                onClick={handleConnect}
+                disabled={isLoading || !form.url || !form.username || !form.password}
+              >
+                {isLoading ? (
+                  <>
+                    <CircleNotch className="w-4 h-4 mr-2 animate-spin" />
+                    正在连接…
+                  </>
+                ) : (
+                  '连接服务器'
+                )}
+              </Button>
+            </div>
           </div>
         )}
       </div>

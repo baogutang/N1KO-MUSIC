@@ -1,58 +1,65 @@
 /**
- * 专辑列表页
+ * 专辑列表页 —— 封面墙（封面即内容，DESIGN v2 §3）
+ * 衬线页头 + mono 总数；无限分页「加载更多」，加载中显示封面形骨架块
  */
 
 import { AlbumCard } from '@/components/music/AlbumCard'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAlbumsInfinite } from '@/hooks/useServerQueries'
-import { CircleNotch } from '@phosphor-icons/react'
+
+const GRID_CLASS = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7'
 
 export default function AlbumsPage() {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useAlbumsInfinite(50)
 
   const albums = data?.pages.flatMap(p => p.items) ?? []
 
+  // 计数：服务器返回精确总数时显示总数；否则显示已加载数量，有更多页时以 + 提示
+  const total = data?.pages[0]?.total
+  const countText = total != null ? String(total) : `${albums.length}${hasNextPage ? '+' : ''}`
+
   return (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1">
-        <div className="px-8 pt-8 pb-10 max-w-[1320px] mx-auto animate-fade-in">
-          <div className="mb-7">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">专辑</h1>
-            {!isLoading && (
-              <p className="text-sm text-muted-foreground mt-1.5">
-                <span className="font-num">{albums.length}</span> 张专辑{hasNextPage ? '+' : ''}
-              </p>
-            )}
+    <div className="pt-9 animate-fade-in">
+      <div className="mb-8">
+        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">专辑</h1>
+        {!isLoading && (
+          <p className="text-sm text-ink-soft mt-1.5">
+            共 <span className="num">{countText}</span> 张
+          </p>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className={GRID_CLASS}>
+          {Array.from({ length: 15 }).map((_, i) => (
+            <div key={i} className="aspect-square rounded-md bg-hair-soft animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className={`${GRID_CLASS} [&>*]:min-w-0`}>
+            {albums.map(album => (
+              <AlbumCard key={album.id} album={album} />
+            ))}
           </div>
-          {isLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-6">
-              {Array.from({ length: 20 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-lg bg-accent animate-pulse" />
+          {isFetchingNextPage && (
+            <div className={`${GRID_CLASS} mt-7`}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="aspect-square rounded-md bg-hair-soft animate-pulse" />
               ))}
             </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-6 [&>*]:min-w-0">
-                {albums.map(album => (
-                  <AlbumCard key={album.id} album={album} />
-                ))}
-              </div>
-              {hasNextPage && (
-                <div className="flex justify-center mt-8">
-                  <button
-                    onClick={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                    className="inline-flex items-center gap-2 h-10 px-6 rounded-full border border-border text-sm text-foreground hover:border-primary hover:text-primary transition-colors active:scale-[0.97] disabled:opacity-50"
-                  >
-                    {isFetchingNextPage && <CircleNotch size={16} className="animate-spin" />}
-                    加载更多
-                  </button>
-                </div>
-              )}
-            </>
           )}
-        </div>
-      </ScrollArea>
+          {hasNextPage && !isFetchingNextPage && (
+            <div className="mt-10 flex justify-center">
+              <button
+                onClick={() => fetchNextPage()}
+                className="inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+              >
+                加载更多
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

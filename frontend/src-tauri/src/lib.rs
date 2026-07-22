@@ -4,7 +4,6 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // 已有实例运行时，聚焦主窗口
             if let Some(window) = app.get_webview_window("main") {

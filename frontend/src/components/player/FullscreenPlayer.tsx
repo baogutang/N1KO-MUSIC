@@ -1,12 +1,13 @@
 /**
- * 全屏播放器 — 现代 Hi-Fi 设计（见 DESIGN.md §4 全屏播放页）
- * 封面自适应氛围背景 + 左列封面/控制 + 右列歌词流
+ * 全屏播放器 — 杂志编辑风（docs/redesign/v2/DESIGN.md §4.3 正在播放页）
+ * 纸面底 + 极淡封面取色晕染；左列封面/信息/控制 + 右列歌词流
  *
  * 性能优化：
  * - 细粒度 selector，不订阅 currentTime/duration
- * - 进度条 / 时间显示拆成独立 memo 子组件
+ * - 进度条拆成独立 memo 子组件（FSProgressBar 自行订阅）
  * - 歌词组件自行订阅 currentTime，不经过父组件
  * - 仅全屏时由 MainLayout 条件挂载，非全屏零开销
+ *   （打开/关闭 fade+translateY 动画由 MainLayout 负责，见 §5）
  */
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
@@ -43,12 +44,26 @@ import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 /** macOS 检测：FullscreenPlayer 是 fixed 覆盖层，需要独立处理 traffic-light 区域 */
 const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
 
+/** 细线圆图标键（DESIGN §4.1 图标键）：1px hair 圆，hover 变 accent，:active scale(.95) */
+const lineCircleBtn = cn(
+  'rounded-full border border-hair text-ink-soft flex items-center justify-center',
+  'transition-[color,border-color,transform] duration-200 ease-[var(--ease)]',
+  'hover:text-primary hover:border-primary active:scale-95'
+)
+
+/** 歌手/专辑文字链接（demo .who a）：发丝下划线，hover 变 accent */
+const whoLinkCls = cn(
+  'truncate border-b border-hair cursor-pointer',
+  'transition-[color,border-color] duration-200 ease-[var(--ease)]',
+  'hover:text-primary hover:border-primary'
+)
+
 /**
  * 进度行子组件 — 独立订阅 currentTime / duration / buffered
  * 播放中每 200ms 更新一次，只有这个组件重渲染
- * 使用自定义双层进度条：浅色层=缓冲进度，深色层=播放进度
+ * 双层进度条：发丝层=缓冲进度，朱红层=播放进度（demo .playing-progress）
  */
-const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolean }) {
+const FSProgressBar = memo(function FSProgressBar() {
   const currentTime = usePlayerStore(s => s.currentTime)
   const duration = usePlayerStore(s => s.duration)
   const buffered = usePlayerStore(s => s.buffered)
@@ -125,51 +140,36 @@ const FSProgressBar = memo(function FSProgressBar({ isLight }: { isLight: boolea
   }, [clearDragListeners])
 
   return (
-    <div className="w-full flex items-center gap-2.5">
-      <span className={cn(
-        'font-num text-[11px] flex-none w-9',
-        isLight ? 'text-black/40' : 'text-white/40'
-      )}>
+    <div className="w-full flex items-center gap-3">
+      <span className="num text-[11.5px] text-ink-faint flex-none w-9">
         {formatDuration(displayTime)}
       </span>
 
-      {/* 3px 细进度轨，hover 浮现 thumb */}
+      {/* 2px 细进度轨，hover 浮现 accent 小圆点 */}
       <div
         ref={progressRef}
         onMouseDown={handleMouseDown}
         className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none"
       >
-        <div
-          className="relative w-full h-[3px] rounded-full overflow-hidden"
-          style={{ backgroundColor: isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)' }}
-        >
-          {/* 缓冲进度层（浅色）*/}
+        <div className="relative w-full h-[2px] bg-hair-soft">
+          {/* 缓冲进度层（发丝色）*/}
           <div
-            className="absolute left-0 top-0 h-full rounded-full transition-[width] duration-500"
-            style={{
-              width: `${bufferPercent}%`,
-              backgroundColor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.25)',
-            }}
+            className="absolute left-0 top-0 h-full bg-hair transition-[width] duration-500"
+            style={{ width: `${bufferPercent}%` }}
           />
-          {/* 播放进度层（跟随强调色）*/}
+          {/* 播放进度层（朱红 accent）*/}
           <div
-            className="absolute left-0 top-0 h-full rounded-full bg-primary transition-[width] duration-200"
+            className="absolute left-0 top-0 h-full bg-primary transition-[width] duration-200"
             style={{ width: `${playPercent}%` }}
           />
         </div>
         <div
-          className={cn(
-            'absolute top-1/2 w-2.5 h-2.5 rounded-full shadow-md -translate-x-1/2 -translate-y-1/2 scale-0 group-hover/track:scale-100 transition-transform duration-150 pointer-events-none',
-            isLight ? 'bg-black/70' : 'bg-white'
-          )}
+          className="absolute top-1/2 w-2.5 h-2.5 rounded-full bg-primary -translate-x-1/2 -translate-y-1/2 scale-0 group-hover/track:scale-100 transition-transform duration-150 pointer-events-none"
           style={{ left: `${playPercent}%` }}
         />
       </div>
 
-      <span className={cn(
-        'font-num text-[11px] flex-none w-9 text-right',
-        isLight ? 'text-black/40' : 'text-white/40'
-      )}>
+      <span className="num text-[11.5px] text-ink-faint flex-none w-9 text-right">
         {formatDuration(duration)}
       </span>
     </div>
@@ -195,11 +195,8 @@ export function FullscreenPlayer() {
   const toggleFullscreen = usePlayerStore(s => s.toggleFullscreen)
   const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
 
-  const [bgColors, setBgColors] = useState({ primary: 'hsl(0, 0%, 5%)', secondary: 'hsl(0, 0%, 10%)' })
-  const [coverLoaded, setCoverLoaded] = useState(false)
   const [showVolumePanel, setShowVolumePanel] = useState(false)
   const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false)
-  const volumeBtnRef = useRef<HTMLButtonElement>(null)
 
   const resolvedTheme = useThemeStore(s => s.resolvedTheme)
   const isLight = resolvedTheme === 'light'
@@ -209,20 +206,21 @@ export function FullscreenPlayer() {
   const { primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 512 })
   const toggleStar = useToggleStar()
 
-  // 已解析的实际封面 URL（可能来自服务器或自定义 API）
+  // 封面取色晕染（DESIGN §1.3 唯一允许的渐变）：提取完成后才渲染，null = 尚未取色
+  const [bleedColors, setBleedColors] = useState<{ primary: string; secondary: string } | null>(null)
+  // 已解析的实际封面 URL（可能来自服务器或自定义 API），由 CoverImage 的 onLoad 回调设置
   const [resolvedCoverUrl, setResolvedCoverUrl] = useState<string | undefined>(undefined)
 
-  // 封面加载完成后才提取颜色，避免与封面请求竞争 HTTP 连接。
-  // resolvedCoverUrl 由 CoverImage 的 onLoad 回调设置，此时封面已加载完成。
-  useEffect(() => { setCoverLoaded(false) }, [coverUrl])
-
   useEffect(() => {
-    // 优先使用 resolvedCoverUrl（封面加载后触发），没有则用 coverUrl
+    // 优先使用 resolvedCoverUrl（封面加载后触发），没有则用 coverUrl。
+    // 并发取消由 colorExtract 内部的 cancelPendingColorExtraction 保证，沿用原行为。
     const url = resolvedCoverUrl || coverUrl
     if (!url) return
+    let alive = true
     getCachedColors(url).then(colors => {
-      setBgColors({ primary: colors.primary, secondary: colors.secondary })
+      if (alive) setBleedColors({ primary: colors.primary, secondary: colors.secondary })
     })
+    return () => { alive = false }
   }, [resolvedCoverUrl, coverUrl])
 
   const { data: lyrics } = useLyricsQuery(
@@ -277,59 +275,38 @@ export function FullscreenPlayer() {
 
   const repeatLabel = repeatMode === 'one' ? '单曲循环' : repeatMode === 'all' ? '列表循环' : '不循环'
 
-  /** 覆盖层图标按钮（背景为封面提色，不走主题 token）*/
-  const overlayIconBtn = cn(
-    'w-9 h-9 rounded-md flex items-center justify-center transition-colors active:scale-[0.94]',
-    isLight
-      ? 'text-black/50 hover:text-black hover:bg-black/10'
-      : 'text-white/60 hover:text-white hover:bg-white/10'
-  )
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col"
-      style={{
-        background: isLight
-          ? `linear-gradient(160deg, ${bgColors.primary} 0%, ${bgColors.secondary} 50%, hsl(0, 0%, 95%) 100%)`
-          : `linear-gradient(160deg, ${bgColors.primary} 0%, ${bgColors.secondary} 50%, hsl(0, 0%, 3%) 100%)`,
-      }}
-    >
-      {/* 封面图模糊背景层 */}
-      {(coverUrl || resolvedCoverUrl) && (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <img
-            src={resolvedCoverUrl || coverUrl}
-            alt=""
-            className="absolute w-full h-full object-cover transition-opacity duration-1000"
-            style={{ filter: 'blur(80px) saturate(1.4)', opacity: coverLoaded ? (isLight ? 0.25 : 0.18) : 0, transform: 'scale(1.2)' }}
-            onLoad={() => setCoverLoaded(true)}
-            data-no-abort="true"
-          />
-          <div className="absolute inset-0" style={{
-            background: isLight
-              ? 'linear-gradient(to bottom, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.5) 60%, rgba(255,255,255,0.75) 100%)'
-              : 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0.85) 100%)'
-          }} />
-        </div>
-      )}
+    <div className="fixed inset-0 z-50 flex flex-col bg-paper text-ink">
+      {/* 封面取色淡晕染（唯一允许的渐变，DESIGN §1.3：浅色 ≤0.35，深色调低） */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
+        style={{
+          opacity: bleedColors ? (isLight ? 0.3 : 0.16) : 0,
+          background: bleedColors
+            ? `radial-gradient(55% 60% at 20% 12%, ${bleedColors.primary} 0%, transparent 72%),` +
+              ` radial-gradient(45% 50% at 86% 92%, ${bleedColors.secondary} 0%, transparent 75%)`
+            : 'none',
+        }}
+      />
 
-      {/* 顶部栏：左收起 / 中央「正在播放」+ 歌名 / 右更多 — Mac 上多留 padding 避开红黄绿按钮 */}
+      {/* 顶部栏：左收起 / 中央「正在播放」+ 曲名 / 右更多 — Mac 上多留 padding 避开红黄绿按钮 */}
       <div className={cn(
-        "flex items-center justify-between px-6 pb-2 flex-shrink-0 relative z-10",
+        "flex items-center justify-between px-6 pb-3 flex-shrink-0 relative z-10 border-b border-hair-soft",
         isMac ? "pt-12" : "pt-5"
       )}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button onClick={toggleFullscreen} className={overlayIconBtn}>
-              <CaretDown size={20} />
+            <button onClick={toggleFullscreen} className={cn(lineCircleBtn, 'w-9 h-9')}>
+              <CaretDown size={18} />
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom">收起播放器</TooltipContent>
         </Tooltip>
 
         <div className="text-center min-w-0 px-4">
-          <p className={cn('text-[11px] uppercase tracking-[0.16em]', isLight ? 'text-black/40' : 'text-white/50')}>正在播放</p>
-          <p className={cn('text-[13px] font-semibold mt-0.5 truncate max-w-md mx-auto', isLight ? 'text-black/80' : 'text-white/90')}>
+          <p className="text-[11px] tracking-[0.3em] text-ink-faint">正在播放</p>
+          <p className="font-serif text-[13.5px] font-semibold mt-1 truncate max-w-md mx-auto text-ink">
             {currentSong.title}
           </p>
         </div>
@@ -337,22 +314,14 @@ export function FullscreenPlayer() {
         {/* 右上：更多菜单 */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className={cn(overlayIconBtn, 'outline-none focus:outline-none focus-visible:outline-none')}>
-              <DotsThree size={22} weight="bold" />
+            <button className={cn(lineCircleBtn, 'w-9 h-9')}>
+              <DotsThree size={20} />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className={cn(
-              'w-60 backdrop-blur-xl',
-              isLight
-                ? 'bg-white/95 border-black/10 text-black'
-                : 'bg-zinc-900/95 border-white/10 text-white'
-            )}
-          >
-            <div className={cn('px-3 py-2.5 border-b', isLight ? 'border-black/10' : 'border-white/10')}>
-              <p className="font-semibold text-sm truncate">{currentSong.title}</p>
-              <p className={cn('text-xs truncate mt-0.5', isLight ? 'text-black/50' : 'text-white/50')}>{currentSong.artist}</p>
+          <DropdownMenuContent align="end" className="w-60">
+            <div className="px-3 py-2.5 border-b border-hair-soft">
+              <p className="font-serif font-semibold text-sm truncate">{currentSong.title}</p>
+              <p className="text-xs text-ink-soft truncate mt-0.5">{currentSong.artist}</p>
             </div>
             {currentSong.artistId && (
               <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2 cursor-pointer">
@@ -366,7 +335,7 @@ export function FullscreenPlayer() {
                 查看专辑：{currentSong.album}
               </DropdownMenuItem>
             )}
-            <DropdownMenuSeparator className={isLight ? 'bg-black/10' : 'bg-white/10'} />
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => { toggleFullscreen(); navigate(`/songs/${currentSong.id}`, { state: { song: currentSong } }) }}
               className="gap-2 cursor-pointer"
@@ -374,27 +343,27 @@ export function FullscreenPlayer() {
               <FileText size={16} />
               查看歌曲详情
             </DropdownMenuItem>
-            <DropdownMenuSeparator className={isLight ? 'bg-black/10' : 'bg-white/10'} />
+            <DropdownMenuSeparator />
             <div className="px-3 py-2 space-y-1.5">
-              <p className={cn('text-xs uppercase tracking-wider mb-1.5', isLight ? 'text-black/40' : 'text-white/40')}>歌曲信息</p>
+              <p className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5">歌曲信息</p>
               {currentSong.duration > 0 && (
-                <div className={cn('flex items-center gap-2 text-xs', isLight ? 'text-black/50' : 'text-white/60')}>
+                <div className="flex items-center gap-2 text-xs text-ink-soft">
                   <Clock size={12} className="flex-shrink-0" />
-                  <span className="font-num">{formatDuration(currentSong.duration)}</span>
+                  <span className="num">{formatDuration(currentSong.duration)}</span>
                 </div>
               )}
               {currentSong.bitRate && (
-                <div className={cn('flex items-center gap-2 text-xs', isLight ? 'text-black/50' : 'text-white/60')}>
+                <div className="flex items-center gap-2 text-xs text-ink-soft">
                   <MusicNote size={12} className="flex-shrink-0" />
-                  <span className="font-num">{currentSong.bitRate} kbps</span>
-                  {currentSong.contentType && <span className={isLight ? 'text-black/30' : 'text-white/30'}>· {currentSong.contentType.split('/')[1]?.toUpperCase()}</span>}
+                  <span className="num">{currentSong.bitRate} kbps</span>
+                  {currentSong.contentType && <span className="text-ink-faint">· {currentSong.contentType.split('/')[1]?.toUpperCase()}</span>}
                 </div>
               )}
               {currentSong.year && (
-                <div className={cn('flex items-center gap-2 text-xs', isLight ? 'text-black/50' : 'text-white/60')}>
+                <div className="flex items-center gap-2 text-xs text-ink-soft">
                   <Info size={12} className="flex-shrink-0" />
-                  <span className="font-num">{currentSong.year} 年</span>
-                  {currentSong.genre && <span className={isLight ? 'text-black/30' : 'text-white/30'}>· {currentSong.genre}</span>}
+                  <span className="num">{currentSong.year} 年</span>
+                  {currentSong.genre && <span className="text-ink-faint">· {currentSong.genre}</span>}
                 </div>
               )}
             </div>
@@ -402,79 +371,54 @@ export function FullscreenPlayer() {
         </DropdownMenu>
       </div>
 
-      {/* 主内容区：左列封面+控制（440px）｜右列歌词流 */}
+      {/* 主内容区：左列封面+信息+控制（max 440px）｜右列歌词流 */}
       <div className="flex flex-1 min-h-0 items-center justify-center gap-16 xl:gap-24 px-10 pb-8 relative z-10 w-full max-w-[1360px] mx-auto">
         {/* 左列 */}
         <div className="w-full max-w-[min(440px,52vh)] flex-none flex flex-col gap-6">
-          {/* 专辑封面 + 氛围光晕 */}
-          <div className="relative w-full">
-            <div
-              aria-hidden="true"
-              className="absolute inset-[6%] rounded-[40%] blur-[70px] opacity-40 pointer-events-none"
-              style={{ background: bgColors.primary }}
+          {/* 专辑封面：圆角 6px + 唯一允许的浮层淡投影（DESIGN §1.3 / §4.3） */}
+          <div
+            className={cn(
+              'relative aspect-square w-full overflow-hidden shadow-float',
+              isCircle ? 'rounded-full animate-spin-vinyl' : 'rounded-md'
+            )}
+            style={isCircle ? {
+              animationPlayState: isPlaying ? 'running' : 'paused',
+            } : undefined}
+          >
+            <CoverImage
+              key={currentSong.id}
+              primary={coverUrl}
+              fallback={coverFallback}
+              alt={currentSong.album}
+              className="w-full h-full"
+              eager
+              customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
+              onImageResolved={setResolvedCoverUrl}
             />
-            <div
-              className={cn(
-                'relative aspect-square overflow-hidden shadow-2xl w-full',
-                isCircle
-                  ? 'rounded-full animate-spin-vinyl'
-                  : cn(
-                      'rounded-lg ring-1 transition-[transform,box-shadow] duration-500',
-                      isLight ? 'ring-black/10' : 'ring-white/10',
-                      isPlaying ? 'scale-100 shadow-[0_20px_60px_rgba(0,0,0,0.7)]' : 'scale-95'
-                    )
-              )}
-              style={isCircle ? {
-                animationPlayState: isPlaying ? 'running' : 'paused',
-                boxShadow: isPlaying ? '0 20px 60px rgba(0,0,0,0.7)' : '0 6px 24px rgba(0,0,0,0.4)',
-              } : undefined}
-            >
-              <CoverImage
-                key={currentSong.id}
-                primary={coverUrl}
-                fallback={coverFallback}
-                alt={currentSong.album}
-                className="w-full h-full"
-                eager
-                customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
-                onImageResolved={setResolvedCoverUrl}
-              />
-            </div>
           </div>
 
-          {/* 歌名 / 歌手 + 爱心 / 加入歌单 */}
-          <div className="flex items-center justify-between gap-4">
+          {/* 衬线大曲名 / 歌手·专辑链接 + 喜欢 / 加入歌单 */}
+          <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className={cn(
-                'text-[19px] font-bold tracking-tight truncate',
-                isLight ? 'text-black/85' : 'text-white/95'
-              )}>
+              <p className="font-serif font-black text-[30px] leading-[1.2] tracking-[-0.01em] text-ink line-clamp-2">
                 {currentSong.title}
               </p>
-              <div className="flex items-center gap-1 mt-0.5 min-w-0 text-[13.5px]">
+              <div className="flex items-center gap-1.5 mt-2 min-w-0 text-[13.5px] tracking-[0.05em] text-ink-soft">
                 {currentSong.artist && (
                   <button
                     onClick={handleNavigateArtist}
-                    className={cn(
-                      'truncate transition-colors',
-                      isLight ? 'text-black/50 hover:text-black' : 'text-white/60 hover:text-white',
-                      currentSong.artistId ? 'cursor-pointer hover:underline' : 'cursor-default'
-                    )}
+                    className={currentSong.artistId ? whoLinkCls : 'truncate cursor-default'}
                   >
                     {currentSong.artist}
                   </button>
                 )}
                 {currentSong.artist && currentSong.album && (
-                  <span className={cn('flex-none', isLight ? 'text-black/30' : 'text-white/30')}>·</span>
+                  <span className="flex-none text-ink-faint">·</span>
                 )}
                 {currentSong.album && (
                   <button
                     onClick={handleNavigateAlbum}
-                    className={cn(
-                      'truncate transition-colors',
-                      isLight ? 'text-black/40 hover:text-black/70' : 'text-white/40 hover:text-white/70',
-                      currentSong.albumId ? 'cursor-pointer hover:underline' : 'cursor-default'
-                    )}
+                    className={currentSong.albumId ? whoLinkCls : 'truncate cursor-default'}
                   >
                     {currentSong.album}
                   </button>
@@ -482,11 +426,11 @@ export function FullscreenPlayer() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1 flex-none">
+            <div className="flex items-center gap-2 flex-none pt-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button onClick={() => setPlaylistDialogOpen(true)} className={overlayIconBtn}>
-                    <Queue size={20} />
+                  <button onClick={() => setPlaylistDialogOpen(true)} className={cn(lineCircleBtn, 'w-8 h-8')}>
+                    <Queue size={17} />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">添加到歌单</TooltipContent>
@@ -497,11 +441,12 @@ export function FullscreenPlayer() {
                     onClick={handleToggleStar}
                     disabled={toggleStar.isPending}
                     className={cn(
-                      overlayIconBtn,
-                      currentSong.starred && 'text-primary hover:text-primary'
+                      lineCircleBtn,
+                      'w-8 h-8',
+                      currentSong.starred && 'text-primary border-primary hover:text-primary'
                     )}
                   >
-                    <Heart size={20} weight={currentSong.starred ? 'fill' : 'regular'} />
+                    <Heart size={17} weight={currentSong.starred ? 'fill' : 'regular'} />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">{currentSong.starred ? '取消喜欢' : '加入喜欢'}</TooltipContent>
@@ -510,24 +455,21 @@ export function FullscreenPlayer() {
           </div>
 
           {/* 进度行 */}
-          <FSProgressBar isLight={isLight} />
+          <FSProgressBar />
 
-          {/* 大传输键 */}
-          <div className="flex items-center justify-center gap-5">
+          {/* 传输键组：主键实心朱红圆（§4.1 唯一例外），其余细线圆 */}
+          <div className="flex items-center justify-center gap-4">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   onClick={toggleShuffle}
                   className={cn(
-                    'w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-[0.94]',
-                    shuffle
-                      ? 'text-primary bg-primary/10'
-                      : isLight
-                        ? 'text-black/35 hover:text-black hover:bg-black/10'
-                        : 'text-white/40 hover:text-white hover:bg-white/10'
+                    lineCircleBtn,
+                    'w-9 h-9',
+                    shuffle && 'text-primary border-primary hover:text-primary'
                   )}
                 >
-                  {shuffle ? <Shuffle size={21} /> : <ArrowsDownUp size={21} />}
+                  {shuffle ? <Shuffle size={17} /> : <ArrowsDownUp size={17} />}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">{shuffle ? '随机播放' : '顺序播放'}</TooltipContent>
@@ -535,13 +477,8 @@ export function FullscreenPlayer() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button onClick={handlePrev} className={cn(
-                  'w-11 h-11 rounded-full flex items-center justify-center transition-colors active:scale-[0.94]',
-                  isLight
-                    ? 'text-black/60 hover:text-black hover:bg-black/10'
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
-                )}>
-                  <SkipBack size={26} weight="fill" />
+                <button onClick={handlePrev} className={cn(lineCircleBtn, 'w-10 h-10')}>
+                  <SkipBack size={20} />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">上一首</TooltipContent>
@@ -549,23 +486,18 @@ export function FullscreenPlayer() {
 
             <button
               onClick={togglePlay}
-              className="w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:brightness-110 hover:scale-105 active:scale-[0.96] transition-[transform,filter] shadow-xl"
+              className="w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-transform duration-200 ease-[var(--ease)] hover:scale-105 active:scale-95"
             >
               {isPlaying
-                ? <Pause size={24} weight="fill" />
-                : <Play size={24} weight="fill" className="ml-0.5" />
+                ? <Pause size={22} weight="fill" />
+                : <Play size={22} weight="fill" className="ml-0.5" />
               }
             </button>
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button onClick={next} className={cn(
-                  'w-11 h-11 rounded-full flex items-center justify-center transition-colors active:scale-[0.94]',
-                  isLight
-                    ? 'text-black/60 hover:text-black hover:bg-black/10'
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
-                )}>
-                  <SkipForward size={26} weight="fill" />
+                <button onClick={next} className={cn(lineCircleBtn, 'w-10 h-10')}>
+                  <SkipForward size={20} />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">下一首</TooltipContent>
@@ -576,46 +508,35 @@ export function FullscreenPlayer() {
                 <button
                   onClick={cycleRepeatMode}
                   className={cn(
-                    'w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-[0.94]',
-                    repeatMode !== 'none'
-                      ? 'text-primary bg-primary/10'
-                      : isLight
-                        ? 'text-black/35 hover:text-black hover:bg-black/10'
-                        : 'text-white/40 hover:text-white hover:bg-white/10'
+                    lineCircleBtn,
+                    'w-9 h-9',
+                    repeatMode !== 'none' && 'text-primary border-primary hover:text-primary'
                   )}
                 >
-                  {repeatMode === 'one' ? <RepeatOnce size={21} /> : <Repeat size={21} />}
+                  {repeatMode === 'one' ? <RepeatOnce size={17} /> : <Repeat size={17} />}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">{repeatLabel}</TooltipContent>
             </Tooltip>
 
-            {/* 音量按钮 + 竖向浮层 */}
+            {/* 音量按钮 + 竖向浮层（纸面玻璃 + 淡投影） */}
             <div className="relative">
               {showVolumePanel && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowVolumePanel(false)} />
-                  <div className={cn(
-                    'absolute bottom-12 right-0 z-20 flex flex-col items-center gap-2 backdrop-blur-xl rounded-lg px-4 py-5 shadow-2xl border',
-                    isLight
-                      ? 'bg-white/80 border-black/10'
-                      : 'bg-black/75 border-white/10'
-                  )}>
-                    <span className={cn(
-                      'font-num text-xs font-medium',
-                      isLight ? 'text-black/50' : 'text-white/60'
-                    )}>
+                  <div className="absolute bottom-12 right-0 z-20 flex flex-col items-center gap-2 glass shadow-float rounded-md px-4 py-5">
+                    <span className="num text-xs text-ink-soft">
                       {Math.round((muted ? 0 : volume) * 100)}%
                     </span>
                     <div className="relative h-32 flex items-center justify-center w-6">
                       <div className="absolute inset-x-0 top-0 bottom-0 flex items-center justify-center">
-                        <div className={cn('w-1.5 h-full rounded-full', isLight ? 'bg-black/10' : 'bg-white/15')} />
+                        <div className="w-[3px] h-full rounded-full bg-hair-soft" />
                       </div>
                       <div
                         className="absolute bottom-0 inset-x-0 flex items-end justify-center"
                         style={{ height: `${(muted ? 0 : volume) * 100}%` }}
                       >
-                        <div className={cn('w-1.5 rounded-full', isLight ? 'bg-black/70' : 'bg-white')} style={{ height: '100%' }} />
+                        <div className="w-[3px] rounded-full bg-primary" style={{ height: '100%' }} />
                       </div>
                       <input
                         type="range" min={0} max={1} step={0.01}
@@ -628,14 +549,14 @@ export function FullscreenPlayer() {
                         style={{ writingMode: 'vertical-lr', direction: 'rtl', width: '100%', height: '100%' }}
                       />
                       <div
-                        className={cn('absolute w-4 h-4 rounded-full shadow-lg pointer-events-none', isLight ? 'bg-black/70' : 'bg-white')}
-                        style={{ bottom: `calc(${(muted ? 0 : volume) * 100}% - 8px)` }}
+                        className="absolute w-3 h-3 rounded-full bg-primary pointer-events-none"
+                        style={{ bottom: `calc(${(muted ? 0 : volume) * 100}% - 6px)` }}
                       />
                     </div>
-                    <button onClick={toggleMute} className={cn(
-                      'transition-colors active:scale-[0.94]',
-                      isLight ? 'text-black/40 hover:text-black' : 'text-white/50 hover:text-white'
-                    )}>
+                    <button
+                      onClick={toggleMute}
+                      className="text-ink-soft hover:text-ink transition-colors active:scale-95"
+                    >
                       <VolumeIcon size={16} />
                     </button>
                   </div>
@@ -644,39 +565,41 @@ export function FullscreenPlayer() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    ref={volumeBtnRef}
                     onClick={() => setShowVolumePanel(v => !v)}
                     className={cn(
-                      'w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-[0.94]',
-                      showVolumePanel
-                        ? isLight ? 'bg-black/10 text-black' : 'bg-white/15 text-white'
-                        : isLight
-                          ? 'text-black/35 hover:text-black hover:bg-black/10'
-                          : 'text-white/40 hover:text-white hover:bg-white/10'
+                      lineCircleBtn,
+                      'w-9 h-9',
+                      showVolumePanel && 'text-ink border-ink hover:text-ink hover:border-ink'
                     )}
                   >
-                    <VolumeIcon size={20} />
+                    <VolumeIcon size={17} />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  音量 <span className="font-num">{Math.round((muted ? 0 : volume) * 100)}%</span>
+                  音量 <span className="num">{Math.round((muted ? 0 : volume) * 100)}%</span>
                 </TooltipContent>
               </Tooltip>
             </div>
           </div>
         </div>
 
-        {/* 右列：歌词流（上下 22% 渐隐由 LyricDisplay 处理）*/}
-        {lyrics && lyrics.lines.length > 0 && (
-          <div className="hidden md:flex flex-1 max-w-xl self-stretch min-h-0">
+        {/* 右列：歌词流（上下 22% 渐隐由 LyricDisplay 处理） */}
+        <div className="hidden md:flex flex-1 max-w-xl self-stretch min-h-0 flex-col">
+          <p className="flex items-center gap-3.5 flex-none pb-2 text-[11px] tracking-[0.34em] text-ink-faint select-none">
+            <span className="whitespace-nowrap">歌词 · LYRICS</span>
+            <span className="flex-1 h-px bg-hair-soft" />
+          </p>
+          {lyrics ? (
             <LyricDisplay
               lines={lyrics.lines}
               variant="fullscreen"
-              baseColor={isLight ? 'default' : 'white'}
-              className="flex-1"
+              className="flex-1 min-h-0"
             />
-          </div>
-        )}
+          ) : (
+            // 歌词查询未返回前保持空列，避免布局跳动
+            <div className="flex-1" />
+          )}
+        </div>
       </div>
 
       <AddToPlaylistDialog

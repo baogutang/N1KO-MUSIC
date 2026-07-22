@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Play, Shuffle, MusicNote, Clock, Plus } from '@phosphor-icons/react'
+import { ArrowLeft, Play, Shuffle, MusicNote } from '@phosphor-icons/react'
 import { usePlaylistDetail } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
@@ -23,106 +23,119 @@ export default function PlaylistDetail() {
 
   const totalDuration = playlist?.songs.reduce((sum: number, s) => sum + (s.duration ?? 0), 0) ?? 0
 
+  const backLink = (
+    <button
+      onClick={() => navigate(-1)}
+      className="inline-flex items-center gap-1.5 text-xs tracking-[0.14em] text-ink-soft transition-all duration-200 hover:text-primary hover:-translate-x-0.5 active:scale-[0.97]"
+    >
+      <ArrowLeft className="w-3.5 h-3.5" />
+      返回
+    </button>
+  )
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="pt-6 animate-fade-in">
+        {backLink}
+        <div className="mt-8 flex flex-col gap-8 pb-10 sm:flex-row sm:items-end sm:gap-10">
+          <div className="w-[240px] aspect-square flex-shrink-0 rounded-md bg-paper-deep animate-pulse" />
+          <div className="flex-1 space-y-4 pb-1">
+            <div className="h-3 w-28 rounded-sm bg-paper-deep animate-pulse" />
+            <div className="h-12 w-2/3 rounded-sm bg-paper-deep animate-pulse" />
+            <div className="h-4 w-40 rounded-sm bg-paper-deep animate-pulse" />
+          </div>
+        </div>
+        <div className="border-t border-hair divide-y divide-hair-soft">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-3 py-2.5">
+              <div className="h-4 w-6 rounded-sm bg-paper-deep animate-pulse" />
+              <div className="h-10 w-10 rounded-sm bg-paper-deep animate-pulse" />
+              <div className="h-4 flex-1 rounded-sm bg-paper-deep animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
 
   if (error || !playlist) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-        <MusicNote className="w-12 h-12 mb-3 opacity-30" />
-        <p>加载失败</p>
+      <div className="pt-6 animate-fade-in">
+        {backLink}
+        <div className="py-24 text-center">
+          <p className="font-serif text-xl font-semibold">加载失败。</p>
+          <p className="mt-2 text-sm text-ink-faint">请检查网络连接后重试。</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-full pb-8 animate-fade-in">
-      {/* Hero section */}
-      <div className="px-6 pt-6 pb-8">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1 text-muted-foreground hover:text-foreground mb-6 transition-colors text-sm active:scale-[0.97]"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          返回
-        </button>
+    <div className="pt-6 animate-fade-in">
+      {backLink}
 
-        <div className="flex gap-7 items-end">
-          {/* Cover */}
-          <div className="w-48 h-48 rounded-lg ring-1 ring-border overflow-hidden shadow-2xl flex-shrink-0 bg-accent">
-            {playlist.coverArt ? (
-              <img
-                src={hasAdapter() ? getAdapter().getCoverUrl(playlist.coverArt, 400) : playlist.coverArt}
-                alt={playlist.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-primary/30 to-primary/5 flex items-center justify-center">
-                <MusicNote className="w-20 h-20 text-primary/30" />
-              </div>
-            )}
-          </div>
-
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-medium text-primary tracking-[0.14em] mb-3">歌单</p>
-            <h1 className="text-4xl font-bold tracking-tight mb-3 truncate">{playlist.name}</h1>
-            {playlist.comment && (
-              <p className="text-muted-foreground mb-3 line-clamp-2 text-[13.5px]">{playlist.comment}</p>
-            )}
-            <div className="flex items-center gap-4 text-[13.5px] text-muted-foreground mb-6">
-              <span className="flex items-center gap-1.5">
-                <MusicNote className="w-3.5 h-3.5" />
-                <span className="font-num">{playlist.songs.length}</span> 首歌曲
-              </span>
-              {totalDuration > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span className="font-num">{formatDuration(totalDuration)}</span>
-                </span>
-              )}
+      {/* 头部：左封面 + 右衬线 900 歌单名（DESIGN v2 §3 专辑详情范式） */}
+      <header className="mt-8 flex flex-col gap-8 pb-10 sm:flex-row sm:items-end sm:gap-10">
+        <div className="w-[240px] aspect-square flex-shrink-0 overflow-hidden rounded-md ring-1 ring-hair-soft shadow-float bg-paper-deep">
+          {playlist.coverArt ? (
+            <img
+              src={hasAdapter() ? getAdapter().getCoverUrl(playlist.coverArt, 480) : playlist.coverArt}
+              alt={playlist.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <MusicNote className="w-16 h-16 text-ink-faint/40" />
             </div>
+          )}
+        </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handlePlayAll}
-                disabled={!playlist.songs.length}
-                className="flex items-center gap-2 h-10 px-5 bg-primary text-primary-foreground rounded-full text-sm font-semibold hover:brightness-110 transition-all active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none"
-              >
-                <Play className="w-4 h-4" weight="fill" />
-                播放全部
-              </button>
-              <button
-                onClick={handleShuffle}
-                disabled={!playlist.songs.length}
-                className="flex items-center gap-2 h-10 px-5 border border-border rounded-full text-sm font-semibold hover:border-primary hover:text-primary transition-colors active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none"
-              >
-                <Shuffle className="w-4 h-4" />
-                随机播放
-              </button>
-            </div>
+        <div className="min-w-0 flex-1 pb-1">
+          <p className="mb-4 flex items-center gap-3 text-[11px] tracking-[0.3em] text-primary">
+            歌单 · PLAYLIST
+            <span className="h-px w-10 bg-primary" aria-hidden="true" />
+          </p>
+          <h1 className="font-serif text-4xl md:text-5xl font-black leading-[1.1] tracking-[-0.01em] text-balance">
+            {playlist.name}
+          </h1>
+          {playlist.comment && (
+            <p className="mt-3 max-w-[52ch] text-sm text-ink-soft line-clamp-2">{playlist.comment}</p>
+          )}
+          <p className="mt-4 font-num text-xs tracking-[0.06em] text-ink-faint">
+            {playlist.songs.length} 首{totalDuration > 0 && ` · ${formatDuration(totalDuration)}`}
+          </p>
+
+          {/* 文字级操作行：主操作下划线，hover 变 accent（DESIGN v2 §4.1） */}
+          <div className="mt-7 flex items-center gap-8">
+            <button
+              onClick={handlePlayAll}
+              disabled={!playlist.songs.length}
+              className="inline-flex items-center gap-2.5 border-b border-ink pb-1.5 text-sm font-semibold tracking-[0.12em] transition-colors hover:border-primary hover:text-primary active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Play className="w-3.5 h-3.5" weight="fill" />
+              播放全部
+            </button>
+            <button
+              onClick={handleShuffle}
+              disabled={!playlist.songs.length}
+              className="inline-flex items-center gap-2 text-sm tracking-[0.12em] text-ink-soft transition-colors hover:text-primary active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Shuffle className="w-4 h-4" />
+              随机播放
+            </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Song list */}
-      <div className="px-6 border-t border-border pt-4">
-        {playlist.songs.length > 0 ? (
-          <SongList songs={playlist.songs} showAlbum />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
-            <Plus className="w-10 h-10 mb-2 opacity-30" />
-            <p>歌单为空</p>
-            <p className="text-sm">在歌曲旁边点击"添加到歌单"</p>
-          </div>
-        )}
-      </div>
+      {/* 曲目列表：SongList 自带 border-t border-hair，不再加容器边框 */}
+      {playlist.songs.length > 0 ? (
+        <SongList songs={playlist.songs} showAlbum />
+      ) : (
+        <div className="border-t border-hair py-20 text-center">
+          <p className="font-serif text-xl font-semibold">歌单还是空的。</p>
+          <p className="mt-2 text-sm text-ink-faint">在歌曲菜单里选择「添加到歌单」。</p>
+        </div>
+      )}
     </div>
   )
 }

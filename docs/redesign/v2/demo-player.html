@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N1KO MUSIC · 方案 B 沉浸播放中枢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ============ 基础 ============ */
+:root{
+  --paper:#f5f1e8;
+  --paper-deep:#ece7db;
+  --ink:#26241f;
+  --ink-soft:#6f6a5e;
+  --ink-faint:#a39d8e;
+  --hairline:rgba(38,36,31,.14);
+  --accent:#c8371f; /* JS 随封面切换 */
+  --accent-ink:#fff;
+  --bloom-a:#e8b64c;
+  --bloom-b:#c8371f;
+  --serif:"Noto Serif SC","Songti SC","STSong",serif;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:"JetBrains Mono","SF Mono",Menlo,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:var(--sans);
+  background:var(--paper);
+  color:var(--ink);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  font-feature-settings:"tnum";
+}
+::selection{background:var(--accent);color:var(--accent-ink)}
+button{font-family:inherit;background:none;border:none;cursor:pointer;color:inherit}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+svg{display:block}
+
+/* ============ 背景色晕 ============ */
+.bloom{
+  position:fixed;border-radius:50%;filter:blur(110px);
+  pointer-events:none;z-index:0;
+  transition:background-color 1.2s ease;
+  opacity:.5;
+}
+#bloomA{width:62vw;height:62vw;left:-14vw;top:-22vw;background:var(--bloom-a)}
+#bloomB{width:52vw;height:52vw;right:-16vw;bottom:-20vw;background:var(--bloom-b);opacity:.34}
+#bloomC{width:34vw;height:34vw;left:34vw;bottom:-14vw;background:var(--bloom-a);opacity:.22}
+
+/* ============ 顶栏 ============ */
+.topbar{
+  position:relative;z-index:10;
+  display:flex;align-items:center;gap:18px;
+  height:58px;padding:0 28px;
+  border-bottom:1px solid var(--hairline);
+  background:color-mix(in srgb,var(--paper) 72%,transparent);
+  backdrop-filter:blur(8px);
+}
+.back-link{
+  font-size:12px;color:var(--ink-soft);text-decoration:none;
+  letter-spacing:.04em;transition:color .25s;
+}
+.back-link:hover{color:var(--accent)}
+.scheme-tag{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+  color:var(--ink-soft);border:1px solid var(--hairline);
+  padding:3px 9px;border-radius:999px;text-transform:uppercase;
+}
+.brand{
+  font-family:var(--serif);font-weight:700;font-size:15px;letter-spacing:.14em;
+  margin-left:8px;
+}
+.brand em{font-style:normal;color:var(--accent)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.server-dot{
+  display:flex;align-items:center;gap:7px;
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.06em;
+  margin-right:8px;
+}
+.server-dot::before{
+  content:"";width:7px;height:7px;border-radius:50%;
+  background:#4a9e5c;box-shadow:0 0 0 3px rgba(74,158,92,.18);
+}
+.text-btn{
+  font-size:13px;color:var(--ink);letter-spacing:.06em;
+  padding:7px 14px;border-radius:8px;
+  transition:background .25s,color .25s,transform .12s;
+}
+.text-btn:hover{background:rgba(38,36,31,.07)}
+.text-btn:active{transform:scale(.97)}
+.text-btn.primary{
+  border:1px solid var(--ink);border-radius:999px;padding:7px 18px;
+  transition:background .25s,color .25s,transform .12s;
+}
+.text-btn.primary:hover{background:var(--ink);color:var(--paper)}
+
+/* ============ 主舞台 ============ */
+.stage{
+  position:relative;z-index:2;
+  height:calc(100vh - 58px - 108px);
+  display:grid;
+  grid-template-columns:minmax(0,46%) minmax(0,54%);
+  align-items:center;
+  padding:0 64px;
+  gap:24px;
+  max-width:1500px;margin:0 auto;
+}
+
+/* 封面区 */
+.cover-pane{display:flex;flex-direction:column;align-items:center;gap:26px}
+.cover-wrap{
+  position:relative;width:min(400px,38vh);aspect-ratio:1;
+  border-radius:14px;
+  box-shadow:0 30px 70px -18px rgba(38,36,31,.4),0 8px 22px -8px rgba(38,36,31,.22);
+  transition:transform .5s cubic-bezier(.2,.8,.2,1);
+}
+.cover-wrap:hover{transform:translateY(-4px)}
+.cover-wrap svg{width:100%;height:100%;border-radius:14px}
+.cover-meta{text-align:center}
+.cover-meta .album-line{
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.1em;
+}
+.cover-meta .album-line b{color:var(--ink);font-weight:500}
+
+/* 歌词区 */
+.lyrics-pane{
+  height:100%;display:flex;flex-direction:column;justify-content:center;
+  min-width:0;padding-right:16px;
+}
+.track-kicker{
+  font-family:var(--mono);font-size:11px;letter-spacing:.22em;
+  color:var(--accent);text-transform:uppercase;margin-bottom:14px;
+  transition:color 1s;
+}
+.track-title{
+  font-family:var(--serif);font-weight:900;font-size:clamp(30px,3.2vw,44px);
+  line-height:1.16;letter-spacing:-.01em;margin-bottom:10px;
+}
+.track-artist{
+  font-size:15px;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:34px;
+}
+.track-artist a{color:inherit;text-decoration:none;border-bottom:1px solid var(--hairline);transition:color .25s,border-color .25s}
+.track-artist a:hover{color:var(--accent);border-color:var(--accent)}
+.lyrics{
+  list-style:none;max-height:46vh;overflow:hidden;
+  mask-image:linear-gradient(to bottom,transparent,#000 12%,#000 82%,transparent);
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 12%,#000 82%,transparent);
+}
+.lyrics li{
+  font-family:var(--serif);
+  font-size:19px;line-height:1.5;
+  color:var(--ink-faint);
+  padding:7px 0 7px 0;
+  transition:color .5s,font-size .5s,transform .5s,padding .5s;
+  transform-origin:left center;
+  cursor:default;
+}
+.lyrics li.active{
+  color:var(--ink);
+  font-size:26px;font-weight:700;
+  padding:12px 0;
+}
+.lyrics li.active::before{
+  content:"";display:inline-block;width:22px;height:2px;
+  background:var(--accent);vertical-align:middle;
+  margin-right:12px;transition:background 1s;
+}
+.lyrics li.past{color:var(--ink-soft)}
+
+/* ============ 底部 transport ============ */
+.transport{
+  position:relative;z-index:10;
+  height:108px;
+  display:flex;flex-direction:column;justify-content:flex-end;
+}
+.transport-row{
+  display:flex;align-items:center;gap:28px;
+  padding:0 28px 20px;
+  max-width:1500px;margin:0 auto;width:100%;
+}
+.t-time{
+  font-family:var(--mono);font-size:12px;color:var(--ink-soft);
+  letter-spacing:.05em;min-width:96px;
+  font-variant-numeric:tabular-nums;
+}
+.t-time b{color:var(--ink);font-weight:500}
+.t-controls{display:flex;align-items:center;gap:6px;margin:0 auto}
+.ctrl{
+  width:42px;height:42px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink);
+  transition:background .25s,color .25s,transform .12s;
+}
+.ctrl:hover{background:rgba(38,36,31,.08)}
+.ctrl:active{transform:scale(.94)}
+.ctrl svg{width:19px;height:19px}
+.ctrl.play{
+  width:56px;height:56px;
+  border:1.5px solid var(--ink);
+  transition:background .25s,color .25s,transform .12s,border-color .25s;
+}
+.ctrl.play:hover{background:var(--ink);color:var(--paper)}
+.ctrl.play svg{width:22px;height:22px}
+.ctrl.toggled{color:var(--accent)}
+.t-right{display:flex;align-items:center;gap:12px;min-width:96px;justify-content:flex-end}
+.t-right .ctrl{width:36px;height:36px}
+.t-right .ctrl svg{width:17px;height:17px}
+.volume{
+  -webkit-appearance:none;appearance:none;
+  width:88px;height:2px;background:var(--hairline);border-radius:2px;
+  cursor:pointer;
+}
+.volume::-webkit-slider-thumb{
+  -webkit-appearance:none;width:12px;height:12px;border-radius:50%;
+  background:var(--ink);transition:transform .2s;
+}
+.volume::-webkit-slider-thumb:hover{transform:scale(1.3)}
+
+/* 进度条：贯穿最底部 */
+.progress{
+  position:relative;height:22px;cursor:pointer;
+  display:flex;align-items:flex-end;
+}
+.progress-track{
+  position:relative;width:100%;height:3px;
+  background:var(--hairline);
+  transition:height .2s;
+}
+.progress:hover .progress-track{height:6px}
+.progress-fill{
+  position:absolute;left:0;top:0;bottom:0;
+  width:0%;background:var(--accent);
+  transition:background 1s;
+}
+.progress-fill::after{
+  content:"";position:absolute;right:-5px;top:50%;
+  width:11px;height:11px;border-radius:50%;
+  background:var(--accent);transform:translateY(-50%) scale(0);
+  transition:transform .2s,background 1s;
+}
+.progress:hover .progress-fill::after{transform:translateY(-50%) scale(1)}
+
+/* ============ 队列抽屉 ============ */
+.queue{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:var(--paper-deep);
+  border-top:1px solid var(--hairline);
+  transform:translateY(100%);
+  transition:transform .45s cubic-bezier(.2,.8,.2,1);
+  padding:18px 28px 22px;
+}
+.queue.open{transform:translateY(0)}
+.queue-head{
+  display:flex;align-items:baseline;gap:14px;margin-bottom:12px;
+}
+.queue-head h2{font-family:var(--serif);font-size:16px;font-weight:700;letter-spacing:.06em}
+.queue-head span{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.queue-head button{margin-left:auto;font-size:12px;color:var(--ink-soft);padding:6px 10px;border-radius:6px;transition:background .25s}
+.queue-head button:hover{background:rgba(38,36,31,.07);color:var(--ink)}
+.queue-list{list-style:none;display:flex;gap:0;overflow-x:auto;padding-bottom:4px}
+.queue-list li{
+  flex:0 0 auto;display:flex;align-items:center;gap:12px;
+  padding:9px 18px 9px 10px;border-radius:10px;cursor:pointer;
+  transition:background .25s;
+  border:1px solid transparent;
+}
+.queue-list li:hover{background:rgba(38,36,31,.06)}
+.queue-list li.current{border-color:var(--hairline);background:rgba(255,255,255,.5)}
+.queue-list .q-cover{display:block;width:38px;height:38px;border-radius:6px;overflow:hidden;flex:none}
+.queue-list .q-cover svg{width:100%;height:100%}
+.queue-list .q-title{font-size:13px;font-weight:500;white-space:nowrap}
+.queue-list .q-artist{font-size:11px;color:var(--ink-soft);white-space:nowrap;font-family:var(--mono)}
+
+/* ============ 曲库浮层 ============ */
+.library{
+  position:fixed;inset:0;z-index:50;
+  background:var(--paper);
+  transform:translateY(100%);
+  transition:transform .55s cubic-bezier(.2,.85,.2,1);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.library.open{transform:translateY(0)}
+.library::before,.library::after{
+  content:"";position:absolute;border-radius:50%;filter:blur(120px);
+  pointer-events:none;opacity:.3;
+}
+.library::before{width:50vw;height:50vw;left:-16vw;top:-20vw;background:var(--bloom-a);transition:background-color 1.2s}
+.library::after{width:40vw;height:40vw;right:-12vw;bottom:-16vw;background:var(--bloom-b);transition:background-color 1.2s}
+.lib-top{
+  position:relative;z-index:2;
+  display:flex;align-items:center;gap:20px;
+  padding:22px 40px 0;
+}
+.lib-top h2{font-family:var(--serif);font-size:26px;font-weight:900;letter-spacing:.02em}
+.lib-close{
+  margin-left:auto;width:42px;height:42px;border-radius:50%;
+  border:1px solid var(--hairline);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;color:var(--ink-soft);
+  transition:background .25s,color .25s,transform .12s;
+}
+.lib-close:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.lib-close:active{transform:scale(.94)}
+.lib-tabs{display:flex;gap:4px;margin-left:26px;border:1px solid var(--hairline);border-radius:999px;padding:3px}
+.lib-tab{
+  font-size:12px;letter-spacing:.08em;padding:6px 16px;border-radius:999px;
+  color:var(--ink-soft);transition:background .25s,color .25s;
+}
+.lib-tab.on{background:var(--ink);color:var(--paper)}
+.lib-body{
+  position:relative;z-index:2;flex:1;overflow-y:auto;
+  padding:28px 40px 60px;
+}
+.lib-section-label{
+  font-family:var(--mono);font-size:11px;letter-spacing:.24em;color:var(--ink-soft);
+  text-transform:uppercase;margin:26px 0 16px;display:flex;align-items:center;gap:14px;
+}
+.lib-section-label::after{content:"";flex:1;height:1px;background:var(--hairline)}
+.lib-section-label:first-child{margin-top:0}
+
+/* 网格视图 */
+.album-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));
+  gap:26px 22px;
+}
+.album-cell{cursor:pointer;text-align:left;border-radius:12px;padding:8px;transition:background .25s,transform .12s}
+.album-cell:hover{background:rgba(38,36,31,.05)}
+.album-cell:active{transform:scale(.98)}
+.album-cell .a-cover{
+  display:block;width:100%;aspect-ratio:1;border-radius:10px;overflow:hidden;
+  box-shadow:0 10px 26px -10px rgba(38,36,31,.3);
+  transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s;
+}
+.album-cell:hover .a-cover{transform:translateY(-4px);box-shadow:0 18px 36px -12px rgba(38,36,31,.38)}
+.album-cell .a-cover svg{width:100%;height:100%}
+.album-cell .a-title{display:block;font-size:14px;font-weight:500;margin-top:11px;letter-spacing:.02em}
+.album-cell .a-artist{display:block;font-size:12px;color:var(--ink-soft);margin-top:3px}
+.album-cell .a-year{display:block;font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:2px;letter-spacing:.08em}
+
+/* 列表视图 */
+.song-table{width:100%;border-collapse:collapse}
+.song-table th{
+  font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--ink-faint);
+  text-align:left;font-weight:400;padding:0 12px 10px;
+  border-bottom:1px solid var(--hairline);text-transform:uppercase;
+}
+.song-table td{
+  padding:12px;font-size:14px;border-bottom:1px solid var(--hairline);
+}
+.song-table tbody tr{cursor:pointer;transition:background .2s}
+.song-table tbody tr:hover{background:rgba(38,36,31,.045)}
+.song-table tbody tr.playing td:first-child{color:var(--accent)}
+.song-table .idx{font-family:var(--mono);font-size:12px;color:var(--ink-faint);width:44px;font-variant-numeric:tabular-nums}
+.song-table .dur{font-family:var(--mono);font-size:12px;color:var(--ink-soft);text-align:right;font-variant-numeric:tabular-nums}
+.song-table .s-title{font-weight:500}
+.song-table .s-artist{color:var(--ink-soft);font-size:13px}
+.song-table .mini-cover{display:block;width:34px;height:34px;border-radius:6px;overflow:hidden}
+.song-table .mini-cover svg{width:100%;height:100%}
+.hidden{display:none!important}
+
+@media (max-width:1100px){
+  .stage{grid-template-columns:1fr;gap:18px;padding:0 32px;overflow-y:auto}
+  .cover-wrap{width:min(280px,30vh)}
+}
+</style>
+</head>
+<body>
+
+<div class="bloom" id="bloomA"></div>
+<div class="bloom" id="bloomB"></div>
+<div class="bloom" id="bloomC"></div>
+
+<header class="topbar">
+  <a class="back-link" href="./index.html">← 返回方案选择</a>
+  <span class="scheme-tag">方案 B · 沉浸播放中枢</span>
+  <span class="brand">N1KO <em>MUSIC</em></span>
+  <div class="topbar-right">
+    <span class="server-dot">NAVIDROME · 已连接</span>
+    <button class="text-btn" id="queueBtn">队列</button>
+    <button class="text-btn primary" id="libBtn">曲库</button>
+  </div>
+</header>
+
+<main class="stage">
+  <section class="cover-pane" aria-label="专辑封面">
+    <div class="cover-wrap" id="coverWrap"></div>
+    <div class="cover-meta">
+      <p class="album-line" id="albumLine"></p>
+    </div>
+  </section>
+
+  <section class="lyrics-pane" aria-label="歌词">
+    <p class="track-kicker" id="trackKicker">正在播放</p>
+    <h1 class="track-title" id="trackTitle"></h1>
+    <p class="track-artist" id="trackArtist"></p>
+    <ol class="lyrics" id="lyricsList"></ol>
+  </section>
+</main>
+
+<footer class="transport">
+  <div class="transport-row">
+    <span class="t-time"><b id="tCur">0:00</b> / <span id="tDur">0:00</span></span>
+    <div class="t-controls">
+      <button class="ctrl" id="shuffleBtn" aria-label="随机播放" title="随机播放">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+      </button>
+      <button class="ctrl" id="prevBtn" aria-label="上一首" title="上一首">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg>
+      </button>
+      <button class="ctrl play" id="playBtn" aria-label="播放" title="播放/暂停">
+        <svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M8 5.5v13l11-6.5z"/></svg>
+      </button>
+      <button class="ctrl" id="nextBtn" aria-label="下一首" title="下一首">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l10.5-7z"/></svg>
+      </button>
+      <button class="ctrl" id="repeatBtn" aria-label="循环播放" title="循环播放">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 014-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 01-4 4H3"/></svg>
+      </button>
+    </div>
+    <div class="t-right">
+      <button class="ctrl" aria-label="音量" title="音量">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>
+      </button>
+      <input type="range" class="volume" min="0" max="100" value="72" aria-label="音量滑块">
+    </div>
+  </div>
+  <div class="progress" id="progressBar" role="slider" aria-label="播放进度" tabindex="0">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+</footer>
+
+<aside class="queue" id="queuePanel" aria-label="播放队列">
+  <div class="queue-head">
+    <h2>播放队列</h2>
+    <span id="queueCount"></span>
+    <button id="queueClose">收起 ↓</button>
+  </div>
+  <ul class="queue-list" id="queueList"></ul>
+</aside>
+
+<div class="library" id="libraryPanel" role="dialog" aria-label="曲库">
+  <div class="lib-top">
+    <h2>曲库</h2>
+    <div class="lib-tabs" role="tablist">
+      <button class="lib-tab on" id="tabGrid" role="tab">网格</button>
+      <button class="lib-tab" id="tabList" role="tab">列表</button>
+    </div>
+    <button class="lib-close" id="libClose" aria-label="关闭曲库">✕</button>
+  </div>
+  <div class="lib-body">
+    <section id="sectionAlbums">
+      <p class="lib-section-label">专辑 · Albums</p>
+      <div class="album-grid" id="albumGrid"></div>
+    </section>
+    <section id="sectionTracks" class="hidden">
+      <p class="lib-section-label">歌曲 · Tracks</p>
+      <table class="song-table" id="songTable">
+        <thead><tr><th>#</th><th></th><th>曲名</th><th>歌手</th><th>专辑</th><th style="text-align:right">时长</th></tr></thead>
+        <tbody id="songTbody"></tbody>
+      </table>
+    </section>
+  </div>
+</div>
+
+<script>
+/* ================= Mock 数据 ================= */
+const ALBUMS = [
+  { id:"fengguo", title:"风过留痕 影视原声带", artist:"李佳薇", year:2023,
+    palette:{a:"#e8b64c", b:"#c8371f", accent:"#b35900", bg:"#f7ead0"},
+    cover:`<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="300" height="300" fill="#f0dfba"/>
+      <path d="M-20 210 Q90 130 320 190 L320 300 L-20 300 Z" fill="#e3a83c"/>
+      <path d="M-20 240 Q110 170 320 235 L320 300 L-20 300 Z" fill="#c8371f" opacity=".82"/>
+      <text x="26" y="72" font-family="'Noto Serif SC',serif" font-size="52" font-weight="900" fill="#26241f">风过</text>
+      <text x="26" y="128" font-family="'Noto Serif SC',serif" font-size="52" font-weight="900" fill="#26241f">留痕</text>
+      <text x="28" y="158" font-family="'JetBrains Mono',monospace" font-size="11" letter-spacing="4" fill="#26241f">ORIGINAL SOUNDTRACK</text>
+      <text x="238" y="290" font-family="'Noto Serif SC',serif" font-size="14" fill="#f7ead0">李佳薇</text>
+    </svg>` },
+  { id:"home", title:"Home (feat. Hikaru)", artist:"Charlie Puth, 宇多田光", year:2022,
+    palette:{a:"#8ec9e8", b:"#3f7fae", accent:"#2b6a94", bg:"#dceefb"},
+    cover:`<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="300" height="300" fill="#aad6ef"/>
+      <circle cx="150" cy="118" r="72" fill="#eef8ff"/>
+      <path d="M112 118 L150 88 L188 118 Z" fill="#2b6a94"/>
+      <rect x="126" y="118" width="48" height="34" fill="#2b6a94"/>
+      <rect x="142" y="130" width="16" height="22" fill="#eef8ff"/>
+      <circle cx="238" cy="52" r="20" fill="#eef8ff" opacity=".85"/>
+      <circle cx="52" cy="66" r="12" fill="#eef8ff" opacity=".6"/>
+      <text x="24" y="232" font-family="'JetBrains Mono',monospace" font-size="34" font-weight="700" fill="#163c52">HOME</text>
+      <text x="24" y="258" font-family="'JetBrains Mono',monospace" font-size="12" letter-spacing="2" fill="#163c52">C. PUTH × HIKARU</text>
+    </svg>` },
+  { id:"rosie", title:"rosie", artist:"ROSÉ", year:2024,
+    palette:{a:"#f2844a", b:"#d1342c", accent:"#c1342a", bg:"#fbe3d7"},
+    cover:`<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="300" height="300" fill="#d9402e"/>
+      <circle cx="150" cy="150" r="96" fill="none" stroke="#f8c9a8" stroke-width="1.5" opacity=".6"/>
+      <text x="150" y="178" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="72" fill="#fdeee2">rosie</text>
+      <path d="M60 220 Q150 196 240 220" stroke="#fdeee2" stroke-width="2" fill="none"/>
+      <text x="150" y="252" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="11" letter-spacing="6" fill="#f8c9a8">ROSÉ · 2024</text>
+    </svg>` },
+  { id:"huoli", title:"火力全开", artist:"王力宏, 张靓颖", year:2011,
+    palette:{a:"#c98a3d", b:"#5a3a22", accent:"#7a4a1f", bg:"#efe0cb"},
+    cover:`<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="300" height="300" fill="#4a2f1c"/>
+      <path d="M150 40 L196 150 L150 122 L104 150 Z" fill="#e0912f"/>
+      <path d="M150 96 L176 168 L150 148 L124 168 Z" fill="#f2c14a"/>
+      <rect x="40" y="196" width="220" height="3" fill="#e0912f"/>
+      <text x="150" y="244" text-anchor="middle" font-family="'Noto Serif SC',serif" font-weight="900" font-size="44" fill="#f2e3c8">火力全开</text>
+      <text x="150" y="272" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" letter-spacing="5" fill="#c9a06a">WANG LEEHOM × JANE ZHANG</text>
+    </svg>` },
+  { id:"qiankui", title:"亏欠", artist:"徐佳莹", year:2022,
+    palette:{a:"#d9c9a8", b:"#9c8a68", accent:"#8a744f", bg:"#f2ecdf"},
+    cover:`<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="300" height="300" fill="#e9dfc9"/>
+      <circle cx="118" cy="130" r="58" fill="#c9b48c"/>
+      <circle cx="182" cy="130" r="58" fill="none" stroke="#8a744f" stroke-width="2"/>
+      <text x="150" y="240" text-anchor="middle" font-family="'Noto Serif SC',serif" font-weight="900" font-size="56" fill="#4a4030">亏欠</text>
+      <text x="150" y="268" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="11" letter-spacing="4" fill="#8a744f">LALA HSU · 2022</text>
+    </svg>` },
+  { id:"beyond", title:"Beyond The Stage", artist:"BEYOND", year:1991,
+    palette:{a:"#4a6fd4", b:"#1e3a8a", accent:"#2b4fc0", bg:"#dde4f7"},
+    cover:`<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="300" height="300" fill="#002fa7"/>
+      ${[118,104,90,76,62,48].map(r=>`<circle cx="150" cy="140" r="${r}" fill="none" stroke="#3f63c9" stroke-width="1.2"/>`).join("")}
+      <circle cx="150" cy="140" r="30" fill="#f2f4fb"/>
+      <circle cx="150" cy="140" r="4" fill="#002fa7"/>
+      <text x="150" y="252" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" font-size="20" letter-spacing="6" fill="#f2f4fb">BEYOND</text>
+      <text x="150" y="274" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" letter-spacing="3" fill="#8ea4e8">THE STAGE · 1991</text>
+    </svg>` },
+  { id:"qingge", title:"情歌101", artist:"光良", year:2020,
+    palette:{a:"#e86a5a", b:"#b9312c", accent:"#b03124", bg:"#fbe4dd"},
+    cover:`<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="300" height="300" fill="#c93b2e"/>
+      <text x="150" y="172" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" font-size="104" fill="#fbe9d8">101</text>
+      <path d="M76 200 Q150 176 224 200 Q150 224 76 200 Z" fill="#fbe9d8" opacity=".9"/>
+      <text x="150" y="248" text-anchor="middle" font-family="'Noto Serif SC',serif" font-weight="700" font-size="30" fill="#fbe9d8">情歌</text>
+      <text x="150" y="274" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" letter-spacing="5" fill="#eba894">MICHAEL WONG</text>
+    </svg>` },
+  { id:"atime", title:"A Time 4 You", artist:"林峯", year:2013,
+    palette:{a:"#a89cc0", b:"#5e5478", accent:"#5e5478", bg:"#e9e5f0"},
+    cover:`<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="300" height="300" fill="#6a5f82"/>
+      <circle cx="150" cy="132" r="76" fill="none" stroke="#d9d2e6" stroke-width="2"/>
+      ${[0,30,60,90,120,150,180,210,240,270,300,330].map(a=>`<line x1="150" y1="60" x2="150" y2="70" stroke="#d9d2e6" stroke-width="2" transform="rotate(${a} 150 132)"/>`).join("")}
+      <line x1="150" y1="132" x2="150" y2="86" stroke="#f2eef8" stroke-width="3" stroke-linecap="round"/>
+      <line x1="150" y1="132" x2="182" y2="148" stroke="#f2eef8" stroke-width="3" stroke-linecap="round"/>
+      <text x="150" y="244" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" font-size="22" letter-spacing="3" fill="#f2eef8">A TIME 4 YOU</text>
+      <text x="150" y="268" text-anchor="middle" font-family="'Noto Sans SC',sans-serif" font-size="13" letter-spacing="4" fill="#b8aed0">林峯 · 2013</text>
+    </svg>` },
+];
+
+const TRACKS = [
+  { id:1, title:"风过留痕", artist:"李佳薇", albumId:"fengguo", dur:252,
+    lyrics:["风掠过空荡的站台","带走最后一片尘埃","你留下的对白","在耳边反复徘徊","此时此刻 做最自由灵魂","别等时针","转过青春 再追问","为何没来得及爱一个人","重写剧本","不管 不听 不问 谁的标准","去见证 每段青春","每出戏剧 每首诗文","每种世界 缤纷","自我旋转 自由灵魂"] },
+  { id:2, title:"海阔天空", artist:"BEYOND", albumId:"beyond", dur:326,
+    lyrics:["今天我 寒夜里看雪飘过","怀着冷却了的心窝漂远方","风雨里追赶 雾里分不清影踪","天空海阔你与我 可会变","多少次 迎着冷眼与嘲笑","从没有放弃过心中的理想","一刹那恍惚 若有所失的感觉","不知不觉已变淡 心里爱","原谅我这一生不羁放纵爱自由","也会怕有一天会跌倒","背弃了理想 谁人都可以","哪会怕有一天只你共我"] },
+  { id:3, title:"rosie", artist:"ROSÉ", albumId:"rosie", dur:218,
+    lyrics:["I never knew a love like this","Roses are red, violets are blue","Everything I do, I do it for you","Tell me that you feel it too","我们之间的暗号","藏在每一片花瓣里","风一吹就散开","落在你的肩头上","rosie, rosie","叫我的名字","一遍又一遍","直到世界尽头"] },
+  { id:4, title:"亏欠", artist:"徐佳莹", albumId:"qiankui", dur:238,
+    lyrics:["我们都不太擅长告别","把再见说得很轻","怕一用力就惊醒了","沉睡多年的曾经","是我亏欠你一场旅行","和一句认真的我爱你","时光若能倒回去","我会把答案握紧","可是人生没有暂停","只有继续和回忆","欠你的那句对不起","就让它长成星星"] },
+  { id:5, title:"童话", artist:"光良", albumId:"qingge", dur:245,
+    lyrics:["忘了有多久 再没听到你","对我说你 最爱的故事","我想了很久 我开始慌了","是不是我又 做错了什么","你哭着对我说 童话里都是骗人的","我不可能是你的王子","也许你不会懂 从你说爱我以后","我的天空 星星都亮了","我愿变成童话里 你爱的那个天使","张开双手 变成翅膀守护你","你要相信 相信我们会像童话故事里","幸福和快乐是结局"] },
+  { id:6, title:"香格里拉", artist:"魏如萱", albumId:"qiankui", dur:227,
+    lyrics:["我以为认真去做就能实现我的梦","以为写首好歌走路就能抬起头","以为骑摩托车旅行就能变英雄","现在的我失去了冲动","有才华的人唾弃金光闪闪的奖座","亲爱的 cobain 是否也曾爱慕虚荣","多希望有人冲破疑惑带我向前走","现在的我变得好懦弱","雨会下雨会停 这是不变的道理","夜空中北极星 迷路的人不恐惧","我唱歌你在听 一切风平又浪静","香格里拉 让我们去找寻"] },
+  { id:7, title:"关于我在地铁上莫名其妙干了碗鸡汤这件事儿", artist:"孙天宇", albumId:"fengguo", dur:204,
+    lyrics:["早高峰的车厢挤成相片","耳机里放着谁的想念","有人递来一碗热汤面","说小伙子你要好好吃饭","莫名其妙就红了眼圈","陌生人的温柔最危险","我把鸡汤喝了个底朝天","连葱花都觉得甜","这座城很大 大到看不见边","这碗汤很暖 暖过了整个冬天","下站到了 我把碗还给他","他笑着说 加油啊"] },
+  { id:8, title:"Home", artist:"Charlie Puth, 宇多田光", albumId:"home", dur:193,
+    lyrics:["Turn the radio on","We can dance till dawn","Nothing feels wrong","When we're singing our song","あなたといれば どこでも","家になる気がするの","Miles away but close at heart","We knew it from the start","So take my hand and don't let go","This is where we both belong","No matter where we roam","You feel like home"] },
+  { id:9, title:"火力全开", artist:"王力宏, 张靓颖", albumId:"huoli", dur:226,
+    lyrics:["节奏响起 血液开始沸腾","舞台中央 灯光为我作证","不需要谁肯定","我就是自己的标准","火力全开 现在就 now","把世界都点燃","火力全开 别停下来","让心跳撞出火花来","掌声雷动 或无人问津","我都唱到最后一秒"] },
+  { id:10, title:"A Time 4 You", artist:"林峯", albumId:"atime", dur:231,
+    lyrics:["时针转过第几圈","才等到你出现","人海中那一眼","定格成永远","a time for you, a time for me","把此刻装进口袋里","岁月再急也不怕","因为我们有彼此啊","下次再见面的时候","请带上一整片星空"] },
+];
+
+const albumOf = id => ALBUMS.find(a=>a.id===id);
+
+/* ================= 状态 ================= */
+const state = {
+  queue:[1,2,3,4,5,6,7,8,9,10],
+  idx:0,
+  playing:false,
+  cur:0,
+  timer:null,
+};
+
+const $ = id => document.getElementById(id);
+const curTrack = () => TRACKS.find(t=>t.id===state.queue[state.idx]);
+
+function fmt(s){ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+
+/* ================= 渲染 ================= */
+function renderTrack(keepTime){
+  const t = curTrack(), al = albumOf(t.albumId), p = al.palette;
+  document.documentElement.style.setProperty("--accent", p.accent);
+  document.documentElement.style.setProperty("--accent-ink", p.bg);
+  document.documentElement.style.setProperty("--bloom-a", p.a);
+  document.documentElement.style.setProperty("--bloom-b", p.b);
+  $("coverWrap").innerHTML = al.cover;
+  $("albumLine").innerHTML = `<b>${al.title}</b> · ${al.year} · ${t.artist}`;
+  $("trackTitle").textContent = t.title;
+  $("trackArtist").innerHTML = t.artist.split(/[,，]/).map(s=>`<a href="#" onclick="return false">${s.trim()}</a>`).join("、");
+  $("tDur").textContent = fmt(t.dur);
+  if(!keepTime){ state.cur = 0; }
+  renderLyrics();
+  renderQueue();
+  markSongRow();
+  updateProgressUI();
+}
+
+function renderLyrics(){
+  const t = curTrack();
+  const total = t.lyrics.length;
+  const act = Math.min(total-1, Math.floor(state.cur / t.dur * total));
+  $("lyricsList").innerHTML = t.lyrics.map((line,i)=>{
+    const cls = i===act ? "active" : (i<act ? "past" : "");
+    return `<li class="${cls}">${line}</li>`;
+  }).join("");
+  // 让当前行滚动到可视区中部
+  const li = $("lyricsList").children[act];
+  if(li){
+    const list = $("lyricsList");
+    list.style.transform = `translateY(${Math.max(0, 60 - li.offsetTop)}px)`;
+    list.style.transition = "transform .6s cubic-bezier(.2,.8,.2,1)";
+  }
+}
+
+function updateProgressUI(){
+  const t = curTrack();
+  $("tCur").textContent = fmt(state.cur);
+  $("progressFill").style.width = (state.cur / t.dur * 100) + "%";
+}
+
+function renderQueue(){
+  $("queueCount").textContent = state.queue.length + " 首";
+  $("queueList").innerHTML = state.queue.map((id,i)=>{
+    const t = TRACKS.find(x=>x.id===id), al = albumOf(t.albumId);
+    return `<li class="${i===state.idx?'current':''}" data-i="${i}" tabindex="0" role="button" aria-label="播放 ${t.title}">
+      <span class="q-cover">${al.cover}</span>
+      <span><span class="q-title">${t.title}</span><br><span class="q-artist">${t.artist}</span></span>
+    </li>`;
+  }).join("");
+}
+
+function markSongRow(){
+  document.querySelectorAll("#songTbody tr").forEach(tr=>{
+    tr.classList.toggle("playing", +tr.dataset.id === curTrack().id);
+  });
+}
+
+/* ================= 播放引擎 ================= */
+function setPlayIcon(){
+  $("playIcon").innerHTML = state.playing
+    ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>'
+    : '<path d="M8 5.5v13l11-6.5z"/>';
+  $("playBtn").setAttribute("aria-label", state.playing ? "暂停" : "播放");
+}
+function play(){
+  if(state.playing) return;
+  state.playing = true; setPlayIcon();
+  state.timer = setInterval(()=>{
+    state.cur += 0.25;
+    const t = curTrack();
+    if(state.cur >= t.dur){ next(true); return; }
+    updateProgressUI();
+    // 每秒检查一次歌词行变化
+    if(Math.round(state.cur*4)%4===0) renderLyrics();
+  },250);
+}
+function pause(){
+  state.playing = false; setPlayIcon();
+  clearInterval(state.timer);
+}
+function togglePlay(){ state.playing ? pause() : play(); }
+function goto(i){
+  state.idx = (i + state.queue.length) % state.queue.length;
+  renderTrack(false);
+  if(state.playing){ clearInterval(state.timer); state.playing=false; play(); }
+}
+function next(auto){ goto(state.idx+1); }
+function prev(){ state.cur > 4 ? (state.cur=0, renderLyrics(), updateProgressUI()) : goto(state.idx-1); }
+
+/* ================= 曲库浮层 ================= */
+function renderLibrary(){
+  $("albumGrid").innerHTML = ALBUMS.map(a=>`
+    <button class="album-cell" data-album="${a.id}">
+      <span class="a-cover">${a.cover}</span>
+      <span class="a-title">${a.title}</span>
+      <span class="a-artist">${a.artist}</span>
+      <span class="a-year">${a.year}</span>
+    </button>`).join("");
+  $("songTbody").innerHTML = TRACKS.map((t,i)=>{
+    const al = albumOf(t.albumId);
+    return `<tr data-id="${t.id}" tabindex="0">
+      <td class="idx">${String(i+1).padStart(2,"0")}</td>
+      <td style="width:46px"><span class="mini-cover">${al.cover}</span></td>
+      <td class="s-title">${t.title}</td>
+      <td class="s-artist">${t.artist}</td>
+      <td class="s-artist">${al.title}</td>
+      <td class="dur">${fmt(t.dur)}</td>
+    </tr>`;
+  }).join("");
+}
+
+function openLib(){ $("libraryPanel").classList.add("open"); }
+function closeLib(){ $("libraryPanel").classList.remove("open"); }
+function openQueue(){ $("queuePanel").classList.add("open"); }
+function closeQueue(){ $("queuePanel").classList.remove("open"); }
+
+/* ================= 事件绑定 ================= */
+$("playBtn").addEventListener("click", togglePlay);
+$("nextBtn").addEventListener("click", ()=>next());
+$("prevBtn").addEventListener("click", prev);
+$("shuffleBtn").addEventListener("click", e=>e.currentTarget.classList.toggle("toggled"));
+$("repeatBtn").addEventListener("click", e=>e.currentTarget.classList.toggle("toggled"));
+
+$("libBtn").addEventListener("click", openLib);
+$("libClose").addEventListener("click", closeLib);
+$("queueBtn").addEventListener("click", ()=>$("queuePanel").classList.toggle("open"));
+$("queueClose").addEventListener("click", closeQueue);
+
+document.addEventListener("keydown", e=>{
+  if(e.key === "Escape"){ closeLib(); closeQueue(); }
+  if(e.key === " " && e.target === document.body){ e.preventDefault(); togglePlay(); }
+});
+
+$("tabGrid").addEventListener("click", ()=>{
+  $("tabGrid").classList.add("on"); $("tabList").classList.remove("on");
+  $("sectionAlbums").classList.remove("hidden"); $("sectionTracks").classList.add("hidden");
+});
+$("tabList").addEventListener("click", ()=>{
+  $("tabList").classList.add("on"); $("tabGrid").classList.remove("on");
+  $("sectionTracks").classList.remove("hidden"); $("sectionAlbums").classList.add("hidden");
+});
+
+$("albumGrid").addEventListener("click", e=>{
+  const cell = e.target.closest(".album-cell");
+  if(!cell) return;
+  const t = TRACKS.find(x=>x.albumId===cell.dataset.album);
+  const qi = state.queue.indexOf(t.id);
+  goto(qi); closeLib();
+});
+$("songTbody").addEventListener("click", e=>{
+  const tr = e.target.closest("tr");
+  if(!tr) return;
+  goto(state.queue.indexOf(+tr.dataset.id)); closeLib();
+});
+$("queueList").addEventListener("click", e=>{
+  const li = e.target.closest("li");
+  if(!li) return;
+  goto(+li.dataset.i); closeQueue();
+});
+
+/* 进度条点击/拖动跳转 */
+const pbar = $("progressBar");
+function seek(e){
+  const r = pbar.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  state.cur = ratio * curTrack().dur;
+  renderLyrics(); updateProgressUI();
+}
+pbar.addEventListener("pointerdown", e=>{ seek(e);
+  const mv = ev=>seek(ev), up = ()=>{ removeEventListener("pointermove",mv); removeEventListener("pointerup",up); };
+  addEventListener("pointermove",mv); addEventListener("pointerup",up);
+});
+pbar.addEventListener("keydown", e=>{
+  if(e.key==="ArrowRight"){ state.cur=Math.min(curTrack().dur,state.cur+5); renderLyrics(); updateProgressUI(); }
+  if(e.key==="ArrowLeft"){ state.cur=Math.max(0,state.cur-5); renderLyrics(); updateProgressUI(); }
+});
+
+/* ================= 初始化 ================= */
+renderLibrary();
+renderTrack(false);
+setPlayIcon();
+/* 演示：默认从第 7 秒开始，让歌词高亮落在第一行附近 */
+state.cur = 7; renderLyrics(); updateProgressUI();
+/* 允许用 URL hash 指定初始视图（演示/截图用）：#library #library-list #queue #autoplay */
+if(location.hash === "#library") openLib();
+if(location.hash === "#library-list"){ openLib(); $("tabList").click(); }
+if(location.hash === "#queue") openQueue();
+if(location.hash === "#autoplay") play();
+</script>
+</body>
+</html>

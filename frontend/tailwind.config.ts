@@ -16,6 +16,11 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: 'var(--font-sans)',
+        serif: 'var(--font-serif)',
+        mono: 'var(--font-mono)',
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -38,9 +43,11 @@ export default {
           DEFAULT: 'hsl(var(--muted))',
           foreground: 'hsl(var(--muted-foreground))',
         },
+        // shadcn 的 accent 是 hover 底面语义（paper-deep）；
+        // 品牌朱红用 primary / paper-ink 语义色
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: 'hsl(var(--accent-surface))',
+          foreground: 'hsl(var(--accent-surface-foreground))',
         },
         popover: {
           DEFAULT: 'hsl(var(--popover))',
@@ -50,20 +57,30 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        // 自定义品牌色
-        brand: {
-          green: '#2ec27e',
-          red: '#FA233B',
+        // 编辑风设计 token（RGB 通道，见 index.css :root）
+        paper: {
+          DEFAULT: 'rgb(var(--paper) / <alpha-value>)',
+          deep: 'rgb(var(--paper-deep) / <alpha-value>)',
+        },
+        ink: {
+          DEFAULT: 'rgb(var(--ink) / <alpha-value>)',
+          soft: 'rgb(var(--ink-soft) / <alpha-value>)',
+          faint: 'rgb(var(--ink-faint) / <alpha-value>)',
+        },
+        hair: {
+          DEFAULT: 'rgb(var(--hair))',
+          soft: 'rgb(var(--hair-soft))',
         },
         surface: {
           DEFAULT: 'hsl(var(--surface))',
           hover: 'hsl(var(--surface-hover))',
         },
       },
+      // 纸面杂志不需要大圆角（DESIGN §4）
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        lg: '8px',
+        md: '6px',
+        sm: '4px',
       },
       keyframes: {
         'accordion-down': {
@@ -75,7 +92,7 @@ export default {
           to: { height: '0' },
         },
         'fade-in': {
-          from: { opacity: '0', transform: 'translateY(8px)' },
+          from: { opacity: '0', transform: 'translateY(10px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
         'fade-in-scale': {
@@ -85,6 +102,10 @@ export default {
         'slide-up': {
           from: { opacity: '0', transform: 'translateY(20px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'slide-in-right': {
+          from: { opacity: '0', transform: 'translateX(24px)' },
+          to: { opacity: '1', transform: 'translateX(0)' },
         },
         'spin-slow': {
           from: { transform: 'rotate(0deg)' },
@@ -96,11 +117,12 @@ export default {
         },
       },
       animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
-        'fade-in': 'fade-in 0.3s ease-out',
-        'fade-in-scale': 'fade-in-scale 0.2s ease-out',
-        'slide-up': 'slide-up 0.4s ease-out',
+        'accordion-down': 'accordion-down 0.2s var(--ease)',
+        'accordion-up': 'accordion-up 0.2s var(--ease)',
+        'fade-in': 'fade-in 0.35s var(--ease)',
+        'fade-in-scale': 'fade-in-scale 0.25s var(--ease)',
+        'slide-up': 'slide-up 0.4s var(--ease)',
+        'slide-in-right': 'slide-in-right 0.3s var(--ease)',
         'spin-slow': 'spin-slow 8s linear infinite',
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
       },

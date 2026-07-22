@@ -1,6 +1,6 @@
 {
   "name": "n1ko-music",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "A modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby",
   "private": true,
   "type": "module",
@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "test": "vitest run",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
@@ -36,7 +37,6 @@
     "@tanstack/react-query-devtools": "^5.51.0",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/cli": "^2.10.1",
-    "@tauri-apps/plugin-http": "^2.5.7",
     "axios": "^1.7.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
@@ -67,6 +67,7 @@
     "tailwindcss": "^3.4.6",
     "typescript": "^5.2.2",
     "vite": "^5.3.4",
-    "vite-plugin-pwa": "^0.20.0"
+    "vite-plugin-pwa": "^0.20.0",
+    "vitest": "^2.1.9"
   }
 }

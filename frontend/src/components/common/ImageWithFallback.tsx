@@ -3,11 +3,11 @@
  * - 使用 IntersectionObserver 实现视口懒加载：只有元素接近可见区域时才发起封面请求
  * - 配置了自定义封面 API 时，与服务器封面并发请求
  * - 与设置「封面来源」(coverSource) 一致；勿使用 apiPreferServer（那是歌词 API 优先级）
- * - 所有来源都失败时显示黑胶唱片占位图
+ * - 所有来源都失败时显示纸面占位（paper-deep 底 + ink-faint 图标）
  */
 
 import React, { useState, useEffect, useRef } from 'react'
-import { User } from '@phosphor-icons/react'
+import { User, MusicNote } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useCustomCoverUrl, type CoverQueryType } from '@/hooks/useServerQueries'
 import { pickMergedCoverDisplaySrc } from '@/hooks/useCoverUrl'
@@ -34,29 +34,18 @@ interface ImageWithFallbackProps extends React.ImgHTMLAttributes<HTMLImageElemen
   eager?: boolean
 }
 
-/** 黑胶唱片 SVG 内联组件 */
-function VinylPlaceholder({ className }: { className?: string }) {
+/** 纸面占位：paper-deep 底 + ink-faint 图标（DESIGN v2 §4.5），圆角由消费方控制 */
+function CoverPlaceholder({
+  className,
+  artist = false,
+}: {
+  className?: string
+  artist?: boolean
+}) {
+  const Icon = artist ? User : MusicNote
   return (
-    <div className={cn('flex items-center justify-center bg-accent', className)}>
-      <svg viewBox="0 0 100 100" className="w-3/5 h-3/5 opacity-70" xmlns="http://www.w3.org/2000/svg">
-        {/* 黑胶外圈 */}
-        <circle cx="50" cy="50" r="48" fill="#111" stroke="#333" strokeWidth="1"/>
-        {/* 唱片纹路 */}
-        {[44,40,36,32,28,24,20].map(r => (
-          <circle key={r} cx="50" cy="50" r={r} fill="none" stroke="#2a2a2a" strokeWidth="0.8"/>
-        ))}
-        {/* 封面圈 */}
-        <circle cx="50" cy="50" r="18" fill="#1a1a1a" stroke="#333" strokeWidth="1"/>
-        {/* 封面主色圆 */}
-        <circle cx="50" cy="50" r="16" fill="#222"/>
-        {/* 光泽反射 */}
-        <ellipse cx="44" cy="44" rx="5" ry="3" fill="white" opacity="0.04" transform="rotate(-30 44 44)"/>
-        {/* 圆心 */}
-        <circle cx="50" cy="50" r="4" fill="#444" stroke="#555" strokeWidth="0.5"/>
-        <circle cx="50" cy="50" r="1.5" fill="#888"/>
-        {/* 唱片光泽弧光 */}
-        <path d="M15 35 Q50 10 85 35" stroke="white" strokeWidth="0.5" fill="none" opacity="0.06"/>
-      </svg>
+    <div className={cn('flex items-center justify-center bg-paper-deep text-ink-faint/70', className)}>
+      <Icon className="w-1/3 h-1/3" />
     </div>
   )
 }
@@ -147,23 +136,9 @@ export function ImageWithFallback({
   const showPlaceholder = !isVisible || ((serverFailed && customFailed) && !displaySrc)
 
   if (showPlaceholder) {
-    if (fallbackType === 'artist') {
-      return (
-        <div
-          ref={containerRef}
-          className={cn(
-            'flex items-center justify-center bg-accent',
-            className, fallbackClassName
-          )}
-          aria-label={alt}
-        >
-          <User className="w-1/3 h-1/3 text-muted-foreground/40" />
-        </div>
-      )
-    }
     return (
-      <div ref={containerRef} className={cn(className, fallbackClassName)}>
-        <VinylPlaceholder className="w-full h-full" />
+      <div ref={containerRef} className={cn(className, fallbackClassName)} aria-label={alt}>
+        <CoverPlaceholder className="w-full h-full" artist={fallbackType === 'artist'} />
       </div>
     )
   }
@@ -171,7 +146,8 @@ export function ImageWithFallback({
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       {!isLoaded && (
-        <VinylPlaceholder className="absolute inset-0 animate-pulse" />
+        // loading 骨架：hair 系纸面占位闪烁（不用 spinner，DESIGN §4.5）
+        <CoverPlaceholder className="absolute inset-0 animate-pulse" artist={fallbackType === 'artist'} />
       )}
       <img
         key={eager ? imgLoadKey : undefined}

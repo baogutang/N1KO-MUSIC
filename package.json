@@ -2,12 +2,13 @@
   "name": "n1ko-music",
   "productName": "N1KO MUSIC",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "N1KO MUSIC - The best NAS music player",
   "author": "N1KO",
   "scripts": {
     "dev": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
+    "check:versions": "node scripts/check-app-versions.mjs",
     "tauri:dev": "cd frontend && npm run tauri dev",
     "tauri:build": "cd frontend && npm run tauri build"
   },

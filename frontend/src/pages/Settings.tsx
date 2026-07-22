@@ -1,12 +1,19 @@
+/**
+ * 设置页
+ * 杂志编辑风（DESIGN v2 §4.4）：衬线分区标题 + 发丝线，选项行式排布
+ * （左名称/说明，右控件），开关为细线滑块，输入框为发丝线下缘。
+ * 多色 accent 预设与歌词高亮色选择器已随 v2 契约移除（统一朱红 accent）。
+ */
+
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Trash, CheckCircle, ArrowsClockwise,
-  Sun, Moon, Monitor, SpeakerHigh, SignOut, CaretRight, WifiHigh,
+  SignOut, CaretRight, WifiHigh,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
-import { useThemeStore, type AccentColor } from '@/store/themeStore'
+import { useThemeStore } from '@/store/themeStore'
 import { usePlayerStore } from '@/store/playerStore'
 import {
   useSettingsStore,
@@ -15,31 +22,157 @@ import {
   type CoverShape,
 } from '@/store/settingsStore'
 import { createAdapter } from '@/api'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Slider } from '@/components/ui/slider'
 import { toast } from '@/components/ui/use-toast'
+import pkg from '../../package.json'
 
-const VERSION = '1.2.5'
+// ─── 子组件 ───────────────────────────────────────────────────────────────────
+
+/** 分区：衬线标题 + 拉丁小标签 + 下缘发丝线 */
+function Section({ title, tag, children }: { title: string; tag?: string; children: React.ReactNode }) {
+  return (
+    <section className="pt-12 first:pt-8">
+      <div className="flex items-baseline justify-between border-b border-hair pb-3">
+        <h2 className="font-serif text-[22px] font-semibold">{title}</h2>
+        {tag && <span className="text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>}
+      </div>
+      <div>{children}</div>
+    </section>
+  )
+}
+
+/** 选项行：左名称 + ink-faint 说明，右控件；行间 hair-soft */
+function Row({ name, desc, children }: { name: string; desc?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-6 py-4 border-b border-hair-soft">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{name}</p>
+        {desc && <p className="text-xs text-ink-faint mt-0.5">{desc}</p>}
+      </div>
+      <div className="flex-shrink-0 flex items-center">{children}</div>
+    </div>
+  )
+}
+
+/** 细线滑块开关（DESIGN §4.4）：1px 轨道 + 小圆钮，开启为 accent */
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className="group relative w-9 h-5 flex-shrink-0"
+    >
+      <span
+        className={cn(
+          'absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px transition-colors duration-200',
+          checked ? 'bg-primary' : 'bg-hair'
+        )}
+      />
+      <span
+        className={cn(
+          'absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border transition-all duration-200',
+          checked
+            ? 'left-full -translate-x-full bg-primary border-primary'
+            : 'left-0 bg-paper border-ink-faint group-hover:border-ink-soft'
+        )}
+      />
+    </button>
+  )
+}
+
+/** 细线分段控件：hair 边框 + 当前项 accent 文字与 2px 下缘 */
+function Segmented<T extends string>({ value, onChange, options, label }: {
+  value: T
+  onChange: (v: T) => void
+  options: { value: T; label: string }[]
+  label: string
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="inline-flex rounded-sm border border-hair overflow-hidden divide-x divide-hair-soft">
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          type="button"
+          role="radio"
+          aria-checked={value === opt.value}
+          onClick={() => onChange(opt.value)}
+          style={value === opt.value ? { boxShadow: 'inset 0 -2px 0 0 rgb(var(--accent))' } : undefined}
+          className={cn(
+            'px-3.5 h-8 text-[13px] transition-colors duration-200',
+            value === opt.value ? 'text-primary font-medium' : 'text-ink-soft hover:text-foreground'
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** 发丝线输入框：下缘 1px hair，focus 变 accent（DESIGN §4.4） */
+const hairInputClass =
+  'h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm ' +
+  'placeholder:text-ink-faint/60 focus-visible:border-primary'
+
+/** 端点配置行：左标签，右发丝线输入框 */
+function EndpointRow({ label, value, onChange, placeholder, desc }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  desc?: React.ReactNode
+}) {
+  return (
+    <div className="py-4 border-b border-hair-soft">
+      <div className="flex items-center gap-4">
+        <p className="text-sm font-medium w-20 flex-shrink-0">{label}</p>
+        <Input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={hairInputClass}
+        />
+      </div>
+      {desc && <p className="text-xs text-ink-faint mt-2 pl-24">{desc}</p>}
+    </div>
+  )
+}
+
+/** API 子组标题：小号 wide-tracking */
+function SubHead({ title }: { title: string }) {
+  return <p className="pt-6 pb-1 text-[11px] tracking-[0.24em] text-ink-faint">{title}</p>
+}
+
+// ─── 主页面 ───────────────────────────────────────────────────────────────────
 
 export default function Settings() {
   const navigate = useNavigate()
   const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
-  const { theme, setTheme, accentColor, setAccentColor } = useThemeStore()
+  const { theme, setTheme } = useThemeStore()
   const volume    = usePlayerStore(s => s.volume)
   const setVolume = usePlayerStore(s => s.setVolume)
   const {
     apiPreferServer, apiAuthToken,
     coverRemoteTemplate, coverLoadAlbum, coverLoadArtist, coverShape,
-    lyricsRemoteTemplate, lyricsConfirmTemplate, lyricsUseRemote, lyricsPreferRemote, lyricsHighlightColor, lyricsFontSize,
+    lyricsRemoteTemplate, lyricsConfirmTemplate, lyricsUseRemote, lyricsPreferRemote, lyricsFontSize,
     songDetailTemplate, songDetailPathReplace,
     translateTargetLang, translateType,
     audioQuality,
     setApiPreferServer, setApiAuthToken,
     setCoverRemoteTemplate, setCoverLoadAlbum, setCoverLoadArtist, setCoverShape,
-    setLyricsRemoteTemplate, setLyricsConfirmTemplate, setLyricsUseRemote, setLyricsPreferRemote, setLyricsHighlightColor, setLyricsFontSize,
+    setLyricsRemoteTemplate, setLyricsConfirmTemplate, setLyricsUseRemote, setLyricsPreferRemote, setLyricsFontSize,
     setSongDetailTemplate, setSongDetailPathReplace,
     setTranslateTargetLang, setTranslateType,
     setAudioQuality,
   } = useSettingsStore()
   const [pinging, setPinging] = useState<string | null>(null)
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false)
 
   const activeServer = servers.find(s => s.id === activeServerId)
 
@@ -76,63 +209,53 @@ export default function Settings() {
     toast({ title: '已移除服务器' })
   }
 
-  const accentOptions: { label: string; value: AccentColor; className: string }[] = [
-    { label: 'Spotify 绿', value: 'green', className: 'bg-[#2ec27e]' },
-    { label: 'Apple 红', value: 'red', className: 'bg-[#e0525b]' },
-    { label: '天空蓝', value: 'blue', className: 'bg-[#4e94ed]' },
-    { label: '紫罗兰', value: 'purple', className: 'bg-[#9f78e3]' },
-    { label: '橙色', value: 'orange', className: 'bg-[#ee8e3a]' },
-  ]
+  function handleDisconnect() {
+    disconnect()
+    navigate('/login')
+  }
 
   return (
-    <div className="min-h-full pb-8 animate-fade-in">
-      <div className="max-w-2xl mx-auto px-6 py-8">
-        <h1 className="text-3xl font-bold tracking-tight mb-10">设置</h1>
+    <div className="min-h-full pt-9 pb-8 animate-fade-in">
+      <div className="max-w-[720px]">
+        {/* 报头 */}
+        <header>
+          <p className="text-[11px] tracking-[0.3em] text-ink-faint mb-2">PREFERENCES</p>
+          <h1 className="font-serif text-4xl font-bold tracking-tight">设置</h1>
+        </header>
 
-        {/* Server management */}
-        <section className="pb-10">
-          <h2 className="text-lg font-bold mb-5">服务器管理</h2>
-
-          <div className="space-y-1">
+        {/* 服务器管理 */}
+        <Section title="服务器管理" tag="SERVERS">
+          <div>
             {servers.map(server => (
               <div
                 key={server.id}
-                className={cn(
-                  'flex items-center justify-between gap-2 px-3 py-3 rounded-lg transition-colors duration-150',
-                  server.id === activeServerId
-                    ? 'bg-primary/10'
-                    : 'hover:bg-surface'
-                )}
+                className="flex items-stretch justify-between gap-4 py-4 border-b border-hair-soft"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={cn(
-                    'w-10 h-10 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0',
-                    server.id === activeServerId
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-accent text-muted-foreground'
-                  )}>
-                    {getServerTypeLabel(server.type).charAt(0)}
-                  </div>
-                  <div className="min-w-0">
+                <div className="flex items-stretch gap-3 min-w-0">
+                  {/* 当前服务器：accent 左竖线 */}
+                  <span className={cn('w-[2px] flex-shrink-0', server.id === activeServerId ? 'bg-primary' : 'bg-transparent')} />
+                  <div className="min-w-0 py-0.5">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-sm truncate">{server.name}</p>
+                      <p className="text-sm font-medium truncate">{server.name}</p>
                       {server.id === activeServerId && (
-                        <span className="text-xs text-primary font-medium flex items-center gap-1 flex-shrink-0">
-                          <CheckCircle weight="fill" className="w-3.5 h-3.5" />
+                        <span className="text-[11px] text-primary flex items-center gap-1 flex-shrink-0">
+                          <CheckCircle weight="fill" className="w-3 h-3" />
                           当前
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{server.url}</p>
-                    <p className="text-xs text-muted-foreground">{getServerTypeLabel(server.type)} · {server.username}</p>
+                    <p className="num text-xs text-ink-faint truncate mt-0.5">{server.url}</p>
+                    <p className="text-xs text-ink-faint">{getServerTypeLabel(server.type)} · {server.username}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <button
+                    type="button"
                     onClick={() => handlePing(server.id)}
                     disabled={pinging === server.id}
-                    className="p-2 rounded-md hover:bg-accent transition-colors duration-150 text-muted-foreground hover:text-foreground active:scale-[0.94]"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-foreground transition-colors duration-200 active:scale-95"
                     title="测试连接"
+                    aria-label={`测试 ${server.name} 连接`}
                   >
                     {pinging === server.id
                       ? <ArrowsClockwise className="w-4 h-4 animate-spin" />
@@ -141,17 +264,21 @@ export default function Settings() {
                   </button>
                   {server.id !== activeServerId && (
                     <button
+                      type="button"
                       onClick={() => handleSwitch(server.id)}
-                      className="p-2 rounded-md hover:bg-accent transition-colors duration-150 text-muted-foreground hover:text-foreground active:scale-[0.94]"
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-primary transition-colors duration-200 active:scale-95"
                       title="切换到此服务器"
+                      aria-label={`切换到 ${server.name}`}
                     >
                       <CaretRight className="w-4 h-4" />
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={() => handleRemove(server.id)}
-                    className="p-2 rounded-md hover:bg-destructive/10 transition-colors duration-150 text-muted-foreground hover:text-destructive active:scale-[0.94]"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-destructive transition-colors duration-200 active:scale-95"
                     title="移除服务器"
+                    aria-label={`移除 ${server.name}`}
                   >
                     <Trash className="w-4 h-4" />
                   </button>
@@ -159,493 +286,295 @@ export default function Settings() {
               </div>
             ))}
 
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => navigate('/login')}
-              className="w-full flex items-center justify-center gap-2 h-10 !mt-3 rounded-full border border-border text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors duration-150 active:scale-[0.97]"
+              className="mt-5 gap-1.5"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               添加新服务器
-            </button>
+            </Button>
           </div>
-        </section>
+        </Section>
 
-        {/* Appearance */}
-        <section className="border-t border-border pt-8 pb-10">
-          <h2 className="text-lg font-bold mb-2">外观</h2>
+        {/* 外观 */}
+        <Section title="外观" tag="APPEARANCE">
+          <Row name="主题模式" desc="深色、浅色或跟随系统">
+            <Segmented
+              label="主题模式"
+              value={theme}
+              onChange={setTheme}
+              options={[
+                { value: 'dark', label: '深色' },
+                { value: 'light', label: '浅色' },
+                { value: 'system', label: '跟随系统' },
+              ]}
+            />
+          </Row>
+          <Row name="播放详情页封面样式" desc="方形静止或黑胶旋转（唱片效果）">
+            <Segmented
+              label="封面样式"
+              value={coverShape}
+              onChange={(v) => setCoverShape(v as CoverShape)}
+              options={[
+                { value: 'square', label: '方形' },
+                { value: 'circle', label: '黑胶' },
+              ]}
+            />
+          </Row>
+        </Section>
 
-          <div className="divide-y divide-border">
-            {/* Theme mode */}
-            <div className="py-5 space-y-3">
-              <div>
-                <p className="font-medium text-sm">主题模式</p>
-                <p className="text-xs text-muted-foreground mt-0.5">深色、浅色或跟随系统</p>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {([
-                  { value: 'dark' as const, label: '深色', icon: Moon },
-                  { value: 'light' as const, label: '浅色', icon: Sun },
-                  { value: 'system' as const, label: '跟随系统', icon: Monitor },
-                ]).map(({ value, label, icon: Icon }) => (
-                  <button
-                    key={value}
-                    onClick={() => setTheme(value)}
-                    className={cn(
-                      'flex items-center gap-2 px-4 h-9 rounded-full text-sm transition-colors duration-150 border active:scale-[0.97]',
-                      theme === value
-                        ? 'border-primary bg-primary/10 text-primary font-medium'
-                        : 'border-border text-muted-foreground hover:text-foreground hover:bg-surface'
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Accent color */}
-            <div className="py-5">
-              <p className="font-medium text-sm">强调色</p>
-              <p className="text-xs text-muted-foreground mt-0.5 mb-4">界面主题颜色</p>
-              <div className="flex gap-4 flex-wrap">
-                {accentOptions.map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setAccentColor(opt.value)}
-                    title={opt.label}
-                    className={cn(
-                      'w-7 h-7 rounded-full transition-transform duration-150 hover:scale-110 active:scale-95',
-                      opt.className,
-                      accentColor === opt.value && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
-                    )}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* 播放详情页封面样式 */}
-            <div className="flex items-center justify-between gap-4 py-5">
-              <div>
-                <p className="font-medium text-sm">播放详情页封面样式</p>
-                <p className="text-xs text-muted-foreground mt-0.5">方形静止或圆形旋转（黑胶唱片效果）</p>
-              </div>
-              <div className="flex gap-1.5 flex-shrink-0">
-                {(['square', 'circle'] as CoverShape[]).map(shape => (
-                  <button
-                    key={shape}
-                    onClick={() => setCoverShape(shape)}
-                    className={cn(
-                      'px-3.5 h-8 rounded-full text-sm transition-colors duration-150 border active:scale-[0.97]',
-                      coverShape === shape
-                        ? 'border-primary bg-primary/10 text-primary font-medium'
-                        : 'border-border text-muted-foreground hover:text-foreground hover:bg-surface'
-                    )}
-                  >
-                    {shape === 'square' ? '方形' : '圆形旋转'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Audio */}
-        <section className="border-t border-border pt-8 pb-10">
-          <h2 className="text-lg font-bold mb-2">音频</h2>
-
-          <div className="divide-y divide-border">
-            {/* 默认音量 */}
-            <div className="flex items-center gap-4 py-5">
-              <SpeakerHigh className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <div className="flex-1">
-                <p className="font-medium text-sm mb-1.5">默认音量</p>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={volume}
-                  onChange={e => setVolume(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
-              </div>
-              <span className="font-num text-sm text-muted-foreground w-10 text-right">
+        {/* 音频 */}
+        <Section title="音频" tag="AUDIO">
+          <Row name="默认音量">
+            <div className="flex items-center gap-3 w-60">
+              <Slider
+                value={[volume]}
+                min={0}
+                max={1}
+                step={0.01}
+                onValueChange={([v]) => setVolume(v)}
+                aria-label="默认音量"
+                className="flex-1"
+              />
+              <span className="num text-xs text-ink-soft w-9 text-right">
                 {Math.round(volume * 100)}%
               </span>
             </div>
-
-            {/* 音质选择 */}
-            <div className="py-5">
-              <div className="flex items-center gap-2 mb-3">
-                <p className="font-medium text-sm">流媒体音质</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => (
-                  <button
-                    key={q}
-                    onClick={() => setAudioQuality(q)}
+          </Row>
+          <div className="py-4 border-b border-hair-soft">
+            <p className="text-sm font-medium">流媒体音质</p>
+            <p className="text-xs text-ink-faint mt-0.5">
+              无损将请求服务器原始歌曲格式；其他选项将要求服务器转码为指定码率
+            </p>
+            <div role="radiogroup" aria-label="流媒体音质" className="mt-2">
+              {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => (
+                <button
+                  key={q}
+                  type="button"
+                  role="radio"
+                  aria-checked={audioQuality === q}
+                  onClick={() => setAudioQuality(q)}
+                  className="group w-full flex items-center gap-3 py-2.5 text-left"
+                >
+                  <span
                     className={cn(
-                      'relative px-4 h-9 rounded-full border text-sm transition-colors duration-150 active:scale-[0.97]',
+                      'w-3 h-3 rounded-full border flex-shrink-0 transition-colors duration-200',
                       audioQuality === q
-                        ? 'border-primary bg-primary/10 text-primary font-medium'
-                        : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                        ? 'border-primary bg-primary'
+                        : 'border-hair group-hover:border-ink-faint'
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      'text-sm transition-colors duration-200',
+                      audioQuality === q ? 'text-primary' : 'text-ink-soft group-hover:text-foreground'
                     )}
                   >
                     {QUALITY_LABELS[q]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Section>
+
+        {/* 自定义 API */}
+        <Section title="自定义 API" tag="CUSTOM API">
+          <Row name="优先使用音乐服务接口" desc="只有音乐服务接口无数据时才会从自定义 API 获取数据">
+            <Toggle label="优先使用音乐服务接口" checked={apiPreferServer} onChange={setApiPreferServer} />
+          </Row>
+
+          <EndpointRow
+            label="验证信息"
+            value={apiAuthToken}
+            onChange={setApiAuthToken}
+            placeholder="Authorization Token"
+            desc={(
+              <>
+                验证信息将作为请求头的
+                <code className="num text-ink-soft border border-hair-soft rounded-sm px-1 mx-1">Authorization</code>
+                字段进行传输
+              </>
+            )}
+          />
+
+          <SubHead title="歌词接口" />
+          <EndpointRow
+            label="地址"
+            value={lyricsRemoteTemplate}
+            onChange={setLyricsRemoteTemplate}
+            placeholder="https://lrcapi.example.com/api?title={title}&artist={artist}"
+          />
+
+          <SubHead title="歌词确认接口" />
+          <EndpointRow
+            label="地址"
+            value={lyricsConfirmTemplate}
+            onChange={setLyricsConfirmTemplate}
+            placeholder="https://lrcapi.example.com/confirm"
+          />
+
+          <SubHead title="封面接口" />
+          <EndpointRow
+            label="地址"
+            value={coverRemoteTemplate}
+            onChange={setCoverRemoteTemplate}
+            placeholder="https://api.example.com/cover?artist={artist}&album={album}"
+          />
+          <Row name="加载专辑封面">
+            <Toggle label="加载专辑封面" checked={coverLoadAlbum} onChange={setCoverLoadAlbum} />
+          </Row>
+          <Row name="加载歌手图片">
+            <Toggle label="加载歌手图片" checked={coverLoadArtist} onChange={setCoverLoadArtist} />
+          </Row>
+
+          <SubHead title="歌曲详情接口" />
+          <EndpointRow
+            label="地址"
+            value={songDetailTemplate}
+            onChange={setSongDetailTemplate}
+            placeholder="https://example.com/songs"
+          />
+          <EndpointRow
+            label="路径替换"
+            value={songDetailPathReplace}
+            onChange={setSongDetailPathReplace}
+            placeholder="pattern,replacement"
+            desc="配置后可在歌曲详情页跳转至对应网页"
+          />
+
+          <SubHead title="翻译接口" />
+          <Row name="目标语言">
+            <select
+              value={translateTargetLang}
+              onChange={e => setTranslateTargetLang(e.target.value)}
+              aria-label="翻译目标语言"
+              className="h-9 bg-transparent border-0 border-b border-hair rounded-none text-sm text-ink-soft cursor-pointer focus:outline-none focus:border-primary"
+            >
+              {['英文', '中文', '日文', '韩文', '法文', '德文'].map(lang => (
+                <option key={lang} value={lang}>{lang}</option>
+              ))}
+            </select>
+          </Row>
+          <Row name="类型">
+            <select
+              value={translateType}
+              onChange={e => setTranslateType(e.target.value)}
+              aria-label="翻译类型"
+              className="h-9 bg-transparent border-0 border-b border-hair rounded-none text-sm text-ink-soft cursor-pointer focus:outline-none focus:border-primary"
+            >
+              {['无', '没有内置山误', '不内置'].map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </Row>
+        </Section>
+
+        {/* 歌词外观 */}
+        <Section title="歌词外观" tag="LYRICS">
+          <Row name="字号大小" desc="全屏播放器中歌词的字体大小（14–36px）">
+            <div className="flex items-center gap-3">
+              <Slider
+                value={[lyricsFontSize]}
+                min={14}
+                max={36}
+                step={1}
+                onValueChange={([v]) => setLyricsFontSize(v)}
+                aria-label="歌词字号"
+                className="w-28"
+              />
+              <span className="num text-xs text-ink-soft w-9 text-right">{lyricsFontSize}px</span>
+              <div className="flex gap-2 ml-1">
+                {[16, 20, 24, 28, 32].map(size => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => setLyricsFontSize(size)}
+                    className={cn(
+                      'num text-[11px] transition-colors duration-200',
+                      lyricsFontSize === size
+                        ? 'text-primary border-b border-primary'
+                        : 'text-ink-faint hover:text-foreground'
+                    )}
+                  >
+                    {size}
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-3">
-                无损将请求服务器原始歌曲格式；其他选项将要求服务器转码为指定码率
-              </p>
             </div>
+          </Row>
+          <Row name="启用远程歌词源" desc="通过上方自定义 API 获取 LRC 歌词，第一条显示设置">
+            <Toggle label="启用远程歌词源" checked={lyricsUseRemote} onChange={setLyricsUseRemote} />
+          </Row>
+          {lyricsUseRemote && (
+            <Row name="远程歌词优先" desc="开启时远程优先，关闭时服务器优先">
+              <Toggle label="远程歌词优先" checked={lyricsPreferRemote} onChange={setLyricsPreferRemote} />
+            </Row>
+          )}
+        </Section>
+
+        {/* 关于 */}
+        <Section title="关于" tag="ABOUT">
+          <div className="flex items-center justify-between py-4 border-b border-hair-soft">
+            <span className="text-sm text-ink-soft">版本</span>
+            <span className="num text-sm">v{pkg.version}</span>
           </div>
-        </section>
-
-        {/* 自定义 API */}
-        <section className="border-t border-border pt-8 pb-10">
-          <h2 className="text-lg font-bold mb-2">自定义 API</h2>
-
-          <div>
-            {/* 优先使用音乐服务接口 */}
-            <div className="flex items-center justify-between gap-4 py-4 border-b border-border">
-              <div>
-                <p className="font-medium text-sm">优先使用音乐服务接口</p>
-                <p className="text-xs text-muted-foreground mt-0.5">只有音乐服务接口无数据时才会从自定义 API 获取数据</p>
-              </div>
-              <button
-                onClick={() => setApiPreferServer(!apiPreferServer)}
-                className={cn(
-                  'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
-                  apiPreferServer ? 'bg-primary' : 'bg-muted-foreground/30'
-                )}
-              >
-                <span className={cn(
-                  'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
-                  apiPreferServer && 'translate-x-5'
-                )} />
-              </button>
-            </div>
-
-            {/* 验证信息 */}
-            <div className="flex items-center justify-between gap-4 py-4">
-              <p className="font-medium text-sm flex-shrink-0">验证信息</p>
-              <input
-                type="text"
-                value={apiAuthToken}
-                onChange={e => setApiAuthToken(e.target.value)}
-                placeholder="Authorization Token"
-                className="text-sm text-right bg-transparent border-none outline-none text-muted-foreground placeholder:text-muted-foreground/40 min-w-0 w-48"
-              />
-            </div>
-            <p className="pb-4 text-xs text-muted-foreground border-b border-border">
-              验证信息将作为请求头的 <code className="bg-accent px-1 rounded-md">Authorization</code> 字段进行传输
-            </p>
-
-            {/* 歌词接口 标题 */}
-            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">歌词接口</p>
-
-            {/* 歌词接口 - 地址 */}
-            <div className="flex items-center justify-between py-4 border-b border-border">
-              <p className="font-medium text-sm flex-shrink-0">地址</p>
-              <input
-                type="text"
-                value={lyricsRemoteTemplate}
-                onChange={e => setLyricsRemoteTemplate(e.target.value)}
-                placeholder="https://lrcapi.example.com/api?title={title}&artist={artist}"
-                className="text-sm text-right bg-transparent border-none outline-none text-muted-foreground placeholder:text-muted-foreground/40 min-w-0 flex-1 ml-4"
-              />
-            </div>
-
-            {/* 歌词确认接口 标题 */}
-            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">歌词确认接口</p>
-
-            {/* 歌词确认接口 - 地址 */}
-            <div className="flex items-center justify-between py-4 border-b border-border">
-              <p className="font-medium text-sm flex-shrink-0">地址</p>
-              <input
-                type="text"
-                value={lyricsConfirmTemplate}
-                onChange={e => setLyricsConfirmTemplate(e.target.value)}
-                placeholder="https://lrcapi.example.com/confirm"
-                className="text-sm text-right bg-transparent border-none outline-none text-muted-foreground placeholder:text-muted-foreground/40 min-w-0 flex-1 ml-4"
-              />
-            </div>
-
-            {/* 封面接口 标题 */}
-            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">封面接口</p>
-
-            {/* 封面接口 - 地址 */}
-            <div className="flex items-center justify-between py-4 border-b border-border">
-              <p className="font-medium text-sm flex-shrink-0">地址</p>
-              <input
-                type="text"
-                value={coverRemoteTemplate}
-                onChange={e => setCoverRemoteTemplate(e.target.value)}
-                placeholder="https://api.example.com/cover?artist={artist}&album={album}"
-                className="text-sm text-right bg-transparent border-none outline-none text-muted-foreground placeholder:text-muted-foreground/40 min-w-0 flex-1 ml-4"
-              />
-            </div>
-
-            {/* 加载专辑封面 */}
-            <div className="flex items-center justify-between gap-4 py-4 border-b border-border">
-              <p className="font-medium text-sm">加载专辑封面</p>
-              <button
-                onClick={() => setCoverLoadAlbum(!coverLoadAlbum)}
-                className={cn(
-                  'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
-                  coverLoadAlbum ? 'bg-primary' : 'bg-muted-foreground/30'
-                )}
-              >
-                <span className={cn(
-                  'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
-                  coverLoadAlbum && 'translate-x-5'
-                )} />
-              </button>
-            </div>
-
-            {/* 加载歌手图片 */}
-            <div className="flex items-center justify-between gap-4 py-4 border-b border-border">
-              <p className="font-medium text-sm">加载歌手图片</p>
-              <button
-                onClick={() => setCoverLoadArtist(!coverLoadArtist)}
-                className={cn(
-                  'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
-                  coverLoadArtist ? 'bg-primary' : 'bg-muted-foreground/30'
-                )}
-              >
-                <span className={cn(
-                  'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
-                  coverLoadArtist && 'translate-x-5'
-                )} />
-              </button>
-            </div>
-
-            {/* 歌曲详情接口 标题 */}
-            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">歌曲详情接口</p>
-
-            {/* 歌曲详情 - 地址 */}
-            <div className="flex items-center justify-between py-4 border-b border-border">
-              <p className="font-medium text-sm flex-shrink-0">地址</p>
-              <input
-                type="text"
-                value={songDetailTemplate}
-                onChange={e => setSongDetailTemplate(e.target.value)}
-                placeholder="https://example.com/songs"
-                className="text-sm text-right bg-transparent border-none outline-none text-muted-foreground placeholder:text-muted-foreground/40 min-w-0 flex-1 ml-4"
-              />
-            </div>
-
-            {/* 歌曲详情 - 路径替换 */}
-            <div className="flex items-center justify-between py-4">
-              <p className="font-medium text-sm flex-shrink-0">路径替换</p>
-              <input
-                type="text"
-                value={songDetailPathReplace}
-                onChange={e => setSongDetailPathReplace(e.target.value)}
-                placeholder="pattern,replacement"
-                className="text-sm text-right bg-transparent border-none outline-none text-muted-foreground placeholder:text-muted-foreground/40 min-w-0 w-48"
-              />
-            </div>
-            <p className="pb-4 text-xs text-muted-foreground border-b border-border">配置后可在歌曲详情页跳转至对应网页</p>
-
-            {/* 翻译接口 标题 */}
-            <p className="pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">翻译接口</p>
-
-            {/* 翻译 - 目标语言 */}
-            <div className="flex items-center justify-between py-4 border-b border-border">
-              <p className="font-medium text-sm flex-shrink-0">目标语言</p>
-              <select
-                value={translateTargetLang}
-                onChange={e => setTranslateTargetLang(e.target.value)}
-                className="text-sm bg-transparent border-none outline-none text-muted-foreground cursor-pointer"
-              >
-                {['英文', '中文', '日文', '韩文', '法文', '德文'].map(lang => (
-                  <option key={lang} value={lang}>{lang}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* 翻译 - 类型 */}
-            <div className="flex items-center justify-between py-4">
-              <p className="font-medium text-sm flex-shrink-0">类型</p>
-              <select
-                value={translateType}
-                onChange={e => setTranslateType(e.target.value)}
-                className="text-sm bg-transparent border-none outline-none text-muted-foreground cursor-pointer"
-              >
-                {['无', '没有内置山误', '不内置'].map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
+          <div className="flex items-center justify-between py-4 border-b border-hair-soft">
+            <span className="text-sm text-ink-soft">开源协议</span>
+            <span className="text-sm">MIT License</span>
           </div>
-        </section>
-
-        {/* 歌词外观设置 */}
-        <section className="border-t border-border pt-8 pb-10">
-          <h2 className="text-lg font-bold mb-2">歌词外观</h2>
-
-          <div className="divide-y divide-border">
-            {/* 歌词高亮颜色 */}
-            <div className="flex items-center justify-between gap-4 py-5">
-              <div>
-                <p className="font-medium text-sm">高亮颜色</p>
-                <p className="text-xs text-muted-foreground mt-0.5">当前播放歌词行的高亮颜色</p>
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="flex gap-1.5">
-                  {[
-                    { color: '#2ec27e', label: '绿色' },
-                    { color: '#14b8a6', label: '青色' },
-                    { color: '#f59e0b', label: '黄色' },
-                    { color: '#60a5fa', label: '蓝色' },
-                    { color: '#f472b6', label: '粉色' },
-                    { color: '#a78bfa', label: '紫色' },
-                  ].map(({ color, label }) => (
-                    <button
-                      key={color}
-                      title={label}
-                      onClick={() => setLyricsHighlightColor(color)}
-                      className="w-6 h-6 rounded-full border-2 transition-transform duration-150 hover:scale-110 active:scale-95 flex-shrink-0"
-                      style={{
-                        backgroundColor: color,
-                        borderColor: lyricsHighlightColor === color ? 'hsl(var(--foreground))' : 'transparent',
-                        boxShadow: lyricsHighlightColor === color ? `0 0 0 1px ${color}` : 'none',
-                      }}
-                    />
-                  ))}
-                </div>
-                <input
-                  type="color"
-                  value={lyricsHighlightColor}
-                  onChange={e => setLyricsHighlightColor(e.target.value)}
-                  className="w-8 h-8 rounded-md cursor-pointer border border-border bg-transparent overflow-hidden"
-                  title="自定义颜色"
-                />
-              </div>
-            </div>
-
-            {/* 歌词字号 */}
-            <div className="flex items-center justify-between gap-4 py-5">
-              <div>
-                <p className="font-medium text-sm">字号大小</p>
-                <p className="text-xs text-muted-foreground mt-0.5">全屏播放器中歌词的字体大小（14–36px）</p>
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className="font-num text-xs text-muted-foreground w-9 text-right">{lyricsFontSize}px</span>
-                <input
-                  type="range"
-                  min={14}
-                  max={36}
-                  step={1}
-                  value={lyricsFontSize}
-                  onChange={e => setLyricsFontSize(Number(e.target.value))}
-                  className="w-28 accent-primary cursor-pointer"
-                />
-                <div className="flex gap-1">
-                  {[16, 20, 24, 28, 32].map(size => (
-                    <button
-                      key={size}
-                      onClick={() => setLyricsFontSize(size)}
-                      className={cn(
-                        'font-num text-xs px-2 py-1 rounded-md transition-colors duration-150 active:scale-[0.94]',
-                        lyricsFontSize === size
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-accent text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* 启用远程歌词 */}
-            <div className="flex items-center justify-between gap-4 py-5">
-              <div>
-                <p className="font-medium text-sm">启用远程歌词源</p>
-                <p className="text-xs text-muted-foreground mt-0.5">通过上方自定义 API 获取 LRC 歌词，第一条显示设置</p>
-              </div>
-              <button
-                onClick={() => setLyricsUseRemote(!lyricsUseRemote)}
-                className={cn(
-                  'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
-                  lyricsUseRemote ? 'bg-primary' : 'bg-muted-foreground/30'
-                )}
-              >
-                <span className={cn(
-                  'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
-                  lyricsUseRemote && 'translate-x-5'
-                )} />
-              </button>
-            </div>
-
-            {lyricsUseRemote && (
-              <div className="flex items-center justify-between gap-4 py-5">
-                <div>
-                  <p className="font-medium text-sm">远程歌词优先</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">开启时远程优先，关闭时服务器优先</p>
-                </div>
-                <button
-                  onClick={() => setLyricsPreferRemote(!lyricsPreferRemote)}
-                  className={cn(
-                    'relative w-11 h-6 rounded-full transition-colors duration-150 flex-shrink-0',
-                    lyricsPreferRemote ? 'bg-primary' : 'bg-muted-foreground/30'
-                  )}
-                >
-                  <span className={cn(
-                    'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
-                    lyricsPreferRemote && 'translate-x-5'
-                  )} />
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* About */}
-        <section className="border-t border-border pt-8 pb-10">
-          <h2 className="text-lg font-bold mb-2">关于</h2>
-
-          <div className="divide-y divide-border">
-            <div className="flex items-center justify-between py-4">
-              <span className="text-sm text-muted-foreground">版本</span>
-              <span className="font-num text-sm">v{VERSION}</span>
-            </div>
-            <div className="flex items-center justify-between py-4">
-              <span className="text-sm text-muted-foreground">开源协议</span>
-              <span className="text-sm">MIT License</span>
-            </div>
-            <div className="flex items-center justify-between py-4">
-              <span className="text-sm text-muted-foreground">GitHub</span>
-              <a
-                href="https://github.com/baogutang/N1KO-MUSIC"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-primary hover:underline"
-              >
-                N1KO-MUSIC
-              </a>
-            </div>
-          </div>
-        </section>
-
-        {/* Danger zone */}
-        {activeServer && (
-          <section className="border-t border-border pt-8">
-            <button
-              onClick={() => {
-                disconnect()
-                navigate('/login')
-              }}
-              className="w-full flex items-center justify-center gap-2 h-10 rounded-full border border-destructive/30 hover:bg-destructive/10 transition-colors duration-150 text-sm text-destructive active:scale-[0.97]"
+          <div className="flex items-center justify-between py-4 border-b border-hair-soft">
+            <span className="text-sm text-ink-soft">GitHub</span>
+            <a
+              href="https://github.com/baogutang/N1KO-MUSIC"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary underline decoration-hair underline-offset-[6px] hover:decoration-primary transition-colors"
             >
-              <SignOut className="w-4 h-4" />
-              断开当前服务器连接
-            </button>
-          </section>
+              N1KO-MUSIC
+            </a>
+          </div>
+        </Section>
+
+        {/* 危险区 */}
+        {activeServer && (
+          <Section title="危险区" tag="DANGER">
+            <div className="flex items-center justify-between gap-6 py-5">
+              <div>
+                <p className="text-sm font-medium">断开当前服务器连接</p>
+                <p className="text-xs text-ink-faint mt-0.5">将退出登录并返回服务器选择页</p>
+              </div>
+              {confirmDisconnect ? (
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleDisconnect}
+                    className="text-sm font-semibold text-destructive underline decoration-1 underline-offset-[6px] decoration-destructive/40 hover:decoration-destructive transition-colors"
+                  >
+                    确认断开
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDisconnect(false)}
+                    className="text-sm text-ink-faint hover:text-foreground transition-colors"
+                  >
+                    取消
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDisconnect(true)}
+                  className="flex-shrink-0 flex items-center gap-1.5 text-sm font-semibold text-destructive underline decoration-1 underline-offset-[6px] decoration-destructive/40 hover:decoration-destructive transition-colors"
+                >
+                  <SignOut className="w-4 h-4" />
+                  断开连接
+                </button>
+              )}
+            </div>
+          </Section>
         )}
       </div>
     </div>

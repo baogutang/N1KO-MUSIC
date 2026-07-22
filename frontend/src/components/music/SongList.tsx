@@ -1,6 +1,6 @@
 /**
- * 歌曲列表组件
- * 通用表格式歌曲列表，支持行号、封面、收藏、播放计数等
+ * 歌曲列表组件 —— 编号编辑列表（DESIGN v2 §3「列表即网格」）
+ * mono 序号｜小封面｜衬线曲名+歌手｜专辑链接｜hover 收藏｜mono 时长｜⋯ 菜单
  * - 歌手名 / 专辑名点击跳转对应页面
  * - 喜欢按钮调用 star/unstar API
  * - 右键菜单 / 更多菜单展示歌曲详情
@@ -83,7 +83,7 @@ export function SongList({
   }, []) // 空依赖——通过 ref 访问最新值，函数引用永远稳定
 
   return (
-    <div className={cn('space-y-0.5', className)}>
+    <div className={cn('border-t border-hair divide-y divide-hair-soft', className)}>
       {songs.map((song, index) => {
         const isCurrentSong = currentSongId === song.id
 
@@ -170,48 +170,47 @@ const SongRow = React.memo(function SongRow({
   }
 
   return (
-    <div
-      className={cn(
-        'song-row group',
-        isCurrentSong ? 'bg-primary/10 hover:bg-primary/10' : 'hover:bg-surface'
-      )}
-      onClick={handlePlay}
-    >
-      {/* 行号 / 播放图标（用 CSS group-hover 替代 JS hover state）*/}
+    <div className="song-row group" onClick={handlePlay}>
+      {/* 序号：mono 01–NN；当前播放行变 accent EQ 三竖条；hover 浮现细线圆播放键 */}
       {showIndex && (
-        <div className="w-8 text-center flex-shrink-0 relative">
-          {/* 默认：行号 */}
-          <span className={cn(
-            'text-sm font-num group-hover:opacity-0 transition-opacity',
-            isCurrentSong ? 'text-primary font-medium' : 'text-muted-foreground'
-          )}>
-            {isPlaying && isCurrentSong ? (
-              <div className="playing-bar">
-                <span /><span /><span />
-              </div>
-            ) : (
-              index + 1
+        <div className="w-8 flex-shrink-0 relative flex items-center justify-center">
+          {/* 默认：序号 / EQ */}
+          <span
+            className={cn(
+              'font-num text-xs group-hover:opacity-0 transition-opacity duration-200',
+              isCurrentSong ? 'text-primary' : 'text-ink-faint'
             )}
-          </span>
-          {/* hover/当前：播放按钮（绝对定位叠在行号上）*/}
-          <button
-            onClick={(e) => { e.stopPropagation(); handlePlay() }}
-            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-foreground hover:text-primary"
           >
             {isPlaying && isCurrentSong ? (
-              <div className="playing-bar">
+              <span className="playing-bar">
                 <span /><span /><span />
-              </div>
+              </span>
             ) : (
-              <Play className="w-4 h-4" weight="fill" />
+              String(index + 1).padStart(2, '0')
             )}
+          </span>
+          {/* hover：细线圆播放键（绝对定位叠在序号上）*/}
+          <button
+            onClick={(e) => { e.stopPropagation(); handlePlay() }}
+            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            aria-label="播放"
+          >
+            <span className="w-[22px] h-[22px] rounded-full border border-hair flex items-center justify-center text-ink-soft hover:text-primary hover:border-primary active:scale-[0.94] transition-colors duration-200">
+              {isPlaying && isCurrentSong ? (
+                <span className="playing-bar" style={{ height: 10 }}>
+                  <span /><span /><span />
+                </span>
+              ) : (
+                <Play className="w-2.5 h-2.5 ml-px" weight="fill" />
+              )}
+            </span>
           </button>
         </div>
       )}
 
-      {/* 封面 */}
+      {/* 小封面：40px、发丝 ring */}
       {showCover && (
-        <div className="w-10 h-10 rounded-md overflow-hidden ring-1 ring-border flex-shrink-0">
+        <div className="w-10 h-10 rounded-sm overflow-hidden ring-1 ring-hair-soft flex-shrink-0">
           <ImageWithFallback
             src={coverUrl}
             alt={song.album}
@@ -222,20 +221,20 @@ const SongRow = React.memo(function SongRow({
         </div>
       )}
 
-      {/* 歌曲信息 */}
+      {/* 歌曲信息：衬线曲名 + 小字歌手 */}
       <div className="flex-1 min-w-0">
         <p className={cn(
-          'text-sm font-medium line-clamp-1 transition-colors',
+          'font-serif text-[15px] font-semibold leading-snug line-clamp-1 transition-colors',
           isCurrentSong ? 'text-primary' : 'text-foreground'
         )}>
           {song.title}
         </p>
-        <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+        <p className="text-xs text-ink-soft line-clamp-1 mt-0.5">
           <span
             onClick={handleNavigateArtist}
             className={cn(
               'transition-colors',
-              song.artistId ? 'hover:text-foreground hover:underline cursor-pointer' : ''
+              song.artistId ? 'hover:text-primary hover:underline cursor-pointer' : ''
             )}
           >
             {song.artist}
@@ -246,12 +245,12 @@ const SongRow = React.memo(function SongRow({
       {/* 专辑名（大屏才显示）*/}
       {showAlbum && (
         <div className="hidden lg:block flex-1 min-w-0 px-4">
-          <p className="text-sm text-muted-foreground line-clamp-1">
+          <p className="text-xs text-ink-faint line-clamp-1">
             <span
               onClick={handleNavigateAlbum}
               className={cn(
                 'transition-colors',
-                song.albumId ? 'hover:text-foreground hover:underline cursor-pointer' : ''
+                song.albumId ? 'hover:text-primary hover:underline cursor-pointer' : ''
               )}
             >
               {song.album}
@@ -260,16 +259,17 @@ const SongRow = React.memo(function SongRow({
         </div>
       )}
 
-      {/* 收藏按钮（CSS hover 控制显隐）*/}
+      {/* 收藏（CSS hover 控制显隐）*/}
       <button
         onClick={handleToggleStar}
         disabled={toggleStar.isPending}
         className={cn(
-          'transition-all p-2 rounded-md hover:bg-accent active:scale-[0.94] flex-shrink-0',
+          'transition-all duration-200 p-1.5 active:scale-[0.94] flex-shrink-0',
           localStarred
             ? 'opacity-100 text-primary'
-            : 'opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary'
+            : 'opacity-0 group-hover:opacity-100 text-ink-faint hover:text-primary'
         )}
+        aria-label={localStarred ? '取消喜欢' : '加入喜欢'}
       >
         <Heart
           className="w-4 h-4"
@@ -277,8 +277,8 @@ const SongRow = React.memo(function SongRow({
         />
       </button>
 
-      {/* 时长 */}
-      <span className="text-xs text-muted-foreground font-num w-12 text-right flex-shrink-0">
+      {/* 时长：mono tabular */}
+      <span className="text-xs text-ink-faint font-num w-12 text-right flex-shrink-0">
         {formatDuration(song.duration)}
       </span>
 
@@ -287,15 +287,16 @@ const SongRow = React.memo(function SongRow({
         <DropdownMenuTrigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-md hover:bg-accent active:scale-[0.94] flex-shrink-0"
+            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1.5 flex-shrink-0 text-ink-soft hover:text-ink"
+            aria-label="更多操作"
           >
-            <DotsThree className="w-4 h-4 text-muted-foreground" weight="bold" />
+            <DotsThree className="w-4 h-4" weight="bold" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56 glass">
-          <div className="px-3 py-2 border-b border-border">
-            <p className="font-semibold text-sm truncate">{song.title}</p>
-            <p className="text-xs text-muted-foreground truncate mt-0.5">{song.artist}</p>
+          <div className="px-3 py-2 border-b border-hair-soft">
+            <p className="font-serif font-semibold text-sm truncate">{song.title}</p>
+            <p className="text-xs text-ink-faint truncate mt-0.5">{song.artist}</p>
           </div>
 
           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePlay() }} className="gap-2">
@@ -350,27 +351,27 @@ const SongRow = React.memo(function SongRow({
 
           <DropdownMenuSeparator />
           <div className="px-3 py-2 space-y-1.5">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">歌曲信息</p>
+            <p className="text-xs text-ink-faint uppercase tracking-[0.14em] mb-1">歌曲信息</p>
             {song.duration > 0 && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-ink-faint">
                 <ClockCounterClockwise className="w-3 h-3 flex-shrink-0" />
                 <span className="font-num">{formatDuration(song.duration)}</span>
               </div>
             )}
             {song.bitRate && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-ink-faint">
                 <MusicNote className="w-3 h-3 flex-shrink-0" />
                 <span className="font-num">{song.bitRate} kbps</span>
                 {song.contentType && (
-                  <span className="text-muted-foreground/50">· {song.contentType.split('/')[1]?.toUpperCase()}</span>
+                  <span className="text-ink-faint/60">· {song.contentType.split('/')[1]?.toUpperCase()}</span>
                 )}
               </div>
             )}
             {song.year && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-ink-faint">
                 <Info className="w-3 h-3 flex-shrink-0" />
                 <span className="font-num">{song.year} 年</span>
-                {song.genre && <span className="text-muted-foreground/50">· {song.genre}</span>}
+                {song.genre && <span className="text-ink-faint/60">· {song.genre}</span>}
               </div>
             )}
           </div>

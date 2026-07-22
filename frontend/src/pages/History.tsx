@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ClockCounterClockwise, Play, Trash } from '@phosphor-icons/react'
+import { Play, Trash } from '@phosphor-icons/react'
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
-import { formatRelativeTime, formatDuration } from '@/utils/formatters'
+import { formatDuration } from '@/utils/formatters'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import {
   Dialog,
@@ -12,52 +12,41 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import type { Song } from '@/api/types'
+import { useServerStore } from '@/store/serverStore'
+import {
+  clearListeningEvents,
+  readListeningEvents,
+  type ListeningEvent,
+} from '@/services/listeningHistory'
 
-interface HistoryEntry {
-  song: Song
-  playedAt: number
-}
-
-// 本地播放历史（存储在 localStorage）
-const HISTORY_KEY = 'msp-play-history'
-
-function getHistory(): HistoryEntry[] {
-  try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]')
-  } catch {
-    return []
-  }
-}
-
-function clearHistory() {
-  localStorage.setItem(HISTORY_KEY, '[]')
-}
-
-export function recordPlay(song: Song) {
-  const history = getHistory()
-  const entry: HistoryEntry = { song, playedAt: Date.now() }
-  // Remove duplicate
-  const filtered = history.filter(e => e.song.id !== song.id)
-  const updated = [entry, ...filtered].slice(0, 500)
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(updated))
+/** 格式化时刻为 HH:mm（mono 展示用） */
+function formatTimeOfDay(timestamp: number): string {
+  const d = new Date(timestamp)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 export default function History() {
-  const [history, setHistory] = useState<HistoryEntry[]>(getHistory)
+  const activeServerId = useServerStore(s => s.activeServerId)
+  const [history, setHistory] = useState<ListeningEvent[]>(() =>
+    activeServerId ? readListeningEvents(activeServerId) : []
+  )
   const [confirmClear, setConfirmClear] = useState(false)
   const playQueue = usePlayerStore(s => s.playQueue)
 
   // 进入页面时刷新，并监听音频引擎写入历史后的通知事件
   useEffect(() => {
-    setHistory(getHistory())
-    const onUpdate = () => setHistory(getHistory())
+    const refresh = () => setHistory(activeServerId ? readListeningEvents(activeServerId) : [])
+    refresh()
+    const onUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ serverId?: string }>).detail
+      if (!detail?.serverId || detail.serverId === activeServerId) refresh()
+    }
     window.addEventListener('msp-history-updated', onUpdate)
     return () => window.removeEventListener('msp-history-updated', onUpdate)
-  }, [])
+  }, [activeServerId])
 
   function handleClear() {
-    clearHistory()
+    if (activeServerId) clearListeningEvents(activeServerId)
     setHistory([])
     setConfirmClear(false)
   }
@@ -68,8 +57,8 @@ export default function History() {
   }
 
   // Group by date
-  const grouped = history.reduce<Record<string, HistoryEntry[]>>((acc, entry) => {
-    const d = new Date(entry.playedAt)
+  const grouped = history.reduce<Record<string, ListeningEvent[]>>((acc, entry) => {
+    const d = new Date(entry.endedAt)
     const dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
     if (!acc[dateKey]) acc[dateKey] = []
     acc[dateKey].push(entry)
@@ -89,97 +78,118 @@ export default function History() {
   }
 
   return (
-    <div className="min-h-full pb-8 animate-fade-in">
-      <div className="px-6 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">播放历史</h1>
+    <div className="pt-8 animate-fade-in">
+      {/* 页头：衬线标题 + mono 总条数 + 文字级次操作（DESIGN v2 §3/§4.1） */}
+      <header className="flex items-end justify-between gap-6 border-b border-hair pb-6">
+        <div>
+          <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
+            最近播放
+            <span className="ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
+              HISTORY
+            </span>
+          </h1>
           {history.length > 0 && (
-            <button
-              onClick={() => setConfirmClear(true)}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-destructive transition-colors active:scale-[0.97]"
-            >
-              <Trash className="w-4 h-4" />
-              清除记录
-            </button>
+            <p className="mt-1.5 text-sm text-ink-faint">
+              <span className="font-num">{history.length}</span> 条记录
+            </p>
           )}
         </div>
+        {history.length > 0 && (
+          <button
+            onClick={() => setConfirmClear(true)}
+            className="inline-flex flex-shrink-0 items-center gap-1.5 text-sm text-ink-soft transition-colors hover:text-destructive active:scale-[0.97]"
+          >
+            <Trash className="w-3.5 h-3.5" />
+            清空记录
+          </button>
+        )}
+      </header>
 
-        {history.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground border-t border-border">
-            <ClockCounterClockwise className="w-16 h-16 mb-4 opacity-20" />
-            <p className="text-lg mb-1">暂无播放记录</p>
-            <p className="text-sm">播放音乐后记录会出现在这里</p>
-          </div>
-        ) : (
-          <div>
-            {Object.entries(grouped).map(([dateKey, entries]) => (
-              <div key={dateKey} className="border-t border-border pt-5 mt-5 first:mt-0">
-                <h2 className="text-[11px] font-medium text-muted-foreground tracking-[0.14em] mb-3 px-3">
+      {history.length === 0 ? (
+        <div className="py-24 text-center">
+          <p className="font-serif text-xl font-semibold">还没有播放记录。</p>
+          <p className="mt-2 text-sm text-ink-faint">播放音乐后，最近听过的歌会记在这里。</p>
+        </div>
+      ) : (
+        <div>
+          {Object.entries(grouped).map(([dateKey, entries]) => (
+            <section key={dateKey} className="mt-10 first:mt-8">
+              {/* 组标题：小号 wide-tracking 标签 + 发丝线 + mono 组内条数 */}
+              <div className="flex items-baseline gap-4">
+                <h2 className="text-[11px] font-medium tracking-[0.3em] text-ink-faint">
                   {formatDateLabel(dateKey)}
                 </h2>
-                <div className="space-y-0.5">
-                  {entries.map((entry, idx) => {
-                    const globalIndex = history.indexOf(entry)
-                    return (
-                      <div
-                        key={`${entry.song.id}-${entry.playedAt}`}
-                        className="group flex items-center gap-4 px-3 py-2 rounded-lg hover:bg-surface cursor-pointer transition-colors duration-150"
-                        onClick={() => handlePlay(globalIndex)}
-                      >
-                        {/* Cover */}
-                        <div className="relative flex-shrink-0">
-                          <div className="w-10 h-10 rounded-md ring-1 ring-border overflow-hidden">
-                            <ImageWithFallback
-                              src={entry.song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(entry.song.coverArt, 64) : undefined}
-                              alt={entry.song.title}
-                              fallbackType="album"
-                              className="w-full h-full"
-                              customCoverParams={{ type: 'song', title: entry.song.title, artist: entry.song.artist, album: entry.song.album, path: entry.song.path }}
-                            />
-                          </div>
-                          <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-md transition-opacity duration-150">
-                            <Play className="w-4 h-4 text-foreground" weight="fill" />
-                          </div>
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold truncate text-[13px] group-hover:text-primary transition-colors">
-                            {entry.song.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">
-                            {entry.song.artist}
-                            {entry.song.album && ` · ${entry.song.album}`}
-                          </p>
-                        </div>
-
-                        {/* Time & duration */}
-                        <div className="flex-shrink-0 text-right">
-                          <p className="font-num text-xs text-muted-foreground">
-                            {formatRelativeTime(entry.playedAt)}
-                          </p>
-                          {entry.song.duration && (
-                            <p className="font-num text-xs text-muted-foreground mt-0.5">
-                              {formatDuration(entry.song.duration)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <span className="h-px flex-1 bg-hair-soft" aria-hidden="true" />
+                <span className="font-num text-[11px] text-ink-faint">{entries.length}</span>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+
+              {/* 曲目行：SongList 范式（mono 序号 + 小封面 + 衬线曲名 + 歌手 + mono 时长 + mono 播放时间） */}
+              <div className="mt-1 divide-y divide-hair-soft">
+                {entries.map((entry, idx) => {
+                  const globalIndex = history.indexOf(entry)
+                  return (
+                    <div
+                      key={entry.eventId}
+                      className="song-row group"
+                      onClick={() => handlePlay(globalIndex)}
+                    >
+                      {/* 序号：hover 浮现细线圆播放键 */}
+                      <span className="relative flex w-8 flex-shrink-0 items-center justify-center">
+                        <span className="font-num text-xs text-ink-faint transition-opacity duration-200 group-hover:opacity-0">
+                          {String(idx + 1).padStart(2, '0')}
+                        </span>
+                        <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                          <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border border-hair text-ink-soft">
+                            <Play className="ml-px h-2.5 w-2.5" weight="fill" />
+                          </span>
+                        </span>
+                      </span>
+
+                      {/* 小封面 */}
+                      <span className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-hair-soft">
+                        <ImageWithFallback
+                          src={entry.song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(entry.song.coverArt, 64) : undefined}
+                          alt={entry.song.title}
+                          fallbackType="album"
+                          className="h-full w-full"
+                          customCoverParams={{ type: 'song', title: entry.song.title, artist: entry.song.artist, album: entry.song.album, path: entry.song.path }}
+                        />
+                      </span>
+
+                      {/* 曲名 + 歌手 */}
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-1 font-serif text-[15px] font-semibold leading-snug transition-colors group-hover:text-primary">
+                          {entry.song.title}
+                        </p>
+                        <p className="mt-0.5 line-clamp-1 text-xs text-ink-soft">
+                          {entry.song.artist}
+                          {entry.song.album && <span className="text-ink-faint"> · {entry.song.album}</span>}
+                        </p>
+                      </div>
+
+                      {/* mono 时长 */}
+                      <span className="w-12 flex-shrink-0 text-right font-num text-xs text-ink-faint">
+                        {entry.song.duration ? formatDuration(entry.song.duration) : ''}
+                      </span>
+
+                      {/* mono 播放时间 HH:mm */}
+                      <span className="w-12 flex-shrink-0 text-right font-num text-xs text-ink-faint">
+                        {formatTimeOfDay(entry.endedAt)}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
 
       <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>清除播放历史？</DialogTitle>
-            <DialogDescription>此操作不可撤销，本地播放记录将被全部删除。</DialogDescription>
+            <DialogDescription>此操作不可撤销，当前服务器的本地播放记录将被全部删除。</DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setConfirmClear(false)}>取消</Button>

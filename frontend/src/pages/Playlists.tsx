@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Queue, Plus, MusicNote, DotsThree, Trash, Play, Shuffle } from '@phosphor-icons/react'
+import { Plus, MusicNote, DotsThree, Trash, Play, Shuffle } from '@phosphor-icons/react'
 import { usePlaylists, useDeletePlaylist, queryKeys } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { useQueryClient } from '@tanstack/react-query'
@@ -74,43 +74,65 @@ export default function Playlists() {
   }
 
   return (
-    <div className="min-h-full pb-8 animate-fade-in">
-      <div className="px-6 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">歌单</h1>
-          <Button onClick={() => setShowCreate(true)} size="sm" className="gap-1.5">
-            <Plus className="w-4 h-4" />
-            新建歌单
-          </Button>
+    <div className="pt-8 animate-fade-in">
+      {/* 页头：衬线标题 + mono 总数 + 文字级主操作（DESIGN v2 §3/§4.1） */}
+      <header className="flex items-end justify-between gap-6 border-b border-hair pb-6">
+        <div>
+          <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
+            歌单
+            <span className="ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
+              PLAYLISTS
+            </span>
+          </h1>
+          {!isLoading && (
+            <p className="mt-1.5 text-sm text-ink-faint">
+              <span className="font-num">{playlists?.length ?? 0}</span> 个歌单
+            </p>
+          )}
         </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="inline-flex flex-shrink-0 items-center gap-2 text-sm font-semibold text-foreground underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          新建歌单
+        </button>
+      </header>
 
-        {/* Playlist grid */}
-        {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="aspect-square rounded-lg bg-accent animate-pulse" />
-            ))}
-          </div>
-        ) : !playlists?.length ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground border-t border-border">
-            <Queue className="w-16 h-16 mb-4 opacity-20" />
-            <p className="text-lg mb-1">暂无歌单</p>
-            <p className="text-sm mb-4">创建第一个歌单开始收藏喜欢的歌曲</p>
-            <Button onClick={() => setShowCreate(true)} size="sm" className="gap-1.5">
-              <Plus className="w-4 h-4" />
-              创建歌单
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-5 gap-y-6">
-            {playlists.map(pl => (
-              <div
-                key={pl.id}
-                className="group cursor-pointer min-w-0"
-                onClick={() => navigate(`/playlists/${pl.id}`)}
-              >
-                <div className="relative aspect-square rounded-lg overflow-hidden ring-1 ring-border bg-accent mb-2.5 transition-all duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-xl">
+      {/* 歌单封面墙：去卡片盒，封面即内容（DESIGN v2 §3） */}
+      {isLoading ? (
+        <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i}>
+              <div className="aspect-square rounded-md bg-paper-deep animate-pulse" />
+              <div className="mt-2.5 h-4 w-3/4 rounded-sm bg-paper-deep animate-pulse" />
+              <div className="mt-1.5 h-3 w-1/3 rounded-sm bg-paper-deep animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : !playlists?.length ? (
+        <div className="py-24 text-center">
+          <p className="font-serif text-xl font-semibold">这一页还空着。</p>
+          <p className="mt-2 text-sm text-ink-faint">创建第一个歌单，把喜欢的歌收进来。</p>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="mt-6 inline-flex items-center gap-2 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            新建歌单
+          </button>
+        </div>
+      ) : (
+        <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
+          {playlists.map(pl => (
+            <div
+              key={pl.id}
+              className="group cursor-pointer min-w-0"
+              onClick={() => navigate(`/playlists/${pl.id}`)}
+            >
+              {/* 封面：发丝 ring，hover 微放大 + 唯一允许的淡投影 */}
+              <div className="relative mb-2.5">
+                <div className="aspect-square overflow-hidden rounded-md ring-1 ring-hair-soft bg-paper-deep transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:shadow-float">
                   {pl.coverArt ? (
                     <img
                       src={hasAdapter() ? getAdapter().getCoverUrl(pl.coverArt, 300) : pl.coverArt}
@@ -118,58 +140,72 @@ export default function Playlists() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
-                      <MusicNote className="w-12 h-12 text-primary/40" />
+                    <div className="w-full h-full flex items-center justify-center">
+                      <MusicNote className="w-10 h-10 text-ink-faint/50" />
                     </div>
                   )}
-                  {/* 悬浮播放按鈕区 */}
-                  <div className="absolute right-2.5 bottom-2.5 flex items-center gap-2 opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-150 ease-out">
-                    <button
-                      onClick={(e) => handlePlayPlaylist(pl.id, true, e)}
-                      title="随机播放"
-                      className="w-8 h-8 rounded-full bg-card/80 backdrop-blur-sm border border-border text-foreground flex items-center justify-center hover:text-primary transition-colors active:scale-[0.94] shadow-lg"
-                    >
-                      <Shuffle className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => handlePlayPlaylist(pl.id, false, e)}
-                      title="播放全部"
-                      className="w-[38px] h-[38px] rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:brightness-110 transition-all active:scale-[0.94] shadow-lg"
-                    >
-                      <Play className="w-4 h-4" weight="fill" />
-                    </button>
-                  </div>
-                  {/* Actions */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="w-7 h-7 bg-card/80 backdrop-blur-sm border border-border rounded-full flex items-center justify-center text-foreground hover:bg-accent transition-colors active:scale-[0.94]">
-                          <DotsThree className="w-4 h-4" weight="bold" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive gap-2"
-                          onClick={() => setDeleteTarget({ id: pl.id, name: pl.name })}
-                        >
-                          <Trash className="w-4 h-4" />
-                          删除歌单
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
                 </div>
-                <p className="font-semibold text-[13px] truncate">{pl.name}</p>
+                {/* hover 浮现细线圆播放键 / 随机键（不做实心色块） */}
+                <div className="absolute right-2.5 bottom-2.5 flex items-center gap-2 opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
+                  <button
+                    onClick={(e) => handlePlayPlaylist(pl.id, true, e)}
+                    title="随机播放"
+                    aria-label="随机播放"
+                    className="w-8 h-8 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
+                  >
+                    <Shuffle className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => handlePlayPlaylist(pl.id, false, e)}
+                    title="播放全部"
+                    aria-label="播放全部"
+                    className="w-9 h-9 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
+                  >
+                    <Play className="w-3.5 h-3.5 ml-px" weight="fill" />
+                  </button>
+                </div>
+                {/* 更多操作 */}
+                <div
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        aria-label="更多操作"
+                        className="w-7 h-7 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
+                      >
+                        <DotsThree className="w-4 h-4" weight="bold" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive gap-2"
+                        onClick={() => setDeleteTarget({ id: pl.id, name: pl.name })}
+                      >
+                        <Trash className="w-4 h-4" />
+                        删除歌单
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {/* 图注：衬线歌单名 + mono 小字曲目数 */}
+              <div className="min-w-0 px-0.5">
+                <p className="font-serif font-semibold text-[15px] leading-snug truncate transition-colors group-hover:text-primary">
+                  {pl.name}
+                </p>
                 {pl.songCount !== undefined && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    <span className="font-num">{pl.songCount}</span> 首歌曲
+                  <p className="mt-0.5 text-xs text-ink-faint">
+                    <span className="font-num">{pl.songCount}</span> 首
                   </p>
                 )}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Create dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>

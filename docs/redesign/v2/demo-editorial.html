@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N1KO MUSIC · 杂志编辑风 · 设计演示</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;0,8..60,900;1,8..60,400&family=Hanken+Grotesk:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4efe3;
+    --paper-deep:#ece5d4;
+    --ink:#1d1a15;
+    --ink-soft:#5c564a;
+    --ink-faint:#8d8676;
+    --hair:rgba(29,26,21,.22);
+    --hair-soft:rgba(29,26,21,.12);
+    --accent:#b8442a;
+    --accent-deep:#9c3520;
+    --serif:"Source Serif 4","Noto Serif SC","Songti SC","STSong","SimSun",serif;
+    --sans:"Hanken Grotesk","Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    --mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-weight:400;
+    font-size:15px;
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.035 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  }
+  ::selection{background:rgba(184,68,42,.18)}
+  .num,.track-dur,.timecode,time{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+  .view{display:none}
+  .view.active{display:block;animation:fadein .5s var(--ease)}
+  @keyframes fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  /* ============ 顶部工具条 ============ */
+  .utility{
+    max-width:1180px;margin:0 auto;padding:14px 40px 0;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .back-link{
+    font-size:12.5px;letter-spacing:.14em;color:var(--ink-soft);
+    display:inline-flex;align-items:center;gap:6px;
+    transition:color .25s var(--ease),transform .25s var(--ease);
+  }
+  .back-link:hover{color:var(--accent);transform:translateX(-3px)}
+  .back-link:active{transform:scale(.97)}
+  .scheme-tag{
+    font-size:11px;letter-spacing:.22em;color:var(--ink-faint);
+    border:1px solid var(--hair);padding:4px 12px;border-radius:2px;
+  }
+  .scheme-tag em{font-style:normal;color:var(--accent)}
+
+  /* ============ 报头 ============ */
+  .masthead{
+    max-width:1180px;margin:22px auto 0;padding:0 40px 14px;
+    display:flex;justify-content:space-between;align-items:baseline;
+    border-bottom:3px double var(--hair);
+    font-size:12px;letter-spacing:.18em;color:var(--ink-soft);
+  }
+  .masthead .brand{font-family:var(--sans);font-weight:700;font-size:15px;letter-spacing:.3em;color:var(--ink)}
+  .masthead .brand span{font-weight:300;color:var(--ink-faint);letter-spacing:.18em;margin-left:10px;font-size:11px}
+  .masthead .status{display:flex;align-items:center;gap:8px}
+  .dot{width:6px;height:6px;border-radius:50%;background:#4a7d4a;display:inline-block}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 40px}
+
+  /* ============ 头条 ============ */
+  .hero{
+    display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);
+    gap:56px;padding:64px 0 56px;border-bottom:1px solid var(--hair);
+    align-items:end;position:relative;
+  }
+  .kicker{
+    font-size:11.5px;letter-spacing:.34em;color:var(--accent);
+    margin-bottom:26px;display:flex;align-items:center;gap:14px;
+  }
+  .kicker::after{content:"";flex:0 0 56px;height:1px;background:var(--accent)}
+  .hero h1{
+    font-family:var(--serif);font-weight:900;
+    font-size:clamp(64px,7.4vw,104px);line-height:1.04;
+    letter-spacing:-.01em;margin-left:-.06em;
+  }
+  .hero .sub{
+    font-family:var(--serif);font-size:20px;color:var(--ink-soft);
+    margin-top:14px;letter-spacing:.06em;
+  }
+  .hero .lede{
+    max-width:46ch;margin-top:28px;color:var(--ink-soft);font-size:14.5px;
+  }
+  .hero .lede::first-letter{
+    font-family:var(--serif);font-size:2.4em;font-weight:700;color:var(--ink);
+    float:left;line-height:1;margin:4px 10px 0 0;
+  }
+  .hero-actions{margin-top:34px;display:flex;align-items:center;gap:28px}
+  .text-play{
+    display:inline-flex;align-items:center;gap:10px;
+    font-size:14px;letter-spacing:.12em;color:var(--ink);
+    border-bottom:1px solid var(--ink);padding-bottom:5px;
+    transition:color .25s var(--ease),border-color .25s var(--ease),gap .25s var(--ease);
+  }
+  .text-play:hover{color:var(--accent);border-color:var(--accent);gap:14px}
+  .text-play:active{transform:scale(.97)}
+  .meta-inline{font-size:12px;letter-spacing:.14em;color:var(--ink-faint)}
+  .hero-cover{position:relative;margin-bottom:-8px;justify-self:end;width:min(100%,420px)}
+  .hero-cover .cover{
+    width:100%;box-shadow:0 24px 60px -24px rgba(29,26,21,.45);
+    transform:rotate(1.5deg);transition:transform .4s var(--ease),box-shadow .4s var(--ease);
+    cursor:pointer;
+  }
+  .hero-cover:hover .cover{transform:rotate(0deg) translateY(-6px);box-shadow:0 34px 70px -24px rgba(29,26,21,.5)}
+  .hero-cover figcaption{
+    margin-top:16px;font-size:11.5px;letter-spacing:.16em;color:var(--ink-faint);
+    text-align:right;
+  }
+  .cover{display:block;aspect-ratio:1;border-radius:2px;overflow:hidden}
+  .cover svg{display:block;width:100%;height:100%}
+
+  /* ============ 章节标题 ============ */
+  .section-head{
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding:52px 0 18px;
+  }
+  .section-head h2{
+    font-family:var(--serif);font-weight:700;font-size:30px;letter-spacing:.02em;
+  }
+  .section-head h2 small{
+    font-family:var(--sans);font-weight:400;font-size:11px;letter-spacing:.3em;
+    color:var(--ink-faint);margin-left:16px;vertical-align:4px;
+  }
+  .section-head .more{font-size:12px;letter-spacing:.2em;color:var(--ink-soft);transition:color .25s var(--ease)}
+  .section-head .more:hover{color:var(--accent)}
+  .section-head .more:active{transform:scale(.97)}
+
+  /* ============ 编号曲目列表 ============ */
+  ol.tracklist{list-style:none;border-top:1px solid var(--hair)}
+  .tracklist li{border-bottom:1px solid var(--hair-soft)}
+  .tracklist .row{
+    display:grid;grid-template-columns:3.2ch 52px minmax(0,1.4fr) minmax(0,1fr) 5ch 34px;
+    gap:22px;align-items:center;padding:12px 8px;width:100%;text-align:left;
+    transition:background .25s var(--ease),transform .25s var(--ease);
+    cursor:pointer;
+  }
+  .tracklist .row:hover{background:rgba(29,26,21,.035);transform:translateX(6px)}
+  .tracklist .row:active{transform:translateX(6px) scale(.995)}
+  .tracklist .idx{font-size:12.5px;color:var(--ink-faint)}
+  .tracklist .row:hover .idx{color:var(--accent)}
+  .tracklist .thumb{width:52px;height:52px;border-radius:2px;overflow:hidden;box-shadow:0 4px 14px -6px rgba(29,26,21,.4)}
+  .tracklist .thumb svg{display:block;width:100%;height:100%}
+  .tracklist .title{
+    font-family:var(--serif);font-size:16.5px;font-weight:600;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .tracklist .artist{font-size:13px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tracklist .track-dur{font-size:12.5px;color:var(--ink-faint);text-align:right}
+  .row-play{
+    width:30px;height:30px;border:1px solid var(--hair);border-radius:50%;
+    display:grid;place-items:center;opacity:0;transform:translateX(-6px);
+    transition:opacity .25s var(--ease),transform .25s var(--ease),border-color .25s var(--ease),background .25s var(--ease);
+  }
+  .tracklist .row:hover .row-play{opacity:1;transform:none}
+  .row-play svg{width:9px;height:9px;fill:var(--ink)}
+  .row-play:hover{border-color:var(--accent);background:var(--accent)}
+  .row-play:hover svg{fill:var(--paper)}
+  .row-play:active{transform:scale(.94)}
+  .tracklist li.playing .idx{color:var(--accent)}
+  .tracklist li.playing .title{color:var(--accent)}
+
+  /* ============ 歌手索引 ============ */
+  .artists{padding-bottom:72px}
+  .artist-line{
+    font-family:var(--serif);font-size:clamp(20px,2.6vw,30px);font-weight:600;
+    line-height:2.1;letter-spacing:.02em;
+  }
+  .artist-line a{
+    border-bottom:1px solid transparent;white-space:nowrap;
+    transition:color .25s var(--ease),border-color .25s var(--ease);
+  }
+  .artist-line a:hover{color:var(--accent);border-color:var(--accent)}
+  .artist-line .sep{color:var(--ink-faint);font-weight:400;margin:0 .5em;font-size:.7em;vertical-align:.15em}
+  .artist-line .count{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-left:.6em;letter-spacing:.05em}
+
+  /* ============ 专辑详情 ============ */
+  .crumb{padding:34px 0 0;font-size:12px;letter-spacing:.16em;color:var(--ink-soft)}
+  .crumb a{transition:color .25s var(--ease)}
+  .crumb a:hover{color:var(--accent)}
+  .album-head{
+    display:grid;grid-template-columns:360px minmax(0,1fr);gap:64px;
+    padding:36px 0 0;align-items:start;
+  }
+  .album-cover{width:100%;box-shadow:0 24px 60px -24px rgba(29,26,21,.45)}
+  .album-meta .kicker{margin-bottom:18px}
+  .album-meta h1{font-family:var(--serif);font-weight:900;font-size:56px;line-height:1.1;letter-spacing:-.01em}
+  .album-meta .byline{margin-top:12px;font-size:14px;letter-spacing:.1em;color:var(--ink-soft)}
+  .album-meta .byline a{border-bottom:1px solid var(--hair);transition:color .25s var(--ease),border-color .25s var(--ease)}
+  .album-meta .byline a:hover{color:var(--accent);border-color:var(--accent)}
+  .album-meta .desc{margin-top:22px;max-width:52ch;font-size:14px;color:var(--ink-soft)}
+  .album-tracklist{margin-top:30px;border-top:1px solid var(--hair)}
+  .album-tracklist .arow{
+    display:grid;grid-template-columns:3ch minmax(0,1fr) 6ch;gap:20px;align-items:baseline;
+    width:100%;text-align:left;padding:11px 6px;border-bottom:1px solid var(--hair-soft);
+    transition:background .25s var(--ease),padding-left .25s var(--ease);cursor:pointer;
+  }
+  .album-tracklist .arow:hover{background:rgba(29,26,21,.035);padding-left:14px}
+  .album-tracklist .arow:active{transform:scale(.99)}
+  .album-tracklist .no{font-family:var(--mono);font-size:12px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .album-tracklist .arow:hover .no{color:var(--accent)}
+  .album-tracklist .t{font-family:var(--serif);font-size:15.5px;font-weight:600}
+  .album-tracklist .d{font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);text-align:right;font-variant-numeric:tabular-nums}
+  .album-tracklist .arow.playing .no,.album-tracklist .arow.playing .t{color:var(--accent)}
+
+  /* ============ 正在播放 ============ */
+  .np{
+    display:grid;grid-template-columns:440px minmax(0,1fr);gap:80px;
+    padding:56px 0 90px;align-items:start;
+  }
+  .playing .cover{width:100%;box-shadow:0 30px 70px -26px rgba(29,26,21,.5)}
+  .playing-info h1{font-family:var(--serif);font-weight:900;font-size:34px;margin-top:28px;line-height:1.25}
+  .playing-info .who{margin-top:8px;font-size:13.5px;letter-spacing:.1em;color:var(--ink-soft)}
+  .playing-info .who a{border-bottom:1px solid var(--hair);transition:color .25s var(--ease),border-color .25s var(--ease)}
+  .playing-info .who a:hover{color:var(--accent);border-color:var(--accent)}
+  .playing-progress{margin-top:26px;display:flex;align-items:center;gap:14px}
+  .playing-progress .track{flex:1;height:2px;background:var(--hair-soft);position:relative}
+  .playing-progress .fill{position:absolute;inset:0 auto 0 0;background:var(--accent);width:0%}
+  .playing-progress .timecode{font-size:11.5px;color:var(--ink-faint)}
+  .lyrics{padding-top:6px}
+  .lyrics .lbl{font-size:11px;letter-spacing:.34em;color:var(--ink-faint);margin-bottom:30px;display:flex;align-items:center;gap:14px}
+  .lyrics .lbl::after{content:"";flex:1;height:1px;background:var(--hair-soft)}
+  .lyric-line{
+    font-family:var(--serif);font-size:20px;font-weight:400;color:#a39b8a;
+    padding:7px 0;transition:color .35s var(--ease),transform .35s var(--ease),font-weight .35s var(--ease);
+    transform-origin:left center;
+  }
+  .lyric-line.now{
+    color:var(--accent);font-weight:700;font-size:24px;transform:translateX(10px);
+  }
+  .lyric-line.now::before{content:"";display:inline-block;width:22px;height:1px;background:var(--accent);vertical-align:middle;margin-right:12px}
+
+  /* ============ 页脚 ============ */
+  .colophon{
+    border-top:1px solid var(--hair);padding:26px 0 120px;
+    display:flex;justify-content:space-between;font-size:11.5px;letter-spacing:.14em;color:var(--ink-faint);
+  }
+
+  /* ============ 播放条 ============ */
+  .playerbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:50;
+    background:var(--paper-deep);
+    border-top:1px solid var(--hair);
+  }
+  .pb-progress{height:2px;background:var(--hair-soft);position:relative;cursor:pointer}
+  .pb-progress .fill{position:absolute;inset:0 auto 0 0;width:0%;background:var(--accent);transition:width .5s linear}
+  .pb-inner{
+    max-width:1180px;margin:0 auto;padding:0 40px;height:64px;
+    display:grid;grid-template-columns:44px minmax(0,1.2fr) auto auto minmax(0,1fr);gap:22px;align-items:center;
+  }
+  .pb-thumb{width:44px;height:44px;border-radius:2px;overflow:hidden;box-shadow:0 4px 12px -4px rgba(29,26,21,.4)}
+  .pb-thumb svg{display:block;width:100%;height:100%}
+  .pb-meta{min-width:0}
+  .pb-title{font-family:var(--serif);font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pb-artist{font-size:11.5px;color:var(--ink-soft);letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pb-time{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  .pb-time b{font-weight:400;color:var(--ink)}
+  .pb-controls{display:flex;align-items:center;gap:10px}
+  .pb-btn{
+    width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+    transition:background .25s var(--ease),transform .25s var(--ease);
+  }
+  .pb-btn:hover{background:rgba(29,26,21,.06)}
+  .pb-btn:active{transform:scale(.92)}
+  .pb-btn svg{width:13px;height:13px;fill:var(--ink)}
+  .pb-btn.main{width:40px;height:40px;border:1px solid var(--ink)}
+  .pb-btn.main:hover{border-color:var(--accent);background:var(--accent)}
+  .pb-btn.main:hover svg{fill:var(--paper)}
+  .pb-btn.main svg{width:12px;height:12px}
+  .pb-right{justify-self:end;display:flex;align-items:center;gap:22px}
+  .pb-link{
+    font-size:12px;letter-spacing:.2em;color:var(--ink-soft);
+    transition:color .25s var(--ease);display:inline-flex;align-items:center;gap:8px;
+  }
+  .pb-link:hover{color:var(--accent)}
+  .pb-link:active{transform:scale(.97)}
+  .eq{display:inline-flex;align-items:flex-end;gap:2px;height:12px;width:16px}
+  .eq i{flex:1;background:var(--ink-faint);height:30%;transition:background .3s}
+  .playing-on .eq i{background:var(--accent);animation:eq .9s ease-in-out infinite}
+  .playing-on .eq i:nth-child(2){animation-delay:.2s}
+  .playing-on .eq i:nth-child(3){animation-delay:.45s}
+  @keyframes eq{0%,100%{height:25%}50%{height:100%}}
+  @media (prefers-reduced-motion:reduce){.playing-on .eq i{animation:none;height:60%}}
+
+  @media (max-width:1100px){
+    .hero{grid-template-columns:1fr;gap:40px}
+    .hero-cover{justify-self:start}
+    .album-head{grid-template-columns:280px 1fr;gap:40px}
+    .np{grid-template-columns:340px 1fr;gap:48px}
+  }
+</style>
+</head>
+<body>
+
+<div class="utility">
+  <a class="back-link" href="./index.html">← 返回方案选择</a>
+  <span class="scheme-tag">方案 <em>EDITORIAL</em> · 杂志编辑风</span>
+</div>
+
+<header class="masthead">
+  <div class="brand">N1KO MUSIC<span>音乐周志 · 第 142 期</span></div>
+  <div class="status">
+    <span>2026年7月21日 星期二</span>
+    <span aria-hidden="true">·</span>
+    <span class="dot" aria-hidden="true"></span>
+    <span>NAVIDROME 已连接</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ================= 首页 · 杂志 ================= -->
+  <section class="view" data-view="home" aria-label="杂志首页">
+    <article class="hero">
+      <div class="hero-text">
+        <p class="kicker">本期封面 · FEATURED ALBUM</p>
+        <h1>风过留痕</h1>
+        <p class="sub">影视原声带 · 李佳薇 · 2023</p>
+        <p class="lede">为影像而生的一张唱片。李佳薇收起了标志性的高音，把旋律交给弦乐与留白：风经过的地方，痕迹比声音更长久。本周编辑部循环次数最多的专辑，推荐给每一个需要安静下来的傍晚。</p>
+        <div class="hero-actions">
+          <button class="text-play" id="btnFeaturePlay"><span id="featureIcon">▶</span><span id="featureLabel">播放整张专辑</span></button>
+          <span class="meta-inline">6 首 · 24 分 33 秒</span>
+        </div>
+      </div>
+      <figure class="hero-cover">
+        <a class="cover" href="#/album/0" data-cover="0" aria-label="查看专辑《风过留痕》"></a>
+        <figcaption>《风过留痕》 · 本周推荐 · 编辑评分 9.2</figcaption>
+      </figure>
+    </article>
+
+    <section aria-labelledby="hRecent">
+      <div class="section-head">
+        <h2 id="hRecent">最近添加<small>RECENTLY ADDED</small></h2>
+        <a class="more" href="#/album/0">全部 1,024 首 →</a>
+      </div>
+      <ol class="tracklist" id="recentList"></ol>
+    </section>
+
+    <section class="artists" aria-labelledby="hArtists">
+      <div class="section-head">
+        <h2 id="hArtists">歌手索引<small>ARTISTS A–Z</small></h2>
+        <span class="more">按收录数量排序</span>
+      </div>
+      <p class="artist-line" id="artistLine"></p>
+    </section>
+  </section>
+
+  <!-- ================= 专辑详情 ================= -->
+  <section class="view" data-view="album" aria-label="专辑详情">
+    <p class="crumb"><a href="#/">← 首页</a> &nbsp;/&nbsp; 专辑</p>
+    <div class="album-head">
+      <div class="album-cover cover" id="albumCover"></div>
+      <div class="album-meta">
+        <p class="kicker" id="albumKicker">专辑 · ALBUM</p>
+        <h1 id="albumTitle"></h1>
+        <p class="byline" id="albumByline"></p>
+        <p class="desc" id="albumDesc"></p>
+        <div class="hero-actions">
+          <button class="text-play" id="btnAlbumPlay"><span>▶</span><span>从头播放</span></button>
+          <span class="meta-inline num" id="albumStats"></span>
+        </div>
+        <div class="album-tracklist" id="albumTracks"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 正在播放 ================= -->
+  <section class="view" data-view="playing" aria-label="正在播放">
+    <div class="np">
+      <div class="playing-info">
+        <div class="cover" id="npCover"></div>
+        <h1 id="npTitle"></h1>
+        <p class="who"><span id="npArtist"></span> · 收录于 <a href="#/album/0" id="npAlbum"></a></p>
+        <div class="playing-progress">
+          <span class="timecode num" id="npCur">00:00</span>
+          <div class="track"><div class="fill js-fill"></div></div>
+          <span class="timecode num" id="npDur">00:00</span>
+        </div>
+      </div>
+      <div class="lyrics">
+        <p class="lbl">歌词 · LYRICS</p>
+        <div id="lyricBox"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="colophon">
+    <span>N1KO MUSIC · 个人音乐客户端 · 数据源 NAVIDROME / 192.168.1.10</span>
+    <span>本刊为静态设计演示 · 杂志编辑风</span>
+  </footer>
+</main>
+
+<!-- ================= 播放条 ================= -->
+<footer class="playerbar" id="playerbar" aria-label="播放控制">
+  <div class="pb-progress" id="pbProgress" role="slider" aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="fill js-fill" id="pbFill"></div></div>
+  <div class="pb-inner">
+    <div class="pb-thumb" id="pbThumb"></div>
+    <div class="pb-meta">
+      <div class="pb-title" id="pbTitle"></div>
+      <div class="pb-artist" id="pbArtist"></div>
+    </div>
+    <span class="pb-time"><b id="pbCur">00:00</b> / <span id="pbDur">00:00</span></span>
+    <div class="pb-controls">
+      <button class="pb-btn" id="btnPrev" aria-label="上一首"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM13 2v12L5.5 8z"/></svg></button>
+      <button class="pb-btn main" id="btnToggle" aria-label="播放或暂停"></button>
+      <button class="pb-btn" id="btnNext" aria-label="下一首"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM3 2v12l7.5-6z"/></svg></button>
+    </div>
+    <div class="pb-right">
+      <a class="pb-link" href="#/playing"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>正在播放 →</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ==================== Mock 数据 ==================== */
+const ALBUMS = [
+  { title:'风过留痕', sub:'影视原声带', artist:'李佳薇', year:'2023',
+    desc:'电影《风过留痕》原声大碟。李佳薇首度担任音乐总监，以弦乐四重奏为骨架，收录主题曲与五首插曲，讲述一个关于告别与记得的故事。',
+    tracks:[['风过留痕',252],['此时此刻',216],['自由灵魂',242],['重写剧本',224],['青春追问',268],['风过留痕（弦乐版）',237]] },
+  { title:'Home', sub:'feat. Hikaru', artist:'Charlie Puth · 宇多田光', year:'2022',
+    desc:'跨洋合作单曲企划。Charlie Puth 的旋律直觉与宇多田光的词作在一间云端录音室里相遇，关于「家」的四种想象。',
+    tracks:[['Home (feat. Hikaru)',212],['Left and Right',178],['Stay With Me',190],['Home (Acoustic)',185]] },
+  { title:'rosie', sub:'', artist:'ROSÉ', year:'2024',
+    desc:'ROSÉ 首张正规专辑。橘红色的、带刺的、诚实的一本日记，十二首歌写给过去的自己。',
+    tracks:[['rosie',176],['number one girl',201],['toxic till the end',179],['two years',184],['drinks or coffee',168]] },
+  { title:'火力全开', sub:'', artist:'王力宏 · 张靓颖', year:'2011',
+    desc:'中西合璧的流行实验。把京剧的锣鼓点塞进电子节拍里，十一年后再听依然生猛。',
+    tracks:[['火力全开',213],['另一个天堂',252],['心跳',228],['大城小爱',221]] },
+  { title:'亏欠', sub:'', artist:'徐佳莹', year:'2022',
+    desc:'徐佳莹第六张录音室专辑。燕麦色的、温吞的、在深夜慢慢发烫的十首歌，唱给所有没说出口的抱歉。',
+    tracks:[['亏欠',238],['准明星',216],['没有第三者的分手',261],['在意这件事',232]] },
+  { title:'Beyond The Stage', sub:'', artist:'BEYOND', year:'1991',
+    desc:'1991 年红磡演唱会现场录音。舞台之外，理想之内，一个时代的克莱因蓝。',
+    tracks:[['海阔天空',326],['光辉岁月',299],['真的爱你',277],['不再犹豫',251]] },
+  { title:'情歌101', sub:'', artist:'光良', year:'2020',
+    desc:'光良情歌精选重修版。101 分的诚意，从《童话》到《约定》，重新编曲，重新流泪。',
+    tracks:[['童话',245],['第一次',262],['约定',238],['勇气',241]] },
+  { title:'A Time 4 You', sub:'', artist:'林峯', year:'2013',
+    desc:'林峯第九张个人专辑。紫灰色的都市夜行，时间是你唯一带不走的行李。',
+    tracks:[['A Time 4 You',241],['Nice',216],['爱在记忆中找你',235],['如果时间来到',248]] },
+];
+
+const TRACKS = [
+  { t:'关于我在地铁上莫名其妙干了碗鸡汤这件事儿', a:'孙天宇', dur:204, album:4 },
+  { t:'风过留痕', a:'李佳薇', dur:252, album:0 },
+  { t:'亏欠', a:'徐佳莹', dur:238, album:4 },
+  { t:'海阔天空', a:'BEYOND', dur:326, album:5 },
+  { t:'童话', a:'光良', dur:245, album:6 },
+  { t:'香格里拉', a:'魏如萱', dur:227, album:1 },
+  { t:'Home (feat. Hikaru)', a:'Charlie Puth · 宇多田光', dur:212, album:1 },
+  { t:'toxic till the end', a:'ROSÉ', dur:179, album:2 },
+  { t:'火力全开', a:'王力宏 · 张靓颖', dur:213, album:3 },
+  { t:'A Time 4 You', a:'林峯', dur:241, album:7 },
+];
+
+const ARTISTS = [
+  ['李佳薇',128,0],['BEYOND',96,5],['徐佳莹',84,4],['光良',72,6],['王力宏',66,3],
+  ['ROSÉ',54,2],['宇多田光',48,1],['林峯',41,7],['魏如萱',33,1],['Charlie Puth',27,1],['孙天宇',12,4],['张靓颖',9,3],
+];
+
+const LYRICS = [
+  '站台的风 吹散黄昏','把故事 唱给夜归人','此时此刻 做最自由灵魂','别等时针',
+  '转过青春 再追问','为何没来得及爱一个人','重写剧本','不管 不听 不问 谁的标准',
+  '去见证 每段青春','每出戏剧 每首诗文','每种世界 缤纷','自我旋转 自由灵魂',
+  '风吹过处 皆留痕','而我们 仍在路上',
+];
+
+/* ==================== 封面（内联 SVG，每张独立构图） ==================== */
+function coverSVG(i){
+  const S = "xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'";
+  switch(i){
+    case 0: /* 风过留痕 · 暖黄米色 · 大字排版 + 朱红印章 */
+      return `<svg ${S}>
+        <rect width='600' height='600' fill='#efe0bd'/>
+        <g stroke='#c9a75e' stroke-width='1.4'>
+          <line x1='60' y1='120' x2='470' y2='120'/><line x1='110' y1='160' x2='540' y2='160'/>
+          <line x1='60' y1='200' x2='380' y2='200'/><line x1='150' y1='240' x2='540' y2='240'/>
+          <line x1='60' y1='470' x2='300' y2='470'/><line x1='60' y1='505' x2='420' y2='505'/>
+        </g>
+        <text x='38' y='448' font-family='Noto Serif SC,Songti SC,serif' font-weight='900' font-size='300' fill='#2e2418'>风</text>
+        <rect x='452' y='60' width='86' height='86' fill='#b03a26'/>
+        <text x='495' y='97' text-anchor='middle' font-family='Noto Serif SC,Songti SC,serif' font-size='30' fill='#f4efe3'>原声</text>
+        <text x='495' y='130' text-anchor='middle' font-family='Noto Serif SC,Songti SC,serif' font-size='30' fill='#f4efe3'>留痕</text>
+        <text x='60' y='566' font-family='Noto Sans SC,sans-serif' font-size='19' letter-spacing='6' fill='#6b5a3a'>李佳薇 · 影视原声带 · 2023</text>
+      </svg>`;
+    case 1: /* Home · 天蓝 · 几何房子与太阳 */
+      return `<svg ${S}>
+        <rect width='600' height='600' fill='#78aede'/>
+        <circle cx='470' cy='120' r='72' fill='#f4efe3'/>
+        <rect x='90' y='270' width='300' height='200' fill='#123c66'/>
+        <path d='M60 275 L240 130 L420 275 Z' fill='#0d2c4c'/>
+        <rect x='205' y='350' width='70' height='120' fill='#f4efe3'/>
+        <text x='82' y='548' font-family='JetBrains Mono,monospace' font-weight='500' font-size='64' letter-spacing='14' fill='#f4efe3'>HOME</text>
+        <text x='84' y='578' font-family='Noto Sans SC,sans-serif' font-size='15' letter-spacing='4' fill='#cfe2f2'>CHARLIE PUTH · 宇多田光 · 2022</text>
+      </svg>`;
+    case 2: /* rosie · 橘红 · 斜体大字 */
+      return `<svg ${S}>
+        <rect width='600' height='600' fill='#d84e22'/>
+        <circle cx='300' cy='300' r='238' fill='none' stroke='#f4efe3' stroke-width='1.4' stroke-dasharray='3 7'/>
+        <text x='300' y='336' text-anchor='middle' font-family='Noto Serif SC,serif' font-style='italic' font-weight='700' font-size='148' fill='#f8f1e6'>rosie</text>
+        <line x1='210' y1='386' x2='390' y2='386' stroke='#f8f1e6' stroke-width='1.2'/>
+        <text x='300' y='424' text-anchor='middle' font-family='JetBrains Mono,monospace' font-size='19' letter-spacing='8' fill='#f8d9c6'>ROSÉ · 2024</text>
+      </svg>`;
+    case 3: /* 火力全开 · 深棕 · 斜向火焰条 + 竖排字 */
+      return `<svg ${S}>
+        <rect width='600' height='600' fill='#38220f'/>
+        <g transform='rotate(-24 300 300)'>
+          <rect x='-120' y='330' width='840' height='44' fill='#e8641e'/>
+          <rect x='-120' y='392' width='840' height='22' fill='#f2a03d'/>
+          <rect x='-120' y='432' width='840' height='10' fill='#c74b16'/>
+        </g>
+        <g font-family='Noto Serif SC,serif' font-weight='900' font-size='92' fill='#f4efe3'>
+          <text x='96' y='170'>火</text><text x='96' y='272'>力</text>
+          <text x='96' y='374'>全</text><text x='96' y='476'>开</text>
+        </g>
+        <text x='478' y='540' text-anchor='end' font-family='Noto Sans SC,sans-serif' font-size='17' letter-spacing='5' fill='#d9b18c'>王力宏 · 张靓颖 · 2011</text>
+      </svg>`;
+    case 4: /* 亏欠 · 燕麦色 · 极简留白 */
+      return `<svg ${S}>
+        <rect width='600' height='600' fill='#d9cdb6'/>
+        <circle cx='300' cy='268' r='150' fill='none' stroke='#3a352c' stroke-width='2.6'/>
+        <circle cx='300' cy='268' r='150' fill='none' stroke='#3a352c' stroke-width='1.4' stroke-dasharray='180 760' stroke-dashoffset='-40'/>
+        <circle cx='300' cy='118' r='5' fill='#3a352c'/>
+        <text x='300' y='296' text-anchor='middle' font-family='Noto Serif SC,serif' font-weight='600' font-size='86' fill='#3a352c'>亏欠</text>
+        <line x1='140' y1='482' x2='460' y2='482' stroke='#8a7f68' stroke-width='1'/>
+        <text x='300' y='520' text-anchor='middle' font-family='Noto Sans SC,sans-serif' font-size='17' letter-spacing='8' fill='#6f6650'>徐佳莹 · 2022</text>
+      </svg>`;
+    case 5: /* Beyond The Stage · 克莱因蓝 · 仿黑胶 */
+      return `<svg ${S}>
+        <rect width='600' height='600' fill='#1e40a4'/>
+        <g transform='translate(235 300)'>
+          <circle r='205' fill='#141210'/>
+          ${[-188,-168,-148,-128,-108,-88].map(r=>`<circle r='${r}' fill='none' stroke='#2c2925' stroke-width='1.6'/>`).join('')}
+          <circle r='66' fill='#f4efe3'/>
+          <circle r='7' fill='#141210'/>
+          <text y='-26' text-anchor='middle' font-family='JetBrains Mono,monospace' font-size='14' letter-spacing='2' fill='#1e40a4'>SIDE A</text>
+          <text y='34' text-anchor='middle' font-family='JetBrains Mono,monospace' font-size='12' fill='#8d8676'>33⅓ RPM</text>
+        </g>
+        <text x='492' y='240' text-anchor='middle' font-family='JetBrains Mono,monospace' font-size='19' letter-spacing='4' fill='#f4efe3'>BEYOND</text>
+        <text x='492' y='270' text-anchor='middle' font-family='JetBrains Mono,monospace' font-size='13' letter-spacing='3' fill='#9fb2e4'>THE STAGE</text>
+        <text x='492' y='398' text-anchor='middle' font-family='Noto Sans SC,sans-serif' font-size='14' letter-spacing='5' fill='#9fb2e4'>1991 · LIVE</text>
+        <line x1='452' y1='292' x2='532' y2='292' stroke='#f4efe3' stroke-width='1'/>
+      </svg>`;
+    case 6: /* 情歌101 · 朱红 · 巨号数字 */
+      return `<svg ${S}>
+        <rect width='600' height='600' fill='#c33a2a'/>
+        <rect x='34' y='34' width='532' height='532' fill='none' stroke='#f8f1e6' stroke-width='1.4'/>
+        <text x='300' y='158' text-anchor='middle' font-family='Noto Serif SC,serif' font-size='44' letter-spacing='26' fill='#f8f1e6'>情歌</text>
+        <text x='300' y='436' text-anchor='middle' font-family='Noto Serif SC,serif' font-weight='900' font-size='262' fill='#f8f1e6'>101</text>
+        <line x1='200' y1='486' x2='400' y2='486' stroke='#f8f1e6' stroke-width='1.2'/>
+        <text x='300' y='528' text-anchor='middle' font-family='Noto Sans SC,sans-serif' font-size='19' letter-spacing='10' fill='#f2c9bd'>光良 · 2020</text>
+      </svg>`;
+    case 7: /* A Time 4 You · 紫灰 · 时钟刻度 */
+      return `<svg ${S}>
+        <rect width='600' height='600' fill='#8d8698'/>
+        <g transform='translate(300 290)'>
+          ${Array.from({length:12},(_,k)=>`<line x1='0' y1='-196' x2='0' y2='${k%3===0?-158:-176}' stroke='#e8e4ec' stroke-width='${k%3===0?2.4:1.2}' transform='rotate(${k*30})'/>`).join('')}
+          <line x1='0' y1='0' x2='0' y2='-128' stroke='#f4efe3' stroke-width='3'/>
+          <line x1='0' y1='0' x2='86' y2='52' stroke='#f4efe3' stroke-width='2'/>
+          <circle r='6' fill='#f4efe3'/>
+        </g>
+        <text x='300' y='86' text-anchor='middle' font-family='Noto Serif SC,serif' font-weight='700' font-size='44' letter-spacing='16' fill='#f4efe3'>A TIME 4 YOU</text>
+        <text x='300' y='552' text-anchor='middle' font-family='Noto Sans SC,sans-serif' font-size='17' letter-spacing='8' fill='#cdc7d4'>林峯 · 2013</text>
+      </svg>`;
+  }
+}
+
+/* ==================== 渲染静态内容 ==================== */
+const $ = s => document.querySelector(s);
+document.querySelectorAll('[data-cover]').forEach(el => el.innerHTML = coverSVG(+el.dataset.cover));
+
+const fmt = s => String(Math.floor(s/60)).padStart(2,'0') + ':' + String(Math.floor(s%60)).padStart(2,'0');
+
+/* 最近添加列表 */
+$('#recentList').innerHTML = TRACKS.map((tr,i)=>`
+  <li data-i="${i}">
+    <div class="row" role="button" tabindex="0" aria-label="播放 ${tr.t}">
+      <span class="idx num">${String(i+1).padStart(2,'0')}</span>
+      <span class="thumb">${coverSVG(tr.album)}</span>
+      <span class="title">${tr.t}</span>
+      <span class="artist">${tr.a}</span>
+      <span class="track-dur num">${fmt(tr.dur)}</span>
+      <span class="row-play" aria-hidden="true"><svg viewBox="0 0 10 10"><path d="M1 0l8 5-8 5z"/></svg></span>
+    </div>
+  </li>`).join('');
+
+/* 歌手索引 */
+$('#artistLine').innerHTML = ARTISTS.map(([n,c,al])=>
+  `<a href="#/album/${al}">${n}<span class="count num">${c}</span></a>`
+).join('<span class="sep">·</span>');
+
+/* ==================== 播放状态机 ==================== */
+const ICON_PLAY  = '<svg viewBox="0 0 16 16"><path d="M3.5 1.5v13l11-6.5z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 16 16"><path d="M3 2h3.4v12H3zM9.6 2H13v12H9.6z"/></svg>';
+
+const state = { track:TRACKS[1], playing:false, t:96, timer:null, albumIdx:0, albumCtx:0 };
+
+function tick(){
+  state.t += 0.5;
+  if(state.t >= state.track.dur){ nextTrack(); return; }
+  renderProgress(); renderLyrics();
+}
+function play(){ if(state.playing) return; state.playing = true; state.timer = setInterval(tick, 500); renderToggle(); }
+function pause(){ state.playing = false; clearInterval(state.timer); renderToggle(); }
+function toggle(){ state.playing ? pause() : play(); }
+function setTrack(tr){
+  state.track = tr; state.t = 0;
+  renderPlayer(); renderNowPlaying(); renderRowStates();
+}
+function playTrack(tr){ setTrack(tr); play(); renderProgress(); renderLyrics(); }
+function step(d){
+  const i = TRACKS.indexOf(state.track);
+  const n = TRACKS[(i + d + TRACKS.length) % TRACKS.length];
+  playTrack(n);
+}
+function nextTrack(){ step(1); }
+
+/* ==================== 渲染 ==================== */
+function renderToggle(){
+  $('#btnToggle').innerHTML = state.playing ? ICON_PAUSE : ICON_PLAY;
+  $('#btnToggle').setAttribute('aria-label', state.playing ? '暂停' : '播放');
+  $('#playerbar').classList.toggle('playing-on', state.playing);
+  $('#featureIcon').textContent = (state.playing && state.track.album === 0) ? '❚❚' : '▶';
+  $('#featureLabel').textContent = (state.playing && state.track.album === 0) ? '正在播放' : '播放整张专辑';
+}
+function renderProgress(){
+  const pct = Math.min(100, state.t / state.track.dur * 100);
+  document.querySelectorAll('.js-fill').forEach(f => f.style.width = pct + '%');
+  $('#pbCur').textContent = fmt(state.t);
+  $('#npCur').textContent = fmt(state.t);
+  $('#pbProgress').setAttribute('aria-valuenow', Math.round(pct));
+}
+function renderPlayer(){
+  $('#pbThumb').innerHTML = coverSVG(state.track.album);
+  $('#pbTitle').textContent = state.track.t;
+  $('#pbArtist').textContent = state.track.a;
+  $('#pbDur').textContent = fmt(state.track.dur);
+  renderProgress(); renderToggle();
+}
+function renderLyrics(){
+  const box = $('#lyricBox');
+  if(box.children.length !== LYRICS.length){
+    box.innerHTML = LYRICS.map(l => `<p class="lyric-line">${l}</p>`).join('');
+  }
+  const cur = Math.min(LYRICS.length - 1, Math.floor(state.t / state.track.dur * LYRICS.length));
+  [...box.children].forEach((el,i) => el.classList.toggle('now', i === cur));
+}
+function renderNowPlaying(){
+  const al = ALBUMS[state.track.album];
+  $('#npCover').innerHTML = coverSVG(state.track.album);
+  $('#npTitle').textContent = state.track.t;
+  $('#npArtist').textContent = state.track.a;
+  $('#npAlbum').textContent = `《${al.title}》`;
+  $('#npAlbum').href = `#/album/${state.track.album}`;
+  $('#npDur').textContent = fmt(state.track.dur);
+  renderLyrics(); renderProgress();
+}
+function renderRowStates(){
+  document.querySelectorAll('#recentList li').forEach(li=>{
+    li.classList.toggle('playing', TRACKS[+li.dataset.i] === state.track);
+  });
+  document.querySelectorAll('#albumTracks .arow').forEach(row=>{
+    row.classList.toggle('playing', row.dataset.t === state.track.t);
+  });
+}
+
+/* 专辑详情 */
+function buildAlbum(id){
+  const al = ALBUMS[id]; state.albumCtx = id;
+  $('#albumCover').innerHTML = coverSVG(id);
+  $('#albumTitle').textContent = al.title + (al.sub ? ' ' : '');
+  $('#albumTitle').innerHTML = al.title + (al.sub ? ` <span style="font-size:.42em;font-weight:400;color:var(--ink-soft);letter-spacing:.1em">${al.sub}</span>` : '');
+  $('#albumByline').innerHTML = `<a href="#/album/${id}">${al.artist}</a> · ${al.year} 年发行`;
+  $('#albumDesc').textContent = al.desc;
+  const total = al.tracks.reduce((s,t)=>s+t[1],0);
+  $('#albumStats').textContent = `${al.tracks.length} 首 · ${Math.floor(total/60)} 分 ${String(total%60).padStart(2,'0')} 秒`;
+  $('#albumTracks').innerHTML = al.tracks.map(([t,d],i)=>`
+    <div class="arow" role="button" tabindex="0" data-t="${t}" data-i="${i}" aria-label="播放 ${t}">
+      <span class="no">${String(i+1).padStart(2,'0')}</span>
+      <span class="t">${t}</span>
+      <span class="d">${fmt(d)}</span>
+    </div>`).join('');
+  renderRowStates();
+}
+
+/* ==================== 路由 ==================== */
+function route(){
+  const h = location.hash;
+  let v = 'home';
+  if(h.startsWith('#/album/')){ v = 'album'; buildAlbum(Math.min(ALBUMS.length-1, Math.max(0, +h.split('/')[2] || 0))); }
+  else if(h === '#/playing'){ v = 'playing'; renderNowPlaying(); }
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.dataset.view === v));
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', route);
+
+/* ==================== 事件绑定 ==================== */
+function bindRowActivation(containerSel, rowSel, handler){
+  const c = $(containerSel);
+  c.addEventListener('click', e => {
+    const row = e.target.closest(rowSel); if(row) handler(row);
+  });
+  c.addEventListener('keydown', e => {
+    if(e.key === 'Enter' || e.key === ' '){
+      const row = e.target.closest(rowSel);
+      if(row){ e.preventDefault(); handler(row); }
+    }
+  });
+}
+bindRowActivation('#recentList', '.row', row => playTrack(TRACKS[+row.parentElement.dataset.i]));
+bindRowActivation('#albumTracks', '.arow', row => {
+  const al = ALBUMS[state.albumCtx];
+  const [t,d] = al.tracks[+row.dataset.i];
+  playTrack({ t, a:al.artist, dur:d, album:state.albumCtx });
+});
+
+$('#btnToggle').addEventListener('click', toggle);
+$('#btnPrev').addEventListener('click', () => step(-1));
+$('#btnNext').addEventListener('click', () => step(1));
+$('#btnFeaturePlay').addEventListener('click', () => {
+  if(state.playing && state.track.album === 0){ pause(); return; }
+  const [t,d] = ALBUMS[0].tracks[0];
+  playTrack({ t, a:ALBUMS[0].artist, dur:d, album:0 });
+  location.hash = '#/playing';
+});
+$('#btnAlbumPlay').addEventListener('click', () => {
+  const al = ALBUMS[state.albumCtx];
+  const [t,d] = al.tracks[0];
+  playTrack({ t, a:al.artist, dur:d, album:state.albumCtx });
+});
+$('#pbProgress').addEventListener('click', e => {
+  const r = e.currentTarget.getBoundingClientRect();
+  state.t = Math.round(state.track.dur * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
+  renderProgress(); renderLyrics();
+});
+
+/* ==================== 启动 ==================== */
+renderPlayer(); renderNowPlaying(); renderRowStates(); route();
+if(location.search.indexOf('autoplay') > -1){ playTrack(TRACKS[1]); }
+</script>
+</body>
+</html>

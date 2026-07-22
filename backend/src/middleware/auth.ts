@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import db, { DATA_DIR } from '../db/database'
+import { JWT_AUDIENCE, JWT_ISSUER } from '../config'
 
 // JWT 密钥：优先使用 JWT_SECRET 环境变量；未设置时在数据目录生成随机密钥并持久化（0600），
 // 重启后复用。绝不回退到仓库中的固定字符串（否则任何人都能伪造令牌）
@@ -15,10 +16,18 @@ function loadOrCreateJwtSecret(): string {
   if (fs.existsSync(secretPath)) {
     const existing = fs.readFileSync(secretPath, 'utf-8').trim()
     if (existing) return existing
+    throw new Error(`JWT secret file is empty: ${secretPath}`)
   }
   const secret = crypto.randomBytes(48).toString('hex')
-  fs.writeFileSync(secretPath, secret, { mode: 0o600 })
-  return secret
+  try {
+    fs.writeFileSync(secretPath, secret, { mode: 0o600, flag: 'wx' })
+    return secret
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    const existing = fs.readFileSync(secretPath, 'utf-8').trim()
+    if (!existing) throw new Error(`JWT secret file is empty: ${secretPath}`)
+    return existing
+  }
 }
 
 const JWT_SECRET = loadOrCreateJwtSecret()
@@ -45,7 +54,24 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 
   const token = authHeader.substring(7)
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as AuthPayload
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      algorithms: ['HS256'],
+      audience: JWT_AUDIENCE,
+      issuer: JWT_ISSUER,
+    })
+    if (
+      typeof decoded === 'string' ||
+      typeof decoded.userId !== 'string' ||
+      typeof decoded.username !== 'string' ||
+      (decoded.tokenVersion !== undefined && typeof decoded.tokenVersion !== 'number')
+    ) {
+      return res.status(401).json({ error: 'Invalid or expired token' })
+    }
+    const payload: AuthPayload = {
+      userId: decoded.userId,
+      username: decoded.username,
+      tokenVersion: decoded.tokenVersion,
+    }
     // 校验 token_version：修改密码后版本递增，旧令牌（含无版本字段的历史令牌，视为 0）全部失效
     const row = db.prepare('SELECT token_version FROM users WHERE id = ?').get(payload.userId) as
       { token_version: number } | undefined
@@ -60,5 +86,10 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 }
 
 export function signToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' })
+  return jwt.sign(payload, JWT_SECRET, {
+    algorithm: 'HS256',
+    audience: JWT_AUDIENCE,
+    issuer: JWT_ISSUER,
+    expiresIn: '30d',
+  })
 }
