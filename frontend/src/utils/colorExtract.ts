@@ -88,8 +88,8 @@ export async function extractColorsFromUrl(
 /** 默认颜色（无法提取时使用）*/
 function getDefaultColors(): ExtractedColors {
   return {
-    primary: 'hsl(141, 69%, 20%)',
-    secondary: 'hsl(141, 69%, 10%)',
+    primary: 'hsl(30, 10%, 22%)',
+    secondary: 'hsl(30, 8%, 12%)',
     isDark: true,
   }
 }

@@ -4,7 +4,7 @@
  * 分区：热门歌曲 Top5 / 全部歌曲（默认 20，可展开）/ 专辑封面墙 / 相似歌手文字索引行
  */
 
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Play, Shuffle, CaretDown, CaretUp, MicrophoneStage } from '@phosphor-icons/react'
 import { AlbumCard } from '@/components/music/AlbumCard'
@@ -26,6 +26,11 @@ export default function ArtistDetailPage() {
   const [showAllSongs, setShowAllSongs] = useState(false)
   const [bioExpanded, setBioExpanded] = useState(false)
   const [imgError, setImgError] = useState(false)
+
+  // 相似歌手跳转是同路由组件复用：切歌手时重置头像失败态，否则新歌手永远显示占位符
+  useEffect(() => {
+    setImgError(false)
+  }, [artist?.id])
 
   const serverImageUrl = artist?.artistImageUrl ||
     (artist?.coverArt && hasAdapter() ? getAdapter().getCoverUrl(artist.coverArt, 300) : undefined)

@@ -196,7 +196,14 @@ export default function Settings() {
   }
 
   function handleSwitch(id: string) {
-    activateServer(id)
+    if (!activateServer(id)) {
+      toast({
+        title: '该服务器需要重新登录',
+        description: '登录凭据已升级，请在登录页重新连接',
+        variant: 'destructive',
+      })
+      return
+    }
     toast({ title: '已切换服务器' })
   }
 

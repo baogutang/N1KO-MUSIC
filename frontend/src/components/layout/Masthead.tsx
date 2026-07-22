@@ -33,8 +33,14 @@ export function Masthead() {
   const weekLabel = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(now)
 
   return (
-    <div className="flex-shrink-0 border-b-[3px] border-double border-hair">
-      <div className="max-w-[1180px] mx-auto px-10 pt-2 pb-3 flex items-baseline justify-between gap-4">
+    <div
+      className="flex-shrink-0 border-b-[3px] border-double border-hair select-none"
+      data-tauri-drag-region
+    >
+      <div
+        className="max-w-[1180px] mx-auto px-10 pt-2 pb-3 flex items-baseline justify-between gap-4"
+        data-tauri-drag-region
+      >
         {/* 品牌 + 服务器状态下拉 */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

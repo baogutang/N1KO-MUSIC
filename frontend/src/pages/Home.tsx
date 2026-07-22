@@ -4,7 +4,7 @@
  */
 
 import { Fragment, useCallback, useMemo } from 'react'
-import { Play, Shuffle } from '@phosphor-icons/react'
+import { ArrowsClockwise, Play, Shuffle } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { SongList } from '@/components/music/SongList'
@@ -15,7 +15,7 @@ import { rankArtistsByAffinity } from '@/services/recommendationEngine'
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
-import { playAllShuffled } from '@/utils/playActions'
+import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import type { Album } from '@/api/types'
 
 export default function HomePage() {
@@ -27,6 +27,7 @@ export default function HomePage() {
   const {
     data: randomSongs,
     isLoading: songsLoading,
+    refresh: refreshSongs,
     profile,
   } = usePersonalizedRecommendations(30)
   const { data: artists, isLoading: artistsLoading } = useArtists()
@@ -227,10 +228,25 @@ export default function HomePage() {
               </span>
               <button
                 className="more inline-flex items-center gap-1.5"
+                onClick={() => playAllInOrder(randomSongs, 0)}
+              >
+                <Play size={12} />
+                播放全部
+              </button>
+              <button
+                className="more inline-flex items-center gap-1.5"
                 onClick={() => playAllShuffled(randomSongs, 0)}
               >
                 <Shuffle size={12} />
                 随机播放
+              </button>
+              <button
+                className="more inline-flex items-center gap-1.5"
+                onClick={refreshSongs}
+                disabled={songsLoading}
+              >
+                <ArrowsClockwise size={12} className={songsLoading ? 'animate-spin' : undefined} />
+                换一批
               </button>
             </div>
           </div>

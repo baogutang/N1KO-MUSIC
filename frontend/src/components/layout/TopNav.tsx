@@ -21,8 +21,15 @@ const navItems = [
 
 export function TopNav() {
   return (
-    <nav className="flex-shrink-0 border-b border-hair" aria-label="主导航">
-      <ul className="max-w-[1180px] mx-auto px-10 flex items-center gap-8">
+    <nav
+      className="flex-shrink-0 border-b border-hair select-none"
+      aria-label="主导航"
+      data-tauri-drag-region
+    >
+      <ul
+        className="max-w-[1180px] mx-auto px-10 flex items-center gap-8"
+        data-tauri-drag-region
+      >
         {navItems.map(({ to, label }) => (
           <li key={to}>
             <NavLink

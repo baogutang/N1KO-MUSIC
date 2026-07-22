@@ -24,13 +24,15 @@ import { prefetchRoute } from '@/routes/lazyRoutes'
 
 const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
 
-/** macOS 下标记为 Tauri 拖拽区（仅元素自身可拖，子按钮正常点击） */
-const dragRegionProps = isMac
-  ? {
-      'data-tauri-drag-region': true,
-      style: { WebkitAppRegion: 'drag' } as React.CSSProperties,
-    }
-  : {}
+/**
+ * 拖拽区标记：始终渲染（不再按 isMac 门控）。
+ * drag.js 只认 e.target 自身属性；按钮/链接等子元素无属性，点击不受影响。
+ * WebkitAppRegion 仅为旧习惯保留，WKWebView 会忽略，无害。
+ */
+const dragRegionProps = {
+  'data-tauri-drag-region': true,
+  style: { WebkitAppRegion: 'drag' } as React.CSSProperties,
+}
 
 /** 图标键：纯图标，hover 变 accent（DESIGN §4.1） */
 const iconBtn =

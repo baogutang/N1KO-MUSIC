@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "1.5.0"
+version = "1.5.1"
 description = "N1KO MUSIC - Modern Music Streaming Desktop App"
 authors = ["N1KO"]
 license = "MIT"

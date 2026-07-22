@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>N1KO MUSIC · 应用图标方案评审</title>
+<style>
+  @font-face {
+    font-family: 'Source Serif 4';
+    font-weight: 400 900;
+    src: url(../../../frontend/public/fonts/sourceserif4_v14_vEFI2_tTDB4M7-auWDN0ahZJW1gb8te1Xb7G.woff2) format('woff2');
+  }
+  :root {
+    --paper:#f4efe3; --paper-deep:#ece5d4; --ink:#1d1a15; --ink-soft:#5c564a;
+    --ink-faint:#8d8676; --hair:rgba(29,26,21,.22); --hair-soft:rgba(29,26,21,.12);
+    --accent:#b8442a;
+    --serif:'Source Serif 4','Noto Serif SC','Songti SC','STSong',serif;
+    --sans:'Hanken Grotesk','Noto Sans SC','PingFang SC',sans-serif;
+    --mono:'JetBrains Mono','SF Mono',Menlo,monospace;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.7; padding:48px 56px 80px; }
+  .masthead { display:flex; justify-content:space-between; align-items:baseline; padding-bottom:14px; border-bottom:3px double var(--hair); font-size:12px; letter-spacing:.18em; color:var(--ink-soft); }
+  .masthead .brand { font-weight:700; font-size:15px; letter-spacing:.3em; color:var(--ink); }
+  h1 { font-family:var(--serif); font-weight:900; font-size:40px; letter-spacing:-.01em; margin:36px 0 8px; }
+  .lede { color:var(--ink-soft); max-width:70ch; margin-bottom:48px; }
+  .lede b { color:var(--ink); }
+  h2 { font-family:var(--serif); font-weight:700; font-size:24px; margin:56px 0 4px; }
+  h2 .lat { font-family:var(--mono); font-size:11px; letter-spacing:.24em; color:var(--ink-faint); margin-left:12px; vertical-align:middle; }
+  .sub { color:var(--ink-soft); font-size:13.5px; margin-bottom:24px; max-width:72ch; }
+
+  /* ---- 尺寸诊断 ---- */
+  .diag { display:flex; gap:56px; align-items:flex-start; }
+  .diag .cell { text-align:center; }
+  .diag .cell img, .diag .cell svg { display:block; }
+  .diag .cap { font-family:var(--mono); font-size:11px; color:var(--ink-faint); margin-top:10px; letter-spacing:.06em; }
+  .grid-wrap { position:relative; width:256px; height:256px; }
+  .grid-wrap img { width:256px; height:256px; }
+  .grid-wrap .safe { position:absolute; left:50%; top:50%; width:205px; height:205px; transform:translate(-50%,-50%); border:1px dashed var(--accent); border-radius:46px; pointer-events:none; }
+  .dock { background:#d8d3c6; border:1px solid var(--hair-soft); border-radius:18px; padding:14px 18px; display:flex; align-items:flex-end; gap:12px; margin-top:28px; }
+  .dock .other { width:64px; height:64px; border-radius:15px; background:#b9b3a4; display:flex; align-items:center; justify-content:center; color:#f4efe3; font-size:26px; }
+  .dock .old { width:64px; height:64px; }
+  .dock .old img { width:100%; height:100%; }
+  .dock .new { width:64px; height:64px; }
+  .dock .new svg { width:100%; height:100%; display:block; }
+  .dock-note { font-family:var(--mono); font-size:11px; color:var(--ink-faint); margin-top:10px; letter-spacing:.04em; }
+  .dock-note em { font-style:normal; color:var(--accent); }
+
+  /* ---- 方案卡 ---- */
+  .cands { display:flex; gap:40px; }
+  .cand { flex:1; border-top:1px solid var(--hair); padding-top:20px; }
+  .cand .tag { font-family:var(--mono); font-size:12px; color:var(--accent); letter-spacing:.1em; }
+  .cand h3 { font-family:var(--serif); font-weight:700; font-size:22px; margin:4px 0 10px; }
+  .cand .hero { background:var(--paper-deep); border:1px solid var(--hair-soft); border-radius:12px; padding:28px; display:flex; justify-content:center; }
+  .cand .why { font-size:13px; color:var(--ink-soft); margin-top:14px; max-width:36ch; }
+  .cand .why li { margin-left:1.1em; margin-bottom:2px; }
+  .ramp { display:flex; align-items:flex-end; gap:14px; margin-top:16px; padding-top:12px; border-top:1px solid var(--hair-soft); }
+  .ramp .sz { text-align:center; }
+  .ramp .sz i { display:block; font-family:var(--mono); font-style:normal; font-size:10px; color:var(--ink-faint); margin-top:6px; }
+  footer { margin-top:72px; padding-top:16px; border-top:1px solid var(--hair); display:flex; justify-content:space-between; font-size:12px; color:var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="brand">N1KO MUSIC</div>
+  <div>应用图标评审 · 2026-07-22</div>
+</div>
+
+<h1>图标：先修尺寸，再换脸。</h1>
+<p class="lede">诊断：现在的图标在 1024px 画布上<b>满幅平铺</b>，而 macOS 规范（Big Sur 起）要求圆角矩形收在<b>中央 824px 安全区</b>内（四周约 100px 透明边距），所以它在 Dock 里比邻居大出一圈。三个新方案全部按安全区绘制，并换上与新界面一致的「纸 · 墨 · 朱」语言。</p>
+
+<h2>尺寸诊断<span class="lat">SIZE DIAGNOSIS</span></h2>
+<p class="sub">左：现状（满幅，红色虚线 = 规范安全区，已越界）。下：模拟 Dock——前两个是标准尺寸的「邻居」，第三个是现状图标（明显偏大），最后是新方案（已收敛）。</p>
+<div class="diag">
+  <div class="cell">
+    <div class="grid-wrap">
+      <img src="../../../frontend/src-tauri/icons/icon.png" alt="现状图标">
+      <div class="safe"></div>
+    </div>
+    <div class="cap">现状：满幅 1024px，越界</div>
+  </div>
+  <div class="cell">
+    <svg width="256" height="256" viewBox="0 0 1024 1024">
+      <rect x="100" y="100" width="824" height="824" rx="185" fill="#ece5d4" stroke="#b8442a" stroke-width="4" stroke-dasharray="16 10"/>
+      <text x="512" y="560" text-anchor="middle" font-family="var(--mono)" font-size="44" fill="#8d8676">824 安全区</text>
+    </svg>
+    <div class="cap">规范：艺术区 824px · 圆角 ~185px</div>
+  </div>
+</div>
+<div class="dock">
+  <div class="other">◐</div>
+  <div class="other">▲</div>
+  <div class="old"><img src="../../../frontend/src-tauri/icons/icon.png" alt="旧图标"></div>
+  <div class="new"><svg viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3" stroke="rgba(29,26,21,.12)"/><text x="512" y="640" text-anchor="middle" font-family="'Source Serif 4','Songti SC',serif" font-weight="900" font-size="520" fill="#1d1a15">N</text></svg></div>
+</div>
+<div class="dock-note">◐ ▲ = 邻居 · 第 3 个 = <em>现状（偏大）</em> · 第 4 个 = 新方案（824 安全区）</div>
+
+<h2>三个方向<span class="lat">PICK ONE</span></h2>
+<p class="sub">同一套纸墨朱语言，三种符号侧重：刊头（品牌）、声柱（音乐）、黑胶（收藏）。均渲染了 64 / 32 / 16px 小尺寸可读性。</p>
+
+<div class="cands">
+
+  <!-- ============ 方案一：刊头 N ============ -->
+  <div class="cand">
+    <div class="tag">方案一</div>
+    <h3>刊头 · Masthead</h3>
+    <div class="hero">
+      <svg width="300" height="300" viewBox="0 0 1024 1024">
+        <rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/>
+        <rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="rgba(29,26,21,.14)" stroke-width="3"/>
+        <!-- 报头双细线 -->
+        <line x1="262" y1="300" x2="762" y2="300" stroke="#1d1a15" stroke-width="7"/>
+        <line x1="262" y1="318" x2="762" y2="318" stroke="rgba(29,26,21,.35)" stroke-width="3"/>
+        <!-- 大写衬线 N -->
+        <text x="512" y="668" text-anchor="middle" font-family="'Source Serif 4','Songti SC',serif" font-weight="900" font-size="470" fill="#1d1a15">N</text>
+        <!-- 朱红印章 -->
+        <rect x="612" y="664" width="150" height="150" rx="14" fill="#b8442a"/>
+        <text x="687" y="772" text-anchor="middle" font-family="'Songti SC','STSong',serif" font-weight="700" font-size="96" fill="#f4efe3">乐</text>
+      </svg>
+    </div>
+    <div class="ramp">
+      <div class="sz"><svg width="64" height="64" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/><rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="rgba(29,26,21,.14)" stroke-width="6"/><line x1="262" y1="300" x2="762" y2="300" stroke="#1d1a15" stroke-width="7"/><line x1="262" y1="318" x2="762" y2="318" stroke="rgba(29,26,21,.35)" stroke-width="3"/><text x="512" y="668" text-anchor="middle" font-family="'Source Serif 4','Songti SC',serif" font-weight="900" font-size="470" fill="#1d1a15">N</text><rect x="612" y="664" width="150" height="150" rx="14" fill="#b8442a"/><text x="687" y="772" text-anchor="middle" font-family="'Songti SC','STSong',serif" font-weight="700" font-size="96" fill="#f4efe3">乐</text></svg><i>64</i></div>
+      <div class="sz"><svg width="32" height="32" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/><rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="rgba(29,26,21,.14)" stroke-width="12"/><line x1="262" y1="300" x2="762" y2="300" stroke="#1d1a15" stroke-width="14"/><text x="512" y="668" text-anchor="middle" font-family="'Source Serif 4','Songti SC',serif" font-weight="900" font-size="470" fill="#1d1a15">N</text><rect x="612" y="664" width="150" height="150" rx="14" fill="#b8442a"/><text x="687" y="772" text-anchor="middle" font-family="'Songti SC','STSong',serif" font-weight="700" font-size="96" fill="#f4efe3">乐</text></svg><i>32</i></div>
+      <div class="sz"><svg width="16" height="16" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/><text x="512" y="700" text-anchor="middle" font-family="'Source Serif 4','Songti SC',serif" font-weight="900" font-size="520" fill="#1d1a15">N</text><rect x="612" y="664" width="170" height="170" rx="14" fill="#b8442a"/></svg><i>16</i></div>
+    </div>
+    <ul class="why">
+      <li>刊名首字母 + 报头双线 + 朱红印章，把「音乐杂志」浓缩成一枚徽记</li>
+      <li>N 字大粗衬线在 16px 仍是清晰剪影；印章在小尺寸退化为一个红点，不脏</li>
+      <li>与 Dock 里清一色渐变圆角图标差异最大</li>
+    </ul>
+  </div>
+
+  <!-- ============ 方案二：声柱 ============ -->
+  <div class="cand">
+    <div class="tag">方案二</div>
+    <h3>声柱 · Stems</h3>
+    <div class="hero">
+      <svg width="300" height="300" viewBox="0 0 1024 1024">
+        <rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/>
+        <rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="rgba(29,26,21,.14)" stroke-width="3"/>
+        <g>
+          <!-- 柱 1 -->
+          <rect x="272" y="452" width="60" height="120" fill="#1d1a15"/><rect x="256" y="436" width="92" height="16" fill="#1d1a15"/><rect x="256" y="572" width="92" height="16" fill="#1d1a15"/>
+          <!-- 柱 2 -->
+          <rect x="392" y="392" width="60" height="240" fill="#1d1a15"/><rect x="376" y="376" width="92" height="16" fill="#1d1a15"/><rect x="376" y="632" width="92" height="16" fill="#1d1a15"/>
+          <!-- 柱 3（朱红） -->
+          <rect x="512" y="332" width="60" height="360" fill="#b8442a"/><rect x="496" y="316" width="92" height="16" fill="#b8442a"/><rect x="496" y="692" width="92" height="16" fill="#b8442a"/>
+          <!-- 柱 4 -->
+          <rect x="632" y="392" width="60" height="240" fill="#1d1a15"/><rect x="616" y="376" width="92" height="16" fill="#1d1a15"/><rect x="616" y="632" width="92" height="16" fill="#1d1a15"/>
+          <!-- 柱 5 -->
+          <rect x="752" y="452" width="60" height="120" fill="#1d1a15"/><rect x="736" y="436" width="92" height="16" fill="#1d1a15"/><rect x="736" y="572" width="92" height="16" fill="#1d1a15"/>
+        </g>
+      </svg>
+    </div>
+    <div class="ramp">
+      <div class="sz"><svg width="64" height="64" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/><g><rect x="272" y="452" width="60" height="120" fill="#1d1a15"/><rect x="256" y="436" width="92" height="16" fill="#1d1a15"/><rect x="256" y="572" width="92" height="16" fill="#1d1a15"/><rect x="392" y="392" width="60" height="240" fill="#1d1a15"/><rect x="376" y="376" width="92" height="16" fill="#1d1a15"/><rect x="376" y="632" width="92" height="16" fill="#1d1a15"/><rect x="512" y="332" width="60" height="360" fill="#b8442a"/><rect x="496" y="316" width="92" height="16" fill="#b8442a"/><rect x="496" y="692" width="92" height="16" fill="#b8442a"/><rect x="632" y="392" width="60" height="240" fill="#1d1a15"/><rect x="616" y="376" width="92" height="16" fill="#1d1a15"/><rect x="616" y="632" width="92" height="16" fill="#1d1a15"/><rect x="752" y="452" width="60" height="120" fill="#1d1a15"/><rect x="736" y="436" width="92" height="16" fill="#1d1a15"/><rect x="736" y="572" width="92" height="16" fill="#1d1a15"/></g></svg><i>64</i></div>
+      <div class="sz"><svg width="32" height="32" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/><g><rect x="272" y="452" width="60" height="120" fill="#1d1a15"/><rect x="256" y="436" width="92" height="16" fill="#1d1a15"/><rect x="256" y="572" width="92" height="16" fill="#1d1a15"/><rect x="392" y="392" width="60" height="240" fill="#1d1a15"/><rect x="376" y="376" width="92" height="16" fill="#1d1a15"/><rect x="376" y="632" width="92" height="16" fill="#1d1a15"/><rect x="512" y="332" width="60" height="360" fill="#b8442a"/><rect x="496" y="316" width="92" height="16" fill="#b8442a"/><rect x="496" y="692" width="92" height="16" fill="#b8442a"/><rect x="632" y="392" width="60" height="240" fill="#1d1a15"/><rect x="616" y="376" width="92" height="16" fill="#1d1a15"/><rect x="616" y="632" width="92" height="16" fill="#1d1a15"/><rect x="752" y="452" width="60" height="120" fill="#1d1a15"/><rect x="736" y="436" width="92" height="16" fill="#1d1a15"/><rect x="736" y="572" width="92" height="16" fill="#1d1a15"/></g></svg><i>32</i></div>
+      <div class="sz"><svg width="16" height="16" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/><g><rect x="272" y="452" width="60" height="136" fill="#1d1a15"/><rect x="392" y="392" width="60" height="256" fill="#1d1a15"/><rect x="512" y="332" width="60" height="376" fill="#b8442a"/><rect x="632" y="392" width="60" height="256" fill="#1d1a15"/><rect x="752" y="452" width="60" height="136" fill="#1d1a15"/></g></svg><i>16</i></div>
+    </div>
+    <ul class="why">
+      <li>波形柱与衬线字脚（serif）同构——「音乐 × 排印」的双关</li>
+      <li>纯几何、左右对称，任何尺寸都最稳，16px 几乎无损</li>
+      <li>中间一柱朱红，视觉重心明确</li>
+    </ul>
+  </div>
+
+  <!-- ============ 方案三：黑胶 ============ -->
+  <div class="cand">
+    <div class="tag">方案三</div>
+    <h3>黑胶 · Vinyl</h3>
+    <div class="hero">
+      <svg width="300" height="300" viewBox="0 0 1024 1024">
+        <rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/>
+        <rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="rgba(29,26,21,.14)" stroke-width="3"/>
+        <circle cx="512" cy="512" r="290" fill="#1d1a15"/>
+        <circle cx="512" cy="512" r="252" fill="none" stroke="rgba(244,239,227,.28)" stroke-width="4"/>
+        <circle cx="512" cy="512" r="214" fill="none" stroke="rgba(244,239,227,.22)" stroke-width="4"/>
+        <circle cx="512" cy="512" r="176" fill="none" stroke="rgba(244,239,227,.16)" stroke-width="4"/>
+        <circle cx="512" cy="512" r="96" fill="#b8442a"/>
+        <circle cx="512" cy="512" r="14" fill="#f4efe3"/>
+      </svg>
+    </div>
+    <div class="ramp">
+      <div class="sz"><svg width="64" height="64" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/><circle cx="512" cy="512" r="290" fill="#1d1a15"/><circle cx="512" cy="512" r="252" fill="none" stroke="rgba(244,239,227,.28)" stroke-width="6"/><circle cx="512" cy="512" r="214" fill="none" stroke="rgba(244,239,227,.22)" stroke-width="6"/><circle cx="512" cy="512" r="176" fill="none" stroke="rgba(244,239,227,.16)" stroke-width="6"/><circle cx="512" cy="512" r="96" fill="#b8442a"/><circle cx="512" cy="512" r="14" fill="#f4efe3"/></svg><i>64</i></div>
+      <div class="sz"><svg width="32" height="32" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/><circle cx="512" cy="512" r="290" fill="#1d1a15"/><circle cx="512" cy="512" r="238" fill="none" stroke="rgba(244,239,227,.28)" stroke-width="10"/><circle cx="512" cy="512" r="96" fill="#b8442a"/><circle cx="512" cy="512" r="14" fill="#f4efe3"/></svg><i>32</i></div>
+      <div class="sz"><svg width="16" height="16" viewBox="0 0 1024 1024"><rect x="100" y="100" width="824" height="824" rx="185" fill="#f4efe3"/><circle cx="512" cy="512" r="290" fill="#1d1a15"/><circle cx="512" cy="512" r="110" fill="#b8442a"/><circle cx="512" cy="512" r="20" fill="#f4efe3"/></svg><i>16</i></div>
+    </div>
+    <ul class="why">
+      <li>唱片 = 收藏，直接呼应「个人音乐库 / NAS」的属性</li>
+      <li>圆形剪影最经典，但也是最常见的音乐图标套路，独特性一般</li>
+      <li>墨盘 + 朱红标心，与界面播放中的黑胶模式呼应</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer>
+  <span>纸 #f4efe3 · 墨 #1d1a15 · 朱 #b8442a</span>
+  <span>选定后重新生成全平台图标（icns/ico/png），发布 v1.5.1</span>
+</footer>
+
+</body>
+</html>

@@ -211,6 +211,12 @@ export function FullscreenPlayer() {
   // 已解析的实际封面 URL（可能来自服务器或自定义 API），由 CoverImage 的 onLoad 回调设置
   const [resolvedCoverUrl, setResolvedCoverUrl] = useState<string | undefined>(undefined)
 
+  // 切歌时重置取色状态：否则旧封面色会闪在新歌上；新歌无封面时旧晕染永久残留
+  useEffect(() => {
+    setResolvedCoverUrl(undefined)
+    setBleedColors(null)
+  }, [currentSong?.id])
+
   useEffect(() => {
     // 优先使用 resolvedCoverUrl（封面加载后触发），没有则用 coverUrl。
     // 并发取消由 colorExtract 内部的 cancelPendingColorExtraction 保证，沿用原行为。
