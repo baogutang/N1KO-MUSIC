@@ -9,6 +9,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { X, DotsSixVertical, Play } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { usePlayerStore } from '@/store/playerStore'
+import { useIsMobileLayout } from '@/lib/platform'
 import { formatDuration } from '@/utils/formatters'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -30,6 +31,7 @@ export function QueueDrawer() {
   const removeFromQueue = usePlayerStore(s => s.removeFromQueue)
   const reorderQueue    = usePlayerStore(s => s.reorderQueue)
   const clearQueue      = usePlayerStore(s => s.clearQueue)
+  const isMobile        = useIsMobileLayout()
 
   const [confirmClear, setConfirmClear] = useState(false)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -71,8 +73,16 @@ export function QueueDrawer() {
       {/* 透明遮罩：点击面板外区域关闭（只覆盖内容区，不遮挡报头与播放条） */}
       <div className="absolute inset-0 z-20" aria-hidden="true" onClick={() => setQueueOpen(false)} />
 
-      {/* 右侧滑出面板：停在内容区（不遮挡报头与播放条） */}
-      <div className="absolute inset-y-0 right-0 z-30 w-[320px] bg-paper border-l border-hair shadow-float flex flex-col animate-slide-in-right">
+      {/* 面板：桌面右侧滑出；移动端底部弹层（含底部安全区） */}
+      <div
+        className={cn(
+          'absolute z-30 bg-paper shadow-float flex flex-col',
+          isMobile
+            ? 'inset-x-0 bottom-0 max-h-[85%] border-t border-hair animate-slide-up'
+            : 'inset-y-0 right-0 w-[320px] border-l border-hair animate-slide-in-right'
+        )}
+        style={isMobile ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}
+      >
         {/* 头部：衬线标题 + 清空 / 关闭 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-hair flex-shrink-0">
           <h3 className="font-serif font-bold text-[17px]">播放队列</h3>

@@ -368,3 +368,31 @@ body {
     transform: translateX(4px) scale(0.995);
   }
 }
+
+/* ===================================================
+   移动端（Capacitor 原生壳 / 窄视口）
+   =================================================== */
+@media (max-width: 767px) {
+  /* 触控目标：去掉点按高亮与长按放大镜，滚动不回弹出 WebView 外 */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  html,
+  body {
+    overscroll-behavior: none;
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+  }
+  /* 移动端信息密度：收窄分区标题间距与字号 */
+  .section-head {
+    padding: 32px 0 12px;
+  }
+  .section-head h2 {
+    font-size: 22px;
+  }
+  .section-head h2 small {
+    letter-spacing: 0.2em;
+    margin-left: 10px;
+  }
+}

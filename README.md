@@ -144,7 +144,21 @@ Grab the installer for your platform from **[Releases](https://github.com/baogut
 | State and data | Zustand · TanStack Query v5 |
 | Audio engine | Native HTML5 Audio |
 | Desktop shell | Tauri 2 (Rust) |
+| Mobile shell | Capacitor 8 (Android · iOS) |
 | Optional sync service | Node.js 24 · Express · SQLite |
+
+### Mobile (Android / iOS)
+
+The same React frontend runs inside a Capacitor shell with native background playback and lock-screen controls.
+
+```bash
+cd frontend
+npm run cap:sync            # build web assets + sync native projects
+npx cap open android        # requires Android Studio / SDK
+npx cap open ios            # requires Xcode + CocoaPods
+```
+
+The `Mobile` GitHub Actions workflow (tag `v*` push or manual dispatch) builds an Android debug APK, an iOS simulator build and an unsigned iOS device package as downloadable artifacts. Release signing (Play keystore / Apple Developer certificate) can be added later without changing the workflow structure.
 
 ### Development
 

@@ -1,0 +1,65 @@
+/**
+ * 原生 App 集成（仅 Capacitor 原生壳生效）
+ * - Android 物理/手势返回：先关浮层（全屏播放器 / 队列），再路由后退，根路由退到桌面
+ * - 状态栏样式随主题（深/浅）
+ * - 首帧渲染后隐藏 SplashScreen
+ */
+
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { App } from '@capacitor/app'
+import { StatusBar, Style } from '@capacitor/status-bar'
+import { SplashScreen } from '@capacitor/splash-screen'
+import { usePlayerStore } from '@/store/playerStore'
+import { useThemeStore } from '@/store/themeStore'
+import { isNativePlatform } from '@/lib/platform'
+
+export function useNativeAppIntegration() {
+  const navigate = useNavigate()
+
+  // 首帧后隐藏启动屏
+  useEffect(() => {
+    if (!isNativePlatform) return
+    const timer = globalThis.setTimeout(() => {
+      SplashScreen.hide().catch(() => {})
+    }, 300)
+    return () => globalThis.clearTimeout(timer)
+  }, [])
+
+  // Android 返回键
+  useEffect(() => {
+    if (!isNativePlatform) return
+    const handle = App.addListener('backButton', () => {
+      const player = usePlayerStore.getState()
+      if (player.isFullscreen) {
+        player.toggleFullscreen()
+        return
+      }
+      if (player.isQueueOpen) {
+        player.setQueueOpen(false)
+        return
+      }
+      if (window.location.pathname !== '/') {
+        navigate(-1)
+        return
+      }
+      App.minimizeApp()
+    })
+    return () => {
+      handle.then(h => h.remove()).catch(() => {})
+    }
+  }, [navigate])
+
+  // 状态栏随主题
+  useEffect(() => {
+    if (!isNativePlatform) return
+    const apply = (theme: 'light' | 'dark') => {
+      StatusBar.setStyle({ style: theme === 'dark' ? Style.Dark : Style.Light }).catch(() => {})
+    }
+    apply(useThemeStore.getState().resolvedTheme)
+    const unsubscribe = useThemeStore.subscribe((state, prev) => {
+      if (state.resolvedTheme !== prev.resolvedTheme) apply(state.resolvedTheme)
+    })
+    return unsubscribe
+  }, [])
+}

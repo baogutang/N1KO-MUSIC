@@ -3,51 +3,56 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: './',
   plugins: [
     react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
-      manifest: {
-        name: 'N1KO MUSIC',
-        short_name: 'N1KO',
-        description: 'Modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby',
-        theme_color: '#f4efe3',
-        background_color: '#f4efe3',
-        display: 'standalone',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-        ],
-      },
-      workbox: {
-        // 避免 workbox-build 在某些 Node/terser 组合下构建阶段挂起（Unexpected early exit）
-        // 代价：SW 不做 terser 压缩，但功能不受影响
-        mode: 'development',
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
+    // Capacitor 原生壳内禁用 PWA/Service Worker（WebView 内 SW 缓存会导致资源陈旧）
+    ...(mode === 'capacitor'
+      ? []
+      : [
+          VitePWA({
+            registerType: 'autoUpdate',
+            includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+            manifest: {
+              name: 'N1KO MUSIC',
+              short_name: 'N1KO',
+              description: 'Modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby',
+              theme_color: '#f4efe3',
+              background_color: '#f4efe3',
+              display: 'standalone',
+              icons: [
+                {
+                  src: 'pwa-192x192.png',
+                  sizes: '192x192',
+                  type: 'image/png',
+                },
+                {
+                  src: 'pwa-512x512.png',
+                  sizes: '512x512',
+                  type: 'image/png',
+                },
+              ],
             },
-          },
-        ],
-      },
-    }),
+            workbox: {
+              // 避免 workbox-build 在某些 Node/terser 组合下构建阶段挂起（Unexpected early exit）
+              // 代价：SW 不做 terser 压缩，但功能不受影响
+              mode: 'development',
+              globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+              runtimeCaching: [
+                {
+                  urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+                  handler: 'CacheFirst',
+                  options: {
+                    cacheName: 'google-fonts-cache',
+                    expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+                    cacheableResponse: { statuses: [0, 200] },
+                  },
+                },
+              ],
+            },
+          }),
+        ]),
   ],
   resolve: {
     alias: {
@@ -80,4 +85,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

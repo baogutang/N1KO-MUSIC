@@ -1,0 +1,88 @@
+name: Mobile
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Android：debug APK（无需签名配置，可直接安装自测）
+  android-debug:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm run check:versions
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run build:mobile
+        working-directory: frontend
+      - run: npx cap sync android
+        working-directory: frontend
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build debug APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: N1KO-MUSIC-android-debug
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+
+  # iOS：① 模拟器 Debug build（验证可编译）② 未签名设备包（sideload 自签后可用）
+  ios-debug:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm run check:versions
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run build:mobile
+        working-directory: frontend
+      # cap sync 内含 pod install（macOS runner 自带 CocoaPods）
+      - run: npx cap sync ios
+        working-directory: frontend
+      - name: Build for iOS Simulator
+        working-directory: frontend/ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Debug -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build build
+      - name: Build unsigned device package
+        working-directory: frontend/ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Debug -destination generic/platform=iOS \
+            -derivedDataPath build-device \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir -p Payload
+          cp -r build-device/Build/Products/Debug-iphoneos/App.app Payload/
+          zip -qr N1KO-MUSIC-ios-unsigned.zip Payload
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: N1KO-MUSIC-ios-unsigned
+          path: frontend/ios/App/N1KO-MUSIC-ios-unsigned.zip

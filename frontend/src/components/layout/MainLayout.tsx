@@ -1,14 +1,16 @@
-import { Suspense, lazy, useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { TopBar } from './TopBar'
 import { Masthead } from './Masthead'
 import { TopNav } from './TopNav'
 import { PlayerBar } from './PlayerBar'
+import { MobileLayout } from './MobileLayout'
 import { QueueDrawer } from '@/components/player/QueueDrawer'
+import { FullscreenPlayerOverlay } from '@/components/player/FullscreenPlayerOverlay'
 import { useAudioEngine } from '@/hooks/useAudioEngine'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
-import { usePlayerStore } from '@/store/playerStore'
+import { useIsMobileLayout } from '@/lib/platform'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
@@ -16,32 +18,15 @@ import {
   prefetchFullscreenPlayer,
 } from '@/routes/lazyRoutes'
 
-const FullscreenPlayer = lazy(() =>
-  import('@/components/player/FullscreenPlayer').then(mod => ({ default: mod.FullscreenPlayer }))
-)
-
 export default function MainLayout() {
+  const isMobile = useIsMobileLayout()
+  return isMobile ? <MobileLayout /> : <DesktopLayout />
+}
+
+function DesktopLayout() {
   useAudioEngine()
   useMediaSession()
   useKeyboardShortcuts()
-
-  const isFullscreen = usePlayerStore(s => s.isFullscreen)
-
-  const [shouldMount, setShouldMount] = useState(false)
-  const [animateIn, setAnimateIn] = useState(false)
-
-  useEffect(() => {
-    if (isFullscreen) {
-      setShouldMount(true)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setAnimateIn(true))
-      })
-    } else {
-      setAnimateIn(false)
-      const timer = setTimeout(() => setShouldMount(false), 350)
-      return () => clearTimeout(timer)
-    }
-  }, [isFullscreen])
 
   useEffect(() => {
     const warmup = () => {
@@ -82,20 +67,7 @@ export default function MainLayout() {
         {/* 底部播放条：docked 在布局流内，不再浮空 */}
         <PlayerBar />
 
-        {shouldMount && (
-          <div
-            className="fixed inset-0 z-50 transition-all duration-300 ease-out"
-            style={{
-              opacity: animateIn ? 1 : 0,
-              transform: animateIn ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
-              pointerEvents: isFullscreen ? 'auto' : 'none',
-            }}
-          >
-            <Suspense fallback={<div className="absolute inset-0 bg-background/70" />}>
-              <FullscreenPlayer />
-            </Suspense>
-          </div>
-        )}
+        <FullscreenPlayerOverlay />
 
         <Toaster />
       </div>

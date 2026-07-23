@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
+import { isNativePlatform } from '@/lib/platform'
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -21,6 +22,8 @@ export function useKeyboardShortcuts() {
   const navigate = useNavigate()
 
   useEffect(() => {
+    // 原生移动端无键盘快捷键场景，直接不注册
+    if (isNativePlatform) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return
       if (isDialogOpen()) return

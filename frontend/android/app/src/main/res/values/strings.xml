@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">N1KO MUSIC</string>
+    <string name="title_activity_main">N1KO MUSIC</string>
+    <string name="package_name">cn.baogutang.musicstreampro</string>
+    <string name="custom_url_scheme">cn.baogutang.musicstreampro</string>
+</resources>
