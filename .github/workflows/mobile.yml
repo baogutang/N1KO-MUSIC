@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21' # Capacitor 8 Android 要求 JDK 21（sourceCompatibility VERSION_21）
       - name: Build debug APK
         working-directory: frontend/android
         run: ./gradlew assembleDebug --no-daemon
