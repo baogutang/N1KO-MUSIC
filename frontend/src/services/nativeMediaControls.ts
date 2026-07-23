@@ -33,8 +33,10 @@ export function useNativeMediaControls() {
     const createForCurrentSong = () => {
       const { currentSong, isPlaying, currentTime } = usePlayerStore.getState()
       if (!currentSong) return
+      // 256 封面：插件会把 bitmap 两次塞进 MediaSession metadata，
+      // 512 位图接近 Binder 事务上限（TransactionTooLargeException 闪退）
       const cover = currentSong.coverArt && hasAdapter()
-        ? getAdapter().getCoverUrl(currentSong.coverArt, 512)
+        ? getAdapter().getCoverUrl(currentSong.coverArt, 256)
         : ''
       CapacitorMusicControls.create({
         track: currentSong.title,
@@ -49,6 +51,16 @@ export function useNativeMediaControls() {
         hasScrubbing: true,
         duration: Math.round(currentSong.duration ?? 0),
         elapsed: Math.round(currentTime),
+        // Android 端 MusicControlsInfos 对所有字符串键做 getString（缺键抛 JSONException，
+        // create 会被 reject，通知/前台服务根本不会创建），必须全部传齐；
+        // 空串走插件内置的 android.R 媒体图标兜底
+        ticker: `${currentSong.title} · ${currentSong.artist}`,
+        playIcon: '',
+        pauseIcon: '',
+        prevIcon: '',
+        nextIcon: '',
+        closeIcon: '',
+        notificationIcon: '',
       }).then(() => {
         created = true
         lastElapsedPush = Date.now()

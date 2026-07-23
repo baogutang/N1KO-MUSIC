@@ -13,7 +13,7 @@ Connect to Navidrome / Subsonic / Jellyfin / Emby and read your private library 
 [![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 [![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=flat-square&color=555)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux%20·%20Android%20·%20iOS-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 
 <br/>
 
@@ -101,6 +101,13 @@ Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
 - Light and dark themes that follow the system; vinyl or square cover player modes
 - Built on Tauri 2: ~4MB installers, far lighter than Electron
 
+**Mobile app**
+
+- The same editorial interface, reshaped for touch: bottom navigation, mini player, safe-area aware
+- Background playback with lock-screen / notification controls on Android and iOS
+- Android back gesture, theme-aware status bar, haptic feedback on transport controls
+- Built on Capacitor 8 — one React codebase across desktop and mobile
+
 <br/>
 
 ## Supported servers
@@ -130,6 +137,15 @@ Grab the installer for your platform from **[Releases](https://github.com/baogut
 | macOS (Intel) | `N1KO.MUSIC_x.x.x_x64.dmg` |
 | Windows | `N1KO.MUSIC_x.x.x_x64-setup.exe` / `.msi` |
 | Linux | `.AppImage` / `.deb` |
+
+**Mobile** (built by the [Mobile workflow](https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml), download from the latest run's Artifacts):
+
+| Platform | Package | Notes |
+|------|--------|------|
+| Android | `N1KO-MUSIC-android-debug` → `app-debug.apk` | Debug build, installs directly (allow unknown sources) |
+| iOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | Unsigned; sideload with AltStore / Sideloadly |
+
+> Release-signed mobile builds (Play keystore / Apple Developer) are not set up yet — the workflow slots them in without structural changes.
 
 > On macOS, if you see "cannot verify the developer" on first launch, allow the app under System Settings → Privacy & Security.
 

@@ -13,7 +13,7 @@
 [![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 [![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=flat-square&color=555)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux%20·%20Android%20·%20iOS-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 
 <br/>
 
@@ -101,6 +101,13 @@ Navidrome / Subsonic / Jellyfin / Emby，即连即用。
 - 深浅主题跟随系统；黑胶 / 方形封面两种播放器形态
 - 基于 Tauri 2：安装包 ~4MB，内存占用远低于 Electron
 
+**移动应用**
+
+- 同一套杂志化界面，为触控重塑：底部导航、迷你播放器、安全区适配
+- Android / iOS 后台播放，锁屏与通知栏媒体控制
+- Android 返回手势、状态栏随主题、播放控制触感反馈
+- 基于 Capacitor 8，桌面与移动共用一套 React 代码
+
 <br/>
 
 ## 兼容服务器
@@ -131,6 +138,15 @@ Navidrome / Subsonic / Jellyfin / Emby，即连即用。
 | Windows | `N1KO.MUSIC_x.x.x_x64-setup.exe` / `.msi` |
 | Linux | `.AppImage` / `.deb` |
 
+**移动端**（由 [Mobile 工作流](https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml)构建，在最新一次运行的 Artifacts 中下载）：
+
+| 平台 | 安装包 | 说明 |
+|------|--------|------|
+| Android | `N1KO-MUSIC-android-debug` → `app-debug.apk` | Debug 包，直接安装（需允许未知来源） |
+| iOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | 未签名，需用 AltStore / Sideloadly 自签安装 |
+
+> 移动端的正式签名构建（Play keystore / Apple 开发者证书）暂未配置，工作流已预留扩展位。
+
 > macOS 首次打开如提示「无法验证开发者」，请在「系统设置 → 隐私与安全性」中允许打开。
 
 <br/>
@@ -144,6 +160,7 @@ Navidrome / Subsonic / Jellyfin / Emby，即连即用。
 | 状态与数据 | Zustand · TanStack Query v5 |
 | 音频引擎 | 原生 HTML5 Audio |
 | 桌面框架 | Tauri 2 (Rust) |
+| 移动框架 | Capacitor 8 (Android · iOS) |
 | 可选同步服务 | Node.js 24 · Express · SQLite |
 
 ### 本地开发
@@ -155,6 +172,19 @@ npm install
 npm run dev          # Web 开发模式
 npm run tauri:dev    # 桌面应用开发模式
 ```
+
+### 移动端（Android / iOS）
+
+同一套 React 前端跑在 Capacitor 壳内，带原生后台播放与锁屏控制。
+
+```bash
+cd frontend
+npm run cap:sync            # 构建 Web 资源并同步原生工程
+npx cap open android        # 需要 Android Studio / SDK
+npx cap open ios            # 需要 Xcode + CocoaPods
+```
+
+`Mobile` GitHub Actions 工作流（推 `v*` tag 或手动触发）产出 Android debug APK、iOS 模拟器构建与未签名设备包，可在 Artifacts 直接下载。
 
 ### 可选同步服务
 
