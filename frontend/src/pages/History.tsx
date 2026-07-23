@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Play, Trash } from '@phosphor-icons/react'
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
@@ -65,6 +65,13 @@ export default function History() {
     return acc
   }, {})
 
+  // entry -> 全局序号 预建索引，渲染时 O(1) 查询（替代 history.indexOf 的 O(n²)）
+  const globalIndexMap = useMemo(() => {
+    const map = new Map<ListeningEvent, number>()
+    history.forEach((entry, i) => map.set(entry, i))
+    return map
+  }, [history])
+
   function formatDateLabel(key: string): string {
     const [y, m, d] = key.split('-').map(Number)
     const date = new Date(y, m - 1, d)
@@ -126,7 +133,7 @@ export default function History() {
               {/* 曲目行：SongList 范式（mono 序号 + 小封面 + 衬线曲名 + 歌手 + mono 时长 + mono 播放时间） */}
               <div className="mt-1 divide-y divide-hair-soft">
                 {entries.map((entry, idx) => {
-                  const globalIndex = history.indexOf(entry)
+                  const globalIndex = globalIndexMap.get(entry) ?? 0
                   return (
                     <div
                       key={entry.eventId}

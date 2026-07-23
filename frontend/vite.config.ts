@@ -75,7 +75,6 @@ export default defineConfig({
           if (id.includes('react-router-dom')) return 'router'
           if (id.includes('@tanstack/react-query')) return 'react-query'
           if (id.includes('@radix-ui')) return 'radix-ui'
-          if (id.includes('lucide-react')) return 'icons'
           return 'vendor'
         },
       },

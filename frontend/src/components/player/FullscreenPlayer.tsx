@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
-import type { MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Play, Pause, SkipBack, SkipForward, Heart,
@@ -28,6 +28,7 @@ import { useLyricsQuery, useToggleStar } from '@/hooks/useServerQueries'
 import { useCoverUrl } from '@/hooks/useCoverUrl'
 import { LyricDisplay } from './LyricDisplay'
 import { CoverImage } from '@/components/common/CoverImage'
+import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
@@ -139,6 +140,21 @@ const FSProgressBar = memo(function FSProgressBar() {
     document.addEventListener('mouseup', onUp)
   }, [clearDragListeners])
 
+  // 键盘 seek：←/→ ±5s（全局快捷键的方向键绑定均需 meta 修饰，无冲突）
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    const target = Math.max(
+      0,
+      Math.min(
+        safeDurationRef.current,
+        usePlayerStore.getState().currentTime + (e.key === 'ArrowRight' ? 5 : -5)
+      )
+    )
+    releaseGuardRef.current = { target, until: performance.now() + 500 }
+    seekHowl(target)
+  }, [])
+
   return (
     <div className="w-full flex items-center gap-3">
       <span className="num text-[11.5px] text-ink-faint flex-none w-9">
@@ -149,6 +165,13 @@ const FSProgressBar = memo(function FSProgressBar() {
       <div
         ref={progressRef}
         onMouseDown={handleMouseDown}
+        onKeyDown={handleKeyDown}
+        role="slider"
+        tabIndex={0}
+        aria-label="播放进度"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(safeDuration)}
+        aria-valuenow={Math.round(displayTime)}
         className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none"
       >
         <div className="relative w-full h-[2px] bg-hair-soft">
@@ -534,31 +557,18 @@ export function FullscreenPlayer() {
                     <span className="num text-xs text-ink-soft">
                       {Math.round((muted ? 0 : volume) * 100)}%
                     </span>
-                    <div className="relative h-32 flex items-center justify-center w-6">
-                      <div className="absolute inset-x-0 top-0 bottom-0 flex items-center justify-center">
-                        <div className="w-[3px] h-full rounded-full bg-hair-soft" />
-                      </div>
-                      <div
-                        className="absolute bottom-0 inset-x-0 flex items-end justify-center"
-                        style={{ height: `${(muted ? 0 : volume) * 100}%` }}
-                      >
-                        <div className="w-[3px] rounded-full bg-primary" style={{ height: '100%' }} />
-                      </div>
-                      <input
-                        type="range" min={0} max={1} step={0.01}
-                        value={muted ? 0 : volume}
-                        onChange={e => {
-                          // setVolume 内部已将 muted 置为 false，这里不能再 toggleMute（会重新静音）
-                          setVolume(Number(e.target.value))
-                        }}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                        style={{ writingMode: 'vertical-lr', direction: 'rtl', width: '100%', height: '100%' }}
-                      />
-                      <div
-                        className="absolute w-3 h-3 rounded-full bg-primary pointer-events-none"
-                        style={{ bottom: `calc(${(muted ? 0 : volume) * 100}% - 6px)` }}
-                      />
-                    </div>
+                    <Slider
+                      orientation="vertical"
+                      value={[muted ? 0 : volume]}
+                      max={1}
+                      step={0.01}
+                      onValueChange={([v]) => {
+                        // setVolume 内部已将 muted 置为 false，这里不能再 toggleMute（会重新静音）
+                        setVolume(v)
+                      }}
+                      className="h-32"
+                      aria-label="音量"
+                    />
                     <button
                       onClick={toggleMute}
                       className="text-ink-soft hover:text-ink transition-colors active:scale-95"

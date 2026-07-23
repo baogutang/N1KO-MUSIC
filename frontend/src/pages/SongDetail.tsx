@@ -23,6 +23,7 @@ import { useLyricCacheStore } from '@/store/o3icCacheStore'
 import { useSongDetail } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { formatDuration, formatFileSize } from '@/utils/formatters'
 import type { Song } from '@/api/types'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
@@ -611,19 +612,4 @@ export default function SongDetailPage() {
       />
     </div>
   )
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
-}
-
-function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = Math.floor(seconds % 60)
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  return `${m}:${String(s).padStart(2, '0')}`
 }

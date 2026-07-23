@@ -472,7 +472,7 @@ export default function Settings() {
               aria-label="翻译类型"
               className="h-9 bg-transparent border-0 border-b border-hair rounded-none text-sm text-ink-soft cursor-pointer focus:outline-none focus:border-primary"
             >
-              {['无', '没有内置山误', '不内置'].map(t => (
+              {['无', '没有内置翻译', '不内置'].map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>

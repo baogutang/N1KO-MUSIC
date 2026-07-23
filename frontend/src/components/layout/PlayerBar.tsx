@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, memo, useRef, useState } from 'react'
-import type { MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import {
   Play, Pause, SkipBack, SkipForward, SpeakerHigh, SpeakerX,
   SpeakerLow, Heart, Queue, Repeat, RepeatOnce,
@@ -115,6 +115,21 @@ const ProgressBar = memo(function ProgressBar() {
     document.addEventListener('mouseup', onUp)
   }, [clearDragListeners])
 
+  // 键盘 seek：←/→ ±5s（全局快捷键的方向键绑定均需 meta 修饰，无冲突）
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    const target = Math.max(
+      0,
+      Math.min(
+        safeDurationRef.current,
+        usePlayerStore.getState().currentTime + (e.key === 'ArrowRight' ? 5 : -5)
+      )
+    )
+    releaseGuardRef.current = { target, until: performance.now() + 500 }
+    seekHowl(target)
+  }, [])
+
   return (
     <div className="flex items-center gap-2.5 w-[clamp(240px,32vw,420px)]">
       <span className="font-num text-[11px] text-ink-faint flex-none w-9 text-right">
@@ -125,6 +140,13 @@ const ProgressBar = memo(function ProgressBar() {
       <div
         ref={progressRef}
         onMouseDown={handleMouseDown}
+        onKeyDown={handleKeyDown}
+        role="slider"
+        tabIndex={0}
+        aria-label="播放进度"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(safeDuration)}
+        aria-valuenow={Math.round(displayTime)}
         className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none"
       >
         <div className="relative w-full h-[3px] rounded-full overflow-hidden bg-hair-soft">

@@ -5,7 +5,7 @@
  * 支持拖拽排序、删除、清空（二次确认）
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { X, DotsSixVertical, Play } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { usePlayerStore } from '@/store/playerStore'
@@ -35,6 +35,18 @@ export function QueueDrawer() {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
 
+  // ESC 关闭；模态对话框（如清空确认）打开时让位给对话框自身的 ESC 处理
+  useEffect(() => {
+    if (!isQueueOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      setQueueOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isQueueOpen, setQueueOpen])
+
   const handleDragStart = useCallback((index: number) => {
     setDragIndex(index)
   }, [])
@@ -56,6 +68,9 @@ export function QueueDrawer() {
 
   return (
     <>
+      {/* 透明遮罩：点击面板外区域关闭（只覆盖内容区，不遮挡报头与播放条） */}
+      <div className="absolute inset-0 z-20" aria-hidden="true" onClick={() => setQueueOpen(false)} />
+
       {/* 右侧滑出面板：停在内容区（不遮挡报头与播放条） */}
       <div className="absolute inset-y-0 right-0 z-30 w-[320px] bg-paper border-l border-hair shadow-float flex flex-col animate-slide-in-right">
         {/* 头部：衬线标题 + 清空 / 关闭 */}

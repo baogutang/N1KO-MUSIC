@@ -4,6 +4,7 @@
  * - 歌手名 / 专辑名点击跳转对应页面
  * - 喜欢按钮调用 star/unstar API
  * - 右键菜单 / 更多菜单展示歌曲详情
+ * - 「添加到歌单」：页面传 onPlaylistAdd 时走外部逻辑，缺省时内建 AddToPlaylistDialog
  * - SongRow 用 React.memo 包装，避免父组件更新时全列表重渲染
  */
 
@@ -23,6 +24,7 @@ import {
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
@@ -45,8 +47,6 @@ interface SongListProps {
   showAlbum?: boolean
   /** 是否显示行号 */
   showIndex?: boolean
-  /** 当前上下文歌单标题 */
-  contextTitle?: string
   className?: string
   onPlaylistAdd?: (song: Song) => void
 }
@@ -82,28 +82,47 @@ export function SongList({
     playQueueRef.current(songsRef.current, index)
   }, []) // 空依赖——通过 ref 访问最新值，函数引用永远稳定
 
-  return (
-    <div className={cn('border-t border-hair divide-y divide-hair-soft', className)}>
-      {songs.map((song, index) => {
-        const isCurrentSong = currentSongId === song.id
+  // 「添加到歌单」：页面传了 onPlaylistAdd 走外部逻辑；缺省时内建 AddToPlaylistDialog。
+  // dialog 状态提升在列表层（非每行），保持 SongRow 的 memo 结构
+  const [playlistAddSong, setPlaylistAddSong] = React.useState<Song | null>(null)
+  const handlePlaylistAdd = useCallback((song: Song) => {
+    if (onPlaylistAdd) {
+      onPlaylistAdd(song)
+    } else {
+      setPlaylistAddSong(song)
+    }
+  }, [onPlaylistAdd])
 
-        return (
-          <SongRow
-            key={song.id + '-' + index}
-            song={song}
-            index={index}
-            isCurrentSong={isCurrentSong}
-            isPlaying={isPlaying && isCurrentSong}
-            coverUrl={coverUrls[index]}
-            showCover={showCover}
-            showAlbum={showAlbum}
-            showIndex={showIndex}
-            onPlayIndex={handlePlayIndex}
-            onPlaylistAdd={onPlaylistAdd}
-          />
-        )
-      })}
-    </div>
+  return (
+    <>
+      <div className={cn('border-t border-hair divide-y divide-hair-soft', className)}>
+        {songs.map((song, index) => {
+          const isCurrentSong = currentSongId === song.id
+
+          return (
+            <SongRow
+              key={song.id + '-' + index}
+              song={song}
+              index={index}
+              isCurrentSong={isCurrentSong}
+              isPlaying={isPlaying && isCurrentSong}
+              coverUrl={coverUrls[index]}
+              showCover={showCover}
+              showAlbum={showAlbum}
+              showIndex={showIndex}
+              onPlayIndex={handlePlayIndex}
+              onPlaylistAdd={handlePlaylistAdd}
+            />
+          )
+        })}
+      </div>
+
+      <AddToPlaylistDialog
+        open={playlistAddSong !== null}
+        onOpenChange={open => { if (!open) setPlaylistAddSong(null) }}
+        songs={playlistAddSong ? [playlistAddSong] : []}
+      />
+    </>
   )
 }
 
@@ -230,7 +249,8 @@ const SongRow = React.memo(function SongRow({
           {song.title}
         </p>
         <p className="text-xs text-ink-soft line-clamp-1 mt-0.5">
-          <span
+          <button
+            type="button"
             onClick={handleNavigateArtist}
             className={cn(
               'transition-colors',
@@ -238,7 +258,7 @@ const SongRow = React.memo(function SongRow({
             )}
           >
             {song.artist}
-          </span>
+          </button>
         </p>
       </div>
 
@@ -246,7 +266,8 @@ const SongRow = React.memo(function SongRow({
       {showAlbum && (
         <div className="hidden lg:block flex-1 min-w-0 px-4">
           <p className="text-xs text-ink-faint line-clamp-1">
-            <span
+            <button
+              type="button"
               onClick={handleNavigateAlbum}
               className={cn(
                 'transition-colors',
@@ -254,7 +275,7 @@ const SongRow = React.memo(function SongRow({
               )}
             >
               {song.album}
-            </span>
+            </button>
           </p>
         </div>
       )}

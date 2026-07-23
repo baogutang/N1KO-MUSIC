@@ -49,7 +49,13 @@ export function Masthead() {
                 N1KO MUSIC
               </span>
               <span className="flex items-center gap-1.5 text-[11px] tracking-[0.18em] text-ink-soft group-hover:text-foreground transition-colors duration-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" aria-hidden="true" />
+                <span
+                  className={cn(
+                    'w-1.5 h-1.5 rounded-full flex-shrink-0',
+                    activeServer ? 'bg-primary' : 'bg-ink-faint'
+                  )}
+                  aria-hidden="true"
+                />
                 <span className="max-w-[180px] truncate">
                   {activeServer ? activeServer.name : '未连接'}
                 </span>

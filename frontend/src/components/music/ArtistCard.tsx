@@ -23,8 +23,9 @@ export function ArtistCard({ artist, className }: ArtistCardProps) {
       : undefined)
 
   return (
-    <div
-      className={cn('group cursor-pointer text-center min-w-0', className)}
+    <button
+      type="button"
+      className={cn('group cursor-pointer text-center min-w-0 w-full', className)}
       onClick={() => navigate(`/artists/${artist.id}`)}
     >
       {/* 圆形头像：发丝 ring，hover 微放大 */}
@@ -47,6 +48,6 @@ export function ArtistCard({ artist, className }: ArtistCardProps) {
           <span className="font-num">{artist.albumCount}</span> 张专辑
         </p>
       )}
-    </div>
+    </button>
   )
 }

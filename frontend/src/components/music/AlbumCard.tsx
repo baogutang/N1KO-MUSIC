@@ -51,8 +51,16 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={cn('group cursor-pointer min-w-0', className)}
       onClick={() => navigate(`/albums/${album.id}`)}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          navigate(`/albums/${album.id}`)
+        }
+      }}
     >
       {/* 封面：无卡片盒，hover 微放大 + 唯一允许的淡投影 */}
       <div className="relative mb-2.5">

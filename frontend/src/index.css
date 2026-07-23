@@ -231,26 +231,9 @@ body {
     border: 1px solid rgb(var(--hair));
   }
 
-  .glass-card {
-    background: hsl(var(--popover) / 0.95);
-  }
-
   /* 浮层淡投影（DESIGN §1.3 唯一允许的投影） */
   .shadow-float {
     box-shadow: var(--shadow-float);
-  }
-
-  /* 1px 发丝分隔线 */
-  .hairline {
-    height: 1px;
-    border: 0;
-    background: rgb(var(--hair));
-  }
-
-  .hairline-soft {
-    height: 1px;
-    border: 0;
-    background: rgb(var(--hair-soft));
   }
 
   /* 文字截断 */
@@ -369,15 +352,6 @@ body {
     color: rgb(var(--accent));
   }
 
-  /* 专辑/歌单卡：去盒化，hover 微放大（封面即内容，DESIGN §3） */
-  .music-card {
-    @apply rounded-md overflow-hidden transition-transform duration-300 cursor-pointer;
-  }
-
-  .music-card:hover {
-    transform: scale(1.03);
-  }
-
   /* 歌曲行：编号编辑列表（DESIGN §3「列表即网格」）
      hover：底色 paper-deep + 内容右移 4px，200ms var(--ease) */
   .song-row {
@@ -392,22 +366,5 @@ body {
 
   .song-row:active {
     transform: translateX(4px) scale(0.995);
-  }
-
-  /* 封面图片容器：发丝内描边 */
-  .cover-container {
-    @apply relative overflow-hidden rounded-md flex-shrink-0
-           ring-1 ring-border;
-    background: hsl(var(--muted));
-  }
-
-  /* 渐变遮罩 */
-  .gradient-overlay {
-    background: linear-gradient(
-      to bottom,
-      transparent 0%,
-      hsl(var(--background) / 0.8) 70%,
-      hsl(var(--background)) 100%
-    );
   }
 }
