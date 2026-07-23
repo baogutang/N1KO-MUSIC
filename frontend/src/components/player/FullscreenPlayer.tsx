@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
-import type { KeyboardEvent, MouseEvent } from 'react'
+import type { KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Play, Pause, SkipBack, SkipForward, Heart,
@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
 import { useThemeStore } from '@/store/themeStore'
+import { useIsMobileLayout } from '@/lib/platform'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useLyricsQuery, useToggleStar } from '@/hooks/useServerQueries'
 import { useCoverUrl } from '@/hooks/useCoverUrl'
@@ -86,17 +87,17 @@ const FSProgressBar = memo(function FSProgressBar() {
 
   const progressRef = useRef<HTMLDivElement>(null)
   const safeDurationRef = useRef(safeDuration)
-  const dragMoveRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
-  const dragUpRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
+  const dragMoveRef = useRef<((e: globalThis.PointerEvent) => void) | null>(null)
+  const dragUpRef = useRef<((e: globalThis.PointerEvent) => void) | null>(null)
   safeDurationRef.current = safeDuration
 
   const clearDragListeners = useCallback(() => {
     if (dragMoveRef.current) {
-      document.removeEventListener('mousemove', dragMoveRef.current)
+      document.removeEventListener('pointermove', dragMoveRef.current)
       dragMoveRef.current = null
     }
     if (dragUpRef.current) {
-      document.removeEventListener('mouseup', dragUpRef.current)
+      document.removeEventListener('pointerup', dragUpRef.current)
       dragUpRef.current = null
     }
   }, [])
@@ -113,7 +114,8 @@ const FSProgressBar = memo(function FSProgressBar() {
     }
   }, [clearDragListeners])
 
-  const handleMouseDown = useCallback((e: MouseEvent<HTMLDivElement>) => {
+  // Pointer Events 同时覆盖鼠标与触屏；touch-action:none 防止拖动时页面滚动
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     const rect = progressRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -121,11 +123,11 @@ const FSProgressBar = memo(function FSProgressBar() {
     // 按下时只更新本地拖动值，不 seek 音频，避免 timeupdate 与拖动位置互相覆盖
     setDragValue(getR(e.clientX) * safeDurationRef.current)
 
-    const onMove = (me: globalThis.MouseEvent) => {
+    const onMove = (me: globalThis.PointerEvent) => {
       // 拖动过程中只更新本地视觉进度，不触发音频 seek
       setDragValue(getR(me.clientX) * safeDurationRef.current)
     }
-    const onUp = (me: globalThis.MouseEvent) => {
+    const onUp = (me: globalThis.PointerEvent) => {
       // 松开时才实际 seek 音频
       const target = getR(me.clientX) * safeDurationRef.current
       releaseGuardRef.current = { target, until: performance.now() + 500 }
@@ -136,8 +138,8 @@ const FSProgressBar = memo(function FSProgressBar() {
     clearDragListeners()
     dragMoveRef.current = onMove
     dragUpRef.current = onUp
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
   }, [clearDragListeners])
 
   // 键盘 seek：←/→ ±5s（全局快捷键的方向键绑定均需 meta 修饰，无冲突）
@@ -164,7 +166,7 @@ const FSProgressBar = memo(function FSProgressBar() {
       {/* 2px 细进度轨，hover 浮现 accent 小圆点 */}
       <div
         ref={progressRef}
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
         onKeyDown={handleKeyDown}
         role="slider"
         tabIndex={0}
@@ -172,7 +174,7 @@ const FSProgressBar = memo(function FSProgressBar() {
         aria-valuemin={0}
         aria-valuemax={Math.round(safeDuration)}
         aria-valuenow={Math.round(displayTime)}
-        className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none"
+        className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none touch-none"
       >
         <div className="relative w-full h-[2px] bg-hair-soft">
           {/* 缓冲进度层（发丝色）*/}
@@ -220,6 +222,9 @@ export function FullscreenPlayer() {
 
   const [showVolumePanel, setShowVolumePanel] = useState(false)
   const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false)
+  const isMobile = useIsMobileLayout()
+  // 移动端封面 / 歌词 视图切换（桌面双列布局歌词常显，无需切换）
+  const [mobileView, setMobileView] = useState<'cover' | 'lyrics'>('cover')
 
   const resolvedTheme = useThemeStore(s => s.resolvedTheme)
   const isLight = resolvedTheme === 'light'
@@ -319,11 +324,15 @@ export function FullscreenPlayer() {
         }}
       />
 
-      {/* 顶部栏：左收起 / 中央「正在播放」+ 曲名 / 右更多 — Mac 上多留 padding 避开红黄绿按钮 */}
-      <div className={cn(
-        "flex items-center justify-between px-6 pb-3 flex-shrink-0 relative z-10 border-b border-hair-soft",
-        isMac ? "pt-12" : "pt-5"
-      )}>
+      {/* 顶部栏：左收起 / 中央「正在播放」+ 曲名 / 右更多 — Mac 上多留 padding 避开红黄绿按钮；
+          移动端避让状态栏安全区 */}
+      <div
+        className={cn(
+          "flex items-center justify-between px-6 pb-3 flex-shrink-0 relative z-10 border-b border-hair-soft",
+          isMac ? "pt-12" : "pt-5"
+        )}
+        style={isMobile ? { paddingTop: 'max(env(safe-area-inset-top), 12px)' } : undefined}
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <button onClick={toggleFullscreen} className={cn(lineCircleBtn, 'w-9 h-9')}>
@@ -400,7 +409,153 @@ export function FullscreenPlayer() {
         </DropdownMenu>
       </div>
 
-      {/* 主内容区：左列封面+信息+控制（max 440px）｜右列歌词流 */}
+      {/* 移动端：单列布局（封面 / 歌词 切换视图），避让系统安全区 */}
+      {isMobile ? (
+        <div
+          className="flex flex-1 min-h-0 flex-col px-6 relative z-10"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
+        >
+          {/* 封面 / 歌词 切换（沿用 TopNav 的 accent 短划线语言） */}
+          <div className="flex items-center justify-center gap-8 flex-none pt-1 pb-2">
+            {(['cover', 'lyrics'] as const).map(view => (
+              <button
+                key={view}
+                onClick={() => setMobileView(view)}
+                className={cn(
+                  'relative py-1.5 text-[13px] font-medium tracking-[0.08em] transition-colors duration-200',
+                  mobileView === view
+                    ? "text-primary after:absolute after:left-1/2 after:-translate-x-1/2 after:bottom-0 after:w-5 after:h-[2px] after:bg-primary after:content-['']"
+                    : 'text-ink-soft'
+                )}
+              >
+                {view === 'cover' ? '封面' : '歌词'}
+              </button>
+            ))}
+          </div>
+
+          {mobileView === 'cover' ? (
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-5">
+              <div
+                className={cn(
+                  'relative aspect-square w-full max-w-[min(68vw,30vh)] overflow-hidden shadow-float',
+                  isCircle ? 'rounded-full animate-spin-vinyl' : 'rounded-md'
+                )}
+                style={isCircle ? { animationPlayState: isPlaying ? 'running' : 'paused' } : undefined}
+              >
+                <CoverImage
+                  key={currentSong.id}
+                  primary={coverUrl}
+                  fallback={coverFallback}
+                  alt={currentSong.album}
+                  className="w-full h-full"
+                  eager
+                  customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
+                  onImageResolved={setResolvedCoverUrl}
+                />
+              </div>
+
+              <div className="w-full text-center">
+                <p className="font-serif font-black text-[21px] leading-[1.25] tracking-[-0.01em] text-ink line-clamp-2">
+                  {currentSong.title}
+                </p>
+                <div className="flex items-center justify-center gap-1.5 mt-1.5 text-[13px] tracking-[0.05em] text-ink-soft">
+                  {currentSong.artist && (
+                    <button
+                      onClick={handleNavigateArtist}
+                      className={currentSong.artistId ? whoLinkCls : 'truncate cursor-default'}
+                    >
+                      {currentSong.artist}
+                    </button>
+                  )}
+                  {currentSong.artist && currentSong.album && (
+                    <span className="flex-none text-ink-faint">·</span>
+                  )}
+                  {currentSong.album && (
+                    <button
+                      onClick={handleNavigateAlbum}
+                      className={currentSong.albumId ? whoLinkCls : 'truncate cursor-default'}
+                    >
+                      {currentSong.album}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setPlaylistDialogOpen(true)}
+                  className={cn(lineCircleBtn, 'w-8 h-8')}
+                  aria-label="添加到歌单"
+                >
+                  <Queue size={16} />
+                </button>
+                <button
+                  onClick={handleToggleStar}
+                  disabled={toggleStar.isPending}
+                  className={cn(
+                    lineCircleBtn,
+                    'w-8 h-8',
+                    currentSong.starred && 'text-primary border-primary'
+                  )}
+                  aria-label={currentSong.starred ? '取消喜欢' : '加入喜欢'}
+                >
+                  <Heart size={16} weight={currentSong.starred ? 'fill' : 'regular'} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 flex flex-col">
+              {lyrics ? (
+                <LyricDisplay
+                  lines={lyrics.lines}
+                  variant="fullscreen"
+                  className="flex-1 min-h-0"
+                />
+              ) : (
+                <div className="flex-1" />
+              )}
+            </div>
+          )}
+
+          <div className="flex-none pt-3 flex flex-col gap-4">
+            <FSProgressBar />
+            {/* 传输键组：手机有物理音量键，省掉音量按钮避免换行 */}
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={toggleShuffle}
+                className={cn(lineCircleBtn, 'w-9 h-9', shuffle && 'text-primary border-primary')}
+                aria-label={shuffle ? '随机播放' : '顺序播放'}
+              >
+                {shuffle ? <Shuffle size={17} /> : <ArrowsDownUp size={17} />}
+              </button>
+              <button onClick={handlePrev} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label="上一首">
+                <SkipBack size={20} />
+              </button>
+              <button
+                onClick={togglePlay}
+                className="w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform duration-200"
+                aria-label={isPlaying ? '暂停' : '播放'}
+              >
+                {isPlaying
+                  ? <Pause size={22} weight="fill" />
+                  : <Play size={22} weight="fill" className="ml-0.5" />
+                }
+              </button>
+              <button onClick={next} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label="下一首">
+                <SkipForward size={20} />
+              </button>
+              <button
+                onClick={cycleRepeatMode}
+                className={cn(lineCircleBtn, 'w-9 h-9', repeatMode !== 'none' && 'text-primary border-primary')}
+                aria-label={repeatLabel}
+              >
+                {repeatMode === 'one' ? <RepeatOnce size={17} /> : <Repeat size={17} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+      /* 桌面端：左列封面+信息+控制（max 440px）｜右列歌词流 */
       <div className="flex flex-1 min-h-0 items-center justify-center gap-16 xl:gap-24 px-10 pb-8 relative z-10 w-full max-w-[1360px] mx-auto">
         {/* 左列 */}
         <div className="w-full max-w-[min(440px,52vh)] flex-none flex flex-col gap-6">
@@ -617,6 +772,7 @@ export function FullscreenPlayer() {
           )}
         </div>
       </div>
+      )}
 
       <AddToPlaylistDialog
         open={playlistDialogOpen}
