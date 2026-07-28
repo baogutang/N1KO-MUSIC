@@ -52,7 +52,8 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      {/* v7 起 startTransition 与 relativeSplatPath 已是默认行为，future 开关随之移除 */}
+      <BrowserRouter>
         <Suspense fallback={<RouteLoading />}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />

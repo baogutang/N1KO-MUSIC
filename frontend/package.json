@@ -1,6 +1,6 @@
 {
   "name": "n1ko-music",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "A modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby",
   "private": true,
   "type": "module",
@@ -54,7 +54,7 @@
     "md5": "^2.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.24.1",
+    "react-router-dom": "^7.18.1",
     "tailwind-merge": "^2.4.0",
     "tailwindcss-animate": "^1.0.7",
     "zustand": "^4.5.4"

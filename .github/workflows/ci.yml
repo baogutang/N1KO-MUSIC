@@ -31,8 +31,8 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
-      - run: npm audit --omit=dev
-        working-directory: frontend
+      # 带例外清单的审计：未登记的公告仍会让 CI 失败，详见 scripts/audit-allowlist.mjs
+      - run: npm run audit:check -- frontend
 
   backend:
     runs-on: ubuntu-22.04
@@ -47,8 +47,7 @@ jobs:
         working-directory: backend
       - run: npm test
         working-directory: backend
-      - run: npm audit --omit=dev
-        working-directory: backend
+      - run: npm run audit:check -- backend
       - run: docker build -t n1ko-music-backend:ci backend
 
   desktop:
