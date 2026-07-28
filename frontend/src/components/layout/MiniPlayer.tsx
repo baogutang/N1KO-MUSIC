@@ -66,6 +66,7 @@ export function MiniPlayer() {
               fallbackType="album"
               className="w-full h-full"
               eager
+              songId={currentSong.id}
               customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
             />
           </span>

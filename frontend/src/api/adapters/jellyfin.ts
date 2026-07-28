@@ -360,6 +360,53 @@ export class JellyfinAdapter implements MusicServerAdapter {
     return ((resp.data.Items ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
   }
 
+  /** 定向候选：失败时返回空数组，由推荐逻辑回退到随机候选 */
+  private async audioItems(extra: Record<string, unknown>): Promise<Song[]> {
+    try {
+      const resp = await this.client.get('/Items', {
+        params: this.itemsParams({
+          IncludeItemTypes: 'Audio',
+          Fields: 'MediaStreams,RunTimeTicks,UserData,Genres,ImageTags',
+          ...extra,
+        }),
+      })
+      return ((resp.data.Items ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
+    } catch {
+      return []
+    }
+  }
+
+  async getArtistSongs(artist: { id?: string; name: string }, count = 30): Promise<Song[]> {
+    if (!artist.id && !artist.name) return []
+    return this.audioItems({
+      ...(artist.id ? { ArtistIds: artist.id } : { Artists: artist.name }),
+      SortBy: 'PlayCount,SortName',
+      SortOrder: 'Descending',
+      Limit: count,
+    })
+  }
+
+  async getGenreSongs(genre: string, count = 30): Promise<Song[]> {
+    if (!genre) return []
+    return this.audioItems({ Genres: genre, SortBy: 'Random', Limit: count })
+  }
+
+  async getSimilarSongs(songId: string, count = 30): Promise<Song[]> {
+    if (!songId) return []
+    try {
+      const resp = await this.client.get(`/Items/${songId}/Similar`, {
+        params: {
+          UserId: this.userId,
+          Fields: 'MediaStreams,RunTimeTicks,UserData,Genres,ImageTags',
+          Limit: count,
+        },
+      })
+      return ((resp.data.Items ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
+    } catch {
+      return []
+    }
+  }
+
   async getArtists(): Promise<Artist[]> {
     const resp = await this.client.get('/Artists', {
       params: {

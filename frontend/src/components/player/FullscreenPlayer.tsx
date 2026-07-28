@@ -288,7 +288,7 @@ export function FullscreenPlayer() {
   const handleToggleStar = () => {
     if (!currentSong) return
     toggleStar.mutate(
-      { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred },
+      { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong },
       { onSuccess: () => updateCurrentSong({ starred: !currentSong.starred }) }
     )
   }
@@ -449,6 +449,7 @@ export function FullscreenPlayer() {
                   alt={currentSong.album}
                   className="w-full h-full"
                   eager
+                  songId={currentSong.id}
                   customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
                   onImageResolved={setResolvedCoverUrl}
                 />
@@ -576,6 +577,7 @@ export function FullscreenPlayer() {
               alt={currentSong.album}
               className="w-full h-full"
               eager
+              songId={currentSong.id}
               customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
               onImageResolved={setResolvedCoverUrl}
             />

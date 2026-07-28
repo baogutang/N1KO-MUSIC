@@ -39,6 +39,15 @@ import {
   upsertListeningEvent,
   type ListeningOutcome,
 } from '@/services/listeningHistory'
+import {
+  accumulateListenedDelta,
+  buildLoadedKey,
+  getFiniteDuration,
+  isAtBufferedTail,
+  isNearEndOfTrack,
+  isPrematureEnd,
+  parseLoadedKey,
+} from '@/utils/audioEngine'
 
 /**
  * 强制中止所有未完成的 <img> HTTP 请求，立即释放同源连接池
@@ -170,27 +179,6 @@ export function seekHowl(time: number) {
   }
 }
 
-/**
- * 尝试从 audio.duration 读取有效时长，返回 null 表示无法获取
- * 流媒体在未完全缓冲时 duration 为 Infinity，此时返回 null
- */
-function getFiniteDuration(audio: HTMLAudioElement): number | null {
-  const d = audio.duration
-  if (isFinite(d) && d > 0) return d
-  return null
-}
-
-/** 缓冲是否已覆盖到当前播放时间附近（后面几乎无数据）*/
-function isAtBufferedTail(audio: HTMLAudioElement, currentTime: number, gapSec = 0.45): boolean {
-  try {
-    if (audio.buffered.length === 0) return true
-    const end = audio.buffered.end(audio.buffered.length - 1)
-    return end - currentTime < gapSec
-  } catch {
-    return true
-  }
-}
-
 export function useAudioEngine() {
   const currentSong = usePlayerStore(s => s.currentSong)
   const currentSongId = currentSong?.id ?? null
@@ -256,7 +244,7 @@ export function useAudioEngine() {
       return
     }
 
-    const currentKey = `${activeServerId}:${songId}@${effectiveQuality}@${playVersion}`
+    const currentKey = buildLoadedKey(activeServerId, songId, effectiveQuality, playVersion)
 
     // 捕获当前歌曲 id，供 debounce 内校验
     const capturedSongId = songId
@@ -452,8 +440,8 @@ export function useAudioEngine() {
 
         // 累计实际收听时长：只计入正常前进的小增量，seek 造成的跳变不算收听
         if (playStatKey === capturedKey) {
-          const delta = t - listenedPrevT
-          if (listenedPrevT >= 0 && delta > 0 && delta < 2) {
+          const delta = accumulateListenedDelta(listenedPrevT, t)
+          if (delta > 0) {
             listenedSec += delta
             maybeSubmitPlay()
             // 长时间播放中偶发多次网络抖动：连续健康播放 30s 后补满恢复预算，
@@ -551,7 +539,6 @@ export function useAudioEngine() {
       const STALL_ADVANCE_MS = 5000
       /** 中途（非结尾）缓冲耗尽的停滞：多等一会儿再保位重载，给浏览器自愈机会 */
       const MID_STALL_RELOAD_MS = 8000
-      const NEAR_END_RATIO = 0.97
 
       const clearStallWatch = () => {
         if (stallWatchInterval !== null) {
@@ -569,9 +556,7 @@ export function useAudioEngine() {
         // 注意此分支不能清掉停滞看门狗：恢复后的流仍需监护
         const metaDur = capturedSong.duration || 0
         const endT = bestKnownTime()
-        const premature =
-          metaDur >= 30 && endT > 0 && metaDur - endT > 20 && endT / metaDur < 0.9
-        if (premature && recoverAttempts < maxRecoverAttempts) {
+        if (isPrematureEnd(endT, metaDur) && recoverAttempts < maxRecoverAttempts) {
           recoverAttempts += 1
           healthyPlaySec = 0
           reloadForRecovery(
@@ -622,14 +607,9 @@ export function useAudioEngine() {
         const songDur = capturedSong.duration || 0
         const audioDur = getFiniteDuration(audio) ?? st.duration ?? 0
         const refDur = Math.max(songDur, audioDur)
-        // 仅在「有可靠时长且接近结尾」时才允许自动推进，避免 duration 缺失导致误判从头播
-        const durReliable = isFinite(refDur) && refDur >= 20
-        const remain = refDur - t
-        const nearEnd =
-          durReliable &&
-          ((remain <= 6 && t > 10) || (refDur > 60 && t / refDur >= NEAR_END_RATIO))
 
-        if (nearEnd) {
+        // 仅在「有可靠时长且接近结尾」时才允许自动推进，避免 duration 缺失导致误判从头播
+        if (isNearEndOfTrack(t, refDur)) {
           console.warn(
             '[AudioEngine] Stalled at buffer tail near end (metadata longer than stream); advancing next()',
             { currentTime: t, songDur, audioDur }
@@ -857,12 +837,12 @@ export function useAudioEngine() {
       // 识别「同曲同版本、仅音质变化」的重载（loadedKey 格式 songId@quality@version，
       // songId 可能含 @，从右侧解析）：这类重载必须保位续播，不能从头重播。
       // playVersion 相同说明不是用户切歌/重播（那些都会 bump version）
-      const m = /^(.+)@([^@]+)@([^@]+)$/.exec(loadedKey)
+      const parsed = parseLoadedKey(loadedKey)
       if (
-        m &&
-        m[1] === `${activeServerId}:${songId}` &&
-        m[3] === String(playVersion) &&
-        m[2] !== effectiveQuality
+        parsed &&
+        parsed.base === `${activeServerId}:${songId}` &&
+        parsed.version === String(playVersion) &&
+        parsed.quality !== effectiveQuality
       ) {
         const st = usePlayerStore.getState()
         qualitySwitchResumeAt = Math.max(

@@ -9,6 +9,8 @@ import type { ServerConfig, ServerType } from '@/api/types'
 import { createAdapter, setActiveAdapter, clearAdapter } from '@/api'
 import { queryClient } from '@/lib/queryClient'
 import { usePlayerStore } from '@/store/playerStore'
+import { createPersistStorage } from '@/store/persistStorage'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 
 interface ServerState {
   /** 已配置的服务器列表 */
@@ -151,7 +153,9 @@ export const useServerStore = create<ServerState>()(
       },
     }),
     {
-      name: 'msp-server-store',
+      name: STORAGE_KEYS.serverStore,
+      // 含登录凭据，进程被杀不能丢，同步写入
+      storage: createPersistStorage({ debounceMs: 0 }),
       // 不持久化 isConnected，每次刷新重新连接
       partialize: (state) => ({
         servers: state.servers,

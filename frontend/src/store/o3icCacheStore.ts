@@ -9,6 +9,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useServerStore } from '@/store/serverStore'
+import { createPersistStorage } from '@/store/persistStorage'
+import { LYRICS_CACHE_LIMIT, STORAGE_KEYS, STORAGE_PRESSURE_EVENT } from '@/services/storageKeys'
+import { capByRecency } from '@/utils/boundedCache'
 
 interface LyricCache {
   /** 歌词文本（LRC 格式） */
@@ -41,6 +44,9 @@ interface LyricCacheState {
 
   /** 清除所有缓存 */
   clearCache: () => void
+
+  /** 裁剪到指定条数（保留最近保存的），用于响应存储配额压力 */
+  trimTo: (limit: number) => void
 }
 
 export const useLyricCacheStore = create<LyricCacheState>()(
@@ -50,13 +56,16 @@ export const useLyricCacheStore = create<LyricCacheState>()(
 
       saveLyrics: (songId: string, text: string) => {
         set(state => ({
-          cache: {
-            ...state.cache,
-            [cacheKey(songId)]: {
-              text,
-              savedAt: Date.now(),
+          cache: capByRecency(
+            {
+              ...state.cache,
+              [cacheKey(songId)]: {
+                text,
+                savedAt: Date.now(),
+              },
             },
-          },
+            LYRICS_CACHE_LIMIT
+          ),
         }))
       },
 
@@ -74,9 +83,17 @@ export const useLyricCacheStore = create<LyricCacheState>()(
       clearCache: () => {
         set({ cache: {} })
       },
+
+      trimTo: (limit: number) => {
+        set(state => {
+          const cache = capByRecency(state.cache, Math.max(0, limit))
+          return cache === state.cache ? state : { cache }
+        })
+      },
     }),
     {
-      name: 'msp-lyrics-cache',
+      name: STORAGE_KEYS.lyricsCache,
+      storage: createPersistStorage(),
       version: 1,
       // v0 的条目只按 songId 存储，无法归属到具体服务器，直接丢弃以免跨服务器串词
       migrate: (persisted, version) => {
@@ -88,3 +105,10 @@ export const useLyricCacheStore = create<LyricCacheState>()(
     }
   )
 )
+
+// 配额告急时主动减半，否则回收掉的条目会被下一次 persist 原样写回
+if (typeof window !== 'undefined') {
+  window.addEventListener(STORAGE_PRESSURE_EVENT, () => {
+    useLyricCacheStore.getState().trimTo(Math.floor(LYRICS_CACHE_LIMIT / 2))
+  })
+}

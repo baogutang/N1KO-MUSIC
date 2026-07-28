@@ -1,0 +1,102 @@
+/**
+ * useAudioEngine 的纯判定逻辑。
+ *
+ * 这些规则都是靠不住的流媒体元数据逼出来的经验值（duration 为 Infinity、
+ * 提前 ended、缓冲尾部停滞……），单独放出来才能脱离 <audio> 事件流验证。
+ */
+
+/** 一次 timeupdate 之间最多承认的前进秒数，超过即视为用户拖动进度条 */
+const MAX_LISTEN_DELTA_SEC = 2
+/** 播放进度占比达到此比例即算「已到结尾」*/
+const NEAR_END_RATIO = 0.97
+
+/**
+ * 拼装音频加载 key，格式为 `serverId:songId@quality@playVersion`。
+ * playVersion 参与其中，保证「重播同一首歌」也会被识别为一次新的加载。
+ */
+export function buildLoadedKey(
+  serverId: string,
+  songId: string,
+  quality: string,
+  playVersion: number
+): string {
+  return `${serverId}:${songId}@${quality}@${playVersion}`
+}
+
+export interface ParsedLoadedKey {
+  /** `serverId:songId` 部分 */
+  base: string
+  quality: string
+  version: string
+}
+
+/**
+ * 解析加载 key。songId 自身可能含 '@'（部分服务端用路径当 id），
+ * 因此必须从右侧切出 quality 与 version，左侧剩下的整体才是 base。
+ */
+export function parseLoadedKey(key: string): ParsedLoadedKey | null {
+  const matched = /^(.+)@([^@]+)@([^@]+)$/.exec(key)
+  if (!matched) return null
+  return { base: matched[1], quality: matched[2], version: matched[3] }
+}
+
+/**
+ * 尝试从 audio.duration 读取有效时长，返回 null 表示无法获取
+ * 流媒体在未完全缓冲时 duration 为 Infinity，此时返回 null
+ */
+export function getFiniteDuration(audio: Pick<HTMLAudioElement, 'duration'>): number | null {
+  const d = audio.duration
+  if (isFinite(d) && d > 0) return d
+  return null
+}
+
+/** 缓冲是否已覆盖到当前播放时间附近（后面几乎无数据）*/
+export function isAtBufferedTail(
+  audio: Pick<HTMLAudioElement, 'buffered'>,
+  currentTime: number,
+  gapSec = 0.45
+): boolean {
+  try {
+    if (audio.buffered.length === 0) return true
+    const end = audio.buffered.end(audio.buffered.length - 1)
+    return end - currentTime < gapSec
+  } catch {
+    return true
+  }
+}
+
+/**
+ * 两次 timeupdate 之间应计入收听时长的秒数，不该计入时返回 0。
+ * 只承认小步前进：用户拖动进度条产生的跳变（无论前后）都不是真的听过。
+ */
+export function accumulateListenedDelta(prevTime: number, nextTime: number): number {
+  if (prevTime < 0) return 0
+  const delta = nextTime - prevTime
+  return delta > 0 && delta < MAX_LISTEN_DELTA_SEC ? delta : 0
+}
+
+/**
+ * ended 事件是否属于「网络中断被当成播完」。
+ * NAS/转码流断流时浏览器会把已收到的数据当作完整曲目，此时应保位重载而非切下一首。
+ */
+export function isPrematureEnd(endedAt: number, metaDuration: number): boolean {
+  return (
+    metaDuration >= 30 &&
+    endedAt > 0 &&
+    metaDuration - endedAt > 20 &&
+    endedAt / metaDuration < 0.9
+  )
+}
+
+/**
+ * 停滞位置是否已接近曲目结尾（可安全视为自然播完）。
+ * 时长不可靠时一律返回 false —— 宁可让用户手动切歌，也不能从头重播。
+ */
+export function isNearEndOfTrack(currentTime: number, refDuration: number): boolean {
+  if (!isFinite(refDuration) || refDuration < 20) return false
+  const remain = refDuration - currentTime
+  return (
+    (remain <= 6 && currentTime > 10) ||
+    (refDuration > 60 && currentTime / refDuration >= NEAR_END_RATIO)
+  )
+}

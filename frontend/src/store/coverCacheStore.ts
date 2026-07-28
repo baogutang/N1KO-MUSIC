@@ -8,6 +8,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useServerStore } from './serverStore'
+import { createPersistStorage } from '@/store/persistStorage'
+import { COVER_CACHE_LIMIT, STORAGE_KEYS, STORAGE_PRESSURE_EVENT } from '@/services/storageKeys'
+import { capByRecency } from '@/utils/boundedCache'
 
 interface CoverCache {
   /** 封面图片 URL */
@@ -40,6 +43,9 @@ interface CoverCacheState {
 
   /** 清除所有缓存 */
   clearCache: () => void
+
+  /** 裁剪到指定条数（保留最近保存的），用于响应存储配额压力 */
+  trimTo: (limit: number) => void
 }
 
 export const useCoverCacheStore = create<CoverCacheState>()(
@@ -49,13 +55,16 @@ export const useCoverCacheStore = create<CoverCacheState>()(
 
       saveCover: (songId: string, url: string) => {
         set(state => ({
-          cache: {
-            ...state.cache,
-            [scopedKey(songId)]: {
-              url,
-              savedAt: Date.now(),
+          cache: capByRecency(
+            {
+              ...state.cache,
+              [scopedKey(songId)]: {
+                url,
+                savedAt: Date.now(),
+              },
             },
-          },
+            COVER_CACHE_LIMIT
+          ),
         }))
       },
 
@@ -75,9 +84,24 @@ export const useCoverCacheStore = create<CoverCacheState>()(
       clearCache: () => {
         set({ cache: {} })
       },
+
+      trimTo: (limit: number) => {
+        set(state => {
+          const cache = capByRecency(state.cache, Math.max(0, limit))
+          return cache === state.cache ? state : { cache }
+        })
+      },
     }),
     {
-      name: 'msp-cover-cache',
+      name: STORAGE_KEYS.coverCache,
+      storage: createPersistStorage(),
     }
   )
 )
+
+// 配额告急时主动减半，否则回收掉的条目会被下一次 persist 原样写回
+if (typeof window !== 'undefined') {
+  window.addEventListener(STORAGE_PRESSURE_EVENT, () => {
+    useCoverCacheStore.getState().trimTo(Math.floor(COVER_CACHE_LIMIT / 2))
+  })
+}

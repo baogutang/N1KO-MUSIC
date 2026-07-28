@@ -19,6 +19,7 @@ import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
 import { useLyricCacheStore } from '@/store/o3icCacheStore'
 import { parseLrc } from '@/hooks/useLyrics'
+import { mirrorFavorite } from '@/services/historySync'
 import type { ListParams, Lyrics, Song } from '@/api/types'
 
 // ===================================================
@@ -475,17 +476,23 @@ export function useStarred() {
 export function useToggleStar() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       id,
       type,
       isStarred,
+      song,
     }: {
       id: string
       type: 'song' | 'album' | 'artist'
       isStarred: boolean
+      /** 传入歌曲对象时会把收藏状态一并镜像到同步服务（可选，缺省则只改音乐服务器）*/
+      song?: Song
     }) => {
       const adapter = getAdapter()
-      return isStarred ? adapter.unstar(id, type) : adapter.star(id, type)
+      if (isStarred) await adapter.unstar(id, type)
+      else await adapter.star(id, type)
+      // 音乐服务器始终是收藏的权威来源，同步服务只做跨设备镜像，失败不影响本次操作
+      if (type === 'song') void mirrorFavorite(id, !isStarred, song)
     },
     onSuccess: () => {
       // starred 标记散布在歌曲/专辑/歌手/搜索/歌单等各类查询缓存中，

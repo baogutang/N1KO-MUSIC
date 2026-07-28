@@ -426,6 +426,39 @@ export class SubsonicAdapter implements MusicServerAdapter {
     return songs.map(this.mapSong.bind(this))
   }
 
+  /**
+   * 定向候选：老版本 Subsonic 服务器可能未实现这几个接口，
+   * 失败时返回空数组，由推荐逻辑回退到随机候选。
+   */
+  private async songListEndpoint(
+    path: string,
+    params: Record<string, unknown>,
+    container: string
+  ): Promise<Song[]> {
+    try {
+      const data = await this.request<Record<string, { song?: unknown[] }>>(path, params)
+      const songs = (data[container]?.song ?? []) as Record<string, unknown>[]
+      return songs.map(this.mapSong.bind(this))
+    } catch {
+      return []
+    }
+  }
+
+  async getArtistSongs(artist: { id?: string; name: string }, count = 30): Promise<Song[]> {
+    if (!artist.name) return []
+    return this.songListEndpoint('/getTopSongs', { artist: artist.name, count }, 'topSongs')
+  }
+
+  async getGenreSongs(genre: string, count = 30): Promise<Song[]> {
+    if (!genre) return []
+    return this.songListEndpoint('/getSongsByGenre', { genre, count }, 'songsByGenre')
+  }
+
+  async getSimilarSongs(songId: string, count = 30): Promise<Song[]> {
+    if (!songId) return []
+    return this.songListEndpoint('/getSimilarSongs2', { id: songId, count }, 'similarSongs2')
+  }
+
   async getArtists(): Promise<Artist[]> {
     const data = await this.request<{
       artists?: { index?: Array<{ artist?: unknown[] }> }

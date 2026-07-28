@@ -47,23 +47,42 @@ router.post('/scrobble', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'playedAt must not be more than 5 minutes in the future' })
   }
 
-  const result = db.prepare(`
-    INSERT INTO play_history (user_id, event_id, song_id, server_id, song_data, played_at, duration)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
-  `).run(
-    req.user!.userId,
-    eventId,
-    songId,
-    serverId,
-    JSON.stringify(songData),
-    playedAt ?? now,
-    duration ?? null,
-  )
+  const userId = req.user!.userId
+  /**
+   * 同一次收听会被多次上报：客户端在播放过程中会周期性刷新已听时长，
+   * 因此重复的 eventId 必须「修正」而不是丢弃，否则服务端会永久停留在
+   * 第一次上报时的时长。ON CONFLICT DO UPDATE 时 changes 恒为 1，
+   * 无法据此判断是否新增，所以在同一事务里先探测存在性。
+   */
+  const upsert = db.transaction((): boolean => {
+    const existing = db.prepare(
+      'SELECT 1 FROM play_history WHERE user_id = ? AND event_id = ?',
+    ).get(userId, eventId)
 
-  return res.status(result.changes ? 201 : 200).json({
-    message: result.changes ? 'Scrobbled' : 'Already scrobbled',
-    duplicate: result.changes === 0,
+    db.prepare(`
+      INSERT INTO play_history (user_id, event_id, song_id, server_id, song_data, played_at, duration)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, event_id) WHERE event_id IS NOT NULL DO UPDATE SET
+        song_data = excluded.song_data,
+        played_at = excluded.played_at,
+        duration = MAX(COALESCE(play_history.duration, 0), COALESCE(excluded.duration, 0))
+    `).run(
+      userId,
+      eventId,
+      songId,
+      serverId,
+      JSON.stringify(songData),
+      playedAt ?? now,
+      duration ?? null,
+    )
+
+    return !existing
+  })
+
+  const created = upsert()
+  return res.status(created ? 201 : 200).json({
+    message: created ? 'Scrobbled' : 'Updated',
+    duplicate: !created,
   })
 })
 

@@ -25,11 +25,18 @@ function formatTimeOfDay(timestamp: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+/**
+ * 单页渲染的条数上限。
+ * 历史迁到 IndexedDB 后保留上限提升到 2 万条，一次性渲染会直接卡死页面。
+ */
+const PAGE_SIZE = 150
+
 export default function History() {
   const activeServerId = useServerStore(s => s.activeServerId)
   const [history, setHistory] = useState<ListeningEvent[]>(() =>
     activeServerId ? readListeningEvents(activeServerId) : []
   )
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [confirmClear, setConfirmClear] = useState(false)
   const playQueue = usePlayerStore(s => s.playQueue)
 
@@ -45,32 +52,42 @@ export default function History() {
     return () => window.removeEventListener('msp-history-updated', onUpdate)
   }, [activeServerId])
 
+  // 切换服务器后重新从第一页开始
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [activeServerId])
+
   function handleClear() {
     if (activeServerId) clearListeningEvents(activeServerId)
     setHistory([])
     setConfirmClear(false)
   }
 
+  const visible = useMemo(() => history.slice(0, visibleCount), [history, visibleCount])
+
   function handlePlay(index: number) {
-    const songs = history.map(e => e.song)
-    playQueue(songs, index)
+    // 只把已展示的部分入队，避免一次把两万首塞进播放队列
+    playQueue(visible.map(entry => entry.song), index)
   }
 
-  // Group by date
-  const grouped = history.reduce<Record<string, ListeningEvent[]>>((acc, entry) => {
-    const d = new Date(entry.endedAt)
-    const dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
-    if (!acc[dateKey]) acc[dateKey] = []
-    acc[dateKey].push(entry)
-    return acc
-  }, {})
+  const grouped = useMemo(
+    () =>
+      visible.reduce<Record<string, ListeningEvent[]>>((acc, entry) => {
+        const d = new Date(entry.endedAt)
+        const dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+        if (!acc[dateKey]) acc[dateKey] = []
+        acc[dateKey].push(entry)
+        return acc
+      }, {}),
+    [visible]
+  )
 
   // entry -> 全局序号 预建索引，渲染时 O(1) 查询（替代 history.indexOf 的 O(n²)）
   const globalIndexMap = useMemo(() => {
     const map = new Map<ListeningEvent, number>()
-    history.forEach((entry, i) => map.set(entry, i))
+    visible.forEach((entry, i) => map.set(entry, i))
     return map
-  }, [history])
+  }, [visible])
 
   function formatDateLabel(key: string): string {
     const [y, m, d] = key.split('-').map(Number)
@@ -98,6 +115,9 @@ export default function History() {
           {history.length > 0 && (
             <p className="mt-1.5 text-sm text-ink-faint">
               <span className="font-num">{history.length}</span> 条记录
+              {visible.length < history.length && (
+                <span> · 已显示 <span className="font-num">{visible.length}</span></span>
+              )}
             </p>
           )}
         </div>
@@ -159,6 +179,7 @@ export default function History() {
                           alt={entry.song.title}
                           fallbackType="album"
                           className="h-full w-full"
+                          songId={entry.song.id}
                           customCoverParams={{ type: 'song', title: entry.song.title, artist: entry.song.artist, album: entry.song.album, path: entry.song.path }}
                         />
                       </span>
@@ -179,6 +200,11 @@ export default function History() {
                         {entry.song.duration ? formatDuration(entry.song.duration) : ''}
                       </span>
 
+                      {/* 收听结果：只标注跳过，正常收听不加视觉噪音 */}
+                      <span className="w-8 flex-shrink-0 text-right text-[11px] text-ink-faint">
+                        {entry.outcome === 'skipped' ? '跳过' : ''}
+                      </span>
+
                       {/* mono 播放时间 HH:mm */}
                       <span className="w-12 flex-shrink-0 text-right font-num text-xs text-ink-faint">
                         {formatTimeOfDay(entry.endedAt)}
@@ -189,6 +215,18 @@ export default function History() {
               </div>
             </section>
           ))}
+
+          {visible.length < history.length && (
+            <div className="mt-10 border-t border-hair pt-6 text-center">
+              <button
+                type="button"
+                onClick={() => setVisibleCount(count => count + PAGE_SIZE)}
+                className="text-sm text-ink-soft underline decoration-hair underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary"
+              >
+                加载更早的记录
+              </button>
+            </div>
+          )}
         </div>
       )}
 

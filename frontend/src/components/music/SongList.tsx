@@ -168,7 +168,7 @@ const SongRow = React.memo(function SongRow({
     const newStarred = !localStarred
     setLocalStarred(newStarred)
     toggleStar.mutate(
-      { id: song.id, type: 'song', isStarred: !newStarred },
+      { id: song.id, type: 'song', isStarred: !newStarred, song },
       { onError: () => setLocalStarred(!newStarred) }
     )
   }
@@ -235,6 +235,7 @@ const SongRow = React.memo(function SongRow({
             alt={song.album}
             fallbackType="album"
             className="w-full h-full"
+            songId={song.id}
             customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
           />
         </div>

@@ -17,9 +17,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/use-toast'
-import { useSettingsStore } from '@/store/settingsStore'
+import { useSettingsStore, buildRemoteCoverUrl } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/o3icCacheStore'
+import { useCoverCacheStore } from '@/store/coverCacheStore'
+import { usePinnedCover } from '@/hooks/useCoverUrl'
 import { useSongDetail } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
@@ -454,6 +456,184 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
   )
 }
 
+// ─── 封面选择对话框 ───────────────────────────────────────────────────────────
+
+interface CoverPickerDialogProps {
+  open: boolean
+  onClose: () => void
+  song: Song
+  pinnedUrl: string | null
+  onSave: (url: string) => void
+  onClear: () => void
+}
+
+/**
+ * 为单曲钉住一张本地封面。
+ *
+ * 与歌词不同，自定义封面接口是「模板 URL 直接返回图片」而非返回候选列表，
+ * 因此这里的做法是：按可编辑的元数据拼出 URL（或直接粘贴图片地址）→ 预览确认 → 保存。
+ * 仅在图片确实加载成功后才允许保存，避免把坏链接钉死在歌曲上。
+ */
+function CoverPickerDialog({ open, onClose, song, pinnedUrl, onSave, onClear }: CoverPickerDialogProps) {
+  const coverRemoteTemplate = useSettingsStore(s => s.coverRemoteTemplate)
+  const [title, setTitle] = useState('')
+  const [artist, setArtist] = useState('')
+  const [album, setAlbum] = useState('')
+  const [directUrl, setDirectUrl] = useState('')
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+  /** 同一 URL 重复预览时用于强制重建 <img>，否则 onLoad 不会再触发 */
+  const [attempt, setAttempt] = useState(0)
+
+  // 每次打开都回到当前歌曲的元数据，避免残留上一首的编辑内容
+  useEffect(() => {
+    if (!open) return
+    setTitle(song.title ?? '')
+    setArtist(song.artist ?? '')
+    setAlbum(song.album ?? '')
+    setDirectUrl('')
+    setPreviewUrl(null)
+    setStatus('idle')
+  }, [open, song.id, song.title, song.artist, song.album])
+
+  // 预览成功后又改了参数：必须重新预览，否则「确认保存」会存下上一张图
+  useEffect(() => {
+    setPreviewUrl(null)
+    setStatus('idle')
+  }, [title, artist, album, directUrl])
+
+  const trimmedDirect = directUrl.trim()
+  const templateUrl = coverRemoteTemplate
+    ? buildRemoteCoverUrl(coverRemoteTemplate, { title, artist, album, id: song.id })
+    : ''
+  // 直接粘贴的地址优先于模板拼接
+  const resolvedUrl = trimmedDirect || templateUrl
+
+  const handlePreview = () => {
+    if (!resolvedUrl) return
+    setPreviewUrl(resolvedUrl)
+    setStatus('loading')
+    setAttempt(value => value + 1)
+  }
+
+  const handleConfirm = () => {
+    if (status !== 'ok' || !previewUrl) return
+    onSave(previewUrl)
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-xl flex flex-col max-h-[85vh]" style={{ animation: 'none' }}>
+        <DialogHeader>
+          <DialogTitle>设置本地封面</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2 flex-1 overflow-y-auto">
+          <p className="text-xs text-ink-faint">
+            钉住的封面只保存在本机，优先级高于服务器封面与「封面来源」设置。
+          </p>
+
+          {coverRemoteTemplate ? (
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">歌曲标题</label>
+                <Input
+                  type="text" value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">歌手</label>
+                <Input
+                  type="text" value={artist}
+                  onChange={(e) => setArtist(e.target.value)}
+                  className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">专辑</label>
+                <Input
+                  type="text" value={album}
+                  onChange={(e) => setAlbum(e.target.value)}
+                  className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-ink-soft">
+              未配置自定义封面接口，可在「设置 · 封面」里填写模板，或在下方直接粘贴图片地址。
+            </p>
+          )}
+
+          <div>
+            <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">图片地址</label>
+            <Input
+              type="url" value={directUrl} placeholder={templateUrl || 'https://…'}
+              onChange={(e) => setDirectUrl(e.target.value)}
+              className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
+            />
+          </div>
+
+          <Button
+            type="button"
+            onClick={handlePreview}
+            disabled={!resolvedUrl || status === 'loading'}
+            className="gap-1.5 px-0"
+          >
+            {status === 'loading'
+              ? <><ArrowsClockwise className="w-4 h-4 animate-spin" />加载中…</>
+              : <><MagnifyingGlass className="w-4 h-4" />预览封面</>
+            }
+          </Button>
+
+          {status === 'error' && (
+            <p className="text-xs text-destructive">图片加载失败，请检查地址或调整查询参数。</p>
+          )}
+
+          {previewUrl && (
+            <div>
+              <p className="text-xs text-ink-faint mb-2">预览</p>
+              <div className="w-40 h-40 rounded-md ring-1 ring-hair overflow-hidden bg-paper-deep">
+                {/* 用原生 img 直接验证可加载性，不走 ImageWithFallback 的多来源合并 */}
+                <img
+                  key={`${previewUrl}#${attempt}`}
+                  src={previewUrl}
+                  alt="封面预览"
+                  className={cn('w-full h-full object-cover', status !== 'ok' && 'opacity-0')}
+                  onLoad={() => setStatus('ok')}
+                  onError={() => setStatus('error')}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-between items-center gap-5 mt-2 flex-shrink-0">
+          {pinnedUrl ? (
+            <Button
+              variant="ghost"
+              onClick={() => { onClear(); onClose() }}
+              className="gap-1.5 px-0 text-destructive hover:text-destructive"
+            >
+              <X className="w-4 h-4" />移除本地封面
+            </Button>
+          ) : <span />}
+          <div className="flex items-center gap-5">
+            <Button variant="ghost" onClick={onClose} className="gap-1.5 px-0">
+              <X className="w-4 h-4" />取消
+            </Button>
+            <Button onClick={handleConfirm} disabled={status !== 'ok'} className="gap-1.5 px-0">
+              <FloppyDisk className="w-4 h-4" />确认保存
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── 主页面 ───────────────────────────────────────────────────────────────────
 
 export default function SongDetailPage() {
@@ -465,8 +645,12 @@ export default function SongDetailPage() {
   const song = fetchedSong ?? stateSong
   const setFullscreen = usePlayerStore(s => s.setFullscreen)
   const { saveLyrics } = useLyricCacheStore()
+  const saveCover = useCoverCacheStore(s => s.saveCover)
+  const removeCover = useCoverCacheStore(s => s.removeCover)
+  const pinnedCover = usePinnedCover(song?.id)
 
   const [o3icsSearchOpen, setO3icsSearchOpen] = useState(false)
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false)
 
   if (isLoading && !song) {
     return (
@@ -503,6 +687,16 @@ export default function SongDetailPage() {
     toast({ title: '歌词已保存到本地缓存' })
   }
 
+  const handleCoverSave = (url: string) => {
+    saveCover(song.id, url)
+    toast({ title: '封面已钉在本地' })
+  }
+
+  const handleCoverClear = () => {
+    removeCover(song.id)
+    toast({ title: '已移除本地封面' })
+  }
+
   const contentTypeLabel = song.contentType
     ? song.contentType.split('/')[1]?.toLowerCase() ?? song.contentType
     : undefined
@@ -519,6 +713,7 @@ export default function SongDetailPage() {
               alt={song.title}
               fallbackType="album"
               className="w-full h-full"
+              songId={song.id}
               customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
             />
           </div>
@@ -561,6 +756,13 @@ export default function SongDetailPage() {
             label="搜索歌词"
             value="自定义参数搜索"
             onClick={() => setO3icsSearchOpen(true)}
+            linkable
+          />
+
+          <Row
+            label="本地封面"
+            value={pinnedCover ? '已钉住 · 点击更换' : '设置本地封面'}
+            onClick={() => setCoverPickerOpen(true)}
             linkable
           />
 
@@ -609,6 +811,16 @@ export default function SongDetailPage() {
         onClose={() => setO3icsSearchOpen(false)}
         song={song}
         onSave={handleLyricsSave}
+      />
+
+      {/* 本地封面 */}
+      <CoverPickerDialog
+        open={coverPickerOpen}
+        onClose={() => setCoverPickerOpen(false)}
+        song={song}
+        pinnedUrl={pinnedCover}
+        onSave={handleCoverSave}
+        onClear={handleCoverClear}
       />
     </div>
   )

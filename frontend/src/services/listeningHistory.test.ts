@@ -3,6 +3,7 @@ import type { Song } from '@/api/types'
 import {
   clearListeningEvents,
   readListeningEvents,
+  resetListeningHistoryCache,
   upsertListeningEvent,
   type ListeningEvent,
 } from '@/services/listeningHistory'
@@ -40,6 +41,8 @@ function listeningEvent(serverId: string, eventId = 'event-1'): ListeningEvent {
 }
 
 beforeEach(() => {
+  // 历史现在以模块级内存副本为读取源，用例之间必须重置
+  resetListeningHistoryCache()
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
     value: new MemoryStorage(),

@@ -5,6 +5,8 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { createPersistStorage } from '@/store/persistStorage'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 import type { Song } from '@/api/types'
 
 export type RepeatMode = 'none' | 'one' | 'all'
@@ -103,17 +105,20 @@ export const usePlayerStore = create<PlayerState>()(
 
       playSong: (song, queue) => {
         const state = get()
-        const newQueue = queue ?? [song]
-        const index = newQueue.findIndex(s => s.id === song.id)
-        const shuffledIndexes = generateShuffledIndexes(newQueue.length, index >= 0 ? index : 0)
+        const provided = queue ?? [song]
+        const found = provided.findIndex(s => s.id === song.id)
+        // 歌曲不在传入队列里时把它插到队首，否则 currentSong 与 queue[queueIndex]
+        // 不一致，首次 next() 会跳过队列第一首。
+        const newQueue = found >= 0 ? provided : [song, ...provided]
+        const index = found >= 0 ? found : 0
         set({
           history: appendHistory(state.history, state.currentSong),
           currentSong: song,
           isPlaying: true,
           currentTime: 0,
           queue: newQueue,
-          queueIndex: index >= 0 ? index : 0,
-          shuffledIndexes,
+          queueIndex: index,
+          shuffledIndexes: generateShuffledIndexes(newQueue.length, index),
           playVersion: state.playVersion + 1,
         })
       },
@@ -282,7 +287,9 @@ export const usePlayerStore = create<PlayerState>()(
               ...songs,
               ...state.queue.slice(insertAt),
             ]
-            let shuffledIndexes = state.shuffledIndexes
+            // 关闭随机时保持恒等映射，与 removeFromQueue/reorderQueue 一致，
+            // 否则会留下长度过短的旧数组
+            let shuffledIndexes = newQueue.map((_, i) => i)
             if (state.shuffle) {
               // 保持既有随机顺序：把新歌插到当前曲的随机位置之后，而不是整体重洗
               const remapped = state.shuffledIndexes.map(i =>
@@ -299,7 +306,7 @@ export const usePlayerStore = create<PlayerState>()(
             return { queue: newQueue, shuffledIndexes }
           }
           const newQueue = [...state.queue, ...songs]
-          let shuffledIndexes = state.shuffledIndexes
+          let shuffledIndexes = newQueue.map((_, i) => i)
           if (state.shuffle) {
             // 保留已播放的前缀顺序，仅把新歌随机混入尚未播放的部分
             const currentShufflePos = state.shuffledIndexes.indexOf(state.queueIndex)
@@ -343,17 +350,29 @@ export const usePlayerStore = create<PlayerState>()(
           if (index < state.queueIndex) {
             queueIndex = state.queueIndex - 1
           } else if (removedIsCurrent) {
-            queueIndex = Math.min(index, queue.length - 1)
-            const currentSong = queue[queueIndex]
+            const remapped = state.shuffle
+              ? remapAfterRemoval(state.shuffledIndexes)
+              : queue.map((_, i) => i)
+
+            if (state.shuffle) {
+              // 必须沿随机顺序接着播：按队列下标取会跳到随机序列的更后面，
+              // 让本该稍后播放的曲目被永久跳过。
+              const removedShufflePos = state.shuffledIndexes.indexOf(index)
+              const nextPos = removedShufflePos >= 0
+                ? Math.min(removedShufflePos, remapped.length - 1)
+                : 0
+              queueIndex = remapped[nextPos]
+            } else {
+              queueIndex = Math.min(index, queue.length - 1)
+            }
+
             return {
               queue,
               queueIndex,
-              currentSong,
+              currentSong: queue[queueIndex],
               isPlaying: state.isPlaying,
               currentTime: 0,
-              shuffledIndexes: state.shuffle
-                ? remapAfterRemoval(state.shuffledIndexes)
-                : queue.map((_, i) => i),
+              shuffledIndexes: remapped,
               playVersion: state.playVersion + 1,
             }
           }
@@ -456,7 +475,9 @@ export const usePlayerStore = create<PlayerState>()(
       },
     }),
     {
-      name: 'msp-player-store',
+      name: STORAGE_KEYS.playerStore,
+      // 队列体积最大且随切歌频繁变化，用合并写入吸收连续操作
+      storage: createPersistStorage({ debounceMs: 800 }),
       partialize: (state) => ({
         volume: state.volume,
         muted: state.muted,

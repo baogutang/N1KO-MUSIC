@@ -222,7 +222,7 @@ export function PlayerBar() {
   const handleToggleStar = useCallback(() => {
     if (!currentSong) return
     toggleStar.mutate(
-      { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred },
+      { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong },
       { onSuccess: () => updateCurrentSong({ starred: !currentSong.starred }) }
     )
   }, [currentSong, toggleStar, updateCurrentSong])
@@ -253,6 +253,7 @@ export function PlayerBar() {
               fallbackType="album"
               className="w-full h-full"
               eager
+              songId={currentSong.id}
               customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
             />
           </button>

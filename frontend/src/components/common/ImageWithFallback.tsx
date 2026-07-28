@@ -10,7 +10,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { User, MusicNote } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useCustomCoverUrl, type CoverQueryType } from '@/hooks/useServerQueries'
-import { pickMergedCoverDisplaySrc } from '@/hooks/useCoverUrl'
+import { pickMergedCoverDisplaySrc, usePinnedCover } from '@/hooks/useCoverUrl'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 
@@ -32,6 +32,8 @@ interface ImageWithFallbackProps extends React.ImgHTMLAttributes<HTMLImageElemen
    * 用于 PlayerBar、FullscreenPlayer 等始终可见的封面
    */
   eager?: boolean
+  /** 歌曲 id；传入后会优先使用用户在详情页手动钉住的本地封面 */
+  songId?: string
 }
 
 /** 纸面占位：paper-deep 底 + ink-faint 图标（DESIGN v2 §4.5），圆角由消费方控制 */
@@ -58,11 +60,13 @@ export function ImageWithFallback({
   fallbackClassName,
   customCoverParams,
   eager = false,
+  songId,
   ...props
 }: ImageWithFallbackProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isVisible, setIsVisible] = useState(!!eager)
   const [serverError, setServerError] = useState(false)
+  const [pinnedFailed, setPinnedFailed] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   /**
    * eager 模式下用于强制重建 <img>，确保浏览器一定重新发起请求。
@@ -99,9 +103,10 @@ export function ImageWithFallback({
     : ''
   useEffect(() => {
     setServerError(false)
+    setPinnedFailed(false)
     setIsLoaded(false)
     if (eager) setImgLoadKey(k => k + 1)
-  }, [src, customKey, eager])
+  }, [src, customKey, eager, songId])
 
   // eager 模式兜底：streamBuffering 从 true->false 时强制重建 img
   useEffect(() => {
@@ -118,22 +123,27 @@ export function ImageWithFallback({
   const { data: customCoverDataUrl } = useCustomCoverUrl(
     hasCustomConfig && isVisible ? customCoverParams : null
   )
+  const pinnedCover = usePinnedCover(songId)
+  // 钉住的地址可能失效（远端删图/断网），失败后必须让位给服务器与自定义来源
+  const pinnedSrc = pinnedFailed ? null : pinnedCover
 
   let displaySrc: string | undefined
   if (isVisible) {
-    displaySrc = pickMergedCoverDisplaySrc(
+    displaySrc = pickMergedCoverDisplaySrc({
       coverSource,
-      src,
-      serverError,
-      customCoverDataUrl,
-      hasCustomConfig
-    )
+      serverSrc: src,
+      serverFailed: serverError,
+      customBlobUrl: customCoverDataUrl,
+      hasCustom: hasCustomConfig,
+      pinnedSrc,
+    })
   }
+  const showingPinned = !!pinnedSrc && displaySrc === pinnedSrc
 
   // 判断是否应该显示占位图：未进入视口 或 所有来源都无数据
   const customFailed = hasCustomConfig ? !customCoverDataUrl : true
   const serverFailed = !src || serverError
-  const showPlaceholder = !isVisible || ((serverFailed && customFailed) && !displaySrc)
+  const showPlaceholder = !isVisible || (!displaySrc && serverFailed && customFailed)
 
   if (showPlaceholder) {
     return (
@@ -160,10 +170,9 @@ export function ImageWithFallback({
         className={cn('block w-full h-full object-cover', !isLoaded && 'opacity-0', className)}
         onLoad={() => setIsLoaded(true)}
         onError={() => {
-          if (!serverError) {
-            setServerError(true)
-            setIsLoaded(false)
-          }
+          setIsLoaded(false)
+          if (showingPinned) setPinnedFailed(true)
+          else if (!serverError) setServerError(true)
         }}
         {...props}
       />

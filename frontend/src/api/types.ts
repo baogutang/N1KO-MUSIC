@@ -300,4 +300,15 @@ export interface MusicServerAdapter {
 
   // --- 流派 ---
   getGenres(): Promise<Array<{ name: string; songCount: number; albumCount: number }>>
+
+  // --- 定向候选（个性化推荐用）---
+  // 这三项用于按用户画像拉取候选曲目，而不是只对随机曲目重排序。
+  // 均为可选：服务器或适配器不支持时应返回空数组而非抛错，调用方会回退到随机候选。
+
+  /** 指定歌手的曲目，尽可能优先返回热门曲目 */
+  getArtistSongs?(artist: { id?: string; name: string }, count?: number): Promise<Song[]>
+  /** 指定流派的曲目 */
+  getGenreSongs?(genre: string, count?: number): Promise<Song[]>
+  /** 与指定歌曲风格相近的曲目 */
+  getSimilarSongs?(songId: string, count?: number): Promise<Song[]>
 }

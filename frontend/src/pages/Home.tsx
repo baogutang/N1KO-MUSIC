@@ -11,7 +11,7 @@ import { SongList } from '@/components/music/SongList'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { useRecentAlbums, useArtists, queryKeys } from '@/hooks/useServerQueries'
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
-import { rankArtistsByAffinity } from '@/services/recommendationEngine'
+import { pickFeaturedAlbum, rankArtistsByAffinity } from '@/services/recommendationEngine'
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
@@ -36,8 +36,8 @@ export default function HomePage() {
     [artists, profile]
   )
 
-  // 本期封面：最近添加的第一张专辑
-  const heroAlbum = recentAlbums?.[0]
+  // 本期封面：在最近入库的专辑里按天轮换，同一天内保持稳定
+  const heroAlbum = useMemo(() => pickFeaturedAlbum(recentAlbums ?? []), [recentAlbums])
   const heroCoverUrl = heroAlbum?.coverArt && hasAdapter()
     ? getAdapter().getCoverUrl(heroAlbum.coverArt, 600)
     : undefined
@@ -84,8 +84,11 @@ export default function HomePage() {
     if (heroAlbum) void playAlbum(heroAlbum)
   }
 
-  // 头条区占去第一张，编号行从第二张开始
-  const recentList = recentAlbums?.slice(heroAlbum ? 1 : 0, 13) ?? []
+  // 头条区已展示的那张不再进编号行（封面按天轮换，位置不固定，需按 id 排除）
+  const recentList = useMemo(
+    () => (recentAlbums ?? []).filter(album => album.id !== heroAlbum?.id).slice(0, 12),
+    [recentAlbums, heroAlbum]
+  )
 
   return (
     <div className="animate-fade-in">

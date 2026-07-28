@@ -23,17 +23,32 @@ interface UseCoverUrlOptions {
   size?: number
 }
 
+export interface MergedCoverSources {
+  coverSource: CoverSource
+  serverSrc: string | undefined
+  serverFailed: boolean
+  customBlobUrl: string | null | undefined
+  hasCustom: boolean
+  /**
+   * 用户在歌曲详情页手动钉住的本地封面，优先级高于一切来源。
+   * 这是显式的人工选择，不应被「封面来源」设置覆盖。
+   */
+  pinnedSrc?: string | null
+}
+
 /**
  * 服务器封面 URL 与自定义封面（blob）合并时的展示顺序，须与 useCoverUrl 中 coverSource 一致。
  * ImageWithFallback / CoverImage 应用此逻辑，勿再用 apiPreferServer（那是歌词设置）。
  */
-export function pickMergedCoverDisplaySrc(
-  coverSource: CoverSource,
-  serverSrc: string | undefined,
-  serverFailed: boolean,
-  customBlobUrl: string | null | undefined,
-  hasCustom: boolean
-): string | undefined {
+export function pickMergedCoverDisplaySrc({
+  coverSource,
+  serverSrc,
+  serverFailed,
+  customBlobUrl,
+  hasCustom,
+  pinnedSrc,
+}: MergedCoverSources): string | undefined {
+  if (pinnedSrc) return pinnedSrc
   const serverOk = !!serverSrc && !serverFailed
   const custom = customBlobUrl ?? undefined
   if (!hasCustom) return serverOk ? serverSrc : undefined
@@ -50,25 +65,29 @@ export function pickMergedCoverDisplaySrc(
   }
 }
 
+/** 读取该歌曲手动钉住的本地封面；未传 songId 时恒为 null */
+export function usePinnedCover(songId: string | undefined): string | null {
+  const getCover = useCoverCacheStore(s => s.getCover)
+  return useMemo(() => (songId ? getCover(songId) : null), [songId, getCover])
+}
+
 /**
  * 返回最终要加载的封面 URL
- * - cached: 本地缓存（用户手动搜索保存的），优先级最高
  * - primary: 用户设置的来源（服务器或远程 API）
  * - fallback: 降级备选
+ *
+ * 手动钉住的本地封面不在此处处理：它由展示组件通过 usePinnedCover +
+ * pickMergedCoverDisplaySrc 统一应用，避免出现两套互相竞争的优先级实现。
  */
 export function useCoverUrl(
   target: CoverTarget | null | undefined,
   options: UseCoverUrlOptions = {}
-): { cached: string | undefined; primary: string | undefined; fallback: string | undefined } {
+): { primary: string | undefined; fallback: string | undefined } {
   const { coverSource, coverRemoteTemplate } = useSettingsStore()
-  const getCachedCover = useCoverCacheStore(s => s.getCover)
   const { size = 300 } = options
 
   return useMemo(() => {
-    if (!target) return { cached: undefined, primary: undefined, fallback: undefined }
-
-    // 最高优先级：本地手动缓存的封面（用户通过详情页搜索保存的）
-    const cached = target.id ? (getCachedCover(target.id) ?? undefined) : undefined
+    if (!target) return { primary: undefined, fallback: undefined }
 
     // 服务器封面（需要带鉴权的 URL）
     const serverUrl = target.coverArt && hasAdapter()
@@ -103,15 +122,6 @@ export function useCoverUrl(
         break
     }
 
-    return { cached, primary, fallback }
-  }, [target, coverSource, coverRemoteTemplate, size, getCachedCover])
-}
-
-/** 单值版本：返回最终要使用的 URL（cached > primary > fallback）*/
-export function useSingleCoverUrl(
-  target: CoverTarget | null | undefined,
-  options: UseCoverUrlOptions = {}
-): string | undefined {
-  const { cached, primary, fallback } = useCoverUrl(target, options)
-  return cached ?? primary ?? fallback
+    return { primary, fallback }
+  }, [target, coverSource, coverRemoteTemplate, size])
 }

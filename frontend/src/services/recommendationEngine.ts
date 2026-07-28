@@ -1,4 +1,4 @@
-import type { Artist, Song } from '@/api/types'
+import type { Album, Artist, Song } from '@/api/types'
 import type { ListeningEvent } from '@/services/listeningHistory'
 import { isQualifiedListeningEvent } from '@/services/listeningHistory'
 
@@ -10,14 +10,28 @@ export interface RecommendationProfile {
   lastPlayedAt: Map<string, number>
   skipCounts: Map<string, number>
   positiveEventCount: number
+  /** 归一化歌手名 → 原始名与 artistId，用于按歌手向服务器定向拉取候选 */
+  artistIdentity: Map<string, { name: string; id?: string }>
 }
 
 interface ScoredSong {
   song: Song
   score: number
+  artistKey: string
+  genreKey: string
+  albumKey: string
+  /** 与已选集合的最大相似度，逐轮增量维护 */
+  maxSimilarity: number
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/** 同一歌手/专辑在一批推荐里的最多出现次数 */
+const MAX_PER_ARTIST = 2
+const MAX_PER_ALBUM = 2
+
+/** 相似度惩罚系数，用于压制「整批推荐听起来都一样」 */
+const SIMILARITY_PENALTY = 0.24
 
 function normalized(value?: string): string {
   return (value ?? '').trim().toLocaleLowerCase()
@@ -49,6 +63,7 @@ export function buildRecommendationProfile(
     lastPlayedAt: new Map(),
     skipCounts: new Map(),
     positiveEventCount: 0,
+    artistIdentity: new Map(),
   }
 
   for (const event of events) {
@@ -73,7 +88,17 @@ export function buildRecommendationProfile(
 
     const artist = normalized(event.song.artist)
     const genre = normalized(event.song.genre)
-    if (artist) addWeight(profile.artistAffinity, artist, weight)
+    if (artist) {
+      addWeight(profile.artistAffinity, artist, weight)
+      // 记录一次原始名与 id，后续可直接用于向服务器请求该歌手的曲目
+      const known = profile.artistIdentity.get(artist)
+      if (!known || (!known.id && event.song.artistId)) {
+        profile.artistIdentity.set(artist, {
+          name: event.song.artist,
+          id: event.song.artistId ?? known?.id,
+        })
+      }
+    }
     if (genre) addWeight(profile.genreAffinity, genre, weight)
     if (event.song.year) addWeight(profile.decadeAffinity, Math.floor(event.song.year / 10) * 10, weight * 0.6)
   }
@@ -94,12 +119,16 @@ function hashToUnit(value: string): number {
   return (hash >>> 0) / 0xffffffff
 }
 
-function similarity(a: Song, b: Song): number {
-  if (a.id === b.id && a.serverId === b.serverId) return 1
+/**
+ * 相似度基于预归一化后的键计算。
+ * 原实现每次比较都重新 trim + toLocaleLowerCase，候选池扩大后成为热点。
+ */
+function similarity(a: ScoredSong, b: ScoredSong): number {
+  if (a.song.id === b.song.id && a.song.serverId === b.song.serverId) return 1
   let result = 0
-  if (normalized(a.artist) && normalized(a.artist) === normalized(b.artist)) result += 0.55
-  if (normalized(a.genre) && normalized(a.genre) === normalized(b.genre)) result += 0.25
-  if (a.albumId && a.albumId === b.albumId) result += 0.2
+  if (a.artistKey && a.artistKey === b.artistKey) result += 0.55
+  if (a.genreKey && a.genreKey === b.genreKey) result += 0.25
+  if (a.song.albumId && a.song.albumId === b.song.albumId) result += 0.2
   return result
 }
 
@@ -119,8 +148,11 @@ function scoreSong(
   const lastPlayed = profile.lastPlayedAt.get(key)
   const ageDays = lastPlayed ? (now - lastPlayed) / DAY_MS : Infinity
   const novelty = lastPlayed ? Math.min(1, ageDays / 45) : 1
-  const recentPenalty = ageDays < 1 ? 0.9 : ageDays < 3 ? 0.55 : ageDays < 7 ? 0.25 : 0
-  const skipPenalty = Math.min(0.8, (profile.skipCounts.get(key) ?? 0) * 0.2)
+  // 最近听过只降权、不排除：正向项之和上限约 1.0，旧值 0.9 等于把听过的歌
+  // 硬排除，导致最喜欢的歌永远不会再被推荐，与 songAffinity 项互相打架。
+  const recentPenalty = ageDays < 1 ? 0.32 : ageDays < 3 ? 0.18 : ageDays < 7 ? 0.07 : 0
+  // 单次跳过可能只是想换首歌，代价不宜过重；反复跳过才应显著压低。
+  const skipPenalty = Math.min(0.6, (profile.skipCounts.get(key) ?? 0) * 0.15)
   const serverPopularity = Math.min(1, Math.log1p(song.playCount ?? 0) / 6)
   const exploration = hashToUnit(`${seed}:${key}`)
 
@@ -149,7 +181,8 @@ export function recommendSongs(
   events: ListeningEvent[],
   size: number,
   seed: string,
-  now = Date.now()
+  now = Date.now(),
+  prebuiltProfile?: RecommendationProfile
 ): Song[] {
   const deduped = new Map<string, Song>()
   for (const song of candidates) {
@@ -157,10 +190,15 @@ export function recommendSongs(
     deduped.set(songKey(song), song)
   }
 
-  const profile = buildRecommendationProfile(events, now)
+  // 调用方通常已经为其他用途构建过画像，避免在大历史上重复计算一遍
+  const profile = prebuiltProfile ?? buildRecommendationProfile(events, now)
   const remaining: ScoredSong[] = Array.from(deduped.values()).map(song => ({
     song,
     score: scoreSong(song, profile, seed, now),
+    artistKey: normalized(song.artist),
+    genreKey: normalized(song.genre),
+    albumKey: song.albumId || normalized(song.album),
+    maxSimilarity: 0,
   }))
   const selected: ScoredSong[] = []
   const artistCounts = new Map<string, number>()
@@ -171,26 +209,27 @@ export function recommendSongs(
     let bestAdjustedScore = -Infinity
     for (let i = 0; i < remaining.length; i++) {
       const candidate = remaining[i]
-      const artist = normalized(candidate.song.artist)
-      const album = candidate.song.albumId || normalized(candidate.song.album)
-      if (artist && (artistCounts.get(artist) ?? 0) >= 2) continue
-      if (album && (albumCounts.get(album) ?? 0) >= 2) continue
-      const similarityPenalty = selected.length
-        ? Math.max(...selected.map(item => similarity(candidate.song, item.song))) * 0.24
-        : 0
-      const adjusted = candidate.score - similarityPenalty
+      if (candidate.artistKey && (artistCounts.get(candidate.artistKey) ?? 0) >= MAX_PER_ARTIST) continue
+      if (candidate.albumKey && (albumCounts.get(candidate.albumKey) ?? 0) >= MAX_PER_ALBUM) continue
+      const adjusted = candidate.score - candidate.maxSimilarity * SIMILARITY_PENALTY
       if (adjusted > bestAdjustedScore) {
         bestAdjustedScore = adjusted
         bestIndex = i
       }
     }
     if (bestIndex < 0) break
+
     const [best] = remaining.splice(bestIndex, 1)
     selected.push(best)
-    const artist = normalized(best.song.artist)
-    const album = best.song.albumId || normalized(best.song.album)
-    if (artist) artistCounts.set(artist, (artistCounts.get(artist) ?? 0) + 1)
-    if (album) albumCounts.set(album, (albumCounts.get(album) ?? 0) + 1)
+    if (best.artistKey) artistCounts.set(best.artistKey, (artistCounts.get(best.artistKey) ?? 0) + 1)
+    if (best.albumKey) albumCounts.set(best.albumKey, (albumCounts.get(best.albumKey) ?? 0) + 1)
+
+    // 增量维护「与已选集合的最大相似度」：等价于原先每轮重算 Math.max，
+    // 但把整体复杂度从 O(候选 × 选中²) 降到 O(候选 × 选中)。
+    for (const candidate of remaining) {
+      const score = similarity(candidate, best)
+      if (score > candidate.maxSimilarity) candidate.maxSimilarity = score
+    }
   }
 
   // 小曲库或元数据高度重复时放宽多样性上限，保证返回请求数量。
@@ -199,6 +238,80 @@ export function recommendSongs(
     selected.push(...remaining.slice(0, size - selected.length))
   }
   return selected.map(item => item.song)
+}
+
+/** 用于向服务器定向拉取候选的画像种子 */
+export interface RecommendationSeeds {
+  artists: Array<{ id?: string; name: string }>
+  genres: string[]
+  songIds: string[]
+}
+
+function topKeys(map: Map<string, number>, limit: number): string[] {
+  return Array.from(map.entries())
+    .filter(([, weight]) => weight > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([key]) => key)
+}
+
+/**
+ * 从画像里取出最值得据以拉取候选的歌手、流派与种子歌曲。
+ *
+ * 这一步是「随机重排」与「真正推荐」的分界：只对 150 首随机曲目重排序，
+ * 用户最偏好的歌手大概率根本不在候选池里。
+ */
+export function deriveRecommendationSeeds(
+  profile: RecommendationProfile,
+  events: ListeningEvent[],
+  limits: { artists?: number; genres?: number; songs?: number } = {}
+): RecommendationSeeds {
+  const { artists: artistLimit = 3, genres: genreLimit = 2, songs: songLimit = 2 } = limits
+
+  const artists = topKeys(profile.artistAffinity, artistLimit).map(key => {
+    const identity = profile.artistIdentity.get(key)
+    return { id: identity?.id, name: identity?.name ?? key }
+  })
+
+  // 种子歌曲取最近听完的曲目：既贴合当下口味，也最可能有可用的相似曲目
+  const songIds: string[] = []
+  const seen = new Set<string>()
+  for (const event of events) {
+    if (songIds.length >= songLimit) break
+    if (event.outcome !== 'completed' && event.outcome !== 'qualified') continue
+    if (seen.has(event.song.id)) continue
+    seen.add(event.song.id)
+    songIds.push(event.song.id)
+  }
+
+  return { artists, genres: topKeys(profile.genreAffinity, genreLimit), songIds }
+}
+
+/** 「本期封面」的最小曲目数：单曲合辑放大成杂志封面观感上像是坏了 */
+const FEATURED_MIN_SONGS = 3
+
+/** 本地日历天序号，保证轮换在本地午夜切换而不是 UTC 午夜 */
+function localDayIndex(now: number): number {
+  const offsetMs = new Date(now).getTimezoneOffset() * 60_000
+  return Math.floor((now - offsetMs) / DAY_MS)
+}
+
+/**
+ * 首页「本期封面」选片。
+ *
+ * 此前直接取「最近添加」的第 0 项，因此只要音乐库没有新专辑入库就永远不变，
+ * 与「本期」的语义不符。改为在最近入库的专辑里按本地日历天轮换，
+ * 同一天内结果稳定，跨天自动换一张。
+ */
+export function pickFeaturedAlbum(albums: Album[], now = Date.now()): Album | null {
+  if (!albums.length) return null
+
+  const withCover = albums.filter(album => !!album.coverArt)
+  const substantial = withCover.filter(album => (album.songCount ?? 0) >= FEATURED_MIN_SONGS)
+  // 逐级放宽：有封面的正规专辑 → 有封面的任意专辑 → 全部
+  const pool = substantial.length ? substantial : withCover.length ? withCover : albums
+
+  return pool[localDayIndex(now) % pool.length] ?? null
 }
 
 export function rankArtistsByAffinity(

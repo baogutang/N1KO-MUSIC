@@ -26,64 +26,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { toast } from '@/components/ui/use-toast'
+import {
+  Row,
+  Section,
+  SubHead,
+  Toggle,
+  hairInputClass,
+} from '@/components/settings/primitives'
+import { SyncSettings } from '@/components/settings/SyncSettings'
 import pkg from '../../package.json'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
-
-/** 分区：衬线标题 + 拉丁小标签 + 下缘发丝线 */
-function Section({ title, tag, children }: { title: string; tag?: string; children: React.ReactNode }) {
-  return (
-    <section className="pt-12 first:pt-8">
-      <div className="flex items-baseline justify-between border-b border-hair pb-3">
-        <h2 className="font-serif text-[22px] font-semibold">{title}</h2>
-        {tag && <span className="text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>}
-      </div>
-      <div>{children}</div>
-    </section>
-  )
-}
-
-/** 选项行：左名称 + ink-faint 说明，右控件；行间 hair-soft */
-function Row({ name, desc, children }: { name: string; desc?: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-6 py-4 border-b border-hair-soft">
-      <div className="min-w-0">
-        <p className="text-sm font-medium">{name}</p>
-        {desc && <p className="text-xs text-ink-faint mt-0.5">{desc}</p>}
-      </div>
-      <div className="flex-shrink-0 flex items-center">{children}</div>
-    </div>
-  )
-}
-
-/** 细线滑块开关（DESIGN §4.4）：1px 轨道 + 小圆钮，开启为 accent */
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className="group relative w-9 h-5 flex-shrink-0"
-    >
-      <span
-        className={cn(
-          'absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px transition-colors duration-200',
-          checked ? 'bg-primary' : 'bg-hair'
-        )}
-      />
-      <span
-        className={cn(
-          'absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border transition-all duration-200',
-          checked
-            ? 'left-full -translate-x-full bg-primary border-primary'
-            : 'left-0 bg-paper border-ink-faint group-hover:border-ink-soft'
-        )}
-      />
-    </button>
-  )
-}
 
 /** 细线分段控件：hair 边框 + 当前项 accent 文字与 2px 下缘 */
 function Segmented<T extends string>({ value, onChange, options, label }: {
@@ -114,11 +67,6 @@ function Segmented<T extends string>({ value, onChange, options, label }: {
   )
 }
 
-/** 发丝线输入框：下缘 1px hair，focus 变 accent（DESIGN §4.4） */
-const hairInputClass =
-  'h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm ' +
-  'placeholder:text-ink-faint/60 focus-visible:border-primary'
-
 /** 端点配置行：左标签，右发丝线输入框 */
 function EndpointRow({ label, value, onChange, placeholder, desc }: {
   label: string
@@ -142,11 +90,6 @@ function EndpointRow({ label, value, onChange, placeholder, desc }: {
       {desc && <p className="text-xs text-ink-faint mt-2 pl-24">{desc}</p>}
     </div>
   )
-}
-
-/** API 子组标题：小号 wide-tracking */
-function SubHead({ title }: { title: string }) {
-  return <p className="pt-6 pb-1 text-[11px] tracking-[0.24em] text-ink-faint">{title}</p>
 }
 
 // ─── 主页面 ───────────────────────────────────────────────────────────────────
@@ -521,6 +464,9 @@ export default function Settings() {
             </Row>
           )}
         </Section>
+
+        {/* 跨设备同步（可选自建后端） */}
+        <SyncSettings />
 
         {/* 关于 */}
         <Section title="关于" tag="ABOUT">

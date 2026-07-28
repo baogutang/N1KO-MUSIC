@@ -6,6 +6,8 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { createPersistStorage } from '@/store/persistStorage'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 
 export type Theme = 'dark' | 'light' | 'system'
 
@@ -76,7 +78,9 @@ export const useThemeStore = create<ThemeState>()(
       setVisualizerEnabled: (enabled) => set({ visualizerEnabled: enabled }),
     }),
     {
-      name: 'msp-theme-store',
+      name: STORAGE_KEYS.themeStore,
+      // index.html 启动脚本会同步读取此键以避免闪白，不能延迟写入
+      storage: createPersistStorage({ debounceMs: 0 }),
       onRehydrateStorage: () => (state) => {
         if (state) {
           const resolved =

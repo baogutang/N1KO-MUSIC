@@ -6,6 +6,28 @@ import './index.css'
 import { queryClient } from './lib/queryClient'
 import { useServerStore } from './store/serverStore'
 import { useSettingsStore } from './store/settingsStore'
+import { registerPersistFlushHooks } from './store/persistStorage'
+import { runStorageMaintenance } from './services/storageMaintenance'
+import { initListeningHistory } from './services/listeningHistory'
+import {
+  backfillPendingScrobbles,
+  pullRemoteHistory,
+  startHistorySync,
+} from './services/historySync'
+
+// 清掉旧版每 30 秒新增一条、从不回收的推荐缓存键：已被撑满配额的用户
+// 加载一次即可自愈。（persist 适配器本身也会在写入失败时回收，此处是提前腾空间。）
+runStorageMaintenance()
+registerPersistFlushHooks()
+// 收听历史迁移到 IndexedDB。异步完成，完成后会广播 msp-history-updated，
+// 首页/历史页/统计页据此刷新，因此无需阻塞首屏渲染。
+startHistorySync()
+void initListeningHistory().then(() => {
+  // 上报出队只存在内存里，刷新会丢；补推上次成功同步之后的记录（未配置同步则为空操作）
+  backfillPendingScrobbles()
+  // 本地历史就绪后再拉远端，合并时才能正确识别哪些是新记录
+  void pullRemoteHistory()
+})
 
 function bothStoresHydrated() {
   return useServerStore.persist.hasHydrated() && useSettingsStore.persist.hasHydrated()

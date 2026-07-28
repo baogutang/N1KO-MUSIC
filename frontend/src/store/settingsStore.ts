@@ -5,6 +5,8 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { createPersistStorage } from '@/store/persistStorage'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 
 /** 封面图来源优先级 */
 export type CoverSource = 'server_first' | 'remote_first' | 'remote_only' | 'server_only'
@@ -148,7 +150,9 @@ export const useSettingsStore = create<SettingsState>()(
       setAudioQuality: (q) => set({ audioQuality: q }),
     }),
     {
-      name: 'msp-settings-store',
+      name: STORAGE_KEYS.settingsStore,
+      // 体积小、纯用户主动变更，同步写入避免丢配置
+      storage: createPersistStorage({ debounceMs: 0 }),
       version: 1,
       // v0 -> v1：会员体系移除。旧版免费用户被强制锁定在 low（非主动选择），
       // 迁移为无损默认；之后用户在设置里的选择正常持久化

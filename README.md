@@ -188,8 +188,13 @@ npm run tauri:dev    # desktop dev mode
 
 ### Optional sync service
 
-`backend/` exposes account, local-playlist and listening-history APIs for future cross-device sync or third-party clients.
-The released desktop client still connects directly to your music server and **does not automatically use this service**.
+`backend/` exposes account, local-playlist, favourite and listening-history APIs for cross-device sync.
+It is **entirely optional**: music always streams straight from your own music server, and with no sync service
+configured the app keeps its full feature set, storing listening history locally in IndexedDB.
+
+Once you have deployed it, open **Settings › 跨设备同步 (SYNC)**, enter the service address and sign in.
+The client then mirrors listening history and favourites to the service and merges records written by your
+other devices, so recommendations do not restart from scratch on a new device.
 
 ```bash
 cd backend

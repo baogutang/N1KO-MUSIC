@@ -52,7 +52,7 @@ test('health is backed by SQLite and reports the package version', async () => {
   })
   assert.equal(response.status, 200)
   assert.equal(body.status, 'ok')
-  assert.equal(body.version, '1.2.5')
+  assert.equal(body.version, '1.3.0')
   assert.equal(response.headers.get('access-control-allow-origin'), 'http://tauri.localhost')
 })
 
@@ -155,4 +155,49 @@ test('auth, playlists and history enforce their data contracts', async () => {
   assert.equal(summary.body.totalPlays, 1)
   assert.equal(summary.body.totalDuration, 120)
   assert.equal(summary.body.topArtists[0].name, 'Artist')
+})
+
+test('repeated scrobbles of one session correct the duration instead of being dropped', async () => {
+  const registered = await request('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ username: 'scrobbler', password: 'correct-horse' }),
+  })
+  const authHeaders = { authorization: `Bearer ${registered.body.token}` }
+  const event = {
+    eventId: 'session-00000001',
+    songId: 'song-9',
+    serverId: 'server-z',
+    songData: { id: 'song-9', title: 'Long Song', artist: 'Artist Z' },
+  }
+
+  // 客户端在播放过程中周期性上报同一次收听，时长逐步增长
+  const first = await request('/api/stats/scrobble', {
+    method: 'POST', headers: authHeaders, body: JSON.stringify({ ...event, duration: 30 }),
+  })
+  assert.equal(first.response.status, 201)
+
+  const refreshed = await request('/api/stats/scrobble', {
+    method: 'POST', headers: authHeaders, body: JSON.stringify({ ...event, duration: 240 }),
+  })
+  assert.equal(refreshed.response.status, 200)
+  assert.equal(refreshed.body.duplicate, true)
+
+  const summary = await request('/api/stats/summary?serverId=server-z&tzOffsetMinutes=0', {
+    headers: authHeaders,
+  })
+  // 仍然只有一条记录，但时长已被修正
+  assert.equal(summary.body.totalPlays, 1)
+  assert.equal(summary.body.totalDuration, 240)
+
+  // 乱序到达的旧上报不能把已记录的时长改小
+  const stale = await request('/api/stats/scrobble', {
+    method: 'POST', headers: authHeaders, body: JSON.stringify({ ...event, duration: 10 }),
+  })
+  assert.equal(stale.response.status, 200)
+
+  const afterStale = await request('/api/stats/summary?serverId=server-z&tzOffsetMinutes=0', {
+    headers: authHeaders,
+  })
+  assert.equal(afterStale.body.totalPlays, 1)
+  assert.equal(afterStale.body.totalDuration, 240)
 })
