@@ -7,7 +7,14 @@ import {
 } from '@/services/listeningStats'
 import type { ListeningEvent, ListeningOutcome } from '@/services/listeningHistory'
 
-const NOW = new Date('2026-07-28T15:00:00+08:00').getTime()
+/**
+ * 统计按「本地」日历天与本地小时分桶，因此固定时刻必须用本地时间构造。
+ * 写死 +08:00 这类偏移会让断言实际依赖运行机器的时区（CI 跑在 UTC 上就会错位）。
+ */
+const localTime = (hour: number, minute = 0) =>
+  new Date(2026, 6, 28, hour, minute, 0, 0).getTime()
+
+const NOW = localTime(15)
 const DAY = 86_400_000
 
 function song(id: string, overrides: Partial<Song> = {}): Song {
@@ -150,12 +157,11 @@ describe('computeListeningStats', () => {
   })
 
   it('按本地小时统计收听时段并给出高峰', () => {
-    const at = (hour: number) => new Date(`2026-07-28T${String(hour).padStart(2, '0')}:30:00+08:00`).getTime()
     const stats = computeListeningStats(
       [
-        event(song('a'), 'completed', QUALIFIED_SECONDS, at(22)),
-        event(song('b'), 'completed', QUALIFIED_SECONDS, at(22)),
-        event(song('c'), 'completed', QUALIFIED_SECONDS, at(9)),
+        event(song('a'), 'completed', QUALIFIED_SECONDS, localTime(22, 30)),
+        event(song('b'), 'completed', QUALIFIED_SECONDS, localTime(22, 45)),
+        event(song('c'), 'completed', QUALIFIED_SECONDS, localTime(9, 30)),
       ],
       7,
       NOW

@@ -11,7 +11,11 @@ import {
   type ListeningEvent,
 } from '@/services/listeningHistory'
 
-const NOW = new Date('2026-07-22T12:00:00+08:00').getTime()
+/**
+ * 本期封面按「本地」日历天轮换，固定时刻必须用本地时间构造，
+ * 否则断言会依赖运行机器的时区。
+ */
+const NOW = new Date(2026, 6, 22, 12, 0, 0, 0).getTime()
 
 function song(id: string, artist: string, genre: string, album = id): Song {
   return {
@@ -206,8 +210,8 @@ const DAY = 24 * 60 * 60 * 1000
 describe('pickFeaturedAlbum', () => {
   it('同一天内结果稳定', () => {
     const albums = Array.from({ length: 8 }, (_, i) => album(String(i), 10))
-    const morning = new Date('2026-07-28T08:00:00+08:00').getTime()
-    const evening = new Date('2026-07-28T23:00:00+08:00').getTime()
+    const morning = new Date(2026, 6, 28, 8, 0, 0, 0).getTime()
+    const evening = new Date(2026, 6, 28, 23, 0, 0, 0).getTime()
     expect(pickFeaturedAlbum(albums, evening)?.id).toBe(pickFeaturedAlbum(albums, morning)?.id)
   })
 

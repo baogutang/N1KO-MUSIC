@@ -24,7 +24,14 @@ class MemoryStorage implements Storage {
   setItem(key: string, value: string) { this.values.set(key, value) }
 }
 
-const NOW = new Date('2026-07-28T10:00:00Z')
+/** dayKey 取本地日历天，固定时刻用本地时间构造以免断言依赖运行机器的时区 */
+const NOW = new Date(2026, 6, 28, 10, 0, 0, 0)
+const DAY_MS = 86_400_000
+
+/** 相对 NOW 的前 n 天，用于构造"过期"的缓存键 */
+function daysBefore(days: number): string {
+  return recommendationDayKey(new Date(NOW.getTime() - days * DAY_MS))
+}
 
 function recommendationKey(day: string, batch = 0): string {
   return `${RECOMMENDATION_CACHE_PREFIX}server-a:${day}:${batch}:30`
@@ -64,15 +71,17 @@ beforeEach(() => {
 describe('推荐缓存清理', () => {
   it('删除所有非当天的缓存键', () => {
     const today = recommendationDayKey(NOW)
+    const yesterday = daysBefore(1)
+    const earlier = daysBefore(2)
     localStorage.setItem(recommendationKey(today), JSON.stringify({ savedAt: 1, songs: [] }))
-    localStorage.setItem(recommendationKey('2026-07-27'), JSON.stringify({ savedAt: 1, songs: [] }))
-    localStorage.setItem(recommendationKey('2026-07-26'), JSON.stringify({ savedAt: 1, songs: [] }))
+    localStorage.setItem(recommendationKey(yesterday), JSON.stringify({ savedAt: 1, songs: [] }))
+    localStorage.setItem(recommendationKey(earlier), JSON.stringify({ savedAt: 1, songs: [] }))
 
     pruneRecommendationCache(NOW)
 
     expect(localStorage.getItem(recommendationKey(today))).not.toBeNull()
-    expect(localStorage.getItem(recommendationKey('2026-07-27'))).toBeNull()
-    expect(localStorage.getItem(recommendationKey('2026-07-26'))).toBeNull()
+    expect(localStorage.getItem(recommendationKey(yesterday))).toBeNull()
+    expect(localStorage.getItem(recommendationKey(earlier))).toBeNull()
   })
 
   it('清除旧版把 endedAt 写进键名而不断累积的遗留缓存', () => {
@@ -189,9 +198,12 @@ describe('配额回收分级', () => {
 
 describe('启动自愈', () => {
   it('清掉遗留推荐缓存并统计占用', () => {
+    // runStorageMaintenance 读真实时钟，因此"过期"的日期必须相对真实今天推算，
+    // 不能写死日期字面量（否则某一天跑测试时它恰好就是今天）。
     for (let i = 0; i < 30; i++) {
+      const staleDay = recommendationDayKey(new Date(Date.now() - (i + 1) * DAY_MS))
       localStorage.setItem(
-        `${RECOMMENDATION_CACHE_PREFIX}server-a:2026-01-0${i % 10}:0:event:${i}:30`,
+        `${RECOMMENDATION_CACHE_PREFIX}server-a:${staleDay}:0:event:${i}:30`,
         JSON.stringify([{ id: 'song' }])
       )
     }
