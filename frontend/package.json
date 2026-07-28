@@ -57,7 +57,7 @@
     "react-router-dom": "^7.18.1",
     "tailwind-merge": "^2.4.0",
     "tailwindcss-animate": "^1.0.7",
-    "zustand": "^4.5.4"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
