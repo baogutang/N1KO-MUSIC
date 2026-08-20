@@ -103,6 +103,11 @@ interface PlayerState {
   isQueueOpen: boolean
   streamBuffering: boolean
 
+  /** 睡眠定时的截止时间戳；null 表示未设置。刻意不持久化——重启后残留的过期截止会让 App 一打开就暂停 */
+  sleepTimerAt: number | null
+  /** 'endOfTrack' 表示放完当前这首再停，忽略 sleepTimerAt 的精确时刻 */
+  sleepTimerMode: 'duration' | 'endOfTrack'
+
   playSong: (song: Song, queue?: Song[]) => void
   /**
    * 起播一个列表。
@@ -125,6 +130,8 @@ interface PlayerState {
   toggleMute: () => void
   setRepeatMode: (mode: RepeatMode) => void
   toggleShuffle: () => void
+  /** minutes 为 null 表示取消；mode='endOfTrack' 时放完当前曲再停 */
+  setSleepTimer: (minutes: number | null, mode?: 'duration' | 'endOfTrack') => void
   addToQueue: (songs: Song[], position?: 'next' | 'last') => void
   removeFromQueue: (index: number) => void
   reorderQueue: (fromIndex: number, toIndex: number) => void
@@ -162,6 +169,8 @@ export const usePlayerStore = create<PlayerState>()(
       isFullscreen: false,
       isQueueOpen: false,
       streamBuffering: false,
+      sleepTimerAt: null,
+      sleepTimerMode: 'duration',
 
       playSong: (song, queue) => {
         const state = get()
@@ -361,6 +370,18 @@ export const usePlayerStore = create<PlayerState>()(
       toggleMute: () => set(state => ({ muted: !state.muted })),
 
       setRepeatMode: (mode) => set({ repeatMode: mode }),
+
+      setSleepTimer: (minutes, mode = 'duration') => {
+        if (mode === 'endOfTrack') {
+          set({ sleepTimerAt: Date.now(), sleepTimerMode: 'endOfTrack' })
+          return
+        }
+        if (minutes === null || !Number.isFinite(minutes) || minutes <= 0) {
+          set({ sleepTimerAt: null, sleepTimerMode: 'duration' })
+          return
+        }
+        set({ sleepTimerAt: Date.now() + minutes * 60_000, sleepTimerMode: 'duration' })
+      },
 
       toggleShuffle: () => {
         const { shuffle, queue, queueIndex } = get()

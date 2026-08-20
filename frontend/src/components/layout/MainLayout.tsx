@@ -10,6 +10,8 @@ import { FullscreenPlayerOverlay } from '@/components/player/FullscreenPlayerOve
 import { useAudioEngine } from '@/hooks/useAudioEngine'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useSleepTimer } from '@/hooks/useSleepTimer'
+import { useQueueSync } from '@/hooks/useQueueSync'
 import { useIsMobileLayout } from '@/lib/platform'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -20,14 +22,20 @@ import {
 
 export default function MainLayout() {
   const isMobile = useIsMobileLayout()
+
+  // 音频引擎必须挂在分支之上，只挂一次。
+  // 此前它挂在 DesktopLayout / MobileLayout 内部，把窗口拖过 768px 断点会让
+  // 组件树整个换掉、引擎重新挂载，当前曲跳回 0:00 并重新拉流。
+  useAudioEngine()
+  useMediaSession()
+  useKeyboardShortcuts()
+  useSleepTimer()
+  useQueueSync()
+
   return isMobile ? <MobileLayout /> : <DesktopLayout />
 }
 
 function DesktopLayout() {
-  useAudioEngine()
-  useMediaSession()
-  useKeyboardShortcuts()
-
   useEffect(() => {
     const warmup = () => {
       prefetchCommonAuthenticatedRoutes()

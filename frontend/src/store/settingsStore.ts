@@ -7,6 +7,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createPersistStorage } from '@/store/persistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
+import { PREAMP_MAX_DB, PREAMP_MIN_DB, type ReplayGainMode } from '@/utils/replayGain'
 
 /** 封面图来源优先级 */
 export type CoverSource = 'server_first' | 'remote_first' | 'remote_only' | 'server_only'
@@ -79,7 +80,28 @@ interface SettingsState {
   translateType: string
 
   // --- 音质设置 ---
+  /** 局域网 / Wi-Fi 下的音质（历史字段，继续作为默认档）*/
   audioQuality: AudioQuality
+  /**
+   * 蜂窝网络下的音质。
+   * 默认无损意味着出门在外仍在从家里的上行拉原始 FLAC，既费流量又容易卡。
+   */
+  cellularAudioQuality: AudioQuality
+  /** 按网络类型自动切换音质 */
+  adaptiveQuality: boolean
+
+  // --- 音量归一化 ---
+  replayGainMode: ReplayGainMode
+  /** 前置增益（dB），-15 ~ +15 */
+  replayGainPreamp: number
+
+  // --- 播放 ---
+  /** 倍速播放，0.5 ~ 3。有声书 / 讲座 / 广播剧用 */
+  playbackRate: number
+  /** 暂停与切歌时做音量斜坡，而不是硬切 */
+  smoothTransitions: boolean
+  /** 预加载下一首以逼近无缝（弱无缝，非真正 gapless）*/
+  preloadNext: boolean
 
   // --- Actions ---
   setApiPreferServer: (v: boolean) => void
@@ -100,6 +122,13 @@ interface SettingsState {
   setTranslateTargetLang: (v: string) => void
   setTranslateType: (v: string) => void
   setAudioQuality: (q: AudioQuality) => void
+  setCellularAudioQuality: (q: AudioQuality) => void
+  setAdaptiveQuality: (v: boolean) => void
+  setReplayGainMode: (m: ReplayGainMode) => void
+  setReplayGainPreamp: (db: number) => void
+  setPlaybackRate: (rate: number) => void
+  setSmoothTransitions: (v: boolean) => void
+  setPreloadNext: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -123,6 +152,13 @@ export const useSettingsStore = create<SettingsState>()(
       translateTargetLang: '英文',
       translateType: '无',
       audioQuality: 'lossless',
+      cellularAudioQuality: 'medium',
+      adaptiveQuality: true,
+      replayGainMode: 'auto',
+      replayGainPreamp: 0,
+      playbackRate: 1,
+      smoothTransitions: true,
+      preloadNext: true,
 
       // 全局来源优先级同时驱动封面和歌词，避免设置项只被持久化却不产生任何效果。
       // 用户仍可在下方用更细粒度的开关覆盖歌词策略。
@@ -148,18 +184,37 @@ export const useSettingsStore = create<SettingsState>()(
       setTranslateTargetLang: (v) => set({ translateTargetLang: v }),
       setTranslateType: (v) => set({ translateType: v }),
       setAudioQuality: (q) => set({ audioQuality: q }),
+      setCellularAudioQuality: (q) => set({ cellularAudioQuality: q }),
+      setAdaptiveQuality: (v) => set({ adaptiveQuality: v }),
+      setReplayGainMode: (m) => set({ replayGainMode: m }),
+      setReplayGainPreamp: (db) =>
+        set({ replayGainPreamp: Math.max(PREAMP_MIN_DB, Math.min(PREAMP_MAX_DB, db)) }),
+      setPlaybackRate: (rate) => set({ playbackRate: Math.max(0.5, Math.min(3, rate)) }),
+      setSmoothTransitions: (v) => set({ smoothTransitions: v }),
+      setPreloadNext: (v) => set({ preloadNext: v }),
     }),
     {
       name: STORAGE_KEYS.settingsStore,
       // 体积小、纯用户主动变更，同步写入避免丢配置
       storage: createPersistStorage({ debounceMs: 0 }),
-      version: 1,
+      version: 2,
       // v0 -> v1：会员体系移除。旧版免费用户被强制锁定在 low（非主动选择），
       // 迁移为无损默认；之后用户在设置里的选择正常持久化
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>
         if (version === 0 && state?.audioQuality === 'low') {
           state.audioQuality = 'lossless'
+        }
+        // v1 -> v2：音质拆成 Wi-Fi / 蜂窝两档。旧的单一设置作为 Wi-Fi 档，
+        // 蜂窝档给一个保守默认，不要沿用无损。
+        if (version < 2) {
+          if (state.cellularAudioQuality === undefined) state.cellularAudioQuality = 'medium'
+          if (state.adaptiveQuality === undefined) state.adaptiveQuality = true
+          if (state.replayGainMode === undefined) state.replayGainMode = 'auto'
+          if (state.replayGainPreamp === undefined) state.replayGainPreamp = 0
+          if (state.playbackRate === undefined) state.playbackRate = 1
+          if (state.smoothTransitions === undefined) state.smoothTransitions = true
+          if (state.preloadNext === undefined) state.preloadNext = true
         }
         return state
       },

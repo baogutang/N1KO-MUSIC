@@ -24,7 +24,7 @@
  *    用「近结尾 + 缓冲已到尾 + 时间久不前进」检测并调用 next()，避免 UI 假死、也不自动下一首。
  */
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePlayerStore } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
@@ -32,6 +32,8 @@ import { useSettingsStore, QUALITY_MAX_BITRATE } from '@/store/settingsStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { toast } from '@/components/ui/use-toast'
 import type { Song } from '@/api/types'
+import { computeReplayGainScalar } from '@/utils/replayGain'
+import { isMeteredConnection, onConnectionChange } from '@/lib/network'
 import {
   createListeningEventId,
   deriveListeningOutcome,
@@ -77,6 +79,37 @@ function abortPendingImageLoads() {
 /** 模块级 Audio 实例 — 预创建，整个应用生命周期内复用 */
 const audioEl: HTMLAudioElement = new Audio()
 audioEl.preload = 'auto'
+/**
+ * 第二个 Audio 实例，只用来把下一首的流预热进 HTTP 缓存。
+ * 静音且从不 play()，因此不会占用媒体会话，也不会被系统媒体键控制。
+ */
+const preloadEl: HTMLAudioElement = new Audio()
+preloadEl.preload = 'auto'
+preloadEl.muted = true
+preloadEl.volume = 0
+
+/**
+ * 在不改变任何状态的前提下算出「下一首是谁」。
+ * 随机开启时必须沿 shuffledIndexes 取，否则预热的是错的那一首。
+ */
+function peekNextSong(st: ReturnType<typeof usePlayerStore.getState>): Song | null {
+  const { queue, queueIndex, shuffle, shuffledIndexes, shuffleCursor, repeatMode } = st
+  if (!queue.length) return null
+  if (repeatMode === 'one') return null
+  if (shuffle && shuffledIndexes.length === queue.length) {
+    const cursor =
+      shuffleCursor >= 0 && shuffledIndexes[shuffleCursor] === queueIndex
+        ? shuffleCursor
+        : shuffledIndexes.indexOf(queueIndex)
+    const next = cursor + 1
+    if (next < shuffledIndexes.length) return queue[shuffledIndexes[next]] ?? null
+    // 绕回时会重洗，无从预知下一首
+    return null
+  }
+  if (queueIndex < queue.length - 1) return queue[queueIndex + 1] ?? null
+  if (repeatMode === 'all') return queue[0] ?? null
+  return null
+}
 let loadedKey: string | null = null  // "songId@quality@version" 格式
 let cleanupPrev: (() => void) | null = null
 /**
@@ -188,8 +221,20 @@ export function useAudioEngine() {
   const isConnected = useServerStore(s => s.isConnected)
   const activeServerId = useServerStore(s => s.activeServerId)
   const audioQuality = useSettingsStore(s => s.audioQuality)
+  const cellularAudioQuality = useSettingsStore(s => s.cellularAudioQuality)
+  const adaptiveQuality = useSettingsStore(s => s.adaptiveQuality)
   const playVersion  = usePlayerStore(s => s.playVersion)
-  const effectiveQuality = audioQuality
+
+  // 网络类型变化时重新求值（插拔 Wi-Fi、开关省流量模式）
+  const [metered, setMetered] = useState(() => isMeteredConnection())
+  useEffect(() => onConnectionChange(() => setMetered(isMeteredConnection())), [])
+
+  /**
+   * 实际使用的音质档。
+   * 这里此前是一句 `const effectiveQuality = audioQuality` —— 会员体系移除后
+   * 留下的空转指向，正好是插入网络自适应的地方。
+   */
+  const effectiveQuality = adaptiveQuality && metered ? cellularAudioQuality : audioQuality
 
   // TanStack Query 客户端 — 用于在加载音频时取消 pending 的封面请求，释放连接池
   const queryClient = useQueryClient()
@@ -200,6 +245,121 @@ export function useAudioEngine() {
   volumeRef.current = volume
   mutedRef.current  = muted
   currentSongRef.current = currentSong
+
+  // ReplayGain / 倍速 / 过渡：都通过 ref 读取，避免把高频设置塞进加载依赖
+  const replayGainMode = useSettingsStore(s => s.replayGainMode)
+  const replayGainPreamp = useSettingsStore(s => s.replayGainPreamp)
+  const playbackRate = useSettingsStore(s => s.playbackRate)
+  const smoothTransitions = useSettingsStore(s => s.smoothTransitions)
+  const gainCtxRef = useRef({ mode: replayGainMode, preamp: replayGainPreamp })
+  gainCtxRef.current = { mode: replayGainMode, preamp: replayGainPreamp }
+  const smoothRef = useRef(smoothTransitions)
+  smoothRef.current = smoothTransitions
+
+  /**
+   * 当前应当写入 audio.volume 的值：主音量 × ReplayGain 标量。
+   *
+   * 三处写入（重试重载、正常加载、音量变化）必须走同一条路径，
+   * 否则任何一次重载都会把归一化悄悄丢掉。
+   */
+  const targetVolume = useCallback(() => {
+    if (mutedRef.current) return 0
+    const base = volumeRef.current
+    const { mode, preamp } = gainCtxRef.current
+    if (mode === 'off') return base
+    // auto 模式判断是否「按顺序放整张专辑」：随机开着就不是
+    const st = usePlayerStore.getState()
+    const albumContext =
+      !st.shuffle &&
+      st.queue.length > 1 &&
+      !!st.currentSong?.albumId &&
+      st.queue.every(item => item.albumId === st.currentSong?.albumId)
+    const scalar = computeReplayGainScalar(currentSongRef.current, {
+      mode,
+      preampDb: preamp,
+      albumContext,
+    })
+    return Math.max(0, Math.min(1, base * scalar))
+  }, [])
+
+  /**
+   * 音量斜坡。在延音上硬停是一个音频应用最「像软件」的瞬间。
+   * 用 rAF 而不是 setInterval，避免后台标签页里堆积。
+   */
+  const preloadedIdRef = useRef<string | null>(null)
+  const rampRef = useRef<number | null>(null)
+  const rampVolume = useCallback((to: number, ms: number, onDone?: () => void) => {
+    if (rampRef.current !== null) {
+      cancelAnimationFrame(rampRef.current)
+      rampRef.current = null
+    }
+    if (!smoothRef.current || ms <= 0) {
+      audioEl.volume = to
+      onDone?.()
+      return
+    }
+    const from = audioEl.volume
+    if (Math.abs(from - to) < 0.01) {
+      audioEl.volume = to
+      onDone?.()
+      return
+    }
+    const start = performance.now()
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / ms)
+      audioEl.volume = Math.max(0, Math.min(1, from + (to - from) * t))
+      if (t < 1) {
+        rampRef.current = requestAnimationFrame(step)
+      } else {
+        rampRef.current = null
+        onDone?.()
+      }
+    }
+    rampRef.current = requestAnimationFrame(step)
+  }, [])
+
+  useEffect(() => () => {
+    if (rampRef.current !== null) cancelAnimationFrame(rampRef.current)
+  }, [])
+
+  /**
+   * 下一首预热（弱无缝）。
+   *
+   * 对着家里的 NAS，切歌那一下的空档是一次完整的网络往返。这里用一个隐藏的
+   * 第二个 <audio> 提前把下一首的流拉进 HTTP 缓存，切过去时就基本没有空档。
+   *
+   * 刻意不做元素轮换：那需要重写整个加载/事件/统计路径，风险远大于收益。
+   * 因此如实标注为「弱无缝」，而不是真正的 gapless。
+   */
+  const preloadNext = useSettingsStore(s => s.preloadNext)
+  useEffect(() => {
+    if (!preloadNext || !isPlaying || metered) return
+    const timer = setInterval(() => {
+      const st = usePlayerStore.getState()
+      const remaining = (st.duration || 0) - (st.currentTime || 0)
+      // 剩 15 秒内才预热，早了会和当前曲抢连接
+      if (!st.duration || remaining > 15 || remaining <= 0) return
+      const nextSong = peekNextSong(st)
+      if (!nextSong || nextSong.id === preloadedIdRef.current) return
+      if (!hasAdapter()) return
+      try {
+        const url = getAdapter().getStreamUrl(
+          nextSong.id,
+          QUALITY_MAX_BITRATE[effectiveQuality],
+          '',
+          nextSong.contentType,
+          nextSong.path,
+          nextSong.suffix
+        )
+        preloadedIdRef.current = nextSong.id
+        preloadEl.src = url
+        preloadEl.load()
+      } catch {
+        // 预热失败无所谓，正常加载路径会再拉一次
+      }
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [preloadNext, isPlaying, metered, effectiveQuality])
 
   // --- 核心：歌曲变化 / 连接就绪 / 音质变化 时加载音频 ---
   useEffect(() => {
@@ -367,7 +527,7 @@ export function useAudioEngine() {
           isSwitchingSong = true
           setTimeout(() => { isSwitchingSong = false }, 200)
           audio.src = retryUrl
-          audio.volume = mutedRef.current ? 0 : volumeRef.current
+          audio.volume = targetVolume()
           audio.load()
         }
         if (delayMs <= 0) doReload()
@@ -753,7 +913,7 @@ export function useAudioEngine() {
         usePlayerStore.getState().setStreamBuffering(true)
 
         audio.src = streamUrl
-        audio.volume = mutedRef.current ? 0 : volumeRef.current
+        audio.volume = targetVolume()
         audio.load()
 
         // 音质切换属于同一次收听，保留累计时长和 eventId；真正切歌才结算旧会话。
@@ -890,7 +1050,7 @@ export function useAudioEngine() {
 
     // 依赖歌曲 id 而非对象引用：updateCurrentSong（如收藏切换）只替换引用不换歌，
     // 不应触发本 effect，否则会 cleanup 后重载导致从头重播
-  }, [currentSongId, playVersion, isConnected, activeServerId, effectiveQuality, queryClient])
+  }, [currentSongId, playVersion, isConnected, activeServerId, effectiveQuality, queryClient, targetVolume])
 
   // MainLayout 卸载（登出/断开连接）时模块级 Audio 仍会存活，必须显式停止。
   useEffect(() => () => {
@@ -917,13 +1077,24 @@ export function useAudioEngine() {
         }
       })
     } else if (!isPlaying && !audioEl.paused) {
-      audioEl.pause()
+      // 在延音上硬停是最「像软件」的一个瞬间，用约 120ms 渐弱收尾
+      rampVolume(0, 120, () => {
+        audioEl.pause()
+        audioEl.volume = targetVolume()
+      })
     }
-  }, [isPlaying])
+  }, [isPlaying, rampVolume, targetVolume])
 
-  // --- 音量 ---
+  // --- 音量（含 ReplayGain 归一化）---
   useEffect(() => {
-    audioEl.volume = muted ? 0 : volume
-  }, [volume, muted])
+    audioEl.volume = targetVolume()
+  }, [volume, muted, replayGainMode, replayGainPreamp, currentSongId, targetVolume])
+
+  // --- 倍速播放：有声书 / 讲座 / 广播剧 ---
+  useEffect(() => {
+    audioEl.playbackRate = playbackRate
+    // 变调补偿，避免倍速下变成花栗鼠
+    audioEl.preservesPitch = true
+  }, [playbackRate, currentSongId, playVersion])
 
 }

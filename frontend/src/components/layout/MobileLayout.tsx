@@ -11,8 +11,6 @@ import { BottomNav } from './BottomNav'
 import { MiniPlayer } from './MiniPlayer'
 import { QueueDrawer } from '@/components/player/QueueDrawer'
 import { FullscreenPlayerOverlay } from '@/components/player/FullscreenPlayerOverlay'
-import { useAudioEngine } from '@/hooks/useAudioEngine'
-import { useMediaSession } from '@/hooks/useMediaSession'
 import { useNativeMediaControls } from '@/services/nativeMediaControls'
 import { useNativeAppIntegration } from '@/hooks/useNativeAppIntegration'
 import { Toaster } from '@/components/ui/toaster'
@@ -23,8 +21,7 @@ import {
 } from '@/routes/lazyRoutes'
 
 export function MobileLayout() {
-  useAudioEngine()
-  useMediaSession()
+  // 音频引擎与媒体会话已提升到 MainLayout，避免跨断点重挂导致当前曲重播
   useNativeMediaControls()
   useNativeAppIntegration()
 
