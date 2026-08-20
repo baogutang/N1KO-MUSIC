@@ -21,7 +21,8 @@ import {
   type AudioQuality,
   type CoverShape,
 } from '@/store/settingsStore'
-import { createAdapter } from '@/api'
+import { createAdapter, getAdapter, hasAdapter } from '@/api'
+import { useLibraryScan } from '@/hooks/useServerQueries'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
@@ -137,6 +138,9 @@ export default function Settings() {
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
   // 删除服务器会连同 URL、用户名与令牌一起永久抹掉且无法撤销，必须二次确认
   const [pendingRemove, setPendingRemove] = useState<string | null>(null)
+  const scan = useLibraryScan()
+  // 能力探测：不支持的服务器上整个入口不出现，而不是点了没反应
+  const supportsScan = hasAdapter() && typeof getAdapter().startScan === 'function'
 
   const activeServer = servers.find(s => s.id === activeServerId)
 
@@ -256,6 +260,22 @@ export default function Settings() {
                 </div>
               </div>
             ))}
+
+            {supportsScan && (
+              <Row
+                name="重新扫描音乐库"
+                desc="往 NAS 里放了新专辑之后，不必再打开服务器后台"
+              >
+                <button
+                  onClick={() => scan.mutate()}
+                  disabled={scan.isPending}
+                  className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink disabled:opacity-50"
+                >
+                  <ArrowsClockwise size={13} className={scan.isPending ? 'animate-spin' : undefined} />
+                  {scan.isPending ? '扫描中' : '开始扫描'}
+                </button>
+              </Row>
+            )}
 
             <Button
               variant="outline"

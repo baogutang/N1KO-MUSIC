@@ -8,6 +8,7 @@ import { ArrowsClockwise, Play, Shuffle } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { SongList } from '@/components/music/SongList'
+import { AlbumShelf } from '@/components/music/AlbumShelf'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { useRecentAlbums, useArtists, queryKeys } from '@/hooks/useServerQueries'
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
@@ -215,6 +216,10 @@ export default function HomePage() {
           </p>
         </section>
       )}
+
+      {/* ============ 服务端已算好的书架：最常播放 / 最近播放 ============ */}
+      <AlbumShelf type="frequent" label="最常播放" tag="MOST PLAYED" limit={6} />
+      <AlbumShelf type="recent" label="最近播放" tag="RECENTLY PLAYED" limit={6} />
 
       {/*
         ============ 为你推荐 · 编号列表 ============

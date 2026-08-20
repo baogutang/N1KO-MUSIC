@@ -347,7 +347,8 @@ export function useAlbums(params: ListParams = {}) {
 /** 无限滚动加载专辑 */
 export function useAlbumsInfinite(size = 50, type = 'newest') {
   return useInfiniteQuery({
-    queryKey: [serverKey(), 'albums', 'infinite', type],
+    // key 必须含 size：同一 type 不同 size 的两个书架否则会串缓存
+    queryKey: [serverKey(), 'albums', 'infinite', type, size],
     queryFn: ({ pageParam = 0 }) =>
       getAdapter().getAlbums({ size, offset: pageParam as number, type }),
     initialPageParam: 0,
@@ -355,6 +356,63 @@ export function useAlbumsInfinite(size = 50, type = 'newest') {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
       if (lastPage.items.length < size) return undefined
       return loaded
+    },
+  })
+}
+
+/**
+ * 服务端已经算好的专辑书架。
+ * getAlbumList2 有十种 type，此前只用了 newest 与 alphabeticalByName 两种。
+ */
+export function useAlbumShelf(type: AlbumShelfType, size = 12) {
+  return useQuery({
+    queryKey: [serverKey(), 'albums', 'shelf', type, size] as const,
+    queryFn: () => getAdapter().getAlbums({ type, size }),
+    staleTime: 10 * 60 * 1000,
+  })
+}
+
+/** 触发服务器扫描并轮询进度 */
+export function useLibraryScan() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const adapter = getAdapter()
+      if (!adapter.startScan) throw new Error('该服务器不支持从客户端触发扫描')
+      await adapter.startScan()
+      // 轮询到扫描结束，最多等 5 分钟
+      const deadline = Date.now() + 5 * 60_000
+      let last: { scanning: boolean; count?: number } | null = null
+      while (Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        last = (await adapter.getScanStatus?.()) ?? null
+        if (last && !last.scanning) break
+      }
+      return last
+    },
+    onSuccess: () => {
+      // 扫描后库内容可能变了，让所有服务器数据失效
+      queryClient.invalidateQueries({ queryKey: [serverKey()] })
+    },
+  })
+}
+
+/** 五星评分写回。userRating 早已映射并只读展示，此前只缺这一半。 */
+export function useSetRating() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, rating, type = 'song' }: {
+      id: string; rating: number; type?: 'song' | 'album'
+    }) => {
+      const adapter = getAdapter()
+      if (!adapter.setRating) throw new Error('该服务器不支持评分')
+      await adapter.setRating(id, rating, type)
+    },
+    onSuccess: (_data, variables) => {
+      const sid = serverKey()
+      queryClient.setQueriesData({ queryKey: [sid] }, (old: unknown) =>
+        patchFieldInCache(old, variables.id, 'userRating', variables.rating)
+      )
     },
   })
 }
@@ -508,6 +566,38 @@ export function useToggleStar() {
     },
   })
 }
+
+/** 就地改写缓存里某一条的任意字段，覆盖裸数组 / {items} / {songs} / {pages} 四种形状 */
+function patchFieldInCache(data: unknown, id: string, field: string, value: unknown): unknown {
+  const patchItem = (item: unknown): unknown => {
+    if (!item || typeof item !== 'object') return item
+    const record = item as Record<string, unknown>
+    if (record.id !== id || record[field] === value) return item
+    return { ...record, [field]: value }
+  }
+  if (Array.isArray(data)) return data.map(patchItem)
+  if (!data || typeof data !== 'object') return data
+  const obj = data as Record<string, unknown>
+  if (Array.isArray(obj.pages)) {
+    return { ...obj, pages: obj.pages.map(page => patchFieldInCache(page, id, field, value)) }
+  }
+  if (Array.isArray(obj.items)) return { ...obj, items: obj.items.map(patchItem) }
+  if (Array.isArray(obj.songs)) return { ...obj, songs: obj.songs.map(patchItem) }
+  if (obj.id === id) return patchItem(obj)
+  return data
+}
+
+/** getAlbumList2 支持的排序维度，此前只用了其中两种 */
+export type AlbumShelfType =
+  | 'newest' | 'recent' | 'frequent' | 'highest' | 'starred'
+  | 'random' | 'byYear' | 'alphabeticalByName' | 'alphabeticalByArtist'
+
+export const ALBUM_SHELVES: Array<{ type: AlbumShelfType; label: string; tag: string }> = [
+  { type: 'frequent', label: '最常播放', tag: 'MOST PLAYED' },
+  { type: 'recent', label: '最近播放', tag: 'RECENTLY PLAYED' },
+  { type: 'highest', label: '评分最高', tag: 'TOP RATED' },
+  { type: 'starred', label: '已收藏', tag: 'STARRED' },
+]
 
 /**
  * 就地把所有缓存里该 id 的 starred 标记改掉。
