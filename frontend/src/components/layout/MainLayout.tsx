@@ -5,6 +5,7 @@ import { Masthead } from './Masthead'
 import { TopNav } from './TopNav'
 import { PlayerBar } from './PlayerBar'
 import { ConnectionBanner } from './ConnectionBanner'
+import { UpdatePrompt } from './UpdatePrompt'
 import { ResumeOffer } from '@/components/player/ResumeOffer'
 import { MobileLayout } from './MobileLayout'
 import { QueueDrawer } from '@/components/player/QueueDrawer'
@@ -64,6 +65,7 @@ function DesktopLayout() {
       <div className="relative flex flex-col h-screen h-[100dvh] bg-background text-foreground overflow-hidden">
         {/* 顶部工具条（含 macOS 拖拽区）/ 报头 / 主导航行（DESIGN v2 §3） */}
         <TopBar />
+        <UpdatePrompt />
         <ConnectionBanner />
         <ResumeOffer />
         <Masthead />

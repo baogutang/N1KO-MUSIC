@@ -35,21 +35,27 @@ export default defineConfig(({ mode }) => ({
               ],
             },
             workbox: {
-              // 避免 workbox-build 在某些 Node/terser 组合下构建阶段挂起（Unexpected early exit）
-              // 代价：SW 不做 terser 压缩，但功能不受影响
-              mode: 'development',
-              globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+              // 字体是自托管的，必须进预缓存——此前 glob 里没有 woff2，
+              // 离线时整套衬线/等宽字体全部退回系统字体。
+              globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
               runtimeCaching: [
                 {
-                  urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-                  handler: 'CacheFirst',
+                  // 封面按 URL 缓存：音乐服务器的封面接口稳定且体积可观。
+                  // 走 StaleWhileRevalidate，离线时仍有图，联网时后台更新。
+                  urlPattern: ({ url }) =>
+                    /\/rest\/getCoverArt/i.test(url.pathname) ||
+                    /\/Items\/[^/]+\/Images\//i.test(url.pathname),
+                  handler: 'StaleWhileRevalidate',
                   options: {
-                    cacheName: 'google-fonts-cache',
-                    expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+                    cacheName: 'cover-art-cache',
+                    expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30 },
                     cacheableResponse: { statuses: [0, 200] },
                   },
                 },
               ],
+              // 音频流绝不能进预缓存或运行时缓存：单曲动辄几十 MB，
+              // 而且 Range 请求与 SW 缓存配合很差。
+              navigateFallbackDenylist: [/^\/rest\//, /^\/Audio\//],
             },
           }),
         ]),
