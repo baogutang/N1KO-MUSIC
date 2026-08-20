@@ -1,0 +1,25 @@
+name: 功能建议 / Feature request
+description: 希望增加或改进的能力
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题
+      description: 请描述真实场景，而不是直接给方案——很多时候有更贴合本项目的做法
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你设想的做法
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: 其他播放器怎么做的
+      description: 如果 Feishin / Symfonium / Amperfy 等已有类似能力，贴个链接或截图会很有帮助
+  - type: checkboxes
+    id: identity
+    attributes:
+      label: 设计取向
+      options:
+        - label: 我明白本项目刻意保持「杂志式排版、单一强调色、不做卡片堆叠」，建议会按这个取向权衡

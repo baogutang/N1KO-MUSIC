@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用问题与讨论
+    url: https://github.com/baogutang/N1KO-MUSIC/discussions
+    about: 连不上服务器、配置疑问等先来讨论区

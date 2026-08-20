@@ -7,16 +7,7 @@
     <meta name="theme-color" content="#f4efe3" />
     <meta name="description" content="N1KO MUSIC - 现代化音乐流媒体客户端，支持 Navidrome/Subsonic/Jellyfin/Emby" />
     <title>N1KO MUSIC</title>
-    <script>
-      // 启动防白闪：在 bundle 加载前按持久化主题预置 dark class 与底色（与 index.css --paper 一致）
-      try {
-        var s = JSON.parse(localStorage.getItem('msp-theme-store') || '{}')
-        var t = s && s.state && s.state.theme
-        var d = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
-        document.documentElement.classList.toggle('dark', d)
-        document.documentElement.style.background = d ? '#1a1712' : '#f4efe3'
-      } catch (e) {}
-    </script>
+    <script src="./theme-preflash.js"></script>
   </head>
   <body>
     <div id="root"></div>

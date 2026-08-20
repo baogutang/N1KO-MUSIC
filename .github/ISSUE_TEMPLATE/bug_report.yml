@@ -1,0 +1,54 @@
+name: 缺陷报告 / Bug report
+description: 播放异常、界面问题、崩溃等
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。下面几项是定位问题的最小信息集——缺少任何一项都会让排查多花好几轮。
+  - type: textarea
+    id: what
+    attributes:
+      label: 问题描述 / What happened
+      description: 你做了什么，期望发生什么，实际发生了什么
+      placeholder: |
+        1. 打开音乐库 → 歌曲
+        2. 点「全库随机」
+        3. 期望：从整个库里随机；实际：只在前 100 首里打转
+    validations: { required: true }
+  - type: dropdown
+    id: server-type
+    attributes:
+      label: 音乐服务器类型
+      options: [Navidrome, Subsonic, Airsonic / Airsonic-Advanced, Jellyfin, Emby, 其他]
+    validations: { required: true }
+  - type: input
+    id: server-version
+    attributes:
+      label: 音乐服务器版本
+      placeholder: 例如 Navidrome 0.53.3
+    validations: { required: true }
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 客户端平台
+      options: [macOS 桌面版, Windows 桌面版, Linux 桌面版, Android, iOS, 浏览器 / PWA]
+    validations: { required: true }
+  - type: input
+    id: app-version
+    attributes:
+      label: N1KO MUSIC 版本
+      description: 设置页底部可见
+      placeholder: 例如 1.7.0
+    validations: { required: true }
+  - type: dropdown
+    id: quality
+    attributes:
+      label: 流媒体音质档位
+      options: [无损原码, 高质量 320kbps, 标准 192kbps, 省流 128kbps, 不确定]
+  - type: textarea
+    id: console
+    attributes:
+      label: 控制台日志
+      description: 桌面端 Ctrl/Cmd+Shift+I 打开开发者工具，贴 Console 里的红色报错
+      render: text
