@@ -63,6 +63,11 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // capacitor 模式不启用 VitePWA，虚拟模块不存在，Rollup 会在构建期解析失败。
+      // 动态 import 的 catch 只兜得住运行时，兜不住构建，所以这里用别名顶一个空实现。
+      ...(mode === 'capacitor'
+        ? { 'virtual:pwa-register': path.resolve(__dirname, './src/lib/pwaRegisterStub.ts') }
+        : {}),
     },
   },
   server: {
