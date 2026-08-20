@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { isNativePlatform } from '@/lib/platform'
@@ -44,7 +43,6 @@ function isDialogOpen(): boolean {
 }
 
 export function useKeyboardShortcuts() {
-  const navigate = useNavigate()
 
   useEffect(() => {
     // 原生移动端无键盘快捷键场景，直接不注册
@@ -56,12 +54,7 @@ export function useKeyboardShortcuts() {
       const meta = e.metaKey || e.ctrlKey
       const store = usePlayerStore.getState()
 
-      if (meta && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        navigate('/search')
-        return
-      }
-
+      // ⌘K 由 CommandPalette 自行监听，这里不再抢占
       if (e.code === 'Space') {
         // 焦点在某个控件上时空格属于那个控件，不要无条件截走
         if (spaceBelongsToFocusedControl(e.target)) return
@@ -120,5 +113,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigate])
+  }, [])
 }

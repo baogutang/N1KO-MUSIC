@@ -6,6 +6,7 @@ import { TopNav } from './TopNav'
 import { PlayerBar } from './PlayerBar'
 import { ConnectionBanner } from './ConnectionBanner'
 import { UpdatePrompt } from './UpdatePrompt'
+import { CommandPalette } from '@/components/CommandPalette'
 import { ResumeOffer } from '@/components/player/ResumeOffer'
 import { MobileLayout } from './MobileLayout'
 import { QueueDrawer } from '@/components/player/QueueDrawer'
@@ -37,7 +38,13 @@ export default function MainLayout() {
   useQueueSync()
   useRadioRefill()
 
-  return isMobile ? <MobileLayout /> : <DesktopLayout />
+  return (
+    <>
+      {/* 命令面板对两种布局都可用（外接键盘的平板同样受益） */}
+      <CommandPalette />
+      {isMobile ? <MobileLayout /> : <DesktopLayout />}
+    </>
+  )
 }
 
 function DesktopLayout() {
