@@ -314,7 +314,8 @@ export interface MusicServerAdapter {
   // --- 歌曲 ---
   getSongs(params?: ListParams): Promise<PageResult<Song>>
   getSong(songId: string): Promise<Song | null>
-  searchAll(query: string): Promise<SearchResult>
+  /** signal 由 React Query 的 queryFn 提供，用于取消在途搜索 */
+  searchAll(query: string, signal?: AbortSignal): Promise<SearchResult>
   /** path / suffix 用于识别 DSF/DSD（Navidrome 常缺准确 MIME，但会有 suffix）*/
   getStreamUrl(
     songId: string,

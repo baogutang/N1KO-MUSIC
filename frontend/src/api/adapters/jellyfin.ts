@@ -257,7 +257,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
-  async searchAll(query: string): Promise<SearchResult> {
+  async searchAll(query: string, signal?: AbortSignal): Promise<SearchResult> {
     const [songs, albums, artists] = await Promise.all([
       this.client.get('/Items', {
         params: this.itemsParams({
@@ -266,6 +266,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
           Fields: 'MediaStreams,RunTimeTicks,UserData,ImageTags',
           Limit: 20,
         }),
+        signal,
       }),
       this.client.get('/Items', {
         params: this.itemsParams({
@@ -274,6 +275,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
           Fields: 'RunTimeTicks,UserData,Genres',
           Limit: 10,
         }),
+        signal,
       }),
       this.client.get('/Items', {
         params: this.itemsParams({
@@ -282,6 +284,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
           Fields: 'UserData',
           Limit: 10,
         }),
+        signal,
       }),
     ])
     return {

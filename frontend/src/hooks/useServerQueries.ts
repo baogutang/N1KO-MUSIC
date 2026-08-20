@@ -17,7 +17,7 @@ import {
 import { getAdapter } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
-import { useLyricCacheStore } from '@/store/o3icCacheStore'
+import { useLyricCacheStore } from '@/store/lyricCacheStore'
 import { parseLrc } from '@/hooks/useLyrics'
 import { mirrorFavorite } from '@/services/historySync'
 import type { ListParams, Lyrics, Song } from '@/api/types'
@@ -46,7 +46,7 @@ export const queryKeys = {
   playlistDetail: (id: string) => [serverKey(), 'playlists', id] as const,
   starred: () => [serverKey(), 'starred'] as const,
   genres: () => [serverKey(), 'genres'] as const,
-  o3ics: (songId: string) => [serverKey(), 'o3ics', songId] as const,
+  lyrics: (songId: string) => [serverKey(), 'lyrics', songId] as const,
 }
 
 /**
@@ -121,7 +121,7 @@ export function useSongDetail(songId: string, initialData?: Song) {
 export function useSearch(query: string) {
   return useQuery({
     queryKey: queryKeys.search(query),
-    queryFn: () => getAdapter().searchAll(query),
+    queryFn: ({ signal }) => getAdapter().searchAll(query, signal),
     enabled: query.trim().length >= 1,
     staleTime: 2 * 60 * 1000,
     placeholderData: keepPreviousData,
@@ -155,7 +155,7 @@ export function useLyricsQuery(
 
   // 服务器歌词（有配置时始终并行请求）
   const serverQuery = useQuery({
-    queryKey: queryKeys.o3ics(songId),
+    queryKey: queryKeys.lyrics(songId),
     queryFn: () => getAdapter().getLyrics(songId, title, artist),
     enabled: fetchEnabled,
     staleTime: 30 * 60 * 1000,
@@ -180,7 +180,7 @@ export function useLyricsQuery(
 
   // 远程歌词（需要启用远程歌词源 + 配置模板）
   const remoteQuery = useQuery({
-    queryKey: [serverKey(), 'o3ics-remote', songId, remoteUrl],
+    queryKey: [serverKey(), 'lyrics-remote', songId, remoteUrl],
     queryFn: async (): Promise<Lyrics | null> => {
       if (!remoteUrl) return null
       const headers: Record<string, string> = {}
@@ -197,7 +197,7 @@ export function useLyricsQuery(
           if (!list.length) return null
           const item = list[0]
           const lrcText: string =
-            item?.lyrics || item?.o3ics || item?.lrc || item?.o3ic || item?.content || item?.text || ''
+            item?.lyrics || item?.lyric || item?.lrc || item?.content || item?.text || ''
           if (!lrcText) return null
           const lines = parseLrc(lrcText)
           return { songId, lines, synced: lines.some(l => l.time > 0) }

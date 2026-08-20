@@ -175,42 +175,76 @@ export const LyricDisplay = memo(function LyricDisplay({
         'space-y-4 px-6',
         variant === 'fullscreen' ? 'min-h-full flex flex-col justify-center' : ''
       )}>
-        {lines.map((line, index) => {
-          const isActive = isSynced && index === currentIndex
-          const isClickable = isSynced && line.time >= 0
-
-          return (
-            <p
-              key={index}
-              ref={isActive ? activeLineRef : null}
-              onClick={() => handleLineClick(line)}
-              className={cn(
-                'flex items-center font-serif leading-relaxed text-left origin-left',
-                'transition-[color,transform] duration-300 ease-[var(--ease)]',
-                // 过去行 ink-faint / 当前行 ink 700 / 未来行 ink-soft；未同步整体 ink-soft
-                isActive
-                  ? 'text-ink font-bold translate-x-1'
-                  : isSynced && index < currentIndex
-                    ? 'text-ink-faint'
-                    : 'text-ink-soft',
-                isClickable ? 'cursor-pointer select-none' : 'select-none',
-                isClickable && !isActive && 'hover:text-ink hover:translate-x-1',
-              )}
-              style={{
-                fontSize: variant === 'fullscreen' ? `${lyricsFontSize}px` : '14px',
-              }}
-            >
-              {/* 前导 accent 短红线（2px × 18px），仅当前行可见；占位固定避免行间错位 */}
-              <span
-                aria-hidden="true"
-                className="flex-none w-[18px] h-[2px] mr-3 rounded-full bg-primary transition-opacity duration-300"
-                style={{ opacity: isActive ? 1 : 0 }}
-              />
-              <span className="min-w-0">{displayTexts[index]}</span>
-            </p>
-          )
-        })}
+        {lines.map((line, index) => (
+          <LyricRow
+            key={index}
+            text={displayTexts[index]}
+            fontSize={variant === 'fullscreen' ? lyricsFontSize : 14}
+            isActive={isSynced && index === currentIndex}
+            isPast={isSynced && index < currentIndex}
+            isClickable={isSynced && line.time >= 0}
+            activeRef={isSynced && index === currentIndex ? activeLineRef : undefined}
+            onSelect={handleLineClick}
+            line={line}
+          />
+        ))}
       </div>
     </div>
+  )
+})
+
+
+/**
+ * 单行歌词。
+ *
+ * 播放中 currentTime 每秒变化数次，整份歌词此前会跟着整体重渲染——
+ * 全屏播放器打开时这是主线程上最大的一笔持续开销。
+ * 拆成 memo 组件后，一次推进只有「原当前行」和「新当前行」两行真正更新。
+ */
+const LyricRow = memo(function LyricRow({
+  text,
+  fontSize,
+  isActive,
+  isPast,
+  isClickable,
+  activeRef,
+  onSelect,
+  line,
+}: {
+  text: string
+  fontSize: number
+  isActive: boolean
+  isPast: boolean
+  isClickable: boolean
+  activeRef?: React.RefObject<HTMLParagraphElement>
+  onSelect: (line: LyricLine) => void
+  line: LyricLine
+}) {
+  return (
+    <p
+      ref={activeRef}
+      onClick={() => onSelect(line)}
+      className={cn(
+        'flex items-center font-serif leading-relaxed text-left origin-left',
+        'transition-[color,transform] duration-300 ease-[var(--ease)]',
+        // 过去行 ink-faint / 当前行 ink 700 / 未来行 ink-soft；未同步整体 ink-soft
+        isActive
+          ? 'text-ink font-bold translate-x-1'
+          : isPast
+            ? 'text-ink-faint'
+            : 'text-ink-soft',
+        isClickable ? 'cursor-pointer select-none' : 'select-none',
+        isClickable && !isActive && 'hover:text-ink hover:translate-x-1',
+      )}
+      style={{ fontSize: `${fontSize}px` }}
+    >
+      {/* 前导 accent 短红线（2px × 18px），仅当前行可见；占位固定避免行间错位 */}
+      <span
+        aria-hidden="true"
+        className="flex-none w-[18px] h-[2px] mr-3 rounded-full bg-primary transition-opacity duration-300"
+        style={{ opacity: isActive ? 1 : 0 }}
+      />
+      <span className="min-w-0">{text}</span>
+    </p>
   )
 })

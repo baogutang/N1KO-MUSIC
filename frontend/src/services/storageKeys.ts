@@ -29,6 +29,13 @@ export const HISTORY_BYTE_BUDGET = 1_500_000
 /** 歌词缓存条目上限 */
 export const LYRICS_CACHE_LIMIT = 300
 
+/**
+ * 歌词缓存的字节预算。
+ * 仅按条数封顶挡不住体积：一份双语 LRC 常有 4–8KB，300 条能到 2.4MB 上下，
+ * 单个键就足以逼近 localStorage 的整体配额并让别的写入连锁失败。
+ */
+export const LYRICS_BYTE_BUDGET = 600_000
+
 /** 封面缓存条目上限 */
 export const COVER_CACHE_LIMIT = 500
 

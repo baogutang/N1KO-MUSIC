@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/use-toast'
 import { useSettingsStore, buildRemoteCoverUrl } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
-import { useLyricCacheStore } from '@/store/o3icCacheStore'
+import { useLyricCacheStore } from '@/store/lyricCacheStore'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
 import { usePinnedCover } from '@/hooks/useCoverUrl'
 import { useSongDetail } from '@/hooks/useServerQueries'
@@ -169,12 +169,11 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
 
       for (const item of list) {
         const record = item as Record<string, unknown>
-        // 与 useLyricsQuery 远程解析保持一致：常见字段名 lyrics / lrc / o3ics 等
+        // 与 useLyricsQuery 远程解析保持一致：常见字段名 lyrics / lyric / lrc 等
         const lrcText = String(
           record?.lyrics ??
+            record?.lyric ??
             record?.lrc ??
-            record?.o3ics ??
-            record?.o3ic ??
             record?.content ??
             record?.text ??
             ''
@@ -649,7 +648,7 @@ export default function SongDetailPage() {
   const removeCover = useCoverCacheStore(s => s.removeCover)
   const pinnedCover = usePinnedCover(song?.id)
 
-  const [o3icsSearchOpen, setO3icsSearchOpen] = useState(false)
+  const [lyricsSearchOpen, setLyricsSearchOpen] = useState(false)
   const [coverPickerOpen, setCoverPickerOpen] = useState(false)
 
   if (isLoading && !song) {
@@ -755,7 +754,7 @@ export default function SongDetailPage() {
           <Row
             label="搜索歌词"
             value="自定义参数搜索"
-            onClick={() => setO3icsSearchOpen(true)}
+            onClick={() => setLyricsSearchOpen(true)}
             linkable
           />
 
@@ -807,8 +806,8 @@ export default function SongDetailPage() {
 
       {/* 歌词搜索 */}
       <LyricsSearchDialog
-        open={o3icsSearchOpen}
-        onClose={() => setO3icsSearchOpen(false)}
+        open={lyricsSearchOpen}
+        onClose={() => setLyricsSearchOpen(false)}
         song={song}
         onSave={handleLyricsSave}
       />

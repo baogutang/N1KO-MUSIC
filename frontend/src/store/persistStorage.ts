@@ -51,6 +51,12 @@ function shallowEqual(a: unknown, b: unknown): boolean {
   return leftKeys.every(key => Object.is(left[key], right[key]))
 }
 
+/**
+ * 记录「这个键在回收之后仍然写不进去的体量」。
+ * 后续同等或更大的载荷直接放弃，不再触发一轮无意义的缓存回收。
+ */
+const hopelessSize = new Map<string, number>()
+
 function commit(name: string): void {
   const pending = pendingWrites.get(name)
   if (!pending) return
@@ -61,17 +67,30 @@ function commit(name: string): void {
   const payload = JSON.stringify(pending.value)
   try {
     localStorage.setItem(name, payload)
+    // 写成功说明配额压力已缓解，允许下次再触发回收
+    hopelessSize.delete(name)
     return
   } catch {
     // 配额不足，进入回收后重试
   }
 
+  // 已知这个体量回收过也写不进去，就不要再回收一次。
+  // 否则长队列会变成：每次切歌写入失败 → 清空封面/歌词/推荐缓存 → 仍然写不进，
+  // 缓存被反复抹掉而持久化永远不会成功。
+  const hopeless = hopelessSize.get(name)
+  if (hopeless !== undefined && payload.length >= hopeless) {
+    lastSnapshot.delete(name)
+    return
+  }
+
   try {
     reclaimStorage(name)
     localStorage.setItem(name, payload)
+    hopelessSize.delete(name)
   } catch (error) {
     // 回收后仍写不进：放弃本次持久化，内存状态照常可用，下次变更再试。
     lastSnapshot.delete(name)
+    hopelessSize.set(name, payload.length)
     console.warn(`[persist] ${name} 写入失败，本次变更仅存在于内存：`, error)
   }
 }

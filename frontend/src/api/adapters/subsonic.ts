@@ -154,10 +154,19 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
   }
 
-  /** 发送 Subsonic API 请求（GET） */
-  private async request<T>(endpoint: string, params: Record<string, unknown> = {}): Promise<T> {
+  /**
+   * 发送 Subsonic API 请求（GET）。
+   * signal 用于在组件卸载 / 快速切页时取消在途请求——此前完全没有取消能力，
+   * 连点搜索会堆积请求，后到的旧响应还可能覆盖新结果。
+   */
+  private async request<T>(
+    endpoint: string,
+    params: Record<string, unknown> = {},
+    signal?: AbortSignal
+  ): Promise<T> {
     const response = await this.client.get<SubsonicResponse<T>>(endpoint, {
       params: this.buildParams(params),
+      signal,
     })
     const data = response.data['subsonic-response']
     if (data.status === 'failed') {
@@ -298,7 +307,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
   }
 
-  async searchAll(query: string): Promise<SearchResult> {
+  async searchAll(query: string, signal?: AbortSignal): Promise<SearchResult> {
     const data = await this.request<{
       searchResult3?: {
         song?: unknown[]
@@ -313,7 +322,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       songOffset: 0,
       albumOffset: 0,
       artistOffset: 0,
-    })
+    }, signal)
     const result = (data.searchResult3 ?? {}) as {
       song?: Record<string, unknown>[]
       album?: Record<string, unknown>[]
