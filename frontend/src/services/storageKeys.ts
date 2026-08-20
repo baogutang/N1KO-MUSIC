@@ -14,6 +14,7 @@ export const STORAGE_KEYS = {
   lyricsCache: 'msp-lyrics-cache',
   coverCache: 'msp-cover-cache',
   syncStore: 'msp-sync-store',
+  recommendationCursor: 'msp-recommendation-cursor',
 } as const
 
 /** 每日推荐结果缓存前缀，实际键形如 `msp-recommendation:{serverId}:{yyyy-mm-dd}:{batch}:{size}` */

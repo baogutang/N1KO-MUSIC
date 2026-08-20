@@ -30,6 +30,23 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_PER_ARTIST = 2
 const MAX_PER_ALBUM = 2
 
+/**
+ * 定向候选的种子数量。
+ *
+ * 旧值是 3 位歌手 / 2 个流派，而 MAX_PER_ARTIST=2 又把每位歌手压到 2 首，
+ * 于是 30 首推荐里最多 6 首来自偏好歌手，实测只有 4–5 首，其余全部来自
+ * getRandomSongs 的探索通道——「为你推荐」实质是 85% 的随机。
+ * 种子数按目标条数反推：30 首至少要 8 位歌手打底才填得满。
+ */
+const DEFAULT_ARTIST_SEEDS = 8
+const DEFAULT_GENRE_SEEDS = 4
+const DEFAULT_SONG_SEEDS = 4
+
+/** 按目标条数推算需要多少位歌手种子（每位最多贡献 MAX_PER_ARTIST 首） */
+export function artistSeedCountFor(size: number): number {
+  return Math.max(DEFAULT_ARTIST_SEEDS, Math.ceil(size / MAX_PER_ARTIST))
+}
+
 /** 相似度惩罚系数，用于压制「整批推荐听起来都一样」 */
 const SIMILARITY_PENALTY = 0.24
 
@@ -45,10 +62,25 @@ function addWeight<K>(map: Map<K, number>, key: K, weight: number) {
   map.set(key, (map.get(key) ?? 0) + weight)
 }
 
+/**
+ * 正负两侧各自归一化到 [-1, 1]。
+ *
+ * 旧实现只除以正侧最大值，负值因此完全无界——跳过几首同年代的歌之后
+ * decadeAffinity 能到 -1.37，把那整个十年的曲目一起压死，
+ * 而各项权重（0.34 / 0.24 / 0.08）都是按 [0,1] 量程设计的。
+ */
 function normalizeMap<K>(map: Map<K, number>) {
-  const positiveMax = Math.max(0, ...Array.from(map.values()))
-  if (positiveMax <= 0) return
-  for (const [key, value] of map) map.set(key, value / positiveMax)
+  let positiveMax = 0
+  let negativeMin = 0
+  for (const value of map.values()) {
+    if (value > positiveMax) positiveMax = value
+    if (value < negativeMin) negativeMin = value
+  }
+  if (positiveMax <= 0 && negativeMin >= 0) return
+  for (const [key, value] of map) {
+    if (value > 0) map.set(key, positiveMax > 0 ? value / positiveMax : 0)
+    else if (value < 0) map.set(key, negativeMin < 0 ? -(value / negativeMin) : 0)
+  }
 }
 
 export function buildRecommendationProfile(
@@ -83,7 +115,9 @@ export function buildRecommendationProfile(
 
     if (qualified) profile.positiveEventCount++
     addWeight(profile.songAffinity, key, weight)
-    if (event.outcome === 'skipped') addWeight(profile.skipCounts, key, 1)
+    // 跳过计数同样按时间衰减：其他信号都乘了 recency，只有它硬加 1，
+    // 于是一年前跳过 4 次的歌 skipPenalty 永远是 0.6 满额，再也出不来。
+    if (event.outcome === 'skipped') addWeight(profile.skipCounts, key, recency)
     profile.lastPlayedAt.set(key, Math.max(profile.lastPlayedAt.get(key) ?? 0, event.endedAt))
 
     const artist = normalized(event.song.artist)
@@ -182,12 +216,27 @@ export function recommendSongs(
   size: number,
   seed: string,
   now = Date.now(),
-  prebuiltProfile?: RecommendationProfile
+  prebuiltProfile?: RecommendationProfile,
+  /** 本轮之前已经展示过的曲目 key，「换一批」不该把刚划走的歌再端上来 */
+  exclude?: ReadonlySet<string>
 ): Song[] {
   const deduped = new Map<string, Song>()
   for (const song of candidates) {
     if (!song?.id) continue
     deduped.set(songKey(song), song)
+  }
+
+  // 池子够大时把已展示的硬排除；池子本就不够（小曲库、服务器没实现可选接口）
+  // 时排除会导致返回不足，此时保留它们，靠打分自然下沉即可。
+  if (exclude?.size) {
+    const survivors = new Map<string, Song>()
+    for (const [key, song] of deduped) {
+      if (!exclude.has(key)) survivors.set(key, song)
+    }
+    if (survivors.size >= size) {
+      deduped.clear()
+      for (const [key, song] of survivors) deduped.set(key, song)
+    }
   }
 
   // 调用方通常已经为其他用途构建过画像，避免在大历史上重复计算一遍
@@ -256,6 +305,24 @@ function topKeys(map: Map<string, number>, limit: number): string[] {
 }
 
 /**
+ * 取排名前 limit 个键，但窗口按 offset 向后滑动。
+ *
+ * 候选池不够长时回绕，保证每批都能取满；offset 为 0 时与 topKeys 完全等价。
+ */
+function rotatedTopKeys(map: Map<string, number>, limit: number, offset: number): string[] {
+  const ranked = Array.from(map.entries())
+    .filter(([, weight]) => weight > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([key]) => key)
+  if (!ranked.length) return []
+  if (ranked.length <= limit) return ranked
+  const start = ((offset * limit) % ranked.length + ranked.length) % ranked.length
+  const out: string[] = []
+  for (let i = 0; i < limit; i++) out.push(ranked[(start + i) % ranked.length])
+  return out
+}
+
+/**
  * 从画像里取出最值得据以拉取候选的歌手、流派与种子歌曲。
  *
  * 这一步是「随机重排」与「真正推荐」的分界：只对 150 首随机曲目重排序，
@@ -264,11 +331,19 @@ function topKeys(map: Map<string, number>, limit: number): string[] {
 export function deriveRecommendationSeeds(
   profile: RecommendationProfile,
   events: ListeningEvent[],
-  limits: { artists?: number; genres?: number; songs?: number } = {}
+  limits: { artists?: number; genres?: number; songs?: number; offset?: number } = {}
 ): RecommendationSeeds {
-  const { artists: artistLimit = 3, genres: genreLimit = 2, songs: songLimit = 2 } = limits
+  const {
+    artists: artistLimit = DEFAULT_ARTIST_SEEDS,
+    genres: genreLimit = DEFAULT_GENRE_SEEDS,
+    songs: songLimit = DEFAULT_SONG_SEEDS,
+    offset = 0,
+  } = limits
 
-  const artists = topKeys(profile.artistAffinity, artistLimit).map(key => {
+  // offset 让「换一批」轮转种子窗口：只靠打分抖动换不出新的歌手，
+  // 定向候选池本身必须变，否则每批的前几行永远是同一位歌手。
+  const artistKeys = rotatedTopKeys(profile.artistAffinity, artistLimit, offset)
+  const artists = artistKeys.map(key => {
     const identity = profile.artistIdentity.get(key)
     return { id: identity?.id, name: identity?.name ?? key }
   })
@@ -284,7 +359,11 @@ export function deriveRecommendationSeeds(
     songIds.push(event.song.id)
   }
 
-  return { artists, genres: topKeys(profile.genreAffinity, genreLimit), songIds }
+  return {
+    artists,
+    genres: rotatedTopKeys(profile.genreAffinity, genreLimit, offset),
+    songIds,
+  }
 }
 
 /** 「本期封面」的最小曲目数：单曲合辑放大成杂志封面观感上像是坏了 */

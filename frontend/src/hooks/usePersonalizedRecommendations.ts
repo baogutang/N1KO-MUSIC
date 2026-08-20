@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getAdapter, hasAdapter } from '@/api'
 import { useServerStore } from '@/store/serverStore'
+import { useRecommendationCursorStore } from '@/store/recommendationCursorStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import {
+  artistSeedCountFor,
   buildRecommendationProfile,
   deriveRecommendationSeeds,
   recommendSongs,
@@ -43,9 +45,16 @@ interface RecommendationCacheEntry {
 async function fetchDirectedCandidates(
   adapter: MusicServerAdapter,
   profile: RecommendationProfile,
-  events: ListeningEvent[]
+  events: ListeningEvent[],
+  size: number,
+  batch: number
 ): Promise<Song[]> {
-  const seeds = deriveRecommendationSeeds(profile, events)
+  // 种子数按目标条数反推，并让窗口随批次轮转——定向候选池本身要变，
+  // 否则「换一批」的前几行永远是同一位偏好歌手。
+  const seeds = deriveRecommendationSeeds(profile, events, {
+    artists: artistSeedCountFor(size),
+    offset: batch,
+  })
   const requests: Array<Promise<Song[]>> = []
 
   if (adapter.getArtistSongs) {
@@ -106,8 +115,14 @@ function cacheRecommendations(key: string, songs: Song[]) {
 
 export function usePersonalizedRecommendations(size = 30) {
   const serverId = useServerStore(s => s.activeServerId)
-  const [batch, setBatch] = useState(0)
   const [historyRevision, setHistoryRevision] = useState(0)
+
+  // 批次游标存在全局持久 store 里：组件内 useState 活不过一次路由切换，
+  // 而结果缓存 TTL 有 24 小时，两者寿命不一致会让「换一批」被静默回滚。
+  const scope = `${serverId ?? 'none'}:${recommendationDayKey()}`
+  const batch = useRecommendationCursorStore(s => s.cursors[scope] ?? 0)
+  const advanceBatch = useRecommendationCursorStore(s => s.advance)
+  const rememberShown = useRecommendationCursorStore(s => s.rememberShown)
 
   // 收听历史变化后节流重算画像：合并连续事件，最快每分钟一次
   useEffect(() => {
@@ -147,21 +162,26 @@ export function usePersonalizedRecommendations(size = 30) {
    * 旧版把最近一条收听记录的 endedAt 写进了键名，导致播放中每 30 秒就
    * 产生一个新键且从不回收，几天即可撑满 localStorage 配额。
    */
-  const seed = `${serverId ?? 'none'}:${recommendationDayKey()}:${batch}`
+  const seed = `${scope}:${batch}`
   const cacheKey = `${RECOMMENDATION_CACHE_PREFIX}${seed}:${size}`
 
   const query = useQuery({
-    queryKey: [serverId ?? 'no-server', 'personalized-recommendations', size, seed],
+    // 画像版本进 queryKey：否则收听历史变化后重算出的新画像永远不会触发刷新
+    queryKey: [serverId ?? 'no-server', 'personalized-recommendations', size, seed, historyRevision],
     queryFn: async (): Promise<Song[]> => {
       if (!serverId || !hasAdapter()) return []
-      const cached = readCachedRecommendations(cacheKey)
-      if (cached?.length) return cached.slice(0, size)
+      // 缓存只服务当天的首屏秒开。显式「换一批」必须真算——否则它只是在
+      // 回放当天早些时候算好的批次，用户看到的是一条预录的轮播带。
+      if (batch === 0) {
+        const cached = readCachedRecommendations(cacheKey)
+        if (cached?.length) return cached.slice(0, size)
+      }
       const adapter = getAdapter()
       const [randomResult, starredResult, directedResult] = await Promise.allSettled([
         // 随机候选保留下来作为探索通道，让画像之外的曲目仍有机会出现
         adapter.getRandomSongs(Math.max(120, size * 5)),
         adapter.getStarred(),
-        fetchDirectedCandidates(adapter, profile, events),
+        fetchDirectedCandidates(adapter, profile, events, size, batch),
       ])
       const randomSongs = randomResult.status === 'fulfilled' ? randomResult.value : []
       const starredSongs = starredResult.status === 'fulfilled' ? starredResult.value.songs : []
@@ -169,15 +189,25 @@ export function usePersonalizedRecommendations(size = 30) {
       const historySongs = events.slice(0, 150).map(event => event.song)
       const candidates = [...directedSongs, ...randomSongs, ...starredSongs, ...historySongs]
         .map(song => ({ ...song, serverId }))
-      const recommendations = recommendSongs(candidates, events, size, seed, Date.now(), profile)
+      const exclude = batch > 0
+        ? new Set(useRecommendationCursorStore.getState().getShown(scope))
+        : undefined
+      const recommendations = recommendSongs(
+        candidates, events, size, seed, Date.now(), profile, exclude
+      )
       cacheRecommendations(cacheKey, recommendations)
+      rememberShown(scope, recommendations.map(song => `${song.serverId ?? ''}:${song.id}`))
       return recommendations
     },
     enabled: !!serverId && hasAdapter(),
     staleTime: 10 * 60 * 1000,
+    // 「换一批」会换掉 queryKey，默认行为是直接回到 pending 且 data 变 undefined，
+    // 于是整个推荐区块（连同「换一批」按钮自己）在加载期间被卸载再整块闪回。
+    // 保留上一批数据，只用 isFetching 表达加载中。
+    placeholderData: previous => previous,
   })
 
-  const refresh = useCallback(() => setBatch(value => value + 1), [])
+  const refresh = useCallback(() => advanceBatch(scope), [advanceBatch, scope])
 
   return {
     ...query,

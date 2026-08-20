@@ -72,7 +72,41 @@ describe('recommendation profile', () => {
 
     expect(profile.artistAffinity.get('artist a')).toBeGreaterThan(0)
     expect(profile.artistAffinity.get('artist b')).toBeLessThan(0)
-    expect(profile.skipCounts.get('server-a:skip')).toBe(1)
+    // 跳过计数按 recency 衰减，刚发生的一次接近 1
+    expect(profile.skipCounts.get('server-a:skip')).toBeCloseTo(1, 1)
+  })
+
+  it('跳过计数随时间衰减，陈年跳过不再永久压制曲目', () => {
+    const skipped = song('skip', 'Artist B', 'Metal')
+    const fresh = buildRecommendationProfile([event(skipped, 'skipped', 5)], NOW)
+    const stale = buildRecommendationProfile([event(skipped, 'skipped', 5, 400)], NOW)
+
+    const freshCount = fresh.skipCounts.get('server-a:skip') ?? 0
+    const staleCount = stale.skipCounts.get('server-a:skip') ?? 0
+    expect(freshCount).toBeGreaterThan(0.9)
+    // 一年多以前跳过的，惩罚必须显著低于近期跳过
+    expect(staleCount).toBeLessThan(0.05)
+    expect(staleCount).toBeLessThan(freshCount)
+  })
+
+  it('负向亲和度被归一化到 [-1, 0]，不会溢出量程压死整个年代', () => {
+    const disliked = song('a', 'Artist B', 'Metal')
+    const other = song('b', 'Artist B', 'Metal')
+    const liked = song('c', 'Artist A', 'Jazz')
+    const profile = buildRecommendationProfile([
+      event(liked, 'completed', 200),
+      ...Array.from({ length: 12 }, (_, i) =>
+        event(i % 2 ? disliked : other, 'skipped', 4, i * 0.1)
+      ),
+    ], NOW)
+
+    for (const map of [profile.artistAffinity, profile.genreAffinity, profile.decadeAffinity]) {
+      for (const value of map.values()) {
+        expect(value).toBeGreaterThanOrEqual(-1)
+        expect(value).toBeLessThanOrEqual(1)
+      }
+    }
+    expect(profile.artistAffinity.get('artist b')).toBeLessThan(0)
   })
 })
 
@@ -244,5 +278,70 @@ describe('pickFeaturedAlbum', () => {
 
   it('无专辑时返回 null', () => {
     expect(pickFeaturedAlbum([], NOW)).toBeNull()
+  })
+})
+
+describe('「换一批」的取样与排除', () => {
+  /** 构造一个偏好 12 位歌手的画像，权重依次递减 */
+  function wideProfile() {
+    const events: ListeningEvent[] = []
+    for (let i = 0; i < 12; i++) {
+      const s = song(`s${i}`, `Artist ${String.fromCharCode(65 + i)}`, `Genre${i % 6}`)
+      // 排名越靠前的歌手事件越多，权重越高
+      for (let n = 0; n <= 12 - i; n++) {
+        events.push({ ...event(s, 'completed', 200, 1 + n * 0.01), eventId: `${i}-${n}` })
+      }
+    }
+    return { profile: buildRecommendationProfile(events, NOW), events }
+  }
+
+  it('默认取到足够多的歌手种子，而不是只有 3 位', () => {
+    const { profile, events } = wideProfile()
+    const seeds = deriveRecommendationSeeds(profile, events)
+    // 每位歌手最多贡献 2 首，30 首推荐至少需要 8 位歌手打底
+    expect(seeds.artists.length).toBeGreaterThanOrEqual(8)
+  })
+
+  it('offset 让种子窗口滑动，换一批换的是候选池本身', () => {
+    const { profile, events } = wideProfile()
+    const first = deriveRecommendationSeeds(profile, events, { artists: 4, offset: 0 })
+    const second = deriveRecommendationSeeds(profile, events, { artists: 4, offset: 1 })
+
+    const a = first.artists.map(x => x.name)
+    const b = second.artists.map(x => x.name)
+    expect(a).not.toEqual(b)
+    // 不同批次至少换掉一半歌手
+    expect(b.filter(name => a.includes(name)).length).toBeLessThanOrEqual(2)
+  })
+
+  it('offset 为 0 时与不传 offset 等价', () => {
+    const { profile, events } = wideProfile()
+    const a = deriveRecommendationSeeds(profile, events, { artists: 5 })
+    const b = deriveRecommendationSeeds(profile, events, { artists: 5, offset: 0 })
+    expect(a.artists.map(x => x.name)).toEqual(b.artists.map(x => x.name))
+  })
+
+  it('候选池充足时排除上一批已展示的曲目', () => {
+    const pool = Array.from({ length: 60 }, (_, i) =>
+      song(`p${i}`, `Artist ${i % 20}`, `Genre${i % 5}`, `album${i % 20}`)
+    )
+    const first = recommendSongs(pool, [], 10, 'seed:0', NOW)
+    const shownKeys = new Set(first.map(s => `server-a:${s.id}`))
+
+    const second = recommendSongs(pool, [], 10, 'seed:1', NOW, undefined, shownKeys)
+
+    expect(second).toHaveLength(10)
+    for (const s of second) expect(shownKeys.has(`server-a:${s.id}`)).toBe(false)
+  })
+
+  it('候选池不足时不因排除而返回不满，宁可重复也要给够', () => {
+    const pool = Array.from({ length: 12 }, (_, i) =>
+      song(`t${i}`, `Artist ${i}`, 'Genre', `album${i}`)
+    )
+    const first = recommendSongs(pool, [], 10, 'seed:0', NOW)
+    const shownKeys = new Set(first.map(s => `server-a:${s.id}`))
+
+    const second = recommendSongs(pool, [], 10, 'seed:1', NOW, undefined, shownKeys)
+    expect(second).toHaveLength(10)
   })
 })

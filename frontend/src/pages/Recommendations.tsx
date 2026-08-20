@@ -20,7 +20,7 @@ export default function RecommendationsPage() {
   const { data: recentAlbums, isLoading: albumsLoading } = useRecentAlbums(12)
   const {
     data: randomSongs,
-    isLoading: songsLoading,
+    isFetching: songsFetching,
     refresh: refreshSongs,
     profile,
   } = usePersonalizedRecommendations(30)
@@ -49,7 +49,7 @@ export default function RecommendationsPage() {
             今日推荐<small>DAILY PICKS</small>
           </h2>
           <div className="flex items-baseline gap-7">
-            {!songsLoading && randomSongs && randomSongs.length > 0 && (
+            {randomSongs && randomSongs.length > 0 && (
               <>
                 <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
                   {randomSongs.length} 首 ·{' '}
@@ -66,9 +66,9 @@ export default function RecommendationsPage() {
             <button
               className="more inline-flex items-center gap-1.5"
               onClick={refreshSongs}
-              disabled={songsLoading}
+              disabled={songsFetching}
             >
-              <ArrowsClockwise size={12} className={songsLoading ? 'animate-spin' : undefined} />
+              <ArrowsClockwise size={12} className={songsFetching ? 'animate-spin' : undefined} />
               换一批
             </button>
           </div>
@@ -76,10 +76,12 @@ export default function RecommendationsPage() {
         <p className="-mt-2 mb-6 max-w-[52ch] text-[13px] text-ink-faint">
           根据你的收听、收藏与跳过行为动态推荐
         </p>
-        {songsLoading ? (
+        {songsFetching && !randomSongs?.length ? (
           <SongRowsSkeleton rows={8} />
         ) : randomSongs && randomSongs.length > 0 ? (
-          <SongList songs={randomSongs} showCover showAlbum showIndex />
+          <div className={songsFetching ? 'opacity-60 transition-opacity duration-200' : undefined}>
+            <SongList songs={randomSongs} showCover showAlbum showIndex />
+          </div>
         ) : null}
       </section>
 

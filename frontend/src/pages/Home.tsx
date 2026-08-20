@@ -25,7 +25,7 @@ export default function HomePage() {
   const { data: recentAlbums, isLoading: albumsLoading } = useRecentAlbums(20)
   const {
     data: randomSongs,
-    isLoading: songsLoading,
+    isFetching: songsFetching,
     refresh: refreshSongs,
     profile,
   } = usePersonalizedRecommendations(30)
@@ -216,8 +216,12 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ============ 为你推荐 · 编号列表 ============ */}
-      {!songsLoading && randomSongs && randomSongs.length > 0 && (
+      {/*
+        ============ 为你推荐 · 编号列表 ============
+        门只看「有没有数据」，不看「是不是在加载」：否则点「换一批」时
+        整个区块连同按钮自己一起被卸载，加载完再整块闪回。
+      */}
+      {randomSongs && randomSongs.length > 0 && (
         <section aria-labelledby="home-for-you">
           <div className="section-head">
             <h2 id="home-for-you">
@@ -245,9 +249,9 @@ export default function HomePage() {
               <button
                 className="more inline-flex items-center gap-1.5"
                 onClick={refreshSongs}
-                disabled={songsLoading}
+                disabled={songsFetching}
               >
-                <ArrowsClockwise size={12} className={songsLoading ? 'animate-spin' : undefined} />
+                <ArrowsClockwise size={12} className={songsFetching ? 'animate-spin' : undefined} />
                 换一批
               </button>
             </div>
