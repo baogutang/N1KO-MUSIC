@@ -494,15 +494,56 @@ export function useToggleStar() {
       // 音乐服务器始终是收藏的权威来源，同步服务只做跨设备镜像，失败不影响本次操作
       if (type === 'song') void mirrorFavorite(id, !isStarred, song)
     },
-    onSuccess: () => {
-      // starred 标记散布在歌曲/专辑/歌手/搜索/歌单等各类查询缓存中，
-      // 只失效 starred 会导致其他页面重挂载时读到旧的收藏状态
+    onSuccess: (_data, variables) => {
       const sid = serverKey()
-      for (const family of ['starred', 'songs', 'albums', 'artists', 'search', 'playlists'] as const) {
-        queryClient.invalidateQueries({ queryKey: [sid, family] })
+      // 先就地改掉已缓存的那一条，避免大库下把几十页 infinite 数据全部重拉。
+      // 只失效不改写会让用户点一次收藏就触发几十个请求。
+      patchStarredInCache(queryClient, sid, variables.id, !variables.isStarred)
+      // 收藏汇总页本身必须重取（条目会进出列表，不是就地改标记）
+      queryClient.invalidateQueries({ queryKey: [sid, 'starred'] })
+      // 其余家族标记为过期，但不立即重取：下次真正用到时才刷新
+      for (const family of ['songs', 'albums', 'artists', 'search', 'playlists'] as const) {
+        queryClient.invalidateQueries({ queryKey: [sid, family], refetchType: 'none' })
       }
     },
   })
+}
+
+/**
+ * 就地把所有缓存里该 id 的 starred 标记改掉。
+ *
+ * 覆盖三种形状：裸数组、{ items } 分页结果、以及 infinite query 的 { pages }。
+ */
+function patchStarredInCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  sid: string,
+  id: string,
+  starred: boolean
+) {
+  const patchItem = (item: unknown): unknown => {
+    if (!item || typeof item !== 'object') return item
+    const record = item as { id?: string; starred?: boolean }
+    if (record.id !== id || record.starred === starred) return item
+    return { ...record, starred }
+  }
+
+  const patchAny = (data: unknown): unknown => {
+    if (Array.isArray(data)) return data.map(patchItem)
+    if (!data || typeof data !== 'object') return data
+    const obj = data as Record<string, unknown>
+    if (Array.isArray(obj.pages)) {
+      return { ...obj, pages: obj.pages.map(page => patchAny(page)) }
+    }
+    if (Array.isArray(obj.items)) {
+      return { ...obj, items: obj.items.map(patchItem) }
+    }
+    if (Array.isArray(obj.songs)) {
+      return { ...obj, songs: obj.songs.map(patchItem) }
+    }
+    return data
+  }
+
+  queryClient.setQueriesData({ queryKey: [sid] }, (old: unknown) => patchAny(old))
 }
 
 // ===================================================

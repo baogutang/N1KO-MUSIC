@@ -8,7 +8,8 @@
  * - SongRow 用 React.memo 包装，避免父组件更新时全列表重渲染
  */
 
-import React, { useCallback, useMemo, useEffect } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useNavigate } from 'react-router-dom'
 import {
   Play,
@@ -63,12 +64,9 @@ export function SongList({
   const currentSongId = usePlayerStore(s => s.currentSong?.id)
   const isPlaying = usePlayerStore(s => s.isPlaying)
 
-  // 用 useMemo 预计算 coverUrl 列表，避免每次渲染重新计算
-  const coverUrls = useMemo(() => {
-    return songs.map(song =>
-      song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(song.coverArt, 64) : undefined
-    )
-  }, [songs])
+  // 封面 URL 改为在行内按需计算。此前这里 memo 了一个数组，但 songs 在调用方
+  // 多是 flatMap 出来的新数组，每次渲染引用都变，memo 从来没生效过；
+  // 而 SongRow 本身是 memo 的，放进行内反而只在该行的歌曲变化时才重算。
 
   // 把 songs 稳定化，避免每次渲染都创建新函数
   // 注意：onPlay 不能用 inline arrow，否则 React.memo 失效
@@ -91,29 +89,43 @@ export function SongList({
     }
   }, [onPlaylistAdd])
 
+  // 收藏 mutation 提到列表层。此前每一行各持有一个 useMutation 实例，
+  // 一千行就是一千个订阅者。
+  const toggleStar = useToggleStar()
+  const toggleStarRef = React.useRef(toggleStar)
+  toggleStarRef.current = toggleStar
+  const handleToggleStar = useCallback((song: Song, nextStarred: boolean, revert: () => void) => {
+    toggleStarRef.current.mutate(
+      { id: song.id, type: 'song', isStarred: !nextStarred, song },
+      { onError: revert }
+    )
+  }, [])
+
+  const renderRow = useCallback((song: Song, index: number) => (
+    <SongRow
+      key={song.id + '-' + index}
+      song={song}
+      index={index}
+      isCurrentSong={currentSongId === song.id}
+      isPlaying={isPlaying && currentSongId === song.id}
+      showCover={showCover}
+      showAlbum={showAlbum}
+      showIndex={showIndex}
+      onPlayIndex={handlePlayIndex}
+      onPlaylistAdd={handlePlaylistAdd}
+      onToggleStar={handleToggleStar}
+    />
+  ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, handlePlayIndex, handlePlaylistAdd, handleToggleStar])
+
   return (
     <>
-      <div className={cn('border-t border-hair divide-y divide-hair-soft', className)}>
-        {songs.map((song, index) => {
-          const isCurrentSong = currentSongId === song.id
-
-          return (
-            <SongRow
-              key={song.id + '-' + index}
-              song={song}
-              index={index}
-              isCurrentSong={isCurrentSong}
-              isPlaying={isPlaying && isCurrentSong}
-              coverUrl={coverUrls[index]}
-              showCover={showCover}
-              showAlbum={showAlbum}
-              showIndex={showIndex}
-              onPlayIndex={handlePlayIndex}
-              onPlaylistAdd={handlePlaylistAdd}
-            />
-          )
-        })}
-      </div>
+      {songs.length > VIRTUALIZE_THRESHOLD ? (
+        <VirtualSongRows songs={songs} className={className} renderRow={renderRow} />
+      ) : (
+        <div className={cn('border-t border-hair divide-y divide-hair-soft', className)}>
+          {songs.map(renderRow)}
+        </div>
+      )}
 
       <AddToPlaylistDialog
         open={playlistAddSong !== null}
@@ -124,17 +136,99 @@ export function SongList({
   )
 }
 
+/**
+ * 超过这个行数才启用虚拟滚动。
+ * 专辑详情之类的短列表直接实挂更简单，也避免测量带来的首帧抖动。
+ */
+const VIRTUALIZE_THRESHOLD = 60
+/** 行高估计值：40px 封面 + 上下 10px 内边距 + 1px 分隔线 */
+const ESTIMATED_ROW_HEIGHT = 61
+
+/** 找到最近的可滚动祖先。列表本身不滚动，滚的是 MainLayout 里的 <main>。 */
+function findScrollParent(el: HTMLElement | null): HTMLElement | null {
+  let node = el?.parentElement ?? null
+  while (node) {
+    const style = getComputedStyle(node)
+    if (/(auto|scroll|overlay)/.test(style.overflowY)) return node
+    node = node.parentElement
+  }
+  return null
+}
+
+/**
+ * 虚拟滚动容器。
+ *
+ * 此前完全没有虚拟化：每点一次「加载更多」就实挂 100 行且无上限，
+ * 一千首约 2.8 万个 DOM 节点，一万首约 28 万，滚动掉到个位数 FPS，
+ * hover 样式还会触发整档样式重算，移动端 WebView 最终 OOM。
+ */
+function VirtualSongRows({
+  songs,
+  className,
+  renderRow,
+}: {
+  songs: Song[]
+  className?: string
+  renderRow: (song: Song, index: number) => React.ReactNode
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null)
+  const [scrollMargin, setScrollMargin] = useState(0)
+
+  useLayoutEffect(() => {
+    const parent = findScrollParent(containerRef.current)
+    setScrollEl(parent)
+    if (parent && containerRef.current) {
+      // 列表在滚动容器里的偏移量，虚拟化据此换算可视区间
+      const top = containerRef.current.getBoundingClientRect().top
+        - parent.getBoundingClientRect().top
+        + parent.scrollTop
+      setScrollMargin(top)
+    }
+  }, [songs.length])
+
+  const virtualizer = useVirtualizer({
+    count: songs.length,
+    getScrollElement: () => scrollEl,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 12,
+    scrollMargin,
+  })
+
+  const items = virtualizer.getVirtualItems()
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn('border-t border-hair', className)}
+      style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
+    >
+      {items.map(item => (
+        <div
+          key={item.key}
+          data-index={item.index}
+          ref={virtualizer.measureElement}
+          className="absolute left-0 w-full border-b border-hair-soft"
+          style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
+        >
+          {renderRow(songs[item.index], item.index)}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 interface SongRowProps {
   song: Song
   index: number
   isCurrentSong: boolean
   isPlaying: boolean
-  coverUrl?: string
   showCover: boolean
   showAlbum: boolean
   showIndex: boolean
   onPlayIndex: (index: number) => void
   onPlaylistAdd?: (song: Song) => void
+  onToggleStar: (song: Song, nextStarred: boolean, revert: () => void) => void
 }
 
 // React.memo：只有 props 变化时才重渲染，播放进度更新不会触发歌曲行重渲染
@@ -143,16 +237,20 @@ const SongRow = React.memo(function SongRow({
   index,
   isCurrentSong,
   isPlaying,
-  coverUrl,
   showCover,
   showAlbum,
   showIndex,
   onPlayIndex,
   onPlaylistAdd,
+  onToggleStar,
 }: SongRowProps) {
   const [localStarred, setLocalStarred] = React.useState(!!song.starred)
   const navigate = useNavigate()
-  const toggleStar = useToggleStar()
+  // 行是 memo 的，封面 URL 只在这首歌变化时才重算
+  const coverUrl = useMemo(
+    () => (song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(song.coverArt, 64) : undefined),
+    [song.coverArt]
+  )
 
   useEffect(() => {
     setLocalStarred(!!song.starred)
@@ -165,10 +263,7 @@ const SongRow = React.memo(function SongRow({
     e.stopPropagation()
     const newStarred = !localStarred
     setLocalStarred(newStarred)
-    toggleStar.mutate(
-      { id: song.id, type: 'song', isStarred: !newStarred, song },
-      { onError: () => setLocalStarred(!newStarred) }
-    )
+    onToggleStar(song, newStarred, () => setLocalStarred(!newStarred))
   }
 
   const handleNavigateArtist = (e: React.MouseEvent) => {
@@ -282,7 +377,6 @@ const SongRow = React.memo(function SongRow({
       {/* 收藏（CSS hover 控制显隐）*/}
       <button
         onClick={handleToggleStar}
-        disabled={toggleStar.isPending}
         className={cn(
           'transition-all duration-200 p-1.5 active:scale-[0.94] flex-shrink-0',
           localStarred
