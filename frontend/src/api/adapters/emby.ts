@@ -27,7 +27,7 @@ export class EmbyAdapter extends JellyfinAdapter {
         {
           headers: {
             'X-Emby-Authorization':
-              'MediaBrowser Client="MusicStreamPro", Device="Web", DeviceId="msp-web-emby", Version="1.0.0"',
+              'MediaBrowser Client="N1KO-MUSIC", Device="Web", DeviceId="msp-web-emby", Version="1.0.0"',
             'Content-Type': 'application/json',
           },
           timeout: 10000,

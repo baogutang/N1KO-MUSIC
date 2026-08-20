@@ -21,6 +21,8 @@ import type {
   Lyrics,
   ListParams,
   PageResult,
+  SongExtras,
+  ServerCapabilities,
 } from '../types'
 import { parseLrcText } from './subsonic'
 
@@ -40,7 +42,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       baseURL: this.baseUrl,
       timeout: 30000,
       headers: {
-        'X-Emby-Authorization': `MediaBrowser Client="MusicStreamPro", Device="Web", DeviceId="msp-web", Version="1.0.0", Token="${config.token}"`,
+        'X-Emby-Authorization': `MediaBrowser Client="N1KO-MUSIC", Device="Web", DeviceId="msp-web", Version="1.0.0", Token="${config.token}"`,
         'Content-Type': 'application/json',
       },
     })
@@ -55,7 +57,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
         {
           headers: {
             'X-Emby-Authorization':
-              'MediaBrowser Client="MusicStreamPro", Device="Web", DeviceId="msp-web", Version="1.0.0"',
+              'MediaBrowser Client="N1KO-MUSIC", Device="Web", DeviceId="msp-web", Version="1.0.0"',
             'Content-Type': 'application/json',
           },
           timeout: 10000,
@@ -129,7 +131,55 @@ export class JellyfinAdapter implements MusicServerAdapter {
       starred: item.UserData
         ? !!(item.UserData as Record<string, unknown>).IsFavorite
         : false,
+      // Jellyfin 侧此前连读都没有：评分与断点位置都躺在 UserData 里
+      userRating: item.UserData
+        ? Number((item.UserData as Record<string, unknown>).Rating) || undefined
+        : undefined,
+      ext: this.mapJellyfinExtras(item),
     }
+  }
+
+  /** 把 Jellyfin 的 MediaStreams / People / UserData 折算成统一的扩展元数据 */
+  private mapJellyfinExtras(item: Record<string, unknown>): SongExtras | undefined {
+    const ext: SongExtras = {}
+
+    const audio = (item.MediaStreams as Array<Record<string, unknown>> | undefined)
+      ?.find(s => s.Type === 'Audio')
+    if (audio) {
+      const bitDepth = Number(audio.BitDepth)
+      if (Number.isFinite(bitDepth) && bitDepth) ext.bitDepth = bitDepth
+      const sampleRate = Number(audio.SampleRate)
+      if (Number.isFinite(sampleRate) && sampleRate) ext.samplingRate = sampleRate
+      const channels = Number(audio.Channels)
+      if (Number.isFinite(channels) && channels) ext.channelCount = channels
+    }
+
+    // Jellyfin 只有整轨增益，没有 album gain
+    const normalization = Number(item.NormalizationGain)
+    if (Number.isFinite(normalization) && normalization !== 0) {
+      ext.replayGain = { trackGain: normalization }
+    }
+
+    const people = item.People as Array<Record<string, unknown>> | undefined
+    if (Array.isArray(people) && people.length) {
+      const contributors = people
+        .filter(p => p.Name)
+        .map(p => ({
+          role: String(p.Role || p.Type || ''),
+          name: String(p.Name),
+          artistId: p.Id ? String(p.Id) : undefined,
+        }))
+      if (contributors.length) ext.contributors = contributors
+    }
+
+    const userData = item.UserData as Record<string, unknown> | undefined
+    const ticks = Number(userData?.PlaybackPositionTicks)
+    if (Number.isFinite(ticks) && ticks > 0) ext.bookmarkPosition = Math.floor(ticks / 10_000)
+
+    const providerIds = item.ProviderIds as Record<string, unknown> | undefined
+    if (providerIds?.MusicBrainzTrack) ext.musicBrainzId = String(providerIds.MusicBrainzTrack)
+
+    return Object.keys(ext).length ? ext : undefined
   }
 
   /** Jellyfin 专辑字段映射 */
@@ -196,7 +246,10 @@ export class JellyfinAdapter implements MusicServerAdapter {
   async getSong(songId: string): Promise<Song | null> {
     try {
       const resp = await this.client.get(`/Items/${songId}`, {
-        params: { UserId: this.userId, Fields: 'MediaStreams,RunTimeTicks,UserData,Genres,ImageTags' },
+        params: {
+          UserId: this.userId,
+          Fields: 'MediaStreams,RunTimeTicks,UserData,Genres,ImageTags,People,ProviderIds,NormalizationGain',
+        },
       })
       return this.mapSong(resp.data as Record<string, unknown>)
     } catch {
@@ -301,6 +354,111 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
+  /**
+   * 完整的播放会话生命周期。
+   *
+   * 此前只有 scrobble 会开一个会话（Sessions/Playing）却从不上报进度与停止，
+   * 服务器那边的「播放中 / 继续播放」状态因此一直是错的，
+   * 断点位置（UserData.PlaybackPositionTicks）也永远不会被写回。
+   */
+  async reportPlayback(
+    songId: string,
+    state: { positionMs: number; isPaused?: boolean; event: 'start' | 'progress' | 'stop' }
+  ): Promise<void> {
+    const ticks = Math.max(0, Math.round(state.positionMs)) * 10_000
+    const body = {
+      ItemId: songId,
+      PositionTicks: ticks,
+      IsPaused: !!state.isPaused,
+      CanSeek: true,
+      IsMuted: false,
+      PlayMethod: 'DirectStream',
+    }
+    const path =
+      state.event === 'start' ? '/Sessions/Playing'
+      : state.event === 'stop' ? '/Sessions/Playing/Stopped'
+      : '/Sessions/Playing/Progress'
+    try {
+      await this.client.post(path, body)
+    } catch {
+      // 上报失败不该影响播放
+    }
+  }
+
+  /** 五星评分：Jellyfin 用 UserData 的 Rating 字段 */
+  async setRating(id: string, rating: number): Promise<void> {
+    const clamped = Math.max(0, Math.min(5, Math.round(rating)))
+    await this.client.post(`/UserItems/${id}/UserData`, { Rating: clamped || null }, {
+      params: { userId: this.userId },
+    })
+  }
+
+  /** 长音轨断点：写回 UserData 的播放位置 */
+  async createBookmark(songId: string, positionMs: number): Promise<void> {
+    await this.client.post(
+      `/UserItems/${songId}/UserData`,
+      { PlaybackPositionTicks: Math.max(0, Math.round(positionMs)) * 10_000 },
+      { params: { userId: this.userId } }
+    )
+  }
+
+  async deleteBookmark(songId: string): Promise<void> {
+    await this.client.post(
+      `/UserItems/${songId}/UserData`,
+      { PlaybackPositionTicks: 0 },
+      { params: { userId: this.userId } }
+    )
+  }
+
+  /** 多音乐库：Jellyfin 用户可见的媒体库视图 */
+  async getMusicFolders(): Promise<Array<{ id: string; name: string }>> {
+    try {
+      const resp = await this.client.get(`/Users/${this.userId}/Views`)
+      const items = (resp.data?.Items ?? []) as Array<Record<string, unknown>>
+      return items
+        .filter(v => v.CollectionType === 'music')
+        .map(v => ({ id: String(v.Id), name: String(v.Name || v.Id) }))
+    } catch {
+      return []
+    }
+  }
+
+  async getAlbumInfo(albumId: string): Promise<{
+    notes?: string; musicBrainzId?: string; externalUrl?: string
+  } | null> {
+    try {
+      const resp = await this.client.get(`/Users/${this.userId}/Items/${albumId}`, {
+        params: { Fields: 'Overview,ProviderIds,ExternalUrls' },
+      })
+      const item = resp.data as Record<string, unknown>
+      const notes = item.Overview ? String(item.Overview) : undefined
+      const providerIds = item.ProviderIds as Record<string, unknown> | undefined
+      const musicBrainzId = providerIds?.MusicBrainzAlbum
+        ? String(providerIds.MusicBrainzAlbum)
+        : undefined
+      const externalUrl = (item.ExternalUrls as Array<Record<string, unknown>> | undefined)?.[0]?.Url
+      if (!notes && !musicBrainzId && !externalUrl) return null
+      return { notes, musicBrainzId, externalUrl: externalUrl ? String(externalUrl) : undefined }
+    } catch {
+      return null
+    }
+  }
+
+  async getServerCapabilities(): Promise<ServerCapabilities> {
+    try {
+      const resp = await this.client.get('/System/Info/Public')
+      const info = resp.data as Record<string, unknown>
+      return {
+        openSubsonic: false,
+        serverVersion: info.Version ? String(info.Version) : undefined,
+        serverType: info.ProductName ? String(info.ProductName) : this.type,
+        extensions: {},
+      }
+    } catch {
+      return { openSubsonic: false, extensions: {} }
+    }
+  }
+
   async getAlbums(params: ListParams = {}): Promise<PageResult<Album>> {
     const resp = await this.client.get('/Items', {
       params: this.itemsParams({
@@ -325,13 +483,13 @@ export class JellyfinAdapter implements MusicServerAdapter {
   async getAlbumDetail(albumId: string): Promise<AlbumDetail> {
     const [albumResp, songsResp] = await Promise.all([
       this.client.get(`/Items/${albumId}`, {
-        params: { UserId: this.userId, Fields: 'RunTimeTicks,UserData,Genres' },
+        params: { UserId: this.userId, Fields: 'RunTimeTicks,UserData,Genres,Overview,ProviderIds' },
       }),
       this.client.get('/Items', {
         params: this.itemsParams({
           ParentId: albumId,
           IncludeItemTypes: 'Audio',
-          Fields: 'MediaStreams,RunTimeTicks,UserData,ImageTags',
+          Fields: 'MediaStreams,RunTimeTicks,UserData,ImageTags,People,ProviderIds,NormalizationGain',
           SortBy: 'IndexNumber,SortName',
         }),
       }),
@@ -340,7 +498,15 @@ export class JellyfinAdapter implements MusicServerAdapter {
     const songs = ((songsResp.data.Items ?? []) as Record<string, unknown>[]).map(
       this.mapSong.bind(this)
     )
-    return { ...album, songs }
+    // 唱片说明直接从同一次请求的 Overview / ProviderIds 里取，不额外发请求
+    const raw = albumResp.data as Record<string, unknown>
+    const providerIds = raw.ProviderIds as Record<string, unknown> | undefined
+    return {
+      ...album,
+      songs,
+      notes: raw.Overview ? String(raw.Overview) : undefined,
+      musicBrainzId: providerIds?.MusicBrainzAlbum ? String(providerIds.MusicBrainzAlbum) : undefined,
+    }
   }
 
   async getRecentAlbums(size = 20): Promise<Album[]> {

@@ -79,6 +79,61 @@ export interface Song {
   path?: string
   /** Subsonic 文件后缀（部分列表无 path 时有 suffix，用于流格式推断）*/
   suffix?: string
+  /**
+   * 服务器已经返回、此前被 mapSong 丢弃的扩展元数据。
+   * 收在一个可选对象里而不是往 Song 上摊二十个平铺字段。
+   */
+  ext?: SongExtras
+}
+
+/** 制作人员（OpenSubsonic contributors / Jellyfin People）*/
+export interface Contributor {
+  /** 角色，如 composer / producer / engineer */
+  role: string
+  /** 细分角色，如 "guitar" */
+  subRole?: string
+  name: string
+  artistId?: string
+}
+
+/** ReplayGain 数据（单位 dB，peak 为线性幅度）*/
+export interface ReplayGainInfo {
+  trackGain?: number
+  albumGain?: number
+  trackPeak?: number
+  albumPeak?: number
+  fallbackGain?: number
+}
+
+/**
+ * 服务器早就在返、客户端此前一律丢弃的字段。
+ * 全部可选：任何一个服务器缺哪项，对应的 UI 直接不渲染即可。
+ */
+export interface SongExtras {
+  /** 音量归一化数据，服务器已算好 */
+  replayGain?: ReplayGainInfo
+  /** 位深，如 24 */
+  bitDepth?: number
+  /** 采样率（Hz），如 96000 */
+  samplingRate?: number
+  /** 声道数 */
+  channelCount?: number
+  /** 制作人员名录 */
+  contributors?: Contributor[]
+  /** 展示用的完整艺人串（含 feat.）*/
+  displayArtist?: string
+  /** 作曲 */
+  displayComposer?: string
+  /** 情绪标签 */
+  moods?: string[]
+  /** BPM */
+  bpm?: number
+  isrc?: string[]
+  musicBrainzId?: string
+  /** 文件标签里的备注，只读 */
+  comment?: string
+  /** 长音轨的服务端断点位置（毫秒）*/
+  bookmarkPosition?: number
 }
 
 /** 专辑 */
@@ -100,6 +155,11 @@ export interface Album {
 /** 专辑详情（含歌曲列表）*/
 export interface AlbumDetail extends Album {
   songs: Song[]
+  /** 唱片说明 / 乐评（Subsonic getAlbumInfo2 的 notes）*/
+  notes?: string
+  musicBrainzId?: string
+  /** Last.fm 页面等外部链接 */
+  externalUrl?: string
 }
 
 /** 歌手 */
@@ -311,4 +371,56 @@ export interface MusicServerAdapter {
   getGenreSongs?(genre: string, count?: number): Promise<Song[]>
   /** 与指定歌曲风格相近的曲目 */
   getSimilarSongs?(songId: string, count?: number): Promise<Song[]>
+
+  // --- 服务端已提供、此前从未调用的能力 ---
+  // 一律可选并做能力探测：Subsonic 有而 Jellyfin/Emby 没有（或反之）时，
+  // 调用方应当把对应入口整个隐藏，而不是让用户点了没反应。
+
+  /**
+   * 跨设备续播：把队列与播放位置存到音乐服务器。
+   * Subsonic savePlayQueue / getPlayQueue（API 1.12.0 起），不需要自建后端。
+   */
+  savePlayQueue?(songIds: string[], currentId: string, positionMs: number): Promise<void>
+  getPlayQueue?(): Promise<{ songs: Song[]; currentId?: string; positionMs: number; changedBy?: string } | null>
+
+  /** 长音轨断点：Subsonic createBookmark / getBookmarks / deleteBookmark */
+  createBookmark?(songId: string, positionMs: number, comment?: string): Promise<void>
+  getBookmarks?(): Promise<Array<{ song: Song; positionMs: number; comment?: string }>>
+  deleteBookmark?(songId: string): Promise<void>
+
+  /** 五星评分写回（字段早已映射并展示，此前只缺写入）*/
+  setRating?(id: string, rating: number, type?: 'song' | 'album'): Promise<void>
+
+  /** 专辑说明 / 乐评 */
+  getAlbumInfo?(albumId: string): Promise<{ notes?: string; musicBrainzId?: string; externalUrl?: string } | null>
+
+  /** 多音乐库：把整个 App 限定到某一个库 */
+  getMusicFolders?(): Promise<Array<{ id: string; name: string }>>
+
+  /** 服务器上此刻还有谁在听 */
+  getNowPlaying?(): Promise<Array<{ username: string; playerName?: string; minutesAgo?: number; song: Song }>>
+
+  /** 公开分享链接 */
+  createShare?(ids: string[], options?: { description?: string; expiresAt?: number }): Promise<{ id: string; url: string }>
+  getShares?(): Promise<Array<{ id: string; url: string; description?: string; expiresAt?: number; visitCount?: number }>>
+  deleteShare?(shareId: string): Promise<void>
+
+  /** 从客户端触发扫描并观察进度 */
+  startScan?(): Promise<void>
+  getScanStatus?(): Promise<{ scanning: boolean; count?: number; folderCount?: number } | null>
+
+  /** 能力协商：OpenSubsonic 扩展与服务器版本 */
+  getServerCapabilities?(): Promise<ServerCapabilities>
+
+  /** 精确播放上报（Jellyfin 会话生命周期 / OpenSubsonic reportPlayback）*/
+  reportPlayback?(songId: string, state: { positionMs: number; isPaused?: boolean; event: 'start' | 'progress' | 'stop' }): Promise<void>
+}
+
+/** 服务器声明的能力，用于在 UI 上隐藏不受支持的入口 */
+export interface ServerCapabilities {
+  openSubsonic: boolean
+  serverVersion?: string
+  serverType?: string
+  /** OpenSubsonic 扩展名 → 支持的版本号 */
+  extensions: Record<string, number[]>
 }

@@ -23,7 +23,94 @@ import type {
   LyricLine,
   ListParams,
   PageResult,
+  SongExtras,
+  Contributor,
+  ReplayGainInfo,
+  ServerCapabilities,
 } from '../types'
+
+/** Subsonic 协议要求的客户端标识 */
+const CLIENT_NAME = 'N1KO-MUSIC'
+
+/**
+ * 每次认证生成一个新的随机 salt。
+ * 旧实现用 Math.random()，不是加密安全随机源，削弱了 token 认证本身的意义。
+ */
+function randomSalt(): string {
+  const bytes = new Uint8Array(16)
+  const crypto = globalThis.crypto
+  if (crypto?.getRandomValues) {
+    crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256)
+  }
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function numberOr(value: unknown): number | undefined {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : undefined
+}
+
+/**
+ * 提取 OpenSubsonic 在 Child 响应上早就返回、旧 mapSong 一律丢弃的字段。
+ *
+ * 全部可选，服务器不返就是 undefined，对应的 UI 直接不渲染。
+ * 返回 undefined 而不是空对象，避免给每首歌都挂一个没用的对象。
+ */
+export function mapSongExtras(s: Record<string, unknown>): SongExtras | undefined {
+  const ext: SongExtras = {}
+
+  const rg = s.replayGain as Record<string, unknown> | undefined
+  if (rg && typeof rg === 'object') {
+    const gain: ReplayGainInfo = {
+      trackGain: numberOr(rg.trackGain),
+      albumGain: numberOr(rg.albumGain),
+      trackPeak: numberOr(rg.trackPeak),
+      albumPeak: numberOr(rg.albumPeak),
+      fallbackGain: numberOr(rg.fallbackGain),
+    }
+    if (Object.values(gain).some(v => v !== undefined)) ext.replayGain = gain
+  }
+
+  const bitDepth = numberOr(s.bitDepth)
+  if (bitDepth) ext.bitDepth = bitDepth
+  const samplingRate = numberOr(s.samplingRate)
+  if (samplingRate) ext.samplingRate = samplingRate
+  const channelCount = numberOr(s.channelCount)
+  if (channelCount) ext.channelCount = channelCount
+  const bpm = numberOr(s.bpm)
+  if (bpm) ext.bpm = bpm
+
+  if (Array.isArray(s.contributors)) {
+    const contributors = (s.contributors as Record<string, unknown>[])
+      .map((c): Contributor | null => {
+        const artist = c.artist as Record<string, unknown> | undefined
+        const name = artist?.name ?? c.name
+        if (!name) return null
+        return {
+          role: String(c.role || ''),
+          subRole: c.subRole ? String(c.subRole) : undefined,
+          name: String(name),
+          artistId: artist?.id ? String(artist.id) : undefined,
+        }
+      })
+      .filter((c): c is Contributor => c !== null)
+    if (contributors.length) ext.contributors = contributors
+  }
+
+  if (s.displayArtist) ext.displayArtist = String(s.displayArtist)
+  if (s.displayComposer) ext.displayComposer = String(s.displayComposer)
+  if (Array.isArray(s.moods) && s.moods.length) ext.moods = s.moods.map(String)
+  if (Array.isArray(s.isrc) && s.isrc.length) ext.isrc = s.isrc.map(String)
+  if (s.musicBrainzId) ext.musicBrainzId = String(s.musicBrainzId)
+  if (s.comment) ext.comment = String(s.comment)
+
+  const bookmark = numberOr(s.bookmarkPosition)
+  if (bookmark) ext.bookmarkPosition = bookmark
+
+  return Object.keys(ext).length ? ext : undefined
+}
 
 /** Subsonic 响应外层结构 */
 interface SubsonicResponse<T = unknown> {
@@ -61,7 +148,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       t: this.token,
       s: this.salt,
       v: '1.16.1',
-      c: 'MusicStreamPro',
+      c: CLIENT_NAME,
       f: 'json',
       ...extra,
     }
@@ -92,13 +179,13 @@ export class SubsonicAdapter implements MusicServerAdapter {
   }
 
   async login(url: string, username: string, password: string): Promise<AuthResult> {
-    const salt = Math.random().toString(36).substring(2, 12)
+    const salt = randomSalt()
     const token = md5(password + salt)
     const testUrl = url.replace(/\/$/, '')
 
     try {
       const resp = await axios.get(`${testUrl}/rest/ping`, {
-        params: { u: username, t: token, s: salt, v: '1.16.1', c: 'MusicStreamPro', f: 'json' },
+        params: { u: username, t: token, s: salt, v: '1.16.1', c: CLIENT_NAME, f: 'json' },
         timeout: 10000,
       })
       const data = resp.data['subsonic-response']
@@ -143,6 +230,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       userRating: s.userRating ? Number(s.userRating) : undefined,
       path: s.path ? String(s.path) : undefined,
       suffix: s.suffix ? String(s.suffix) : undefined,
+      ext: mapSongExtras(s),
     }
   }
 
@@ -412,7 +500,9 @@ export class SubsonicAdapter implements MusicServerAdapter {
     const data = await this.request<{ album?: Record<string, unknown> }>('/getAlbum', { id: albumId })
     const album = (data.album ?? {}) as Record<string, unknown>
     const songs = ((album.song ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
-    return { ...this.mapAlbum(album), songs }
+    // 唱片说明与 MusicBrainz ID 走单独一个接口，失败不影响专辑本体
+    const info = await this.getAlbumInfo(albumId)
+    return { ...this.mapAlbum(album), songs, ...(info ?? {}) }
   }
 
   async getRecentAlbums(size = 20): Promise<Album[]> {
@@ -632,11 +722,12 @@ export class SubsonicAdapter implements MusicServerAdapter {
     console.debug('[Subsonic] updateMediaAnnotation result:', result)
   }
 
-  async setLyrics(songId: string, o3ics: string): Promise<void> {
-    console.debug('[Subsonic] setLyrics for song:', songId)
+  async setLyrics(songId: string, lyrics: string): Promise<void> {
+    // 线上参数名必须是 lyrics。此前写成了 o3ics（一次全局替换把 "lyr" 换成了 "o3"
+    // 留下的痕迹，同源问题还有 o3icCacheStore），服务端只会当成未知参数忽略，
+    // 于是「保存歌词」永远静默失败。
     try {
-      const result = await this.postRequest('/setLyrics', { id: songId, o3ics })
-      console.debug('[Subsonic] setLyrics result:', result)
+      await this.postRequest('/setLyrics', { id: songId, lyrics })
     } catch (err) {
       console.error('[Subsonic] setLyrics failed:', err)
       throw err
@@ -653,6 +744,201 @@ export class SubsonicAdapter implements MusicServerAdapter {
       songCount: Number(g.songCount) || 0,
       albumCount: Number(g.albumCount) || 0,
     }))
+  }
+
+  // ===================================================
+  // 服务端早已提供、此前从未调用的能力
+  // ===================================================
+
+  /**
+   * 跨设备续播。Subsonic API 1.12.0 起就有，Navidrome 已实现，此前全仓零引用。
+   * 对「服务器在家、人在外面」的播放器，这是最贴题的一个能力。
+   */
+  async savePlayQueue(songIds: string[], currentId: string, positionMs: number): Promise<void> {
+    if (!songIds.length) return
+    await this.postRequest('/savePlayQueue', {
+      id: songIds,
+      current: currentId,
+      position: Math.max(0, Math.round(positionMs)),
+    })
+  }
+
+  async getPlayQueue(): Promise<{
+    songs: Song[]; currentId?: string; positionMs: number; changedBy?: string
+  } | null> {
+    const data = await this.request<{ playQueue?: Record<string, unknown> }>('/getPlayQueue')
+    const pq = data.playQueue
+    if (!pq) return null
+    const entries = ((pq.entry ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
+    if (!entries.length) return null
+    return {
+      songs: entries,
+      currentId: pq.current ? String(pq.current) : undefined,
+      positionMs: numberOr(pq.position) ?? 0,
+      changedBy: pq.changedBy ? String(pq.changedBy) : undefined,
+    }
+  }
+
+  /** 长音轨断点：DJ set、现场整轨、整乐章 */
+  async createBookmark(songId: string, positionMs: number, comment?: string): Promise<void> {
+    await this.postRequest('/createBookmark', {
+      id: songId,
+      position: Math.max(0, Math.round(positionMs)),
+      comment,
+    })
+  }
+
+  async getBookmarks(): Promise<Array<{ song: Song; positionMs: number; comment?: string }>> {
+    const data = await this.request<{ bookmarks?: { bookmark?: unknown[] } }>('/getBookmarks')
+    const list = ((data.bookmarks as Record<string, unknown[]> | undefined)?.bookmark ?? []) as Record<string, unknown>[]
+    return list
+      .filter(b => b.entry)
+      .map(b => ({
+        song: this.mapSong(b.entry as Record<string, unknown>),
+        positionMs: numberOr(b.position) ?? 0,
+        comment: b.comment ? String(b.comment) : undefined,
+      }))
+  }
+
+  async deleteBookmark(songId: string): Promise<void> {
+    await this.postRequest('/deleteBookmark', { id: songId })
+  }
+
+  /** 评分写回。userRating 早已映射并展示，此前只缺这一半。 */
+  async setRating(id: string, rating: number): Promise<void> {
+    const clamped = Math.max(0, Math.min(5, Math.round(rating)))
+    await this.postRequest('/setRating', { id, rating: clamped })
+  }
+
+  /** 专辑说明 / 乐评，用于「唱片说明」内页 */
+  async getAlbumInfo(albumId: string): Promise<{
+    notes?: string; musicBrainzId?: string; externalUrl?: string
+  } | null> {
+    try {
+      const data = await this.request<{ albumInfo?: Record<string, unknown> }>('/getAlbumInfo2', { id: albumId })
+      const info = data.albumInfo
+      if (!info) return null
+      const notes = info.notes ? String(info.notes) : undefined
+      const musicBrainzId = info.musicBrainzId ? String(info.musicBrainzId) : undefined
+      const externalUrl = info.lastFmUrl ? String(info.lastFmUrl) : undefined
+      if (!notes && !musicBrainzId && !externalUrl) return null
+      return { notes, musicBrainzId, externalUrl }
+    } catch {
+      return null
+    }
+  }
+
+  /** 多音乐库：很多人把有声书 / 白噪声单独放一个库 */
+  async getMusicFolders(): Promise<Array<{ id: string; name: string }>> {
+    try {
+      const data = await this.request<{ musicFolders?: { musicFolder?: unknown[] } }>('/getMusicFolders')
+      const list = ((data.musicFolders as Record<string, unknown[]> | undefined)?.musicFolder ?? []) as Record<string, unknown>[]
+      return list.map(f => ({ id: String(f.id), name: String(f.name || f.id) }))
+    } catch {
+      return []
+    }
+  }
+
+  async getNowPlaying(): Promise<Array<{
+    username: string; playerName?: string; minutesAgo?: number; song: Song
+  }>> {
+    try {
+      const data = await this.request<{ nowPlaying?: { entry?: unknown[] } }>('/getNowPlaying')
+      const list = ((data.nowPlaying as Record<string, unknown[]> | undefined)?.entry ?? []) as Record<string, unknown>[]
+      return list.map(e => ({
+        username: String(e.username || ''),
+        playerName: e.playerName ? String(e.playerName) : undefined,
+        minutesAgo: numberOr(e.minutesAgo),
+        song: this.mapSong(e),
+      }))
+    } catch {
+      return []
+    }
+  }
+
+  async createShare(
+    ids: string[],
+    options: { description?: string; expiresAt?: number } = {}
+  ): Promise<{ id: string; url: string }> {
+    const data = await this.postRequest<{ shares?: { share?: unknown[] } }>('/createShare', {
+      id: ids,
+      description: options.description,
+      expires: options.expiresAt,
+    })
+    const share = (((data.shares as Record<string, unknown[]> | undefined)?.share ?? [])[0] ?? {}) as Record<string, unknown>
+    return { id: String(share.id ?? ''), url: String(share.url ?? '') }
+  }
+
+  async getShares(): Promise<Array<{
+    id: string; url: string; description?: string; expiresAt?: number; visitCount?: number
+  }>> {
+    try {
+      const data = await this.request<{ shares?: { share?: unknown[] } }>('/getShares')
+      const list = ((data.shares as Record<string, unknown[]> | undefined)?.share ?? []) as Record<string, unknown>[]
+      return list.map(s => ({
+        id: String(s.id),
+        url: String(s.url || ''),
+        description: s.description ? String(s.description) : undefined,
+        expiresAt: s.expires ? Date.parse(String(s.expires)) || undefined : undefined,
+        visitCount: numberOr(s.visitCount),
+      }))
+    } catch {
+      return []
+    }
+  }
+
+  async deleteShare(shareId: string): Promise<void> {
+    await this.postRequest('/deleteShare', { id: shareId })
+  }
+
+  /** 往 NAS 丢了新专辑之后，不必再开服务器后台 */
+  async startScan(): Promise<void> {
+    await this.postRequest('/startScan')
+  }
+
+  async getScanStatus(): Promise<{ scanning: boolean; count?: number; folderCount?: number } | null> {
+    try {
+      const data = await this.request<{ scanStatus?: Record<string, unknown> }>('/getScanStatus')
+      const s = data.scanStatus
+      if (!s) return null
+      return {
+        scanning: !!s.scanning,
+        count: numberOr(s.count),
+        folderCount: numberOr(s.folderCount),
+      }
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * 能力协商。此前对可选能力是 try/catch-and-hope，
+   * 结果是 UI 上摆着一堆点了没反应的入口。
+   */
+  async getServerCapabilities(): Promise<ServerCapabilities> {
+    const caps: ServerCapabilities = { openSubsonic: false, extensions: {} }
+    try {
+      const pong = await this.request<Record<string, unknown>>('/ping')
+      caps.openSubsonic = !!pong.openSubsonic
+      caps.serverVersion = pong.serverVersion ? String(pong.serverVersion) : undefined
+      caps.serverType = pong.type ? String(pong.type) : undefined
+    } catch {
+      return caps
+    }
+    if (!caps.openSubsonic) return caps
+    try {
+      const data = await this.request<{ openSubsonicExtensions?: unknown[] }>('/getOpenSubsonicExtensions')
+      for (const raw of (data.openSubsonicExtensions ?? []) as Record<string, unknown>[]) {
+        const name = raw.name ? String(raw.name) : ''
+        if (!name) continue
+        caps.extensions[name] = Array.isArray(raw.versions)
+          ? (raw.versions as unknown[]).map(v => Number(v)).filter(Number.isFinite)
+          : []
+      }
+    } catch {
+      // 扩展清单拿不到不影响 openSubsonic 判定
+    }
+    return caps
   }
 }
 
