@@ -112,6 +112,29 @@ export function mapSongExtras(s: Record<string, unknown>): SongExtras | undefine
   return Object.keys(ext).length ? ext : undefined
 }
 
+/** 歌手详情里最多预取多少张专辑的曲目，其余留给专辑页按需加载 */
+const MAX_ARTIST_ALBUM_FETCH = 40
+/** 并发上限。浏览器同源连接只有 6 条，超出只会排队并挤掉封面请求。 */
+const ARTIST_ALBUM_CONCURRENCY = 4
+
+/** 带并发上限的 map，保持输入顺序 */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++
+      results[index] = await fn(items[index], index)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 /** Subsonic 响应外层结构 */
 interface SubsonicResponse<T = unknown> {
   'subsonic-response': {
@@ -593,11 +616,18 @@ export class SubsonicAdapter implements MusicServerAdapter {
       ? this.request<{ topSongs?: { song?: unknown[] } }>('/getTopSongs', { artist: artistName, count: 50 })
           .catch(() => null)
       : Promise.resolve(null)
-    const albumSongPromises = albums.map(a =>
-      this.request<{ album?: Record<string, unknown> }>('/getAlbum', { id: a.id })
-        .catch(() => null)
-    )
-    const [topSongsResult, ...albumResults] = await Promise.all([topSongsPromise, ...albumSongPromises])
+    // 每张专辑一次 /getAlbum。多产歌手会一次打出几十个请求，
+    // 而浏览器同源连接只有 6 条——请求排队反而拖慢首屏，也会挤掉封面。
+    // 这里用并发池限流；专辑很多时只取前若干张，其余按需在专辑页加载。
+    const [topSongsResult, albumResults] = await Promise.all([
+      topSongsPromise,
+      mapWithConcurrency(
+        albums.slice(0, MAX_ARTIST_ALBUM_FETCH),
+        ARTIST_ALBUM_CONCURRENCY,
+        a => this.request<{ album?: Record<string, unknown> }>('/getAlbum', { id: a.id })
+          .catch(() => null)
+      ),
+    ])
 
     const topSongs = topSongsResult
       ? (((topSongsResult.topSongs as Record<string, unknown> | undefined)?.song ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))

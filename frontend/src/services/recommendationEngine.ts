@@ -12,6 +12,13 @@ export interface RecommendationProfile {
   positiveEventCount: number
   /** 归一化歌手名 → 原始名与 artistId，用于按歌手向服务器定向拉取候选 */
   artistIdentity: Map<string, { name: string; id?: string }>
+  /**
+   * 归一化流派名 → 原始名。
+   * 画像用小写归一化以便合并统计，但 Subsonic 的 getSongsByGenre 大小写敏感，
+   * 直接拿归一化后的键去请求，「Rock」永远匹配不到「rock」，
+   * 整条流派通道会静默返回空。
+   */
+  genreIdentity: Map<string, string>
 }
 
 interface ScoredSong {
@@ -96,6 +103,7 @@ export function buildRecommendationProfile(
     skipCounts: new Map(),
     positiveEventCount: 0,
     artistIdentity: new Map(),
+    genreIdentity: new Map(),
   }
 
   for (const event of events) {
@@ -133,7 +141,12 @@ export function buildRecommendationProfile(
         })
       }
     }
-    if (genre) addWeight(profile.genreAffinity, genre, weight)
+    if (genre) {
+      addWeight(profile.genreAffinity, genre, weight)
+      if (!profile.genreIdentity.has(genre)) {
+        profile.genreIdentity.set(genre, event.song.genre as string)
+      }
+    }
     if (event.song.year) addWeight(profile.decadeAffinity, Math.floor(event.song.year / 10) * 10, weight * 0.6)
   }
 
@@ -361,7 +374,9 @@ export function deriveRecommendationSeeds(
 
   return {
     artists,
-    genres: rotatedTopKeys(profile.genreAffinity, genreLimit, offset),
+    // 用原始名请求，不要用归一化后的键
+    genres: rotatedTopKeys(profile.genreAffinity, genreLimit, offset)
+      .map(key => profile.genreIdentity.get(key) ?? key),
     songIds,
   }
 }

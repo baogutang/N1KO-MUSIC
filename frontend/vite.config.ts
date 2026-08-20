@@ -83,8 +83,12 @@ export default defineConfig(({ mode }) => ({
           if (/node_modules\/(react|react-dom|scheduler|use-sync-external-store|react-is)\//.test(id)) {
             return 'react-core'
           }
-          if (id.includes('react-router-dom')) return 'router'
-          if (id.includes('@tanstack/react-query')) return 'react-query'
+          // 必须匹配 react-router 而不是 react-router-dom：react-router-dom 只是
+          // 一层再导出，绝大部分代码在 react-router 包里。此前这条规则匹配不到东西，
+          // router 分块产物只有 1 字节，路由代码全落进了 vendor。
+          if (/node_modules\/react-router(-dom)?\//.test(id)) return 'router'
+          // 同理：@tanstack/react-query 的主体在 query-core 里
+          if (id.includes('@tanstack/')) return 'react-query'
           if (id.includes('@radix-ui')) return 'radix-ui'
           return 'vendor'
         },

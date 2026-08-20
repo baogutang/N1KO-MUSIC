@@ -188,7 +188,9 @@ describe('deriveRecommendationSeeds', () => {
 
     expect(seeds.artists[0]).toEqual({ id: 'artist-a-id', name: 'Artist A' })
     expect(seeds.artists.map(item => item.name)).toContain('Artist B')
-    expect(seeds.genres[0]).toBe('jazz')
+    // 必须返回原始大小写：getSongsByGenre 大小写敏感，
+    // 拿归一化后的 'jazz' 去请求会静默返回空
+    expect(seeds.genres[0]).toBe('Jazz')
     expect(seeds.songIds).toContain('loved')
   })
 
