@@ -48,6 +48,7 @@ function resetStore() {
     repeatMode: 'none',
     shuffle: false,
     shuffledIndexes: [],
+    shuffleCursor: -1,
     isFullscreen: false,
     isQueueOpen: false,
     streamBuffering: false,
@@ -62,6 +63,7 @@ function seedQueue(count: number, index: number, patch: Partial<PlayerSnapshot> 
     currentSong: queue[index] ?? null,
     isPlaying: true,
     shuffledIndexes: queue.map((_, i) => i),
+    shuffleCursor: -1,
     ...patch,
   })
   return queue
@@ -208,14 +210,91 @@ describe('随机播放的 next', () => {
     expect(state().queueIndex).toBe(1)
   })
 
-  it('随机顺序走完且列表循环时回到随机序列开头', () => {
+  it('随机顺序走完且列表循环时重洗，而不是复刻上一轮', () => {
+    // s1 是随机序列 [2,0,3,1] 的最后一位，此时 next() 触发绕回
     seedQueue(4, 1, { shuffle: true, shuffledIndexes: [2, 0, 3, 1], repeatMode: 'all' })
     passSwitchDebounce()
 
     state().next()
 
-    expect(state().queueIndex).toBe(2)
     expect(state().isPlaying).toBe(true)
+    // 新一轮仍是完整排列
+    expect([...state().shuffledIndexes].sort((a, b) => a - b)).toEqual([0, 1, 2, 3])
+    expect(state().shuffleCursor).toBe(0)
+    expect(state().queueIndex).toBe(state().shuffledIndexes[0])
+    // 新一轮首曲不能还是刚播完的那首，否则听感上是同一首连播两遍
+    expect(state().queueIndex).not.toBe(1)
+  })
+
+  it('绕回重洗在多轮之后仍然产生不同顺序，不会锁死在一个序列上', () => {
+    const seen = new Set<string>()
+    for (let round = 0; round < 12; round++) {
+      seedQueue(6, 5, {
+        shuffle: true,
+        shuffledIndexes: [0, 1, 2, 3, 4, 5],
+        shuffleCursor: 5,
+        repeatMode: 'all',
+      })
+      passSwitchDebounce()
+      state().next()
+      seen.add(state().shuffledIndexes.join(','))
+    }
+    // 若绕回时复用同一串顺序，这里只会有 1 个元素
+    expect(seen.size).toBeGreaterThan(1)
+  })
+})
+
+describe('随机游标（shuffleCursor）', () => {
+  it('从队列点歌后沿随机顺序继续，不跳过未播的曲目', () => {
+    // 随机顺序 s3→s1→s0→s2，正在播首位 s3（游标 0）
+    seedQueue(4, 3, { shuffle: true, shuffledIndexes: [3, 1, 0, 2], shuffleCursor: 0 })
+
+    // 点了排在随机序列最后的 s2
+    state().jumpToIndex(2)
+    expect(currentId()).toBe('s2')
+
+    // 之后应接着播原本排在 s3 之后的 s1，而不是从 s2 的原位置往后跳到队尾
+    passSwitchDebounce()
+    state().next()
+    expect(currentId()).toBe('s1')
+
+    // 未播的 s0 仍在后面，没有被永久跳过
+    passSwitchDebounce()
+    state().next()
+    expect(currentId()).toBe('s0')
+  })
+
+  it('点播排在游标之前的曲目时不会重播已听过的一整段', () => {
+    // 随机顺序 s3→s1→s0→s2，已播到 s0（游标 2）
+    seedQueue(4, 0, { shuffle: true, shuffledIndexes: [3, 1, 0, 2], shuffleCursor: 2 })
+
+    state().jumpToIndex(3) // s3 是已经播过的首位
+    expect(currentId()).toBe('s3')
+
+    // 继续播的应是尚未播放的 s2，而不是把 s1、s0 再走一遍
+    passSwitchDebounce()
+    state().next()
+    expect(currentId()).toBe('s2')
+  })
+
+  it('随机顺序始终保持为完整排列', () => {
+    seedQueue(5, 0, { shuffle: true, shuffledIndexes: [0, 3, 1, 4, 2], shuffleCursor: 0 })
+    state().jumpToIndex(4)
+    expect([...state().shuffledIndexes].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4])
+    expect(state().shuffledIndexes[state().shuffleCursor]).toBe(state().queueIndex)
+  })
+
+  it('删除游标之前的曲目后，游标仍指向当前曲', () => {
+    // 随机顺序 s2→s0→s3→s1，已播到 s3（游标 2）
+    seedQueue(4, 3, { shuffle: true, shuffledIndexes: [2, 0, 3, 1], shuffleCursor: 2 })
+
+    state().removeFromQueue(2) // 删掉排在游标之前的 s2
+
+    expect(currentId()).toBe('s3')
+    expect(state().shuffledIndexes[state().shuffleCursor]).toBe(state().queueIndex)
+    passSwitchDebounce()
+    state().next()
+    expect(currentId()).toBe('s1')
   })
 })
 

@@ -5,8 +5,8 @@
  * 支持拖拽排序、删除、清空（二次确认）
  */
 
-import { useState, useCallback, useEffect } from 'react'
-import { X, DotsSixVertical, Play } from '@phosphor-icons/react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import { X, DotsSixVertical, Play, CaretUp, CaretDown, Shuffle } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { usePlayerStore } from '@/store/playerStore'
 import { useIsMobileLayout } from '@/lib/platform'
@@ -24,12 +24,15 @@ import { Button } from '@/components/ui/button'
 export function QueueDrawer() {
   const queue           = usePlayerStore(s => s.queue)
   const queueIndex      = usePlayerStore(s => s.queueIndex)
+  const shuffle         = usePlayerStore(s => s.shuffle)
+  const shuffledIndexes = usePlayerStore(s => s.shuffledIndexes)
   const isQueueOpen     = usePlayerStore(s => s.isQueueOpen)
   const isPlaying       = usePlayerStore(s => s.isPlaying)
   const setQueueOpen    = usePlayerStore(s => s.setQueueOpen)
   const jumpToIndex     = usePlayerStore(s => s.jumpToIndex)
   const removeFromQueue = usePlayerStore(s => s.removeFromQueue)
   const reorderQueue    = usePlayerStore(s => s.reorderQueue)
+  const reorderPlayOrder = usePlayerStore(s => s.reorderPlayOrder)
   const clearQueue      = usePlayerStore(s => s.clearQueue)
   const isMobile        = useIsMobileLayout()
 
@@ -49,6 +52,25 @@ export function QueueDrawer() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [isQueueOpen, setQueueOpen])
 
+  /**
+   * 面板必须按「接下来会怎么播」渲染，而不是按数组存储顺序。
+   *
+   * 旧实现直接 queue.map()，开着随机时看到的仍是专辑/歌单原始曲序，
+   * 当前行在列表里上下乱跳，当前行的下一行并不是下一首要播的歌 ——
+   * 用户唯一能看见播放顺序的界面完全没体现随机，于是判定「随机是假的」。
+   */
+  const order = useMemo(() => {
+    const identity = queue.map((_, i) => i)
+    if (!shuffle) return identity
+    // 随机顺序与队列长度对不上（异常状态）时退回存储序，至少不会漏显或越界
+    if (shuffledIndexes.length !== queue.length) return identity
+    const seen = new Set(shuffledIndexes)
+    if (seen.size !== queue.length) return identity
+    return shuffledIndexes
+  }, [queue, shuffle, shuffledIndexes])
+
+  const position = order.indexOf(queueIndex)
+
   const handleDragStart = useCallback((index: number) => {
     setDragIndex(index)
   }, [])
@@ -58,13 +80,20 @@ export function QueueDrawer() {
     setOverIndex(index)
   }, [])
 
+  /** 拖拽的下标是「显示位置」：随机开启时改播放顺序，否则改队列顺序 */
+  const moveByPosition = useCallback((fromPos: number, toPos: number) => {
+    if (fromPos === toPos) return
+    if (shuffle) reorderPlayOrder(fromPos, toPos)
+    else reorderQueue(fromPos, toPos)
+  }, [shuffle, reorderPlayOrder, reorderQueue])
+
   const handleDrop = useCallback((index: number) => {
     if (dragIndex !== null && dragIndex !== index) {
-      reorderQueue(dragIndex, index)
+      moveByPosition(dragIndex, index)
     }
     setDragIndex(null)
     setOverIndex(null)
-  }, [dragIndex, reorderQueue])
+  }, [dragIndex, moveByPosition])
 
   if (!isQueueOpen) return null
 
@@ -85,7 +114,16 @@ export function QueueDrawer() {
       >
         {/* 头部：衬线标题 + 清空 / 关闭 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-hair flex-shrink-0">
-          <h3 className="font-serif font-bold text-[17px]">播放队列</h3>
+          <h3 className="font-serif font-bold text-[17px] flex items-baseline gap-2.5">
+            播放队列
+            {/* 面板此时显示的是随机顺序而非原始曲序，必须说明，否则用户会以为随机没生效 */}
+            {shuffle && (
+              <span className="inline-flex items-center gap-1 text-[10.5px] font-sans font-medium tracking-[0.14em] text-primary">
+                <Shuffle size={11} aria-hidden="true" />
+                随机顺序
+              </span>
+            )}
+          </h3>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setConfirmClear(true)}
@@ -111,23 +149,25 @@ export function QueueDrawer() {
             </div>
           ) : (
             <ol>
-              {queue.map((song, index) => {
-                const isCurrent = index === queueIndex
+              {order.map((qi, pos) => {
+                const song = queue[qi]
+                if (!song) return null
+                const isCurrent = qi === queueIndex
 
                 return (
                   <li
-                    key={`${song.id}-${index}`}
+                    key={`${song.id}-${qi}`}
                     draggable
-                    onDragStart={() => handleDragStart(index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDrop={() => handleDrop(index)}
+                    onDragStart={() => handleDragStart(pos)}
+                    onDragOver={(e) => handleDragOver(e, pos)}
+                    onDrop={() => handleDrop(pos)}
                     onDragEnd={() => { setDragIndex(null); setOverIndex(null) }}
-                    onClick={() => jumpToIndex(index)}
+                    onClick={() => jumpToIndex(qi)}
                     className={cn(
                       'group flex items-center gap-3 px-4 py-2.5 border-b border-hair-soft cursor-pointer transition-colors duration-150',
                       'hover:bg-paper-deep/60',
-                      overIndex === index && dragIndex !== null && 'ring-1 ring-inset ring-primary/40',
-                      dragIndex === index && 'opacity-50'
+                      overIndex === pos && dragIndex !== null && 'ring-1 ring-inset ring-primary/40',
+                      dragIndex === pos && 'opacity-50'
                     )}
                   >
                     {/* 序号：当前行 accent / 播放中换 EQ；hover 浮现拖拽柄 */}
@@ -144,7 +184,7 @@ export function QueueDrawer() {
                               isCurrent ? 'text-primary' : 'text-ink-faint'
                             )}
                           >
-                            {String(index + 1).padStart(2, '0')}
+                            {String(pos + 1).padStart(2, '0')}
                           </span>
                           <DotsSixVertical
                             size={14}
@@ -173,22 +213,51 @@ export function QueueDrawer() {
                       {formatDuration(song.duration)}
                     </span>
 
-                    <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); jumpToIndex(index) }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-150 active:scale-95"
-                        aria-label="播放"
-                      >
-                        <Play size={11} weight="fill" />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeFromQueue(index) }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-150 active:scale-95"
-                        aria-label="移除"
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
+                    {/* 触屏上 HTML5 拖拽事件不触发，用上移/下移按钮兜底 */}
+                    {isMobile ? (
+                      <span className="flex items-center gap-0.5 flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); moveByPosition(pos, pos - 1) }}
+                          disabled={pos === 0}
+                          className="w-11 h-11 -my-2 rounded-full flex items-center justify-center text-ink-soft disabled:opacity-25 active:scale-95"
+                          aria-label={`把「${song.title}」上移`}
+                        >
+                          <CaretUp size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); moveByPosition(pos, pos + 1) }}
+                          disabled={pos === order.length - 1}
+                          className="w-11 h-11 -my-2 rounded-full flex items-center justify-center text-ink-soft disabled:opacity-25 active:scale-95"
+                          aria-label={`把「${song.title}」下移`}
+                        >
+                          <CaretDown size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeFromQueue(qi) }}
+                          className="w-11 h-11 -my-2 rounded-full flex items-center justify-center text-ink-soft active:scale-95"
+                          aria-label={`把「${song.title}」移出队列`}
+                        >
+                          <X size={13} />
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); jumpToIndex(qi) }}
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-150 active:scale-95"
+                          aria-label={`播放「${song.title}」`}
+                        >
+                          <Play size={11} weight="fill" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeFromQueue(qi) }}
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-150 active:scale-95"
+                          aria-label={`把「${song.title}」移出队列`}
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    )}
                   </li>
                 )
               })}
@@ -198,8 +267,11 @@ export function QueueDrawer() {
 
         {queue.length > 0 && (
           <div className="px-5 py-2.5 border-t border-hair flex-shrink-0">
+            {/* 计数按播放位置算：随机时数组下标毫无意义（会显示成「17 / 40」而实际在第 3 首） */}
             <p className="text-[11px] text-ink-faint text-center">
-              <span className="font-num">{queue.length}</span> 首歌曲 · <span className="font-num">{queueIndex + 1} / {queue.length}</span>
+              <span className="font-num">{queue.length}</span> 首歌曲 ·{' '}
+              <span className="font-num">{position >= 0 ? position + 1 : '–'} / {order.length}</span>
+              {shuffle && <span className="ml-1.5">（随机顺序）</span>}
             </p>
           </div>
         )}

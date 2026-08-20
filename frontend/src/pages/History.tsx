@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useServerStore } from '@/store/serverStore'
+import { playListFrom } from '@/utils/playActions'
 import {
   clearListeningEvents,
   readListeningEvents,
@@ -38,7 +39,6 @@ export default function History() {
   )
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [confirmClear, setConfirmClear] = useState(false)
-  const playQueue = usePlayerStore(s => s.playQueue)
 
   // 进入页面时刷新，并监听音频引擎写入历史后的通知事件
   useEffect(() => {
@@ -67,7 +67,7 @@ export default function History() {
 
   function handlePlay(index: number) {
     // 只把已展示的部分入队，避免一次把两万首塞进播放队列
-    playQueue(visible.map(entry => entry.song), index)
+    playListFrom(visible.map(entry => entry.song), index)
   }
 
   const grouped = useMemo(

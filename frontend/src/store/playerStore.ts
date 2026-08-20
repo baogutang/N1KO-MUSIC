@@ -11,7 +11,57 @@ import type { Song } from '@/api/types'
 
 export type RepeatMode = 'none' | 'one' | 'all'
 
+/** 一次起播的播放顺序意图。省略时沿用当前 shuffle 模式。 */
+export type PlayOrder = 'sequential' | 'shuffled'
+
 const MAX_HISTORY = 50
+
+/**
+ * 持久化队列的上限。
+ *
+ * 队列曾经整个写进一个 localStorage 键：加载两千首后按「播放全部」，
+ * 每次切歌的写入都会超配额失败，而每次失败又触发一轮缓存回收，
+ * 把封面与歌词缓存反复清空，写入却永远不会成功。
+ * 这里以当前曲为中心保留一个窗口，够「关掉再打开接着听」即可。
+ */
+const QUEUE_PERSIST_LIMIT = 300
+/** 窗口里留给「已播过」的位置，其余给未播的 */
+const QUEUE_PERSIST_LOOKBEHIND = 60
+
+/**
+ * 取出可持久化的队列窗口，并把随机顺序一并重映射到窗口内下标。
+ * 随机顺序必须跟着裁剪，否则恢复后下标会越界或指向错误曲目。
+ */
+function persistableQueueWindow(state: PlayerState): {
+  queue: Song[]
+  queueIndex: number
+  shuffledIndexes: number[]
+  shuffleCursor: number
+} {
+  const { queue, queueIndex, shuffledIndexes, shuffleCursor, shuffle } = state
+  if (queue.length <= QUEUE_PERSIST_LIMIT) {
+    return { queue, queueIndex, shuffledIndexes, shuffleCursor }
+  }
+
+  const start = Math.max(
+    0,
+    Math.min(queueIndex - QUEUE_PERSIST_LOOKBEHIND, queue.length - QUEUE_PERSIST_LIMIT)
+  )
+  const end = start + QUEUE_PERSIST_LIMIT
+  const sliced = queue.slice(start, end)
+  const nextIndex = Math.max(0, Math.min(queueIndex - start, sliced.length - 1))
+  const order = shuffle
+    ? shuffledIndexes.filter(i => i >= start && i < end).map(i => i - start)
+    : sliced.map((_, i) => i)
+  const cursor = shuffle ? order.indexOf(nextIndex) : -1
+
+  return {
+    queue: sliced,
+    queueIndex: nextIndex,
+    shuffledIndexes: order.length === sliced.length ? order : sliced.map((_, i) => i),
+    shuffleCursor: order.length === sliced.length ? cursor : -1,
+  }
+}
 
 /** 切歌防抖：记录上次切歌时间，50ms 内重复调用忽略 */
 let lastSwitchTime = 0
@@ -46,13 +96,20 @@ interface PlayerState {
   repeatMode: RepeatMode
   shuffle: boolean
   shuffledIndexes: number[]
+  /** 随机序列里的当前位置。权威值，queueIndex 由它派生；关闭随机时为 -1 */
+  shuffleCursor: number
 
   isFullscreen: boolean
   isQueueOpen: boolean
   streamBuffering: boolean
 
   playSong: (song: Song, queue?: Song[]) => void
-  playQueue: (songs: Song[], startIndex?: number) => void
+  /**
+   * 起播一个列表。
+   * order 显式指定本次播放顺序并同步 shuffle 开关；省略时沿用当前 shuffle 模式，
+   * 这样「点某一行歌曲」这类没有顺序意图的入口不会意外改变用户设定的模式。
+   */
+  playQueue: (songs: Song[], startIndex?: number, order?: PlayOrder) => void
   togglePlay: () => void
   pause: () => void
   resume: () => void
@@ -71,6 +128,8 @@ interface PlayerState {
   addToQueue: (songs: Song[], position?: 'next' | 'last') => void
   removeFromQueue: (index: number) => void
   reorderQueue: (fromIndex: number, toIndex: number) => void
+  /** 按「播放顺序」上的位置重排（随机开启时队列面板拖拽走这条） */
+  reorderPlayOrder: (fromPos: number, toPos: number) => void
   clearQueue: () => void
   jumpToIndex: (index: number) => void
   setFullscreen: (open: boolean) => void
@@ -99,6 +158,7 @@ export const usePlayerStore = create<PlayerState>()(
       repeatMode: 'none',
       shuffle: false,
       shuffledIndexes: [],
+      shuffleCursor: -1,
       isFullscreen: false,
       isQueueOpen: false,
       streamBuffering: false,
@@ -118,24 +178,33 @@ export const usePlayerStore = create<PlayerState>()(
           currentTime: 0,
           queue: newQueue,
           queueIndex: index,
-          shuffledIndexes: generateShuffledIndexes(newQueue.length, index),
+          shuffledIndexes: state.shuffle
+            ? generateShuffledIndexes(newQueue.length, index)
+            : newQueue.map((_, i) => i),
+          shuffleCursor: state.shuffle ? 0 : -1,
           playVersion: state.playVersion + 1,
         })
       },
 
-      playQueue: (songs, startIndex = 0) => {
+      playQueue: (songs, startIndex = 0, order) => {
         if (!songs.length) return
         const state = get()
-        const song = songs[startIndex]
-        const shuffledIndexes = generateShuffledIndexes(songs.length, startIndex)
+        const safeStart = Math.max(0, Math.min(startIndex, songs.length - 1))
+        const song = songs[safeStart]
+        // order 缺省时沿用当前模式：点单曲行不该改变用户设定的随机开关
+        const shuffled = order ? order === 'shuffled' : state.shuffle
         set({
           history: appendHistory(state.history, state.currentSong),
           queue: songs,
-          queueIndex: startIndex,
+          queueIndex: safeStart,
           currentSong: song,
           isPlaying: true,
           currentTime: 0,
-          shuffledIndexes,
+          shuffle: shuffled,
+          shuffledIndexes: shuffled
+            ? generateShuffledIndexes(songs.length, safeStart)
+            : songs.map((_, i) => i),
+          shuffleCursor: shuffled ? 0 : -1,
           playVersion: state.playVersion + 1,
         })
       },
@@ -154,21 +223,34 @@ export const usePlayerStore = create<PlayerState>()(
         if (!queue.length) return
 
         let nextIndex: number
+        let nextCursor = state.shuffleCursor
+        let nextOrder: number[] | null = null
 
         // 单曲循环优先于 shuffle：自然播完时重播当前曲
         if (shuffle) {
-          const currentShufflePos = shuffledIndexes.indexOf(queueIndex)
+          const currentShufflePos = resolveShuffleCursor(shuffledIndexes, queueIndex, state.shuffleCursor)
           const nextShufflePos = currentShufflePos + 1
           if (nextShufflePos >= shuffledIndexes.length) {
-            // 随机顺序已走完：仅列表循环时回到随机序列开头，否则停止播放
+            // 随机顺序已走完：仅列表循环时开始新的一轮，否则停止播放
             if (repeatMode === 'all') {
-              nextIndex = shuffledIndexes[0]
+              // 重洗而不是复刻上一轮——同一串顺序循环播放会被听成「假随机」。
+              // 顺便避开新一轮首曲与刚播完的末曲相同，否则听感上是一首歌连播两遍。
+              const reshuffled = generateShuffledIndexes(queue.length, -1)
+              if (queue.length > 1 && reshuffled[0] === queueIndex) {
+                const swap = reshuffled[0]
+                reshuffled[0] = reshuffled[1]
+                reshuffled[1] = swap
+              }
+              nextOrder = reshuffled
+              nextCursor = 0
+              nextIndex = reshuffled[0]
             } else {
               set({ isPlaying: false })
               return
             }
           } else {
             nextIndex = shuffledIndexes[nextShufflePos]
+            nextCursor = nextShufflePos
           }
         } else if (queueIndex < queue.length - 1) {
           nextIndex = queueIndex + 1
@@ -186,6 +268,8 @@ export const usePlayerStore = create<PlayerState>()(
           isPlaying: true,
           currentTime: 0,
           playVersion: state.playVersion + 1,
+          ...(nextOrder ? { shuffledIndexes: nextOrder } : null),
+          ...(shuffle ? { shuffleCursor: nextCursor } : null),
         })
       },
 
@@ -213,7 +297,13 @@ export const usePlayerStore = create<PlayerState>()(
         if (!shuffle && queueIndex === 0 && history.length > 0) {
           const prevSong = history[0]
           const newHistory = history.slice(1)
-          const newQueue = [prevSong, ...queue.filter(s => s.id !== prevSong.id)]
+          // 按下标去重而不是按 id 过滤：同一首歌在队列里出现多次时（合辑、手动加了两遍）
+          // 按 id 过滤会把它的每一次出现都抹掉。只摘掉队首那一次即可。
+          const duplicateAt = queue.findIndex(s => s.id === prevSong.id)
+          const rest = duplicateAt >= 0
+            ? [...queue.slice(0, duplicateAt), ...queue.slice(duplicateAt + 1)]
+            : queue
+          const newQueue = [prevSong, ...rest]
           const newIndex = 0
           set({
             history: newHistory,
@@ -222,19 +312,22 @@ export const usePlayerStore = create<PlayerState>()(
             currentSong: prevSong,
             isPlaying: true,
             currentTime: 0,
-            shuffledIndexes: generateShuffledIndexes(newQueue.length, newIndex),
+            shuffledIndexes: newQueue.map((_, i) => i),
+            shuffleCursor: -1,
             playVersion: state.playVersion + 1,
           })
           return
         }
 
         let prevIndex: number
+        let prevCursor = state.shuffleCursor
 
         if (shuffle) {
-          const currentShufflePos = shuffledIndexes.indexOf(queueIndex)
+          const currentShufflePos = resolveShuffleCursor(shuffledIndexes, queueIndex, state.shuffleCursor)
           const prevShufflePos =
             (currentShufflePos - 1 + shuffledIndexes.length) % shuffledIndexes.length
           prevIndex = shuffledIndexes[prevShufflePos]
+          prevCursor = prevShufflePos
         } else if (queueIndex === 0 && state.repeatMode === 'all') {
           // 列表循环模式下（且无历史可回退）从第一首回绕到最后一首
           prevIndex = queue.length - 1
@@ -249,6 +342,7 @@ export const usePlayerStore = create<PlayerState>()(
           isPlaying: true,
           currentTime: 0,
           playVersion: state.playVersion + 1,
+          ...(shuffle ? { shuffleCursor: prevCursor } : null),
         })
       },
 
@@ -274,7 +368,8 @@ export const usePlayerStore = create<PlayerState>()(
         const shuffledIndexes = newShuffle
           ? generateShuffledIndexes(queue.length, queueIndex)
           : queue.map((_, i) => i)
-        set({ shuffle: newShuffle, shuffledIndexes })
+        // 开启时当前曲被锚在首位，游标随之归零；关闭时游标失效
+        set({ shuffle: newShuffle, shuffledIndexes, shuffleCursor: newShuffle ? 0 : -1 })
       },
 
       addToQueue: (songs, position = 'last') => {
@@ -295,13 +390,17 @@ export const usePlayerStore = create<PlayerState>()(
               const remapped = state.shuffledIndexes.map(i =>
                 i >= insertAt ? i + songs.length : i
               )
-              const currentShufflePos = remapped.indexOf(state.queueIndex)
+              // remapped 与原数组一一对应且顺序不变，游标位置因此不受影响
+              const currentShufflePos = resolveShuffleCursor(
+                remapped, state.queueIndex, state.shuffleCursor
+              )
               const newIndexes = songs.map((_, i) => insertAt + i)
               shuffledIndexes = [
                 ...remapped.slice(0, currentShufflePos + 1),
                 ...newIndexes,
                 ...remapped.slice(currentShufflePos + 1),
               ]
+              return { queue: newQueue, shuffledIndexes, shuffleCursor: currentShufflePos }
             }
             return { queue: newQueue, shuffledIndexes }
           }
@@ -309,7 +408,9 @@ export const usePlayerStore = create<PlayerState>()(
           let shuffledIndexes = newQueue.map((_, i) => i)
           if (state.shuffle) {
             // 保留已播放的前缀顺序，仅把新歌随机混入尚未播放的部分
-            const currentShufflePos = state.shuffledIndexes.indexOf(state.queueIndex)
+            const currentShufflePos = resolveShuffleCursor(
+              state.shuffledIndexes, state.queueIndex, state.shuffleCursor
+            )
             const playedPrefix = state.shuffledIndexes.slice(0, currentShufflePos + 1)
             const upcoming = [
               ...state.shuffledIndexes.slice(currentShufflePos + 1),
@@ -339,12 +440,22 @@ export const usePlayerStore = create<PlayerState>()(
               isPlaying: false,
               currentTime: 0,
               shuffledIndexes: [],
+              shuffleCursor: -1,
             }
           }
 
           // 无损删除：不重洗随机顺序，仅移除该下标并顺移其后的下标
           const remapAfterRemoval = (indexes: number[]) =>
             indexes.filter(i => i !== index).map(i => (i > index ? i - 1 : i))
+
+          // 被删曲目排在游标之前时，游标整体前移一位，否则会指向错误的曲目
+          const removedPos = state.shuffle ? state.shuffledIndexes.indexOf(index) : -1
+          const cursorBefore = state.shuffle
+            ? resolveShuffleCursor(state.shuffledIndexes, state.queueIndex, state.shuffleCursor)
+            : -1
+          const shiftedCursor = state.shuffle && removedPos >= 0 && removedPos < cursorBefore
+            ? cursorBefore - 1
+            : cursorBefore
 
           let queueIndex = state.queueIndex
           if (index < state.queueIndex) {
@@ -354,14 +465,14 @@ export const usePlayerStore = create<PlayerState>()(
               ? remapAfterRemoval(state.shuffledIndexes)
               : queue.map((_, i) => i)
 
+            let nextCursor = -1
             if (state.shuffle) {
               // 必须沿随机顺序接着播：按队列下标取会跳到随机序列的更后面，
               // 让本该稍后播放的曲目被永久跳过。
-              const removedShufflePos = state.shuffledIndexes.indexOf(index)
-              const nextPos = removedShufflePos >= 0
-                ? Math.min(removedShufflePos, remapped.length - 1)
+              nextCursor = removedPos >= 0
+                ? Math.min(removedPos, remapped.length - 1)
                 : 0
-              queueIndex = remapped[nextPos]
+              queueIndex = remapped[nextCursor]
             } else {
               queueIndex = Math.min(index, queue.length - 1)
             }
@@ -373,6 +484,7 @@ export const usePlayerStore = create<PlayerState>()(
               isPlaying: state.isPlaying,
               currentTime: 0,
               shuffledIndexes: remapped,
+              shuffleCursor: nextCursor,
               playVersion: state.playVersion + 1,
             }
           }
@@ -381,7 +493,7 @@ export const usePlayerStore = create<PlayerState>()(
             ? remapAfterRemoval(state.shuffledIndexes)
             : queue.map((_, i) => i)
 
-          return { queue, queueIndex, shuffledIndexes }
+          return { queue, queueIndex, shuffledIndexes, shuffleCursor: shiftedCursor }
         })
       },
 
@@ -418,23 +530,62 @@ export const usePlayerStore = create<PlayerState>()(
         })
       },
 
+      reorderPlayOrder: (fromPos, toPos) => {
+        set(state => {
+          // 关闭随机时播放顺序就是队列顺序，直接复用队列重排
+          if (!state.shuffle || state.shuffledIndexes.length !== state.queue.length) {
+            return state
+          }
+          const len = state.shuffledIndexes.length
+          if (
+            fromPos === toPos ||
+            fromPos < 0 || toPos < 0 ||
+            fromPos >= len || toPos >= len
+          ) {
+            return state
+          }
+          const order = [...state.shuffledIndexes]
+          const [moved] = order.splice(fromPos, 1)
+          order.splice(toPos, 0, moved)
+          // 队列数组不动，只动播放顺序；游标要重新对准当前曲
+          return { shuffledIndexes: order, shuffleCursor: order.indexOf(state.queueIndex) }
+        })
+      },
+
       clearQueue: () => {
-        const { currentSong, queueIndex } = get()
+        const { currentSong, shuffle } = get()
         if (!currentSong) {
-          set({ queue: [], queueIndex: -1, shuffledIndexes: [] })
+          set({ queue: [], queueIndex: -1, shuffledIndexes: [], shuffleCursor: -1 })
           return
         }
         set({
           queue: [currentSong],
           queueIndex: 0,
           shuffledIndexes: [0],
+          shuffleCursor: shuffle ? 0 : -1,
         })
       },
 
       jumpToIndex: (index) => {
         const state = get()
-        const { queue } = state
+        const { queue, shuffle, shuffledIndexes } = state
         if (index < 0 || index >= queue.length) return
+
+        let shuffledPatch: Partial<PlayerState> | null = null
+        if (shuffle && shuffledIndexes.length === queue.length) {
+          // 把目标曲从随机序列里摘出来、插到当前游标之后，再前进一步。
+          // 直接改 queueIndex 会让 next() 从目标曲在随机序列里的原位置继续，
+          // 中间那一大段还没播过的曲目就被永久跳过（或已播的被原样重播）。
+          const cursor = resolveShuffleCursor(shuffledIndexes, state.queueIndex, state.shuffleCursor)
+          const rest = shuffledIndexes.filter(i => i !== index)
+          // cursor 是过滤前的位置：被摘掉的曲目若排在其前，插入点要相应前移
+          const removedPos = shuffledIndexes.indexOf(index)
+          const adjusted = removedPos >= 0 && removedPos <= cursor ? cursor - 1 : cursor
+          const insertAt = Math.max(0, adjusted + 1)
+          const reordered = [...rest.slice(0, insertAt), index, ...rest.slice(insertAt)]
+          shuffledPatch = { shuffledIndexes: reordered, shuffleCursor: insertAt }
+        }
+
         set({
           history: appendHistory(state.history, state.currentSong),
           currentSong: queue[index],
@@ -442,6 +593,7 @@ export const usePlayerStore = create<PlayerState>()(
           isPlaying: true,
           currentTime: 0,
           playVersion: state.playVersion + 1,
+          ...shuffledPatch,
         })
       },
 
@@ -467,6 +619,7 @@ export const usePlayerStore = create<PlayerState>()(
           queueIndex: -1,
           history: [],
           shuffledIndexes: [],
+          shuffleCursor: -1,
           isFullscreen: false,
           isQueueOpen: false,
           streamBuffering: false,
@@ -478,26 +631,50 @@ export const usePlayerStore = create<PlayerState>()(
       name: STORAGE_KEYS.playerStore,
       // 队列体积最大且随切歌频繁变化，用合并写入吸收连续操作
       storage: createPersistStorage({ debounceMs: 800 }),
-      partialize: (state) => ({
-        volume: state.volume,
-        muted: state.muted,
-        repeatMode: state.repeatMode,
-        shuffle: state.shuffle,
-        currentSong: state.currentSong,
-        queue: state.queue,
-        queueIndex: state.queueIndex,
-      }),
+      partialize: (state) => {
+        const windowed = persistableQueueWindow(state)
+        return {
+          volume: state.volume,
+          muted: state.muted,
+          repeatMode: state.repeatMode,
+          shuffle: state.shuffle,
+          currentSong: state.currentSong,
+          ...windowed,
+        }
+      },
       onRehydrateStorage: () => (state) => {
         if (!state) return
         if (state.queue.length && state.queueIndex >= 0 && state.queueIndex < state.queue.length) {
           state.currentSong = state.queue[state.queueIndex]
-          state.shuffledIndexes = state.shuffle
-            ? generateShuffledIndexes(state.queue.length, state.queueIndex)
-            : state.queue.map((_, i) => i)
+          const persisted = state.shuffledIndexes
+          const usable =
+            state.shuffle &&
+            Array.isArray(persisted) &&
+            persisted.length === state.queue.length &&
+            // 必须是一个完整排列，否则宁可重洗也不要放一个坏顺序进去
+            new Set(persisted).size === persisted.length &&
+            persisted.every(i => Number.isInteger(i) && i >= 0 && i < state.queue.length)
+
+          if (usable) {
+            // 沿用上次的随机顺序与位置：重洗会让已播过的曲目回到未播池，
+            // 重启一次就等于「随机重来一遍」，长队列下会反复听到同几首。
+            state.shuffleCursor = resolveShuffleCursor(
+              persisted, state.queueIndex, state.shuffleCursor ?? -1
+            )
+          } else {
+            state.shuffledIndexes = state.shuffle
+              ? generateShuffledIndexes(state.queue.length, state.queueIndex)
+              : state.queue.map((_, i) => i)
+            state.shuffleCursor = state.shuffle ? 0 : -1
+          }
         } else if (state.currentSong) {
           state.queue = [state.currentSong]
           state.queueIndex = 0
           state.shuffledIndexes = [0]
+          state.shuffleCursor = state.shuffle ? 0 : -1
+        } else {
+          state.shuffledIndexes = []
+          state.shuffleCursor = -1
         }
         state.isPlaying = false
         state.currentTime = 0
@@ -506,13 +683,39 @@ export const usePlayerStore = create<PlayerState>()(
   )
 )
 
+/**
+ * 生成随机播放顺序（Fisher-Yates，无偏）。
+ *
+ * currentIndex >= 0 时把该曲锚定在首位——「从这首开始随机播放」的语义；
+ * 传 -1 表示不锚定，用于列表循环绕回时整体重洗（此时没有「当前曲」要保留在首位）。
+ */
 function generateShuffledIndexes(length: number, currentIndex: number): number[] {
   if (length <= 0) return []
-  const safeCurrent = Math.max(0, Math.min(currentIndex, length - 1))
+  const anchored = currentIndex >= 0
+  const safeCurrent = anchored ? Math.min(currentIndex, length - 1) : -1
   const indexes = Array.from({ length }, (_, i) => i).filter(i => i !== safeCurrent)
   for (let i = indexes.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[indexes[i], indexes[j]] = [indexes[j], indexes[i]]
   }
-  return [safeCurrent, ...indexes]
+  return anchored ? [safeCurrent, ...indexes] : indexes
+}
+
+/**
+ * 随机游标自愈。
+ *
+ * shuffleCursor 是随机序列里的权威位置，queueIndex 由它派生。但外部可能直接
+ * setState（测试、旧版本持久化数据）而不带游标，此时回退到按下标反查——即旧行为。
+ * 反查会让 jumpToIndex 之后的 next() 跳到目标曲在随机序列里的原位置，
+ * 从而永久跳过中间未播的一段，所以正常路径必须让游标保持权威。
+ */
+function resolveShuffleCursor(
+  shuffledIndexes: number[],
+  queueIndex: number,
+  cursor: number
+): number {
+  if (cursor >= 0 && cursor < shuffledIndexes.length && shuffledIndexes[cursor] === queueIndex) {
+    return cursor
+  }
+  return shuffledIndexes.indexOf(queueIndex)
 }

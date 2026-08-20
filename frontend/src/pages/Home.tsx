@@ -15,12 +15,11 @@ import { pickFeaturedAlbum, rankArtistsByAffinity } from '@/services/recommendat
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
-import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
-import type { Album } from '@/api/types'
+import { playAllInOrder, playAllShuffled, playListFrom } from '@/utils/playActions'
+import type { Album, Song } from '@/api/types'
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const playQueue = usePlayerStore(s => s.playQueue)
   const queryClient = useQueryClient()
 
   const { data: recentAlbums, isLoading: albumsLoading } = useRecentAlbums(20)
@@ -66,17 +65,17 @@ export default function HomePage() {
       try {
         const cached = queryClient.getQueryData(queryKeys.albumDetail(album.id))
         if (cached && (cached as { songs?: unknown[] }).songs) {
-          playQueue((cached as { songs: Parameters<typeof playQueue>[0] }).songs)
+          playListFrom((cached as { songs: Song[] }).songs)
           return
         }
         const detail = await getAdapter().getAlbumDetail(album.id)
         queryClient.setQueryData(queryKeys.albumDetail(album.id), detail)
-        if (detail.songs.length) playQueue(detail.songs)
+        if (detail.songs.length) playListFrom(detail.songs)
       } catch (err) {
         console.error('Failed to play album:', err)
       }
     },
-    [playQueue, queryClient]
+    [queryClient]
   )
 
   const handleHeroPlay = (e: React.MouseEvent) => {

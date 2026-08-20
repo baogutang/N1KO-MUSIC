@@ -29,7 +29,7 @@ import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { useToggleStar } from '@/hooks/useServerQueries'
-import { playNextInQueue } from '@/utils/playActions'
+import { playNextInQueue, playListFrom } from '@/utils/playActions'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,7 +62,6 @@ export function SongList({
   // 只订阅 id 和 isPlaying，不订阅 currentTime，避免高频重渲染
   const currentSongId = usePlayerStore(s => s.currentSong?.id)
   const isPlaying = usePlayerStore(s => s.isPlaying)
-  const playQueue = usePlayerStore(s => s.playQueue)
 
   // 用 useMemo 预计算 coverUrl 列表，避免每次渲染重新计算
   const coverUrls = useMemo(() => {
@@ -71,15 +70,14 @@ export function SongList({
     )
   }, [songs])
 
-  // 把 playQueue + songs 稳定化，避免每次渲染都创建新函数
+  // 把 songs 稳定化，避免每次渲染都创建新函数
   // 注意：onPlay 不能用 inline arrow，否则 React.memo 失效
   const songsRef = React.useRef(songs)
   songsRef.current = songs
-  const playQueueRef = React.useRef(playQueue)
-  playQueueRef.current = playQueue
 
   const handlePlayIndex = useCallback((index: number) => {
-    playQueueRef.current(songsRef.current, index)
+    // 走 playActions：点单曲行不表达顺序意图，沿用用户当前的随机开关
+    playListFrom(songsRef.current, index)
   }, []) // 空依赖——通过 ref 访问最新值，函数引用永远稳定
 
   // 「添加到歌单」：页面传了 onPlaylistAdd 走外部逻辑；缺省时内建 AddToPlaylistDialog。

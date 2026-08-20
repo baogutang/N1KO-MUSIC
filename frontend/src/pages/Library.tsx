@@ -8,7 +8,7 @@ import { ArtistCard } from '@/components/music/ArtistCard'
 import { SongList } from '@/components/music/SongList'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
-import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { playAllInOrder, shuffleWholeLibrary } from '@/utils/playActions'
 
 type LibraryTab = 'songs' | 'albums' | 'artists' | 'playlists'
 type ViewMode = 'grid' | 'list'
@@ -55,6 +55,17 @@ export default function Library() {
 
   const albums = albumsData?.pages.flatMap(p => p.items) ?? []
   const songs = songsData?.pages.flatMap(p => p.items) ?? []
+
+  const [shufflingAll, setShufflingAll] = useState(false)
+  async function handleShuffleAll() {
+    if (shufflingAll) return
+    setShufflingAll(true)
+    try {
+      await shuffleWholeLibrary(songs)
+    } finally {
+      setShufflingAll(false)
+    }
+  }
 
   // 计数展示：服务器返回精确总数时直接显示总数；否则显示已加载数量，还有更多页时以 + 提示
   const songsTotal = songsData?.pages[0]?.total
@@ -147,12 +158,18 @@ export default function Library() {
                     播放全部
                   </button>
                   {/* 次操作：细线小钮，hover 边框变 ink（DESIGN §4.1） */}
+                  {/*
+                    全库随机：向服务端要一批随机取样，而不是对已加载的这一页洗牌。
+                    列表分页加载，首屏只有 100 首且是服务端固定排序的前 100 首，
+                    对它洗牌听感上就是「随机播放还是按排序在放」。
+                  */}
                   <button
-                    onClick={() => playAllShuffled(songs, 0)}
-                    className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                    onClick={handleShuffleAll}
+                    disabled={shufflingAll}
+                    className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97] disabled:opacity-50"
                   >
-                    <Shuffle size={14} />
-                    随机播放
+                    <Shuffle size={14} className={shufflingAll ? 'animate-spin' : undefined} />
+                    {shufflingAll ? '抽取中' : '全库随机'}
                   </button>
                 </div>
               </div>

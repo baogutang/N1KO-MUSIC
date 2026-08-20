@@ -9,9 +9,10 @@ import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
-import type { Album } from '@/api/types'
+import type { Album, Song } from '@/api/types'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/hooks/useServerQueries'
+import { playListFrom } from '@/utils/playActions'
 
 interface AlbumCardProps {
   album: Album
@@ -21,7 +22,6 @@ interface AlbumCardProps {
 export function AlbumCard({ album, className }: AlbumCardProps) {
   const navigate = useNavigate()
   const playSong  = usePlayerStore(s => s.playSong)
-  const playQueue = usePlayerStore(s => s.playQueue)
   const queryClient = useQueryClient()
 
   const coverUrl = album.coverArt && hasAdapter()
@@ -34,15 +34,15 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
       // 尝试从缓存获取专辑详情
       const cached = queryClient.getQueryData(queryKeys.albumDetail(album.id))
       if (cached && (cached as { songs?: unknown[] }).songs) {
-        const detail = cached as { songs: Parameters<typeof playQueue>[0] }
-        playQueue(detail.songs as Parameters<typeof playQueue>[0])
+        const detail = cached as { songs: Song[] }
+        playListFrom(detail.songs)
         return
       }
       // 否则先播放第一首
       const detail = await getAdapter().getAlbumDetail(album.id)
       queryClient.setQueryData(queryKeys.albumDetail(album.id), detail)
       if (detail.songs.length) {
-        playQueue(detail.songs)
+        playListFrom(detail.songs)
       }
     } catch (err) {
       console.error('Failed to play album:', err)
