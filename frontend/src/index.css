@@ -374,6 +374,30 @@ body {
 /* ===================================================
    移动端（Capacitor 原生壳 / 窄视口）
    =================================================== */
+/* ===================================================
+   中西文混排的排版细节
+   —— 细空格由 spaceCJK() 在渲染层插入，这里补 CSS 侧能做的部分
+   =================================================== */
+:root {
+  /* 中文行距需要比西文松，衬线标题尤其明显 */
+  --leading-cjk: 1.75;
+}
+
+/* 标点悬挂：行首的《「（ 不再在左边缘打洞 */
+p, h1, h2, h3, h4, dd, dt, li, blockquote {
+  hanging-punctuation: first allow-end last;
+}
+
+/* 中文标点压缩：相邻的全角标点之间不再留出两个字宽的空洞 */
+:lang(zh), .font-serif, body {
+  text-spacing-trim: trim-start;
+}
+
+/* 数字：等宽 + 斜杠零，元数据列对齐且 0/O 不会混淆 */
+.num, .font-num, [class*="tabular"] {
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
 @media (max-width: 767px) {
   /* 触控目标：去掉点按高亮与长按放大镜，滚动不回弹出 WebView 外 */
   * {

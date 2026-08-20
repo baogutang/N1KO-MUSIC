@@ -16,6 +16,7 @@ import { useNativeAppIntegration } from '@/hooks/useNativeAppIntegration'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionBanner } from './ConnectionBanner'
+import { ResumeOffer } from '@/components/player/ResumeOffer'
 import {
   prefetchCommonAuthenticatedRoutes,
   prefetchFullscreenPlayer,
@@ -39,7 +40,8 @@ export function MobileLayout() {
     <TooltipProvider>
       <div className="relative flex flex-col h-screen h-[100dvh] bg-background text-foreground overflow-hidden">
         <MobileHeader />
-      <ConnectionBanner />
+        <ConnectionBanner />
+        <ResumeOffer />
 
         <div className="relative flex flex-1 min-h-0 overflow-hidden">
           <main className="flex-1 overflow-y-auto min-w-0">

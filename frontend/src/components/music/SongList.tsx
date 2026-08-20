@@ -29,6 +29,7 @@ import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
+import { spaceCJK } from '@/utils/cjkTypography'
 import { useToggleStar } from '@/hooks/useServerQueries'
 import { playNextInQueue, playListFrom } from '@/utils/playActions'
 import {
@@ -340,7 +341,7 @@ const SongRow = React.memo(function SongRow({
           'font-serif text-[15px] font-semibold leading-snug line-clamp-1 transition-colors',
           isCurrentSong ? 'text-primary' : 'text-foreground'
         )}>
-          {song.title}
+          {spaceCJK(song.title)}
         </p>
         <p className="text-xs text-ink-soft line-clamp-1 mt-0.5">
           <button
@@ -351,7 +352,7 @@ const SongRow = React.memo(function SongRow({
               song.artistId ? 'hover:text-primary hover:underline cursor-pointer' : ''
             )}
           >
-            {song.artist}
+            {spaceCJK(song.artist)}
           </button>
         </p>
       </div>
@@ -368,7 +369,7 @@ const SongRow = React.memo(function SongRow({
                 song.albumId ? 'hover:text-primary hover:underline cursor-pointer' : ''
               )}
             >
-              {song.album}
+              {spaceCJK(song.album)}
             </button>
           </p>
         </div>

@@ -20,6 +20,7 @@ import {
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
+import { SleepTimerMenu } from '@/components/player/SleepTimerMenu'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useToggleStar } from '@/hooks/useServerQueries'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
@@ -359,6 +360,8 @@ export function PlayerBar() {
             </TooltipTrigger>
             <TooltipContent>歌词</TooltipContent>
           </Tooltip>
+
+          <SleepTimerMenu className={iconBtn} />
 
           <Tooltip>
             <TooltipTrigger asChild>
