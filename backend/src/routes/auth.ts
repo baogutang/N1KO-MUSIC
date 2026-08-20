@@ -3,7 +3,12 @@ import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 import db from '../db/database'
 import { signToken, authMiddleware } from '../middleware/auth'
-import { BCRYPT_ROUNDS } from '../config'
+import {
+  BCRYPT_ROUNDS,
+  LOGIN_ATTEMPT_MAX,
+  LOGIN_ATTEMPT_WINDOW_MS,
+  REGISTRATION_MODE,
+} from '../config'
 import { parseRequest, passwordSchema, usernameSchema } from '../validation'
 import { z } from 'zod'
 
@@ -28,8 +33,20 @@ const changePasswordSchema = z.object({
 // Keep the expensive bcrypt path for unknown users to reduce username timing leakage.
 const dummyPasswordHash = bcrypt.hashSync('n1ko-music-dummy-password', BCRYPT_ROUNDS)
 
+/** 当前是否允许注册。first-user 模式下只在库里还没有用户时放行。 */
+function registrationAllowed(): boolean {
+  if (REGISTRATION_MODE === 'open') return true
+  if (REGISTRATION_MODE === 'closed') return false
+  const row = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number }
+  return row.count === 0
+}
+
 // POST /api/auth/register
 router.post('/register', async (req: Request, res: Response) => {
+  // 自建服务一旦暴露公网，开放注册意味着任何人都能建号
+  if (!registrationAllowed()) {
+    return res.status(403).json({ error: 'Registration is disabled on this server' })
+  }
   const parsed = parseRequest(registerSchema, req.body, res)
   if (!parsed.success) return
   const { username, password } = parsed.data
@@ -59,11 +76,48 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 })
 
+/**
+ * 逐账号的登录失败计数。
+ * 全局限流按 IP 计，挡不住针对同一个账号从多个出口地址发起的撞库。
+ * 放在内存里即可：重启后清零是可接受的，代价远小于引入一张表。
+ */
+const loginAttempts = new Map<string, { count: number; firstAt: number }>()
+
+function loginBlocked(username: string): boolean {
+  const entry = loginAttempts.get(username)
+  if (!entry) return false
+  if (Date.now() - entry.firstAt > LOGIN_ATTEMPT_WINDOW_MS) {
+    loginAttempts.delete(username)
+    return false
+  }
+  return entry.count >= LOGIN_ATTEMPT_MAX
+}
+
+function recordLoginFailure(username: string): void {
+  const now = Date.now()
+  const entry = loginAttempts.get(username)
+  if (!entry || now - entry.firstAt > LOGIN_ATTEMPT_WINDOW_MS) {
+    loginAttempts.set(username, { count: 1, firstAt: now })
+    return
+  }
+  entry.count += 1
+  // 计数表本身不能无限增长
+  if (loginAttempts.size > 10_000) {
+    for (const [key, value] of loginAttempts) {
+      if (now - value.firstAt > LOGIN_ATTEMPT_WINDOW_MS) loginAttempts.delete(key)
+    }
+  }
+}
+
 // POST /api/auth/login
 router.post('/login', async (req: Request, res: Response) => {
   const parsed = parseRequest(loginSchema, req.body, res)
   if (!parsed.success) return
   const { username, password } = parsed.data
+
+  if (loginBlocked(username)) {
+    return res.status(429).json({ error: 'Too many failed attempts, try again later' })
+  }
 
   try {
     const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as
@@ -71,8 +125,10 @@ router.post('/login', async (req: Request, res: Response) => {
 
     const passwordMatches = await bcrypt.compare(password, user?.password ?? dummyPasswordHash)
     if (!user || !passwordMatches) {
+      recordLoginFailure(username)
       return res.status(401).json({ error: 'Invalid credentials' })
     }
+    loginAttempts.delete(username)
 
     const token = signToken({ userId: user.id, username: user.username, tokenVersion: user.token_version })
     return res.json({ token, userId: user.id, username: user.username })

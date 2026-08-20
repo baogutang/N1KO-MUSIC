@@ -4,13 +4,23 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import db, { DATA_DIR } from '../db/database'
-import { JWT_AUDIENCE, JWT_ISSUER } from '../config'
+import { JWT_AUDIENCE, JWT_ISSUER, MIN_JWT_SECRET_LENGTH } from '../config'
 
 // JWT 密钥：优先使用 JWT_SECRET 环境变量；未设置时在数据目录生成随机密钥并持久化（0600），
 // 重启后复用。绝不回退到仓库中的固定字符串（否则任何人都能伪造令牌）
 function loadOrCreateJwtSecret(): string {
   const envSecret = process.env.JWT_SECRET
-  if (envSecret) return envSecret
+  if (envSecret) {
+    // 显式提供的密钥必须有足够长度：短密钥可离线爆破后伪造任意令牌。
+    // 不提供时下面会生成 48 字节随机密钥，反而更安全，所以这里宁可拒绝启动。
+    if (envSecret.length < MIN_JWT_SECRET_LENGTH) {
+      throw new Error(
+        `JWT_SECRET must be at least ${MIN_JWT_SECRET_LENGTH} characters ` +
+        `(got ${envSecret.length}). Leave it unset to auto-generate a strong one.`
+      )
+    }
+    return envSecret
+  }
 
   const secretPath = path.join(DATA_DIR, 'jwt-secret')
   if (fs.existsSync(secretPath)) {

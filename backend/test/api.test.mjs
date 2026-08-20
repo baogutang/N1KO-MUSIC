@@ -12,6 +12,8 @@ process.env.NODE_ENV = 'test'
 process.env.JWT_SECRET = 'test-only-jwt-secret-that-is-long-and-random-enough'
 process.env.BCRYPT_ROUNDS = '10'
 process.env.AUTH_RATE_LIMIT_MAX = '1000'
+// 多用户隔离用例需要注册多个账号；生产默认是 first-user
+process.env.ALLOW_REGISTRATION = 'open'
 
 const app = require('../dist/app.js').default
 const db = require('../dist/db/database.js').default
