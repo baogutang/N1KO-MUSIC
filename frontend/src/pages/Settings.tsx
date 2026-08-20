@@ -35,6 +35,7 @@ import {
 } from '@/components/settings/primitives'
 import { SyncSettings } from '@/components/settings/SyncSettings'
 import pkg from '../../package.json'
+import type { ReplayGainMode } from '@/utils/replayGain'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,13 @@ function Segmented<T extends string>({ value, onChange, options, label }: {
 }
 
 /** 端点配置行：左标签，右发丝线输入框 */
+const REPLAY_GAIN_OPTIONS: Array<{ value: ReplayGainMode; label: string }> = [
+  { value: 'off', label: '关闭' },
+  { value: 'auto', label: '自动' },
+  { value: 'track', label: '按单曲' },
+  { value: 'album', label: '按专辑' },
+]
+
 function EndpointRow({ label, value, onChange, placeholder, desc }: {
   label: string
   value: string
@@ -106,13 +114,17 @@ export default function Settings() {
     lyricsRemoteTemplate, lyricsConfirmTemplate, lyricsUseRemote, lyricsPreferRemote, lyricsFontSize,
     songDetailTemplate, songDetailPathReplace,
     translateTargetLang, translateType,
-    audioQuality,
+    audioQuality, cellularAudioQuality, adaptiveQuality,
+    replayGainMode, replayGainPreamp,
+    playbackRate, smoothTransitions, preloadNext, autoContinueQueue,
     setApiPreferServer, setApiAuthToken,
     setCoverRemoteTemplate, setCoverLoadAlbum, setCoverLoadArtist, setCoverShape,
     setLyricsRemoteTemplate, setLyricsConfirmTemplate, setLyricsUseRemote, setLyricsPreferRemote, setLyricsFontSize,
     setSongDetailTemplate, setSongDetailPathReplace,
     setTranslateTargetLang, setTranslateType,
-    setAudioQuality,
+    setAudioQuality, setCellularAudioQuality, setAdaptiveQuality,
+    setReplayGainMode, setReplayGainPreamp,
+    setPlaybackRate, setSmoothTransitions, setPreloadNext, setAutoContinueQueue,
   } = useSettingsStore()
   const [pinging, setPinging] = useState<string | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
@@ -294,11 +306,11 @@ export default function Settings() {
             </div>
           </Row>
           <div className="py-4 border-b border-hair-soft">
-            <p className="text-sm font-medium">流媒体音质</p>
+            <p className="text-sm font-medium">流媒体音质 · Wi-Fi / 局域网</p>
             <p className="text-xs text-ink-faint mt-0.5">
               无损将请求服务器原始歌曲格式；其他选项将要求服务器转码为指定码率
             </p>
-            <div role="radiogroup" aria-label="流媒体音质" className="mt-2">
+            <div role="radiogroup" aria-label="Wi-Fi 流媒体音质" className="mt-2">
               {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => (
                 <button
                   key={q}
@@ -328,6 +340,142 @@ export default function Settings() {
               ))}
             </div>
           </div>
+
+          <Row
+            name="按网络类型自动切换音质"
+            desc="在蜂窝网络下改用下方的移动网络档位，避免从家里的上行拉原始文件"
+          >
+            <Toggle checked={adaptiveQuality} onChange={setAdaptiveQuality} label="按网络类型自动切换音质" />
+          </Row>
+
+          {adaptiveQuality && (
+            <div className="py-4 border-b border-hair-soft">
+              <p className="text-sm font-medium">流媒体音质 · 移动网络</p>
+              <p className="text-xs text-ink-faint mt-0.5">
+                检测到蜂窝网络或系统省流量模式时使用
+              </p>
+              <div role="radiogroup" aria-label="移动网络流媒体音质" className="mt-2">
+                {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => (
+                  <button
+                    key={q}
+                    type="button"
+                    role="radio"
+                    aria-checked={cellularAudioQuality === q}
+                    onClick={() => setCellularAudioQuality(q)}
+                    className="group w-full flex items-center gap-3 py-2.5 text-left"
+                  >
+                    <span
+                      className={cn(
+                        'w-3 h-3 rounded-full border flex-shrink-0 transition-colors duration-200',
+                        cellularAudioQuality === q
+                          ? 'border-primary bg-primary'
+                          : 'border-hair group-hover:border-ink-faint'
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        'text-sm transition-colors duration-200',
+                        cellularAudioQuality === q
+                          ? 'text-primary'
+                          : 'text-ink-soft group-hover:text-foreground'
+                      )}
+                    >
+                      {QUALITY_LABELS[q]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="py-4 border-b border-hair-soft">
+            <p className="text-sm font-medium">音量归一化 · ReplayGain</p>
+            <p className="text-xs text-ink-faint mt-0.5 max-w-[52ch]">
+              读取服务器已算好的增益，让不同年代的母带响度一致。
+              「自动」在顺序播放整张专辑时保留专辑内部动态，随机播放时逐曲归一。
+            </p>
+            <div role="radiogroup" aria-label="音量归一化" className="mt-2 flex flex-wrap gap-x-7 gap-y-1">
+              {REPLAY_GAIN_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={replayGainMode === opt.value}
+                  onClick={() => setReplayGainMode(opt.value)}
+                  className="group flex items-center gap-2.5 py-2 text-left"
+                >
+                  <span
+                    className={cn(
+                      'w-3 h-3 rounded-full border flex-shrink-0 transition-colors duration-200',
+                      replayGainMode === opt.value
+                        ? 'border-primary bg-primary'
+                        : 'border-hair group-hover:border-ink-faint'
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      'text-sm transition-colors duration-200',
+                      replayGainMode === opt.value
+                        ? 'text-primary'
+                        : 'text-ink-soft group-hover:text-foreground'
+                    )}
+                  >
+                    {opt.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {replayGainMode !== 'off' && (
+            <Row name="前置增益" desc="归一化之后再整体加减，单位分贝">
+              <div className="flex items-center gap-3 w-60">
+                <Slider
+                  value={[replayGainPreamp]}
+                  min={-15}
+                  max={15}
+                  step={0.5}
+                  onValueChange={([v]) => setReplayGainPreamp(v)}
+                  aria-label="前置增益"
+                  aria-valuetext={`${replayGainPreamp > 0 ? '+' : ''}${replayGainPreamp} 分贝`}
+                  className="flex-1"
+                />
+                <span className="num text-xs text-ink-soft w-12 text-right">
+                  {replayGainPreamp > 0 ? '+' : ''}{replayGainPreamp} dB
+                </span>
+              </div>
+            </Row>
+          )}
+
+          <Row name="播放速度" desc="有声书、讲座与广播剧适用，已开启变调补偿">
+            <div className="flex items-center gap-3 w-60">
+              <Slider
+                value={[playbackRate]}
+                min={0.5}
+                max={3}
+                step={0.05}
+                onValueChange={([v]) => setPlaybackRate(v)}
+                aria-label="播放速度"
+                aria-valuetext={`${playbackRate.toFixed(2)} 倍速`}
+                className="flex-1"
+              />
+              <span className="num text-xs text-ink-soft w-12 text-right">
+                {playbackRate.toFixed(2)}×
+              </span>
+            </div>
+          </Row>
+
+          <Row name="预加载下一首" desc="提前把下一首拉进缓存，切歌几乎没有空档（移动网络下不启用）">
+            <Toggle checked={preloadNext} onChange={setPreloadNext} label="预加载下一首" />
+          </Row>
+
+          <Row name="队列播完自动续接" desc="按当前曲目继续找相似曲目接上，而不是直接停下">
+            <Toggle checked={autoContinueQueue} onChange={setAutoContinueQueue} label="队列播完自动续接" />
+          </Row>
+
+          <Row name="平滑过渡" desc="暂停与切歌时做短暂渐弱，而不是硬切">
+            <Toggle checked={smoothTransitions} onChange={setSmoothTransitions} label="平滑过渡" />
+          </Row>
         </Section>
 
         {/* 自定义 API */}

@@ -182,7 +182,7 @@ export function CoverImage({
             onError={() => handleImgError(src)}
             loading="eager"
             decoding="async"
-            fetchPriority="high"
+            {...{ fetchpriority: "high" }}
             data-no-abort="true"
           />
         )}
@@ -217,7 +217,7 @@ export function CoverImage({
         onError={() => displaySrc && handleImgError(displaySrc)}
         loading="lazy"
         decoding="async"
-        fetchPriority="low"
+        {...{ fetchpriority: "low" }}
       />
     </div>
   )

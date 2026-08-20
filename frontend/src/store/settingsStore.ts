@@ -102,6 +102,8 @@ interface SettingsState {
   smoothTransitions: boolean
   /** 预加载下一首以逼近无缝（弱无缝，非真正 gapless）*/
   preloadNext: boolean
+  /** 队列播完自动续接相似曲目，而不是直接停 */
+  autoContinueQueue: boolean
 
   // --- Actions ---
   setApiPreferServer: (v: boolean) => void
@@ -129,6 +131,7 @@ interface SettingsState {
   setPlaybackRate: (rate: number) => void
   setSmoothTransitions: (v: boolean) => void
   setPreloadNext: (v: boolean) => void
+  setAutoContinueQueue: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -159,6 +162,7 @@ export const useSettingsStore = create<SettingsState>()(
       playbackRate: 1,
       smoothTransitions: true,
       preloadNext: true,
+      autoContinueQueue: true,
 
       // 全局来源优先级同时驱动封面和歌词，避免设置项只被持久化却不产生任何效果。
       // 用户仍可在下方用更细粒度的开关覆盖歌词策略。
@@ -192,6 +196,7 @@ export const useSettingsStore = create<SettingsState>()(
       setPlaybackRate: (rate) => set({ playbackRate: Math.max(0.5, Math.min(3, rate)) }),
       setSmoothTransitions: (v) => set({ smoothTransitions: v }),
       setPreloadNext: (v) => set({ preloadNext: v }),
+      setAutoContinueQueue: (v) => set({ autoContinueQueue: v }),
     }),
     {
       name: STORAGE_KEYS.settingsStore,
@@ -215,6 +220,7 @@ export const useSettingsStore = create<SettingsState>()(
           if (state.playbackRate === undefined) state.playbackRate = 1
           if (state.smoothTransitions === undefined) state.smoothTransitions = true
           if (state.preloadNext === undefined) state.preloadNext = true
+          if (state.autoContinueQueue === undefined) state.autoContinueQueue = true
         }
         return state
       },

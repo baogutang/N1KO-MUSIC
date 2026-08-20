@@ -12,6 +12,7 @@ import { useMediaSession } from '@/hooks/useMediaSession'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useSleepTimer } from '@/hooks/useSleepTimer'
 import { useQueueSync } from '@/hooks/useQueueSync'
+import { useRadioRefill } from '@/hooks/useRadioRefill'
 import { useIsMobileLayout } from '@/lib/platform'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -31,6 +32,7 @@ export default function MainLayout() {
   useKeyboardShortcuts()
   useSleepTimer()
   useQueueSync()
+  useRadioRefill()
 
   return isMobile ? <MobileLayout /> : <DesktopLayout />
 }

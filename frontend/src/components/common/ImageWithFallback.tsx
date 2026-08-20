@@ -28,7 +28,7 @@ interface ImageWithFallbackProps extends React.ImgHTMLAttributes<HTMLImageElemen
     path?: string
   }
   /**
-   * 高优先级模式：跳过 loading="lazy"、fetchPriority="low" 和 stream-buffering 延迟
+   * 高优先级模式：跳过 loading="lazy"、fetchpriority="low" 和 stream-buffering 延迟
    * 用于 PlayerBar、FullscreenPlayer 等始终可见的封面
    */
   eager?: boolean
@@ -165,7 +165,7 @@ export function ImageWithFallback({
         alt={alt}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        fetchPriority={eager ? 'auto' : 'low'}
+        {...{ fetchpriority: eager ? "auto" : "low" }}
         data-no-abort={eager ? 'true' : undefined}
         className={cn('block w-full h-full object-cover', !isLoaded && 'opacity-0', className)}
         onLoad={() => setIsLoaded(true)}
