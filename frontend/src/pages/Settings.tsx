@@ -36,6 +36,13 @@ import {
 import { SyncSettings } from '@/components/settings/SyncSettings'
 import pkg from '../../package.json'
 import type { ReplayGainMode } from '@/utils/replayGain'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
@@ -128,6 +135,8 @@ export default function Settings() {
   } = useSettingsStore()
   const [pinging, setPinging] = useState<string | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
+  // 删除服务器会连同 URL、用户名与令牌一起永久抹掉且无法撤销，必须二次确认
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null)
 
   const activeServer = servers.find(s => s.id === activeServerId)
 
@@ -237,7 +246,7 @@ export default function Settings() {
                   )}
                   <button
                     type="button"
-                    onClick={() => handleRemove(server.id)}
+                    onClick={() => setPendingRemove(server.id)}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-destructive transition-colors duration-200 active:scale-95"
                     title="移除服务器"
                     aria-label={`移除 ${server.name}`}
@@ -678,6 +687,37 @@ export default function Settings() {
           </Section>
         )}
       </div>
+
+      <Dialog open={pendingRemove !== null} onOpenChange={open => { if (!open) setPendingRemove(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>移除这个服务器？</DialogTitle>
+            <DialogDescription>
+              将永久删除
+              <span className="font-medium text-foreground">
+                「{servers.find(s => s.id === pendingRemove)?.name ?? ''}」
+              </span>
+              的地址、用户名与登录凭据，无法撤销。
+              {pendingRemove === activeServerId && '这是当前连接的服务器，移除后会退出到服务器选择页。'}
+              <span className="block mt-2 text-ink-faint">
+                服务器上的音乐不会受到任何影响。
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setPendingRemove(null)}>取消</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (pendingRemove) handleRemove(pendingRemove)
+                setPendingRemove(null)
+              }}
+            >
+              移除
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

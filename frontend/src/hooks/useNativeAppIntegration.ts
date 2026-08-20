@@ -30,6 +30,14 @@ export function useNativeAppIntegration() {
   useEffect(() => {
     if (!isNativePlatform) return
     const handle = App.addListener('backButton', () => {
+      // 有对话框打开时返回键应当先关对话框，而不是直接退到上一页
+      const dialog = document.querySelector('[role="dialog"], [role="alertdialog"]')
+      if (dialog) {
+        const closeBtn = dialog.querySelector<HTMLElement>('[data-radix-dialog-close], [aria-label="Close"], [aria-label="关闭"]')
+        if (closeBtn) closeBtn.click()
+        else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+        return
+      }
       const player = usePlayerStore.getState()
       if (player.isFullscreen) {
         player.toggleFullscreen()

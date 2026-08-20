@@ -4,6 +4,7 @@ import { TopBar } from './TopBar'
 import { Masthead } from './Masthead'
 import { TopNav } from './TopNav'
 import { PlayerBar } from './PlayerBar'
+import { ConnectionBanner } from './ConnectionBanner'
 import { MobileLayout } from './MobileLayout'
 import { QueueDrawer } from '@/components/player/QueueDrawer'
 import { FullscreenPlayerOverlay } from '@/components/player/FullscreenPlayerOverlay'
@@ -59,9 +60,10 @@ function DesktopLayout() {
 
   return (
     <TooltipProvider>
-      <div className="relative flex flex-col h-screen bg-background text-foreground overflow-hidden">
+      <div className="relative flex flex-col h-screen h-[100dvh] bg-background text-foreground overflow-hidden">
         {/* 顶部工具条（含 macOS 拖拽区）/ 报头 / 主导航行（DESIGN v2 §3） */}
         <TopBar />
+        <ConnectionBanner />
         <Masthead />
         <TopNav />
 

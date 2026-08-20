@@ -525,7 +525,8 @@ export function FullscreenPlayer() {
               <button
                 onClick={toggleShuffle}
                 className={cn(lineCircleBtn, 'w-9 h-9', shuffle && 'text-primary border-primary')}
-                aria-label={shuffle ? '随机播放' : '顺序播放'}
+                aria-label="随机播放"
+                aria-pressed={shuffle}
               >
                 {shuffle ? <Shuffle size={17} /> : <ArrowsDownUp size={17} />}
               </button>
@@ -548,7 +549,8 @@ export function FullscreenPlayer() {
               <button
                 onClick={cycleRepeatMode}
                 className={cn(lineCircleBtn, 'w-9 h-9', repeatMode !== 'none' && 'text-primary border-primary')}
-                aria-label={repeatLabel}
+                aria-label={`循环：${repeatLabel}`}
+                aria-pressed={repeatMode !== 'none'}
               >
                 {repeatMode === 'one' ? <RepeatOnce size={17} /> : <Repeat size={17} />}
               </button>
@@ -654,6 +656,8 @@ export function FullscreenPlayer() {
                     'w-9 h-9',
                     shuffle && 'text-primary border-primary hover:text-primary'
                   )}
+                  aria-label="随机播放"
+                  aria-pressed={shuffle}
                 >
                   {shuffle ? <Shuffle size={17} /> : <ArrowsDownUp size={17} />}
                 </button>

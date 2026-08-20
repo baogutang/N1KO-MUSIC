@@ -291,7 +291,8 @@ export function PlayerBar() {
                 <button
                   onClick={toggleShuffle}
                   className={cn(iconBtn, shuffle && 'text-primary')}
-                  aria-label={shuffle ? '关闭随机' : '随机播放'}
+                  aria-label="随机播放"
+                  aria-pressed={shuffle}
                 >
                   <Shuffle size={16} />
                 </button>
@@ -325,7 +326,12 @@ export function PlayerBar() {
                 <button
                   onClick={cycleRepeatMode}
                   className={cn(iconBtn, repeatMode !== 'none' && 'text-primary')}
-                  aria-label="循环模式"
+                  aria-label={
+                    repeatMode === 'none' ? '循环：关闭'
+                    : repeatMode === 'all' ? '循环：列表循环'
+                    : '循环：单曲循环'
+                  }
+                  aria-pressed={repeatMode !== 'none'}
                 >
                   {repeatMode === 'one' ? (
                     <RepeatOnce size={16} />
@@ -368,7 +374,12 @@ export function PlayerBar() {
           </Tooltip>
 
           <div className="flex items-center gap-1 w-28 mx-1">
-            <button onClick={toggleMute} className={cn(iconBtn, 'flex-shrink-0')} aria-label={muted ? '取消静音' : '静音'}>
+            <button
+              onClick={toggleMute}
+              className={cn(iconBtn, 'flex-shrink-0')}
+              aria-label="静音"
+              aria-pressed={muted}
+            >
               <VolumeIcon size={16} />
             </button>
             <Slider
