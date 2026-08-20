@@ -8,6 +8,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { Play, Shuffle, Heart } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
+import { LinerNotes } from '@/components/music/LinerNotes'
 import { useAlbumDetail, useToggleStar } from '@/hooks/useServerQueries'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
@@ -21,6 +22,7 @@ export default function AlbumDetailPage() {
   const { data: album, isLoading } = useAlbumDetail(id ?? '')
   const toggleStar = useToggleStar()
   const [starred, setStarred] = useState(false)
+  const [view, setView] = useState<'tracks' | 'notes'>('tracks')
 
   useEffect(() => {
     if (album) setStarred(!!album.starred)
@@ -136,14 +138,43 @@ export default function AlbumDetailPage() {
         </div>
       </div>
 
-      {/* 曲目表：SongList 自带 border-t，页面不再包带 border 的容器 */}
+      {/* 曲目表 / 唱片说明：两个状态共用一条发丝线下的切换 */}
       <div className="mt-12">
-        <SongList
-          songs={album.songs}
-          showCover={false}
-          showAlbum={false}
-          showIndex
-        />
+        <div className="mb-5 flex items-center gap-8 border-b border-hair">
+          {([
+            { id: 'tracks' as const, label: '曲目', tag: 'TRACKS' },
+            { id: 'notes' as const, label: '唱片说明', tag: 'LINER NOTES' },
+          ]).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setView(tab.id)}
+              className={cn(
+                'relative pb-3 text-[13px] tracking-[0.2em] transition-colors duration-200',
+                view === tab.id ? 'font-semibold text-primary' : 'text-ink-soft hover:text-primary'
+              )}
+              aria-current={view === tab.id ? 'true' : undefined}
+            >
+              {tab.label}
+              <span className="ml-2 font-num text-[9.5px] tracking-[0.16em] text-ink-faint">
+                {tab.tag}
+              </span>
+              {view === tab.id && (
+                <span className="absolute -bottom-px left-0 h-[2px] w-6 bg-primary" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {view === 'tracks' ? (
+          <SongList
+            songs={album.songs}
+            showCover={false}
+            showAlbum={false}
+            showIndex
+          />
+        ) : (
+          <LinerNotes album={album} />
+        )}
       </div>
     </div>
   )

@@ -20,6 +20,8 @@ import { toast } from '@/components/ui/use-toast'
 import { useSettingsStore, buildRemoteCoverUrl } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/lyricCacheStore'
+import { SongCredits } from '@/components/music/LinerNotes'
+import { buildSpecLine } from '@/utils/audioSpec'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
 import { usePinnedCover } from '@/hooks/useCoverUrl'
 import { useSongDetail } from '@/hooks/useServerQueries'
@@ -696,6 +698,7 @@ export default function SongDetailPage() {
     toast({ title: '已移除本地封面' })
   }
 
+  const specLine = buildSpecLine(song)
   const contentTypeLabel = song.contentType
     ? song.contentType.split('/')[1]?.toLowerCase() ?? song.contentType
     : undefined
@@ -801,6 +804,33 @@ export default function SongDetailPage() {
             <Row label="评分" value={`${song.userRating} / 5`} mono />
           )}
         </Section>
+
+        {/* 规格铭牌：服务器早就返回这些字段，此前被 mapSong 一律丢弃 */}
+        {specLine.length > 0 && (
+          <Section title="规格" tag="SPEC">
+            <Row label="音频规格" value={specLine.join(' · ')} mono />
+            {song.ext?.bpm ? <Row label="BPM" value={String(song.ext.bpm)} mono /> : null}
+            {song.ext?.moods?.length ? (
+              <Row label="情绪" value={song.ext.moods.join(' · ')} />
+            ) : null}
+            {song.ext?.isrc?.length ? (
+              <Row label="ISRC" value={song.ext.isrc.join(' · ')} mono />
+            ) : null}
+            {song.ext?.musicBrainzId ? (
+              <Row label="MusicBrainz" value={song.ext.musicBrainzId} mono />
+            ) : null}
+          </Section>
+        )}
+
+        {/* 制作人员 */}
+        {(song.ext?.contributors?.length || song.ext?.displayComposer) && (
+          <Section title="制作" tag="CREDITS">
+            <SongCredits
+              contributors={song.ext?.contributors}
+              composer={song.ext?.displayComposer}
+            />
+          </Section>
+        )}
 
       </div>
 
