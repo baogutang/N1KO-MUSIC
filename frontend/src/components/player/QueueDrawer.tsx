@@ -8,6 +8,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { X, DotsSixVertical, Play, CaretUp, CaretDown, Shuffle } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
 import { useIsMobileLayout } from '@/lib/platform'
 import { formatDuration } from '@/utils/formatters'
@@ -23,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { spaceCJK } from '@/utils/cjkTypography'
 
 export function QueueDrawer() {
+  const { t }           = useT()
   const queue           = usePlayerStore(s => s.queue)
   const queueIndex      = usePlayerStore(s => s.queueIndex)
   const shuffle         = usePlayerStore(s => s.shuffle)
@@ -116,12 +118,12 @@ export function QueueDrawer() {
         {/* 头部：衬线标题 + 清空 / 关闭 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-hair flex-shrink-0">
           <h3 className="font-serif font-bold text-[17px] flex items-baseline gap-2.5">
-            播放队列
+            {t('player.queue')}
             {/* 面板此时显示的是随机顺序而非原始曲序，必须说明，否则用户会以为随机没生效 */}
             {shuffle && (
               <span className="inline-flex items-center gap-1 text-[10.5px] font-sans font-medium tracking-[0.14em] text-primary">
                 <Shuffle size={11} aria-hidden="true" />
-                随机顺序
+                {t('queue.shuffledOrder')}
               </span>
             )}
           </h3>
@@ -130,12 +132,12 @@ export function QueueDrawer() {
               onClick={() => setConfirmClear(true)}
               className="text-[12px] tracking-[0.14em] text-ink-soft hover:text-primary transition-colors duration-200"
             >
-              清空
+              {t('queue.clear')}
             </button>
             <button
               onClick={() => setQueueOpen(false)}
               className="w-7 h-7 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-200 active:scale-95"
-              aria-label="关闭队列"
+              aria-label={t('queue.close')}
             >
               <X size={16} />
             </button>
@@ -145,8 +147,8 @@ export function QueueDrawer() {
         <ScrollArea className="flex-1">
           {queue.length === 0 ? (
             <div className="px-6 py-12 text-center">
-              <p className="font-serif text-[15px] text-foreground">队列还是空的</p>
-              <p className="text-[12px] text-ink-faint mt-1">去音乐库挑几首歌放进来</p>
+              <p className="font-serif text-[15px] text-foreground">{t('empty.queue.title')}</p>
+              <p className="text-[12px] text-ink-faint mt-1">{t('empty.queue.description')}</p>
             </div>
           ) : (
             <ol>
@@ -221,7 +223,7 @@ export function QueueDrawer() {
                           onClick={(e) => { e.stopPropagation(); moveByPosition(pos, pos - 1) }}
                           disabled={pos === 0}
                           className="w-11 h-11 -my-2 rounded-full flex items-center justify-center text-ink-soft disabled:opacity-25 active:scale-95"
-                          aria-label={`把「${song.title}」上移`}
+                          aria-label={t('queue.moveUp', { title: song.title })}
                         >
                           <CaretUp size={14} />
                         </button>
@@ -229,14 +231,14 @@ export function QueueDrawer() {
                           onClick={(e) => { e.stopPropagation(); moveByPosition(pos, pos + 1) }}
                           disabled={pos === order.length - 1}
                           className="w-11 h-11 -my-2 rounded-full flex items-center justify-center text-ink-soft disabled:opacity-25 active:scale-95"
-                          aria-label={`把「${song.title}」下移`}
+                          aria-label={t('queue.moveDown', { title: song.title })}
                         >
                           <CaretDown size={14} />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); removeFromQueue(qi) }}
                           className="w-11 h-11 -my-2 rounded-full flex items-center justify-center text-ink-soft active:scale-95"
-                          aria-label={`把「${song.title}」移出队列`}
+                          aria-label={t('queue.remove', { title: song.title })}
                         >
                           <X size={13} />
                         </button>
@@ -246,14 +248,14 @@ export function QueueDrawer() {
                         <button
                           onClick={(e) => { e.stopPropagation(); jumpToIndex(qi) }}
                           className="w-6 h-6 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-150 active:scale-95"
-                          aria-label={`播放「${song.title}」`}
+                          aria-label={t('queue.playSong', { title: song.title })}
                         >
                           <Play size={11} weight="fill" />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); removeFromQueue(qi) }}
                           className="w-6 h-6 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-150 active:scale-95"
-                          aria-label={`把「${song.title}」移出队列`}
+                          aria-label={t('queue.remove', { title: song.title })}
                         >
                           <X size={12} />
                         </button>
@@ -270,9 +272,11 @@ export function QueueDrawer() {
           <div className="px-5 py-2.5 border-t border-hair flex-shrink-0">
             {/* 计数按播放位置算：随机时数组下标毫无意义（会显示成「17 / 40」而实际在第 3 首） */}
             <p className="text-[11px] text-ink-faint text-center">
-              <span className="font-num">{queue.length}</span> 首歌曲 ·{' '}
+              {/* 数字留在 .font-num 里（等宽 tabular），单位词跟着语言走 */}
+              <span className="font-num">{queue.length}</span>{' '}
+              {queue.length === 1 ? t('queue.trackUnit') : t('queue.tracksUnit')} ·{' '}
               <span className="font-num">{position >= 0 ? position + 1 : '–'} / {order.length}</span>
-              {shuffle && <span className="ml-1.5">（随机顺序）</span>}
+              {shuffle && <span className="ml-1.5">{t('queue.shuffledOrderNote')}</span>}
             </p>
           </div>
         )}
@@ -281,13 +285,13 @@ export function QueueDrawer() {
       <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>清空播放队列？</DialogTitle>
+            <DialogTitle>{t('queue.clearConfirmTitle')}</DialogTitle>
             <DialogDescription>
-              将移除队列中的其他歌曲，当前正在播放的歌曲会保留。
+              {t('queue.clearConfirmDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setConfirmClear(false)}>取消</Button>
+            <Button variant="outline" onClick={() => setConfirmClear(false)}>{t('action.cancel')}</Button>
             <Button
               variant="destructive"
               onClick={() => {
@@ -295,7 +299,7 @@ export function QueueDrawer() {
                 setConfirmClear(false)
               }}
             >
-              清空
+              {t('queue.clear')}
             </Button>
           </div>
         </DialogContent>

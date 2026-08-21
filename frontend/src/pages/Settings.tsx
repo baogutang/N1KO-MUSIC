@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { useThemeStore } from '@/store/themeStore'
+import { LOCALES, setLocale, useT } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
 import {
   useSettingsStore,
@@ -255,6 +256,7 @@ export default function Settings() {
   const navigate = useNavigate()
   const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
   const { theme, setTheme } = useThemeStore()
+  const { locale } = useT()
   const volume    = usePlayerStore(s => s.volume)
   const setVolume = usePlayerStore(s => s.setVolume)
   const {
@@ -430,6 +432,21 @@ export default function Settings() {
               添加新服务器
             </Button>
           </div>
+        </Section>
+
+        {/* 界面语言 */}
+        <Section title="界面语言" tag="LANGUAGE">
+          <Row
+            name="显示语言"
+            desc="缺失的译文会自动回落到简体中文，因此不完整的翻译也不会让界面出现空白"
+          >
+            <Segmented
+              label="显示语言"
+              value={locale}
+              onChange={setLocale}
+              options={LOCALES.map(item => ({ value: item.value, label: item.label }))}
+            />
+          </Row>
         </Section>
 
         {/* 外观 */}

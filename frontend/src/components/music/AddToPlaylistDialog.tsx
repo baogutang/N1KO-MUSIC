@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/use-toast'
+import { useT } from '@/i18n'
 import type { Song } from '@/api/types'
 
 interface AddToPlaylistDialogProps {
@@ -14,6 +15,7 @@ interface AddToPlaylistDialogProps {
 }
 
 export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylistDialogProps) {
+  const { t } = useT()
   const { data: playlists, isLoading } = usePlaylists()
   const addToPlaylist = useAddToPlaylist()
   const createPlaylist = useCreatePlaylist()
@@ -25,10 +27,10 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
   async function handleAdd(playlistId: string, playlistName: string) {
     try {
       await addToPlaylist.mutateAsync({ playlistId, songIds })
-      toast({ title: `已添加到「${playlistName}」` })
+      toast({ title: t('playlist.added', { name: playlistName }) })
       onOpenChange(false)
     } catch {
-      toast({ title: '添加失败', variant: 'destructive' })
+      toast({ title: t('playlist.addFailed'), variant: 'destructive' })
     }
   }
 
@@ -38,12 +40,12 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
     setCreating(true)
     try {
       const pl = await createPlaylist.mutateAsync({ name, songIds })
-      toast({ title: `已创建歌单「${name}」并添加歌曲` })
+      toast({ title: t('playlist.createdWithSongs', { name }) })
       setNewName('')
       onOpenChange(false)
       void pl
     } catch {
-      toast({ title: '创建失败', variant: 'destructive' })
+      toast({ title: t('playlist.createFailed'), variant: 'destructive' })
     } finally {
       setCreating(false)
     }
@@ -53,7 +55,7 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>添加到歌单</DialogTitle>
+          <DialogTitle>{t('action.addToPlaylist')}</DialogTitle>
         </DialogHeader>
 
         {/* 歌单列表：发丝线分隔的行式列表（mono 序号 + 衬线名 + mono 曲目数） */}
@@ -79,19 +81,21 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
                 </span>
                 <span className="font-serif font-semibold text-[15px] truncate flex-1">{pl.name}</span>
                 {pl.songCount !== undefined && (
-                  <span className="font-num text-xs text-ink-faint flex-shrink-0">{pl.songCount} 首</span>
+                  <span className="font-num text-xs text-ink-faint flex-shrink-0">
+                    {t('playlist.songCount', { count: pl.songCount })}
+                  </span>
                 )}
               </button>
             ))
           ) : (
-            <p className="text-sm text-ink-faint text-center py-6">暂无歌单，可下方新建</p>
+            <p className="text-sm text-ink-faint text-center py-6">{t('playlist.noneYet')}</p>
           )}
         </div>
 
         {/* 新建歌单 */}
         <div className="flex gap-2 pt-2 border-t border-hair">
           <Input
-            placeholder="新建歌单名称"
+            placeholder={t('playlist.namePlaceholder')}
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => {
@@ -104,7 +108,7 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
             disabled={creating || !newName.trim()}
             variant="outline"
             size="icon"
-            title="新建并添加"
+            title={t('playlist.createAndAdd')}
             className="flex-shrink-0"
           >
             <Plus className="w-4 h-4" />

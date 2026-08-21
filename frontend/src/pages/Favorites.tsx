@@ -6,10 +6,12 @@ import { playAllInOrder } from '@/utils/playActions'
 import { SongList } from '@/components/music/SongList'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { EmptyState } from '@/components/common/EmptyState'
+import { useT } from '@/i18n'
 
 type FavTab = 'songs' | 'albums'
 
 export default function Favorites() {
+  const { t } = useT()
   const [tab, setTab] = useState<FavTab>('songs')
   const { data: starred, isLoading } = useStarred()
   const songs = starred?.songs ?? []
@@ -44,15 +46,13 @@ export default function Favorites() {
       <header className="flex items-end justify-between gap-6 border-b border-hair pb-6">
         <div>
           <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
-            我喜欢的音乐
+            {t('library.favoritesTitle')}
             <span className="ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
               FAVORITES
             </span>
           </h1>
-          <p className="mt-1.5 text-sm text-ink-faint">
-            <span className="font-num">{songs.length}</span> 首歌
-            <span className="mx-1.5 text-ink-faint/60">·</span>
-            <span className="font-num">{albums.length}</span> 张专辑
+          <p className="mt-1.5 font-num text-sm text-ink-faint">
+            {t('library.favoritesCounts', { songs: songs.length, albums: albums.length })}
           </p>
         </div>
         {songs.length > 0 && (

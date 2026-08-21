@@ -6,18 +6,22 @@
 
 **A music magazine you can play**
 
-Connect to Navidrome / Subsonic / Jellyfin / Emby and read your private library like a beautifully typeset issue.
+Point it at Navidrome / Subsonic / Jellyfin / Emby and read your own library
+like a beautifully typeset issue.
 
 <br/>
 
 [![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 [![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=flat-square&color=555)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux%20·%20Android%20·%20iOS-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux%20·%20Android%20·%20iOS%20·%20Web-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 
 <br/>
 
-**[⬇ Download](https://github.com/baogutang/N1KO-MUSIC/releases/latest)** · **[English](README.md)** · **[中文](README_CN.md)**
+**[⬇ Download](https://github.com/baogutang/N1KO-MUSIC/releases/latest)** ·
+**[English](README.md)** ·
+**[中文](README_CN.md)** ·
+**[Translate it](TRANSLATING.md)**
 
 </div>
 
@@ -27,22 +31,42 @@ Connect to Navidrome / Subsonic / Jellyfin / Emby and read your private library 
 
 [![N1KO-API — one key, every model: Claude / GPT / Gemini, OpenAI-compatible, pay as you go](docs/n1ko-api-banner.svg)](https://token.baogutang.top)
 
-> If you build with AI, this one is for you: **[N1KO-API](https://token.baogutang.top)** — a subscription-to-API relay platform. One key for Claude, GPT and Gemini flagships, smart routing with instant failover, 99.9% SLA, transparent pay-as-you-go billing. Support QQ: 783246411.
+> If you build with AI, this one is for you: **[N1KO-API](https://token.baogutang.top)** — a
+> subscription-to-API relay platform. One key for Claude, GPT and Gemini flagships, smart
+> routing with instant failover, 99.9% SLA, transparent pay-as-you-go billing. Support QQ: 783246411.
 
 <br/>
 
-## Design philosophy
+---
 
-Most music clients look like admin dashboards. N1KO MUSIC is built as **a magazine you can play**:
+<div align="center">
 
-- **Typography is the interface** — no cards, no stacked shadows, no pill buttons. Typesetting, hairlines and whitespace do all the structural work
-- **Artwork is the content** — album covers are the only large color fields; everything else keeps the restraint of paper
-- **Serif voices** — self-hosted Source Serif 4 / Hanken Grotesk / JetBrains Mono (the Claude-style pairing): serifs for music, monospace for data
-- **Paper, ink, vermilion** — a warm paper canvas `#f4efe3`, ink text, and a single vermilion accent `#b8442a`. Dark mode is a variant of the same voice, not a simple inversion
+### ✦ &nbsp; VOL. 3 &nbsp;·&nbsp; THE ARGUMENT &nbsp; ✦
 
-Sound is not compromised either: FLAC / WAV / ALAC lossless passthrough, with 320 / 192 / 128kbps transcoding tiers for when bandwidth matters.
+</div>
 
-N1KO MUSIC is fully free and open source. Every feature works out of the box.
+Most music clients are admin dashboards with cover art bolted on. They are organised
+around *what the server has* — tables, filters, counts.
+
+A magazine is organised around *what is worth your attention this week*. It has a
+masthead, an issue number, a cover story, running heads, and a colophon on the last
+page. It has a voice.
+
+N1KO MUSIC is built that way, all the way down:
+
+|  | |
+|---|---|
+| **Typography is the interface** | No cards, no stacked shadows, no pill buttons. Typesetting, hairlines and whitespace do all the structural work. |
+| **Artwork is the only colour** | Album covers are the sole large colour fields. Everything else keeps the restraint of paper. |
+| **Serif voices** | Self-hosted Source Serif 4 / Hanken Grotesk / JetBrains Mono — serifs for music, monospace for data. |
+| **Paper, ink, vermilion** | Warm paper `#f4efe3`, ink text, one vermilion accent `#b8442a`. Dark mode is the same voice at night, not an inversion. |
+| **Nothing is invented** | Every generated sentence in the app — the editor's note, the rediscovery captions, the taste weights — is assembled from real numbers. When the data will not support a sentence, the sentence does not appear. |
+
+Sound is not sacrificed to any of it: FLAC / WAV / ALAC passthrough, with 320 / 192 /
+128kbps tiers for when bandwidth matters, and ReplayGain applied from the values your
+server already computed.
+
+Fully free, fully open source, no accounts, no telemetry, no upsell.
 
 <br/>
 
@@ -50,19 +74,22 @@ N1KO MUSIC is fully free and open source. Every feature works out of the box.
 
 ### Now playing
 
-Artwork-derived ambience, a serif lyric stream with a vermilion marker on the current line — tap any line to seek.
+Cover-derived ambience clamped into a paper-safe band, a serif lyric stream with a
+vermilion marker on the current line — tap any line to seek.
 
 ![Now playing](docs/screenshots/v2/player.gif)
 
 ### Home · the cover page
 
-A featured-album headline, a numbered recently-added list, a typographic artist index — the table of contents of your library.
+A featured-album headline, a numbered recently-added list, a typographic artist index,
+and **Rediscover** — three columns pulled from your own history.
 
 ![Home](docs/screenshots/v2/home.png)
 
 ### Album · the dossier page
 
-Oversized cover, archival metadata, a hairline tracklist.
+Oversized cover, archival metadata, a hairline tracklist, liner notes, and a margin
+where you can write your own.
 
 ![Album detail](docs/screenshots/v2/album.png)
 
@@ -74,65 +101,130 @@ Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
 
 <br/>
 
-## Features
+---
 
-**Playback**
+<div align="center">
 
-- Magazine-style fullscreen player: cover-derived ambience, serif lyric stream, tap-to-seek
-- Lossless passthrough (FLAC / WAV / ALAC) plus 320 / 192 / 128kbps transcoding tiers,
-  with **separate Wi-Fi and cellular tiers** switched automatically — no more pulling
-  original files over your home uplink while you are out
-- **ReplayGain normalisation** using the gain your server already computed, so masters
-  from different eras stop jumping in loudness
-- **Real whole-library shuffle**: a random sample drawn from the server rather than a
-  reshuffle of the loaded page, and a queue panel that shows the **actual play order**
-- **The queue keeps going** — similar tracks are appended when it runs dry, and any
-  song, artist or genre can seed a radio
-- Next-track preloading, fade on pause, playback speed 0.5–3x with pitch correction
-- **Sleep timer** (duration or end-of-track) that fades out instead of cutting
-- **Cross-device resume**: start on the desktop, pick it up on your phone
-- Full queue control: shuffle, repeat, repeat-one, drag reorder, play-next insertion
-- Global keyboard shortcuts, a **⌘K command palette**, and system media keys (MediaSession)
+### ✦ &nbsp; DEPARTMENTS &nbsp; ✦
 
-**Library and discovery**
+</div>
 
-- Songs, albums, artists and playlists in one place, with **virtualised** long lists
-  that stay smooth on a ten-thousand-track library
-- Instant library-wide search; For-You picks shaped by listening, favorites and skips —
-  and a refresh button that genuinely returns a new batch
-- **Liner notes**: personnel credits, album notes, ISRC and MusicBrainz pressing details
-- **Spec plate**: bit depth, sample rate, codec, channels, real bitrate
-- Shelves your server already computes: most played, recently played
-- Local listening history and statistics set in editorial data layouts
-- Scrobbling based on real listening time (Last.fm compatible via your server)
+### ♫ Playback
 
-**Custom integrations**
+- **Real whole-library shuffle** — a random sample drawn from the server, not a reshuffle
+  of the page you happen to have loaded. The queue panel shows the **actual play order**,
+  and reshuffles cleanly on wrap instead of looping the same permutation forever.
+- **Lossless passthrough** (FLAC / WAV / ALAC) plus 320 / 192 / 128kbps tiers, with
+  **separate Wi-Fi and cellular settings** switched automatically — no more pulling
+  original files over your home uplink while you are out.
+- **ReplayGain** applied from the gain your server already computed, so masters from
+  different decades stop jumping in loudness.
+- **The queue keeps going** — similar tracks append when it runs dry, and any song,
+  artist or genre can seed a radio.
+- **Sleep timer** by duration or end-of-track, fading rather than cutting.
+- **Cross-device resume** — start on the desktop, pick it up on the phone.
+- Gapless-ish preloading, fade on pause, 0.5–3× speed with pitch correction, long-track
+  bookmarks for audiobooks and lectures.
 
-- Custom cover and lyrics APIs with `{artist}` / `{album}` / `{title}` placeholders
-- Configurable priority between server data and custom sources; manual lyric search with local cache
-- Trigger a server-side library rescan straight from the client
+### ⌘ Control
 
-**Details**
+- **Multi-select and batch actions** on every list — ⌘/Ctrl-click, Shift-range, Esc to
+  drop; long-press on touch. Play, queue, add to playlist, favourite, all at once.
+- **Full Media Session integration**, which means it appears properly in **Windows SMTC,
+  macOS Now Playing, Linux MPRIS**, and the Android/iOS lock screen — with a working
+  scrubber, 1024px artwork, and **configurable buttons** (track skip for music, ±15s for
+  audiobooks).
+- **Headphone unplug pauses** instead of broadcasting to the room, and resumes when you
+  plug back in within a minute.
+- **Car mode** — 112–128px targets, swipe to change track, screen kept awake, still
+  paper and ink.
+- **`n1ko://` deep links** for Raycast, Alfred, Shortcuts, or a line in a note.
+- ⌘K command palette, global shortcuts, alphabet rail on long lists, and scroll memory
+  that restores where you were when you go back.
 
-- Thin spaces inserted automatically between CJK and Latin runs; hanging punctuation;
-  slashed-zero tabular numerals
-- A persistent banner with a retry action when the device or the server goes offline —
-  not a toast that vanishes
-- Player toggles expose `aria-pressed` so screen readers can tell whether shuffle is on;
-  text contrast meets WCAG AA
+### ☰ Library
 
-**Desktop app**
+- Songs, albums, artists and playlists in one place, **virtualised** so a ten-thousand
+  track library stays smooth.
+- **Offline metadata cache** — cold starts show last time's library immediately and
+  revalidate behind it. (Metadata only; no audio is stored.)
+- **Liner notes**: personnel credits, album notes, ISRC, MusicBrainz pressing details.
+- **Spec plate**: bit depth, sample rate, codec, channels, real bitrate.
+- **Discography rail** — an artist's records read as a career down a hairline year rail,
+  not a wall of covers.
+- Multi-library servers, server-side rescan, star ratings, public share links, and
+  "who else is listening" — all surfaced only when your server actually supports them.
 
-- Native builds for macOS (Apple Silicon + Intel), Windows and Linux
-- Light and dark themes that follow the system; vinyl or square cover player modes
-- Built on Tauri 2: ~4MB installers, far lighter than Electron
+### ✎ Yours
 
-**Mobile app**
+- **《本期》 / This Issue** — every month becomes an issue on its own: cover story,
+  rankings, superlatives, first-heard. The editor's note is assembled from real numbers
+  and invents nothing.
+- **Rediscover** — *on this day*, *long unplayed*, *heard once*. What you already loved
+  and are quietly losing.
+- **Marginalia** — write your own note on any song, album or artist. It is the one thing
+  here that cannot be recomputed from anything else, so it syncs and backs up first.
+- **An editable taste profile** — see the literal weights the recommender scores with,
+  and switch off any artist or genre for good. A hard filter, not a demotion.
+- **Import your existing scrobbles** from ListenBrainz or Last.fm exports, so statistics
+  and recommendations do not start from zero.
+- **Export everything** — playlists as M3U8/XSPF, history as JSON/CSV. Generated in the
+  browser, never uploaded.
 
-- The same editorial interface, reshaped for touch: bottom navigation, mini player, safe-area aware
-- Background playback with lock-screen / notification controls on Android and iOS
-- Android back gesture, theme-aware status bar, haptic feedback on transport controls
-- Built on Capacitor 8 — one React codebase across desktop and mobile
+### ⚙ Details that took the longest
+
+- Thin spaces between CJK and Latin runs, hanging punctuation, slashed-zero tabular
+  numerals.
+- Credentials encrypted at rest with a non-extractable device key.
+- A persistent offline banner with a retry action — not a toast that vanishes.
+- `aria-pressed` on player toggles, WCAG AA text contrast, `motion-reduce` honoured.
+- Issue numbers, running heads and a colophon on every page.
+
+<br/>
+
+---
+
+<div align="center">
+
+### ✦ &nbsp; HOW IT FITS TOGETHER &nbsp; ✦
+
+</div>
+
+```mermaid
+flowchart LR
+    subgraph shells["One React codebase, three shells"]
+        direction TB
+        D["🖥 Tauri 2<br/><sub>macOS · Windows · Linux</sub>"]
+        M["📱 Capacitor 8<br/><sub>Android · iOS</sub>"]
+        W["🌐 PWA<br/><sub>any browser</sub>"]
+    end
+
+    subgraph app["N1KO MUSIC"]
+        direction TB
+        UI["Magazine UI<br/><sub>React · Zustand · TanStack Query</sub>"]
+        AD["Adapter layer<br/><sub>capability detection</sub>"]
+        LO["Local data<br/><sub>IndexedDB · history · notes · cache</sub>"]
+    end
+
+    subgraph yours["Your machines only"]
+        direction TB
+        S["🎵 Music server<br/><sub>Navidrome · Subsonic<br/>Jellyfin · Emby</sub>"]
+        B["🔄 Sync service<br/><sub>optional · SQLite</sub>"]
+    end
+
+    shells --> app
+    AD -->|"audio + metadata"| S
+    LO <-->|"history · favourites · notes"| B
+
+    LB["ListenBrainz<br/><sub>opt-in</sub>"]
+    MB["MusicBrainz<br/><sub>opt-in, off by default</sub>"]
+    LO -.->|"scrobbles"| LB
+    AD -.->|"artist id only"| MB
+```
+
+Everything inside **Your machines only** is yours. The two dotted lines are the only
+paths that can ever leave your network, both opt-in, and the MusicBrainz one is off
+until you turn it on.
 
 <br/>
 
@@ -145,6 +237,10 @@ Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
 | [Airsonic](https://airsonic.github.io/) / [Airsonic-Advanced](https://github.com/airsonic-advanced/airsonic-advanced) | ✅ Supported | Subsonic-compatible forks |
 | [Jellyfin](https://jellyfin.org/) | ✅ Supported | Native API integration |
 | [Emby](https://emby.media/) | ✅ Supported | Native API integration |
+
+Optional server features — shares, ratings, bookmarks, multi-library, rescan, radio,
+now-playing — are **detected, not assumed**. If your server does not implement one, the
+entry does not appear at all rather than failing when tapped.
 
 <details>
 <summary>Related searches</summary>
@@ -171,9 +267,11 @@ Grab the installer for your platform from **[Releases](https://github.com/baogut
 | Android | `N1KO-MUSIC-android-debug` → `app-debug.apk` | Debug build, installs directly (allow unknown sources) |
 | iOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | Unsigned; sideload with AltStore / Sideloadly |
 
-> Release-signed mobile builds (Play keystore / Apple Developer) are not set up yet — the workflow slots them in without structural changes.
-
-> On macOS, if you see "cannot verify the developer" on first launch, allow the app under System Settings → Privacy & Security.
+> Release-signed mobile builds (Play keystore / Apple Developer) are not set up yet — the
+> workflow slots them in without structural changes.
+>
+> On macOS, if you see "cannot verify the developer" on first launch, allow the app under
+> System Settings → Privacy & Security.
 
 <br/>
 
@@ -188,19 +286,7 @@ Grab the installer for your platform from **[Releases](https://github.com/baogut
 | Desktop shell | Tauri 2 (Rust) |
 | Mobile shell | Capacitor 8 (Android · iOS) |
 | Optional sync service | Node.js 24 · Express · SQLite |
-
-### Mobile (Android / iOS)
-
-The same React frontend runs inside a Capacitor shell with native background playback and lock-screen controls.
-
-```bash
-cd frontend
-npm run cap:sync            # build web assets + sync native projects
-npx cap open android        # requires Android Studio / SDK
-npx cap open ios            # requires Xcode + CocoaPods
-```
-
-The `Mobile` GitHub Actions workflow (tag `v*` push or manual dispatch) builds an Android debug APK, an iOS simulator build and an unsigned iOS device package as downloadable artifacts. Release signing (Play keystore / Apple Developer certificate) can be added later without changing the workflow structure.
+| i18n | Flat JSON catalogues, no runtime dependency ([contribute a language](TRANSLATING.md)) |
 
 ### Development
 
@@ -212,15 +298,34 @@ npm run dev          # web dev mode
 npm run tauri:dev    # desktop dev mode
 ```
 
-### Optional sync service
+You do not need your own server to develop against: point the app at
+`https://demo.navidrome.org` with username and password `demo`.
 
-`backend/` exposes account, local-playlist, favourite and listening-history APIs for cross-device sync.
-It is **entirely optional**: music always streams straight from your own music server, and with no sync service
-configured the app keeps its full feature set, storing listening history locally in IndexedDB.
+### Mobile (Android / iOS)
 
-Once you have deployed it, open **Settings › 跨设备同步 (SYNC)**, enter the service address and sign in.
-The client then mirrors listening history and favourites to the service and merges records written by your
-other devices, so recommendations do not restart from scratch on a new device.
+The same React frontend runs inside a Capacitor shell with native background playback and
+lock-screen controls.
+
+```bash
+cd frontend
+npm run cap:sync            # build web assets + sync native projects
+npx cap open android        # requires Android Studio / SDK
+npx cap open ios            # requires Xcode + CocoaPods
+```
+
+<details>
+<summary><b>Optional sync service</b> — cross-device history, favourites and notes</summary>
+
+<br/>
+
+`backend/` exposes account, local-playlist, favourite, listening-history and marginalia
+APIs. It is **entirely optional**: music always streams straight from your own music
+server, and with no sync service configured the app keeps its full feature set, storing
+everything locally in IndexedDB.
+
+Once deployed, open **Settings › 跨设备同步 (SYNC)**, enter the address and sign in. The
+client then mirrors history, favourites and notes, and merges records written by your
+other devices, so recommendations do not restart on a new machine.
 
 ```bash
 cd backend
@@ -229,7 +334,8 @@ npm test
 JWT_SECRET="replace-with-a-long-random-value" DATA_DIR=./data npm start
 ```
 
-Docker deployments must mount `/app/data`; otherwise recreating the container loses both the database and the generated JWT secret:
+Docker deployments must mount `/app/data`; otherwise recreating the container loses both
+the database and the generated JWT secret:
 
 ```bash
 docker build -t n1ko-music-backend backend
@@ -240,24 +346,30 @@ docker run -d --name n1ko-music-backend \
   n1ko-music-backend
 ```
 
-Supported environment variables include `PORT`, `DATA_DIR`, `JWT_SECRET`, comma-separated `FRONTEND_URLS`,
-`TRUST_PROXY_HOPS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`, `ALLOW_REGISTRATION`,
-`LOGIN_ATTEMPT_MAX`, and `LOGIN_ATTEMPT_WINDOW_MS`. A consistent backup is created in the
-data directory before database migrations.
+Supported environment variables: `PORT`, `DATA_DIR`, `JWT_SECRET`, comma-separated
+`FRONTEND_URLS`, `TRUST_PROXY_HOPS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`,
+`ALLOW_REGISTRATION`, `LOGIN_ATTEMPT_MAX`, `LOGIN_ATTEMPT_WINDOW_MS`.
+
+A consistent backup is taken in the data directory before any migration runs, and a test
+asserts that a database upgraded from an old release converges — column for column, index
+for index, constraint for constraint — with one created fresh today.
 
 > **Registration policy (changed in v1.7.0)**: `ALLOW_REGISTRATION` defaults to
-> `first-user` — registration is open until the first account exists, then closes
-> automatically. This matters as soon as you expose the sync service to the internet.
-> **Existing deployments that need to add a household member should set it to `open`
-> temporarily**, or use `closed` to lock it down entirely.
+> `first-user` — open until the first account exists, then closed automatically. This
+> matters as soon as the sync service is exposed to the internet. **Existing deployments
+> adding a household member should set it to `open` temporarily**, or `closed` to lock it
+> down entirely.
 >
 > **JWT secret**: leave `JWT_SECRET` unset and the service generates a 48-byte random key
 > and persists it with mode 0600 — safer than picking one by hand. If you do set it, it
 > must be at least 32 characters or the service refuses to start.
 
-### Web client via Docker
+</details>
 
-If you would rather not install a desktop or mobile app:
+<details>
+<summary><b>Web client via Docker</b> — if you would rather not install an app</summary>
+
+<br/>
 
 ```bash
 docker build -t n1ko-music-web frontend
@@ -267,17 +379,33 @@ docker run -d --name n1ko-music-web -p 8080:80 \
   n1ko-music-web
 ```
 
+</details>
+
+<br/>
+
+## Privacy, stated plainly
+
+| What | Where it goes |
+|---|---|
+| Your music | Your music server. Nowhere else. |
+| Listening history, statistics, taste profile | This device (IndexedDB), plus your own sync service if you run one. |
+| Marginalia | Same. It is the only irreplaceable data here, so it syncs first. |
+| Server credentials | Encrypted at rest with an AES-GCM key that page script cannot extract. |
+| Exports | Generated in the browser. Never uploaded. |
+| ListenBrainz scrobbles | Only if you enter a token. Off by default. |
+| MusicBrainz artist dossiers | Only the artist's MusicBrainz id, only if you switch it on. Off by default. |
+| Telemetry, analytics, crash reporting | None. There is no server to send it to. |
+
 <br/>
 
 ## Contributing
 
-Pull requests are welcome. Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first —
-especially the design-contract section. This project has a deliberate visual stance
-(one accent colour, no card stacking, Phosphor icons only), and colours always come from
-the tokens in `frontend/src/index.css`.
+Pull requests welcome. Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first —
+especially the design-contract section. This project has a deliberate visual stance (one
+accent colour, no card stacking, Phosphor icons only), and colours always come from the
+tokens in `frontend/src/index.css`.
 
-You do not need your own server to develop against: point the app at
-`https://demo.navidrome.org` with username and password `demo`.
+Translating needs no React knowledge at all — see **[TRANSLATING.md](TRANSLATING.md)**.
 
 <br/>
 
@@ -285,8 +413,9 @@ You do not need your own server to develop against: point the app at
 
 N1KO MUSIC stands on the shoulders of these excellent projects:
 
-- [StreamMusic](https://github.com/gitbobobo/StreamMusic) a beautifully designed Flutter NAS music player whose UI and UX inspired this project
-- [Navidrome](https://www.navidrome.org/) the outstanding open-source Subsonic server
+- [StreamMusic](https://github.com/gitbobobo/StreamMusic) — a beautifully designed Flutter NAS music player whose UI and UX inspired this project
+- [Navidrome](https://www.navidrome.org/) — the outstanding open-source Subsonic server
+- [MusicBrainz](https://musicbrainz.org/) · [ListenBrainz](https://listenbrainz.org/) — open music data, no strings attached
 - [Radix UI](https://www.radix-ui.com/) · [TanStack Query](https://tanstack.com/query) · [Zustand](https://github.com/pmndrs/zustand)
 
 <br/>
@@ -306,7 +435,7 @@ N1KO MUSIC stands on the shoulders of these excellent projects:
 
 <div align="center">
 
-Built by [N1KO](https://github.com/baogutang) · also check out **[N1KO-API](https://token.baogutang.top)**
+<sub>N1KO MUSIC &nbsp;·&nbsp; Built by [N1KO](https://github.com/baogutang) &nbsp;·&nbsp; also check out **[N1KO-API](https://token.baogutang.top)**</sub>
 
 If N1KO MUSIC is useful to you, a ⭐ means the world.
 

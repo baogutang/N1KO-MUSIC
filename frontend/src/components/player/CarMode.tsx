@@ -21,6 +21,7 @@ import { useToggleStar } from '@/hooks/useServerQueries'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { cn } from '@/lib/utils'
+import { useT } from '@/i18n'
 
 /** 屏幕常亮句柄的最小接口，避免为一个实验性 API 引入整套 DOM 类型 */
 interface WakeLockSentinelLike {
@@ -70,6 +71,7 @@ function useWakeLock(active: boolean): void {
 }
 
 export function CarMode({ onExit }: { onExit: () => void }) {
+  const { t } = useT()
   const currentSong = usePlayerStore(s => s.currentSong)
   const isPlaying = usePlayerStore(s => s.isPlaying)
   const currentTime = usePlayerStore(s => s.currentTime)
@@ -116,12 +118,12 @@ export function CarMode({ onExit }: { onExit: () => void }) {
   if (!currentSong) {
     return (
       <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-paper">
-        <p className="font-serif text-3xl font-semibold">还没有在放的曲子。</p>
+        <p className="font-serif text-3xl font-semibold">{t('player.nothingPlaying')}</p>
         <button
           onClick={onExit}
           className="mt-10 h-16 px-10 font-serif text-xl underline decoration-hair decoration-1 underline-offset-8"
         >
-          退出车载模式
+          {t('player.exitCarMode')}
         </button>
       </div>
     )
@@ -133,7 +135,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       role="region"
-      aria-label="车载模式"
+      aria-label={t('player.carMode')}
     >
       {/*
         顶栏：收藏放这里，退出放对角。
@@ -148,7 +150,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
             isStarred: !!currentSong.starred,
             song: currentSong,
           })}
-          aria-label={currentSong.starred ? '取消收藏' : '收藏'}
+          aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
           className="grid h-16 w-16 place-items-center rounded-full border border-hair transition-colors hover:border-ink"
         >
           <Heart
@@ -159,7 +161,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
         </button>
         <button
           onClick={onExit}
-          aria-label="退出车载模式"
+          aria-label={t('player.exitCarMode')}
           className="grid h-16 w-16 place-items-center rounded-full text-ink-faint transition-colors hover:text-ink"
         >
           <X size={24} />
@@ -168,7 +170,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
 
       {/* 曲目信息：整屏最先被看到的东西 */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <p className="text-[13px] tracking-[0.3em] text-primary">正在播放</p>
+        <p className="text-[13px] tracking-[0.3em] text-primary">{t('player.nowPlaying')}</p>
         <h1 className="mt-5 line-clamp-2 font-serif text-[clamp(2.25rem,7vw,4.5rem)] font-bold leading-[1.15]">
           {spaceCJK(currentSong.title)}
         </h1>
@@ -198,7 +200,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
       */}
       <div className="flex items-center justify-center gap-4 pb-[max(2rem,env(safe-area-inset-bottom))] sm:gap-10">
         <CarButton
-          label="上一首"
+          label={t('player.previous')}
           onClick={() => (currentTime > 3 ? seekHowl(0) : prev())}
           className="h-20 w-20 sm:h-24 sm:w-24"
         >
@@ -206,7 +208,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
         </CarButton>
 
         <CarButton
-          label={isPlaying ? '暂停' : '播放'}
+          label={isPlaying ? t('player.pause') : t('player.play')}
           onClick={togglePlay}
           className="h-28 w-28 sm:h-32 sm:w-32"
           primary
@@ -215,7 +217,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
         </CarButton>
 
         <CarButton
-          label="下一首"
+          label={t('player.next')}
           onClick={next}
           className="h-20 w-20 sm:h-24 sm:w-24"
         >

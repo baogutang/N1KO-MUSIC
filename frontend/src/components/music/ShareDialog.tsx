@@ -18,12 +18,19 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { useT } from '@/i18n'
 
 interface ShareTarget {
   ids: string[]
   /** 展示用的名字 */
   label: string
-  kind: '歌曲' | '专辑' | '歌单'
+  kind: 'song' | 'album' | 'playlist'
+}
+
+const KIND_TITLE_KEYS: Record<ShareTarget['kind'], string> = {
+  song: 'share.title.song',
+  album: 'share.title.album',
+  playlist: 'share.title.playlist',
 }
 
 interface ShareRecord {
@@ -35,10 +42,10 @@ interface ShareRecord {
 }
 
 const EXPIRY_OPTIONS = [
-  { days: 1, label: '1 天' },
-  { days: 7, label: '7 天' },
-  { days: 30, label: '30 天' },
-  { days: 0, label: '不过期' },
+  { days: 1, labelKey: 'share.expiry1Day' },
+  { days: 7, labelKey: 'share.expiry7Days' },
+  { days: 30, labelKey: 'share.expiry30Days' },
+  { days: 0, labelKey: 'share.expiryNever' },
 ]
 
 export function ShareDialog({
@@ -50,6 +57,7 @@ export function ShareDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const { t, locale } = useT()
   const [description, setDescription] = useState('')
   const [expiryDays, setExpiryDays] = useState(7)
   const [creating, setCreating] = useState(false)
@@ -82,12 +90,12 @@ export function ShareDialog({
         description: description.trim() || undefined,
         expiresAt: expiryDays > 0 ? Date.now() + expiryDays * 86_400_000 : undefined,
       })
-      if (!share?.url) throw new Error('服务器没有返回链接')
+      if (!share?.url) throw new Error(t('share.noUrl'))
       setCreated(share)
       void loadExisting()
     } catch (err) {
       toast({
-        title: '创建分享链接失败',
+        title: t('share.createFailed'),
         description: err instanceof Error ? err.message : undefined,
         variant: 'destructive',
       })
@@ -102,7 +110,7 @@ export function ShareDialog({
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     } catch {
-      toast({ title: '复制失败，请手动选择链接', variant: 'destructive' })
+      toast({ title: t('share.copyFailed'), variant: 'destructive' })
     }
   }
 
@@ -112,7 +120,7 @@ export function ShareDialog({
       setExisting(list => list.filter(s => s.id !== id))
       if (created?.id === id) setCreated(null)
     } catch {
-      toast({ title: '撤销失败', variant: 'destructive' })
+      toast({ title: t('share.revokeFailed'), variant: 'destructive' })
     }
   }
 
@@ -120,12 +128,14 @@ export function ShareDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>分享{target?.kind ?? ''}</DialogTitle>
+          <DialogTitle>{target ? t(KIND_TITLE_KEYS[target.kind]) : t('share.title')}</DialogTitle>
           <DialogDescription>
             {target ? (
               <>
-                生成一个公开链接，对方无需账号即可打开
-                <span className="mt-1 block font-serif text-foreground">「{target.label}」</span>
+                {t('share.description')}
+                <span className="mt-1 block font-serif text-foreground">
+                  {t('share.targetLabel', { label: target.label })}
+                </span>
               </>
             ) : null}
           </DialogDescription>
@@ -139,34 +149,36 @@ export function ShareDialog({
               <button
                 onClick={() => copy(created.url)}
                 className="flex-none text-ink-soft transition-colors hover:text-primary"
-                aria-label="复制链接"
+                aria-label={t('share.copyLink')}
               >
                 {copied ? <Check size={14} className="text-primary" /> : <Copy size={14} />}
               </button>
             </div>
             <p className="text-[12px] text-ink-faint">
               {created.expiresAt
-                ? `将于 ${new Date(created.expiresAt).toLocaleDateString('zh-CN')} 失效`
-                : '不会自动失效，可随时在下方撤销'}
+                ? t('share.expiresOn', {
+                    date: new Date(created.expiresAt).toLocaleDateString(locale),
+                  })
+                : t('share.neverExpires')}
             </p>
           </div>
         ) : (
           <div className="space-y-4 pt-1">
             <div>
               <label htmlFor="share-desc" className="mb-1.5 block text-[11px] tracking-[0.16em] text-ink-faint">
-                说明（可选）
+                {t('share.note')}
               </label>
               <Input
                 id="share-desc"
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="给对方的一句话"
+                placeholder={t('share.notePlaceholder')}
                 maxLength={120}
               />
             </div>
             <div>
-              <p className="mb-1.5 text-[11px] tracking-[0.16em] text-ink-faint">有效期</p>
-              <div role="radiogroup" aria-label="有效期" className="flex flex-wrap gap-2">
+              <p className="mb-1.5 text-[11px] tracking-[0.16em] text-ink-faint">{t('share.expiry')}</p>
+              <div role="radiogroup" aria-label={t('share.expiry')} className="flex flex-wrap gap-2">
                 {EXPIRY_OPTIONS.map(opt => (
                   <button
                     key={opt.days}
@@ -181,7 +193,7 @@ export function ShareDialog({
                         : 'border-hair text-ink-soft hover:border-ink hover:text-ink'
                     )}
                   >
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </button>
                 ))}
               </div>
@@ -191,11 +203,11 @@ export function ShareDialog({
 
         <div className="flex justify-end gap-2 pt-3">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {created ? '完成' : '取消'}
+            {created ? t('action.done') : t('action.cancel')}
           </Button>
           {!created && (
             <Button onClick={handleCreate} disabled={creating || !target}>
-              {creating ? '创建中' : '生成链接'}
+              {creating ? t('action.creating') : t('share.create')}
             </Button>
           )}
         </div>
@@ -203,7 +215,7 @@ export function ShareDialog({
         {existing.length > 0 && (
           <div className="mt-2 border-t border-hair pt-3">
             <p className="mb-2 text-[10.5px] uppercase tracking-[0.22em] text-ink-faint">
-              已有的分享 · {existing.length}
+              {t('share.existing', { count: existing.length })}
             </p>
             <ul className="max-h-40 space-y-0 overflow-y-auto">
               {existing.map(share => (
@@ -216,20 +228,20 @@ export function ShareDialog({
                   </span>
                   {share.visitCount != null && (
                     <span className="font-num flex-none text-[11px] text-ink-faint">
-                      {share.visitCount} 次访问
+                      {t('share.visits', { count: share.visitCount })}
                     </span>
                   )}
                   <button
                     onClick={() => copy(share.url)}
                     className="flex-none text-ink-faint transition-colors hover:text-primary"
-                    aria-label="复制这条分享链接"
+                    aria-label={t('share.copyOne')}
                   >
                     <Copy size={12} />
                   </button>
                   <button
                     onClick={() => revoke(share.id)}
                     className="flex-none text-ink-faint transition-colors hover:text-destructive"
-                    aria-label="撤销这条分享链接"
+                    aria-label={t('share.revokeOne')}
                   >
                     <Trash size={12} />
                   </button>

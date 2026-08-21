@@ -19,14 +19,18 @@ import { spaceCJK } from '@/utils/cjkTypography'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
 import { startRadio } from '@/services/radio'
+import { useT } from '@/i18n'
 
-function formatHours(seconds: number): string {
+type Translate = (key: string, vars?: Record<string, string | number>) => string
+
+function formatHours(seconds: number, t: Translate): string {
   const hours = seconds / 3600
-  if (hours >= 1) return `${hours.toFixed(1)} 小时`
-  return `${Math.max(1, Math.round(seconds / 60))} 分钟`
+  if (hours >= 1) return t('issue.hours', { value: hours.toFixed(1) })
+  return t('issue.minutes', { value: Math.max(1, Math.round(seconds / 60)) })
 }
 
 export default function IssuePage() {
+  const { t } = useT()
   const navigate = useNavigate()
   const serverId = useServerStore(s => s.activeServerId)
   const [kind, setKind] = useState<'month' | 'year'>('month')
@@ -53,11 +57,11 @@ export default function IssuePage() {
       <header className="pt-10">
         <div className="flex flex-wrap items-baseline justify-between gap-4 border-b-2 border-ink pb-3">
           <div className="flex items-baseline gap-4">
-            <h1 className="font-serif text-3xl font-black tracking-tight">本期</h1>
+            <h1 className="font-serif text-3xl font-black tracking-tight">{t('nav.issue')}</h1>
             <span className="font-num text-[11px] tracking-[0.28em] text-ink-faint">ISSUE</span>
           </div>
           <div className="flex items-center gap-5">
-            <div role="radiogroup" aria-label="刊期" className="flex items-baseline gap-4">
+            <div role="radiogroup" aria-label={t('issue.periodKind')} className="flex items-baseline gap-4">
               {(['month', 'year'] as const).map(k => (
                 <button
                   key={k}
@@ -69,14 +73,14 @@ export default function IssuePage() {
                     kind === k ? 'font-semibold text-primary' : 'text-ink-soft hover:text-primary'
                   )}
                 >
-                  {k === 'month' ? '月刊' : '年刊'}
+                  {k === 'month' ? t('issue.monthly') : t('issue.yearly')}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setOffset(o => o - 1)}
-                aria-label="上一期"
+                aria-label={t('issue.previous')}
                 className="grid h-7 w-7 place-items-center rounded-full border border-hair text-ink-soft transition-colors hover:border-ink hover:text-ink"
               >
                 <CaretLeft size={12} />
@@ -87,7 +91,7 @@ export default function IssuePage() {
               <button
                 onClick={() => setOffset(o => Math.min(0, o + 1))}
                 disabled={offset >= 0}
-                aria-label="下一期"
+                aria-label={t('issue.next')}
                 className="grid h-7 w-7 place-items-center rounded-full border border-hair text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:opacity-30"
               >
                 <CaretRight size={12} />
@@ -105,7 +109,7 @@ export default function IssuePage() {
           <article className="grid grid-cols-1 items-start gap-10 border-b border-hair py-11 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:gap-14">
             <div className="min-w-0">
               <p className="mb-5 flex items-center gap-3.5 text-[11px] tracking-[0.34em] text-primary">
-                编者按 · EDITOR&apos;S NOTE
+                {t('issue.editorsNote')}
                 <span aria-hidden className="h-px w-14 bg-primary" />
               </p>
               <p className="max-w-[34em] font-serif text-[17px] leading-[1.9] text-ink">
@@ -114,12 +118,12 @@ export default function IssuePage() {
 
               <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
                 {[
-                  { label: '有效播放', value: String(issue.plays) },
-                  { label: '收听时长', value: formatHours(issue.listenedSeconds) },
-                  { label: '不同曲目', value: String(issue.uniqueSongs) },
-                  { label: '活跃天数', value: String(issue.activeDays) },
+                  { id: 'plays', label: t('stats.plays'), value: String(issue.plays) },
+                  { id: 'listened', label: t('stats.listenedTime'), value: formatHours(issue.listenedSeconds, t) },
+                  { id: 'songs', label: t('stats.uniqueSongs'), value: String(issue.uniqueSongs) },
+                  { id: 'days', label: t('stats.activeDays'), value: String(issue.activeDays) },
                 ].map(stat => (
-                  <div key={stat.label}>
+                  <div key={stat.id}>
                     <dt className="text-[10.5px] uppercase tracking-[0.2em] text-ink-faint">
                       {stat.label}
                     </dt>
@@ -143,7 +147,7 @@ export default function IssuePage() {
                 <figcaption className="mt-3 flex items-baseline justify-between gap-3">
                   <span className="min-w-0">
                     <span className="block text-[10.5px] tracking-[0.24em] text-primary">
-                      本期主角
+                      {t('issue.coverStar')}
                     </span>
                     <button
                       onClick={() => issue.coverArtist?.id && navigate(`/artists/${issue.coverArtist.id}`)}
@@ -153,7 +157,7 @@ export default function IssuePage() {
                     </button>
                   </span>
                   <span className="font-num flex-none text-[11px] text-ink-faint">
-                    {issue.coverArtist.count} 次
+                    {t('stats.playCount', { count: issue.coverArtist.count })}
                   </span>
                 </figcaption>
               </figure>
@@ -164,7 +168,7 @@ export default function IssuePage() {
           {issue.superlatives.length > 0 && (
             <section className="border-b border-hair py-9" aria-labelledby="issue-superlatives">
               <h2 id="issue-superlatives" className="mb-5 text-[10.5px] uppercase tracking-[0.26em] text-ink-faint">
-                本期之最 · SUPERLATIVES
+                {t('issue.superlatives')}
               </h2>
               <dl className="grid grid-cols-1 gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
                 {issue.superlatives.map(item => (
@@ -187,15 +191,15 @@ export default function IssuePage() {
           {/* ============ 三张排行表 ============ */}
           <div className="grid grid-cols-1 gap-x-12 lg:grid-cols-3">
             <RankTable
-              title="曲目" tag="TRACKS" entries={issue.topSongs}
+              title={t('section.tracks')} tag="TRACKS" entries={issue.topSongs}
               onOpen={e => e.id && navigate(`/songs/${e.id}`)}
             />
             <RankTable
-              title="歌手" tag="ARTISTS" entries={issue.topArtists}
+              title={t('nav.artists')} tag="ARTISTS" entries={issue.topArtists}
               onOpen={e => e.id && navigate(`/artists/${e.id}`)}
             />
             <RankTable
-              title="专辑" tag="ALBUMS" entries={issue.topAlbums}
+              title={t('section.albums')} tag="ALBUMS" entries={issue.topAlbums}
               onOpen={e => e.id && navigate(`/albums/${e.id}`)}
             />
           </div>
@@ -205,7 +209,7 @@ export default function IssuePage() {
             <section className="mt-10 border-t border-hair pt-8" aria-labelledby="issue-discoveries">
               <div className="section-head">
                 <h2 id="issue-discoveries">
-                  本期发现<small>FIRST HEARD</small>
+                  {t('issue.discoveries')}<small>FIRST HEARD</small>
                 </h2>
                 {issue.discoveries[0]?.title && (
                   <button
@@ -216,7 +220,7 @@ export default function IssuePage() {
                     }}
                   >
                     <Play size={12} className="mr-1.5 inline" />
-                    以此开台
+                    {t('issue.startRadio')}
                   </button>
                 )}
               </div>
@@ -255,59 +259,57 @@ export default function IssuePage() {
  * 每一句都是关于这个软件如何运作的事实，没有一句是修辞。
  */
 function IssueZero({ plays, onStart }: { plays: number; onStart: () => void }) {
+  const { t } = useT()
   return (
     <article className="py-12">
       <p className="mb-5 flex items-center gap-3.5 text-[11px] tracking-[0.34em] text-primary">
-        第零期 · ISSUE ZERO
+        {t('issue.zero.tag')}
         <span aria-hidden className="h-px w-14 bg-primary" />
       </p>
 
       <h2 className="max-w-[16em] font-serif text-[clamp(1.75rem,4vw,2.75rem)] font-bold leading-[1.25]">
-        {spaceCJK('这本刊物会从你听过的东西里长出来。')}
+        {spaceCJK(t('issue.zero.headline'))}
       </h2>
 
       <div className="mt-9 grid grid-cols-1 gap-x-14 gap-y-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
         <div className="min-w-0 max-w-[34em] space-y-4 font-serif text-[15.5px] leading-[1.95] text-ink">
-          <p>
-            {spaceCJK(
-              '每个月月初，上个月听过的东西会自动成为一期：封面故事、排行、本期之最、' +
-              '第一次听到的人。它不是年底才发一次的营销活动，也不需要你做任何事。'
-            )}
-          </p>
-          <p>
-            {spaceCJK(
-              '编者按只由真实数据拼成的模板句组成，一个字都不虚构；数据不足以支撑某一句，' +
-              '那一句就不会出现。'
-            )}
-          </p>
-          <p>
-            {spaceCJK(
-              '收听记录只存在这台设备上。想拿走随时可以导出成 JSON 或 CSV；' +
-              '推荐依据的口味画像也是摊开给你看的，任何一条都能当场关掉。'
-            )}
-          </p>
+          <p>{spaceCJK(t('issue.zero.cadence'))}</p>
+          <p>{spaceCJK(t('issue.zero.honesty'))}</p>
+          <p>{spaceCJK(t('issue.zero.privacy'))}</p>
         </div>
 
         <aside className="min-w-0 border-t border-hair pt-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
           <p className="mb-4 text-[10.5px] uppercase tracking-[0.24em] text-primary">
-            从这里开始
+            {t('issue.zero.startHere')}
           </p>
           <ol className="space-y-4">
             {[
-              ['听满 ' + MIN_PLAYS_FOR_ISSUE + ' 首', '这一期就会自动成刊'],
-              ['去音乐库随便放一张', '排行和画像都从这里开始长'],
-              ['不喜欢的随手关掉', '统计页的口味画像里可以改'],
-            ].map(([title, desc], index) => (
-              <li key={title} className="flex gap-3.5">
+              {
+                id: 'threshold',
+                title: t('issue.zero.stepThreshold', { count: MIN_PLAYS_FOR_ISSUE }),
+                desc: t('issue.zero.stepThresholdDesc'),
+              },
+              {
+                id: 'library',
+                title: t('issue.zero.stepLibrary'),
+                desc: t('issue.zero.stepLibraryDesc'),
+              },
+              {
+                id: 'taste',
+                title: t('issue.zero.stepTaste'),
+                desc: t('issue.zero.stepTasteDesc'),
+              },
+            ].map((step, index) => (
+              <li key={step.id} className="flex gap-3.5">
                 <span className="font-num flex-none text-[11px] text-ink-faint">
                   {String(index + 1).padStart(2, '0')}
                 </span>
                 <span className="min-w-0">
                   <span className="block font-serif text-[15px] font-semibold">
-                    {spaceCJK(title)}
+                    {spaceCJK(step.title)}
                   </span>
                   <span className="mt-0.5 block text-[12px] text-ink-faint">
-                    {spaceCJK(desc)}
+                    {spaceCJK(step.desc)}
                   </span>
                 </span>
               </li>
@@ -319,12 +321,12 @@ function IssueZero({ plays, onStart }: { plays: number; onStart: () => void }) {
             className="mt-7 inline-flex items-center gap-2 border-b border-ink pb-1.5 text-sm font-semibold tracking-[0.12em] transition-colors hover:border-primary hover:text-primary"
           >
             <Play size={12} weight="fill" />
-            去音乐库
+            {t('issue.zero.goToLibrary')}
           </button>
 
           {plays > 0 && (
             <p className="font-num mt-5 text-[11px] text-ink-faint">
-              本期已有 {plays} / {MIN_PLAYS_FOR_ISSUE} 次有效收听
+              {t('issue.zero.progress', { plays, total: MIN_PLAYS_FOR_ISSUE })}
             </p>
           )}
         </aside>

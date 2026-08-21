@@ -14,6 +14,7 @@ import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
 import { isNativePlatform } from '@/lib/platform'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 /** 主控制轻触感（仅原生壳） */
 function lightImpact() {
@@ -37,6 +38,7 @@ const ProgressLine = memo(function ProgressLine() {
 })
 
 export function MiniPlayer() {
+  const { t } = useT()
   const currentSong = usePlayerStore(s => s.currentSong)
   const isPlaying = usePlayerStore(s => s.isPlaying)
   const isQueueOpen = usePlayerStore(s => s.isQueueOpen)
@@ -58,7 +60,7 @@ export function MiniPlayer() {
         <button
           onClick={toggleFullscreen}
           className="flex items-center gap-3 min-w-0 flex-1 text-left"
-          aria-label="打开正在播放"
+          aria-label={t('player.openNowPlaying')}
         >
           <span className="w-10 h-10 rounded-sm overflow-hidden ring-1 ring-border flex-shrink-0">
             <ImageWithFallback
@@ -89,7 +91,7 @@ export function MiniPlayer() {
         <button
           onClick={() => { lightImpact(); togglePlay() }}
           className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform duration-150 flex-shrink-0"
-          aria-label={isPlaying ? '暂停' : '播放'}
+          aria-label={t(isPlaying ? 'player.pause' : 'player.play')}
         >
           {isPlaying ? (
             <Pause size={16} weight="fill" />
@@ -101,7 +103,7 @@ export function MiniPlayer() {
         <button
           onClick={() => { lightImpact(); next() }}
           className="w-9 h-9 rounded-full flex items-center justify-center text-ink-soft active:text-primary active:scale-95 transition-all duration-150 flex-shrink-0"
-          aria-label="下一首"
+          aria-label={t('player.next')}
         >
           <SkipForward size={20} weight="fill" />
         </button>
@@ -112,7 +114,7 @@ export function MiniPlayer() {
             'w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all duration-150 flex-shrink-0',
             isQueueOpen ? 'text-primary' : 'text-ink-soft active:text-primary'
           )}
-          aria-label="播放队列"
+          aria-label={t('player.queue')}
         >
           <Queue size={20} />
         </button>

@@ -10,6 +10,7 @@ import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
 import { playAllInOrder, shuffleWholeLibrary } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 type LibraryTab = 'songs' | 'albums' | 'artists' | 'playlists'
 type ViewMode = 'grid' | 'list'
@@ -34,6 +35,7 @@ function SkeletonRows({ count, cover }: { count: number; cover: boolean }) {
 }
 
 export default function Library() {
+  const { t } = useT()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<LibraryTab>('songs')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
@@ -75,10 +77,10 @@ export default function Library() {
   const albumCountText = albumsTotal != null ? String(albumsTotal) : `${albums.length}${hasNextAlbums ? '+' : ''}`
 
   const tabs: { id: LibraryTab; label: string }[] = [
-    { id: 'songs', label: '歌曲' },
-    { id: 'albums', label: '专辑' },
-    { id: 'artists', label: '歌手' },
-    { id: 'playlists', label: '歌单' },
+    { id: 'songs', label: t('library.songs') },
+    { id: 'albums', label: t('library.albums') },
+    { id: 'artists', label: t('nav.artists') },
+    { id: 'playlists', label: t('nav.playlists') },
   ]
 
   return (
@@ -86,9 +88,13 @@ export default function Library() {
       {/* 页头：衬线标题 + mono 计数；右侧细线小图标键切换视图 */}
       <div className="flex items-end justify-between gap-6">
         <div className="min-w-0">
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">音乐库</h1>
-          <p className="text-sm text-ink-soft mt-1.5">
-            <span className="num">{songCountText}</span> 首歌曲 · <span className="num">{albumCountText}</span> 张专辑 · <span className="num">{(artists ?? []).length}</span> 位歌手
+          <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('nav.library')}</h1>
+          <p className="num text-sm text-ink-soft mt-1.5">
+            {t('library.counts', {
+              songs: songCountText,
+              albums: albumCountText,
+              artists: (artists ?? []).length,
+            })}
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -100,7 +106,7 @@ export default function Library() {
                 ? 'border-primary text-primary'
                 : 'border-transparent text-ink-soft hover:border-hair hover:text-ink'
             )}
-            aria-label="网格视图"
+            aria-label={t('library.gridView')}
           >
             <SquaresFour size={16} />
           </button>
@@ -112,7 +118,7 @@ export default function Library() {
                 ? 'border-primary text-primary'
                 : 'border-transparent text-ink-soft hover:border-hair hover:text-ink'
             )}
-            aria-label="列表视图"
+            aria-label={t('library.listView')}
           >
             <List size={16} />
           </button>
@@ -146,8 +152,8 @@ export default function Library() {
             {!songsLoading && songs.length > 0 && (
               <div className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
                 <div className="flex items-baseline gap-3">
-                  <h2 className="font-serif text-xl font-bold text-ink">全部歌曲</h2>
-                  <span className="num text-xs text-ink-faint">已加载 {songs.length} 首</span>
+                  <h2 className="font-serif text-xl font-bold text-ink">{t('library.allSongs')}</h2>
+                  <span className="num text-xs text-ink-faint">{t('library.loaded', { count: songs.length })}</span>
                 </div>
                 <div className="flex items-center gap-6">
                   {/* 主操作：纯文字 ▶ + 发丝下划线，hover 变 accent（DESIGN §4.1） */}
@@ -156,7 +162,7 @@ export default function Library() {
                     className="inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
                   >
                     <Play size={13} weight="fill" />
-                    播放全部
+                    {t('player.playAll')}
                   </button>
                   {/* 次操作：细线小钮，hover 边框变 ink（DESIGN §4.1） */}
                   {/*
@@ -170,7 +176,7 @@ export default function Library() {
                     className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97] disabled:opacity-50"
                   >
                     <Shuffle size={14} className={shufflingAll ? 'animate-spin' : undefined} />
-                    {shufflingAll ? '抽取中' : '全库随机'}
+                    {shufflingAll ? t('library.shuffling') : t('player.shuffleAll')}
                   </button>
                 </div>
               </div>
@@ -187,7 +193,7 @@ export default function Library() {
                       onClick={() => fetchNextPage()}
                       className="inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
                     >
-                      加载更多歌曲
+                      {t('library.loadMoreSongs')}
                     </button>
                   </div>
                 )}
@@ -227,7 +233,7 @@ export default function Library() {
                     </div>
                     <div className="num flex-shrink-0 text-xs text-ink-faint">
                       {album.year && <span>{album.year}</span>}
-                      {album.songCount != null && <span className="ml-3">{album.songCount} 首</span>}
+                      {album.songCount != null && <span className="ml-3">{t('song.count', { count: album.songCount })}</span>}
                     </div>
                   </div>
                 ))}
@@ -250,7 +256,7 @@ export default function Library() {
                   onClick={() => fetchNextAlbums()}
                   className="inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
                 >
-                  加载更多专辑
+                  {t('library.loadMoreAlbums')}
                 </button>
               </div>
             )}
@@ -289,7 +295,7 @@ export default function Library() {
                   <div className="flex-1 min-w-0">
                     <p className="font-serif text-[15px] font-semibold truncate transition-colors group-hover:text-primary">{spaceCJK(artist.name)}</p>
                     {artist.albumCount != null && (
-                      <p className="text-xs text-ink-soft mt-0.5"><span className="num">{artist.albumCount}</span> 张专辑</p>
+                      <p className="num text-xs text-ink-soft mt-0.5">{t('album.count', { count: artist.albumCount })}</p>
                     )}
                   </div>
                 </div>

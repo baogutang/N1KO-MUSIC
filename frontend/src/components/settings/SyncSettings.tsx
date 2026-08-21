@@ -14,23 +14,29 @@ import { toast } from '@/components/ui/use-toast'
 import { Row, Section, SubHead, Toggle, hairInputClass } from '@/components/settings/primitives'
 import { useSyncStore, syncStatus } from '@/store/syncStore'
 import { enqueueLocalBacklog, pullRemoteHistory } from '@/services/historySync'
+import { t as translate, useT } from '@/i18n'
 import { cn } from '@/lib/utils'
 
-const STATUS_TEXT: Record<ReturnType<typeof syncStatus>, string> = {
-  disabled: '已关闭',
-  unconfigured: '未填写服务地址',
-  'signed-out': '未登录',
-  connected: '已连接',
-  error: '异常',
+const STATUS_KEY: Record<ReturnType<typeof syncStatus>, string> = {
+  disabled: 'sync.status.disabled',
+  unconfigured: 'sync.status.unconfigured',
+  'signed-out': 'sync.status.signedOut',
+  connected: 'sync.status.connected',
+  error: 'sync.status.error',
 }
 
 function formatSyncedAt(timestamp: number | null): string {
-  if (!timestamp) return '尚未同步'
+  if (!timestamp) return translate('sync.neverSynced')
   const date = new Date(timestamp)
-  return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  return translate('sync.syncedAt', {
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+    time: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
+  })
 }
 
 export function SyncSettings() {
+  const { t } = useT()
   const {
     enabled, baseUrl, token, username, lastError, lastSyncedAt, busy,
     setEnabled, setBaseUrl, testConnection, signIn, signUp, signOut,
@@ -53,8 +59,8 @@ export function SyncSettings() {
     setBaseUrl(draftUrl)
     const ok = await testConnection()
     toast(ok
-      ? { title: '同步服务可用' }
-      : { title: '连接失败', description: '请确认地址可访问且已启动后端', variant: 'destructive' })
+      ? { title: t('sync.testOk') }
+      : { title: t('sync.testFailed'), description: t('sync.testFailedDesc'), variant: 'destructive' })
   }
 
   const handleAuth = async (mode: 'in' | 'up') => {
@@ -68,8 +74,8 @@ export function SyncSettings() {
     const queued = enqueueLocalBacklog()
     const imported = await pullRemoteHistory()
     toast({
-      title: mode === 'in' ? '已登录同步服务' : '同步账号已创建',
-      description: `本机 ${queued} 条待上传，已从云端合并 ${imported} 条`,
+      title: mode === 'in' ? t('sync.signedIn') : t('sync.accountCreated'),
+      description: t('sync.authSummary', { queued, imported }),
     })
   }
 
@@ -78,25 +84,29 @@ export function SyncSettings() {
     const imported = await pullRemoteHistory()
     setPulling(false)
     toast({
-      title: '同步完成',
-      description: imported > 0 ? `合并了 ${imported} 条云端记录` : '云端没有更新的记录',
+      title: t('sync.pullDone'),
+      description: imported > 0
+        ? t('sync.pullMerged', { count: imported })
+        : t('sync.pullNothing'),
     })
   }
 
   return (
-    <Section title="跨设备同步" tag="SYNC">
+    <Section title={t('sync.title')} tag="SYNC">
       <Row
-        name="启用同步"
-        desc="把收听历史镜像到自建的 N1KO 后端，换设备后推荐画像不用从零开始"
+        name={t('sync.enable')}
+        desc={t('sync.enableDesc')}
       >
-        <Toggle checked={enabled} onChange={setEnabled} label="启用跨设备同步" />
+        <Toggle checked={enabled} onChange={setEnabled} label={t('sync.toggleLabel')} />
       </Row>
 
       {enabled && (
         <>
           <Row
-            name="连接状态"
-            desc={signedIn ? `账号 ${username ?? ''} · 上次同步 ${formatSyncedAt(lastSyncedAt)}` : undefined}
+            name={t('sync.connection')}
+            desc={signedIn
+              ? t('sync.accountLine', { name: username ?? '', time: formatSyncedAt(lastSyncedAt) })
+              : undefined}
           >
             <span
               className={cn(
@@ -107,13 +117,13 @@ export function SyncSettings() {
               {status === 'connected'
                 ? <CloudCheck className="h-4 w-4" />
                 : <CloudSlash className="h-4 w-4" />}
-              {STATUS_TEXT[status]}
+              {t(STATUS_KEY[status])}
             </span>
           </Row>
 
           <div className="border-b border-hair-soft py-4">
             <div className="flex items-center gap-4">
-              <p className="w-20 flex-shrink-0 text-sm font-medium">服务地址</p>
+              <p className="w-20 flex-shrink-0 text-sm font-medium">{t('sync.serverUrl')}</p>
               <Input
                 type="url"
                 value={draftUrl}
@@ -124,39 +134,39 @@ export function SyncSettings() {
               />
               <Button variant="ghost" onClick={handleTest} disabled={busy} className="flex-shrink-0 gap-1.5 px-0">
                 {busy ? <ArrowsClockwise className="h-4 w-4 animate-spin" /> : null}
-                测试
+                {t('sync.test')}
               </Button>
             </div>
             <p className="mt-2 pl-24 text-xs text-ink-faint">
-              自建后端的地址，需自行部署 backend/ 后填写；留空则不同步。
+              {t('sync.serverUrlHint')}
             </p>
           </div>
 
           {signedIn ? (
             <>
-              <Row name="手动同步" desc="立即从云端拉取其他设备写入的记录">
+              <Row name={t('sync.manual')} desc={t('sync.manualDesc')}>
                 <Button variant="ghost" onClick={handlePull} disabled={pulling} className="gap-1.5 px-0">
                   {pulling ? <ArrowsClockwise className="h-4 w-4 animate-spin" /> : null}
-                  {pulling ? '同步中…' : '立即同步'}
+                  {pulling ? t('sync.syncing') : t('sync.syncNow')}
                 </Button>
               </Row>
-              <Row name="退出同步账号" desc="本地历史不会被删除，只是停止上传与下载">
+              <Row name={t('sync.signOut')} desc={t('sync.signOutDesc')}>
                 <Button
                   variant="ghost"
-                  onClick={() => { signOut(); toast({ title: '已退出同步账号' }) }}
+                  onClick={() => { signOut(); toast({ title: t('sync.signedOut') }) }}
                   className="gap-1.5 px-0 text-destructive hover:text-destructive"
                 >
-                  退出
+                  {t('sync.signOutAction')}
                 </Button>
               </Row>
             </>
           ) : (
             <>
-              <SubHead title="登录同步账号" />
+              <SubHead title={t('sync.signInHead')} />
               <div className="border-b border-hair-soft py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-1.5 block text-[11px] tracking-[0.2em] text-ink-faint">用户名</label>
+                    <label className="mb-1.5 block text-[11px] tracking-[0.2em] text-ink-faint">{t('login.username')}</label>
                     <Input
                       type="text"
                       value={account}
@@ -166,7 +176,7 @@ export function SyncSettings() {
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[11px] tracking-[0.2em] text-ink-faint">密码</label>
+                    <label className="mb-1.5 block text-[11px] tracking-[0.2em] text-ink-faint">{t('login.password')}</label>
                     <Input
                       type="password"
                       value={password}
@@ -183,7 +193,7 @@ export function SyncSettings() {
                     className="gap-1.5 px-0"
                   >
                     {busy ? <ArrowsClockwise className="h-4 w-4 animate-spin" /> : null}
-                    登录
+                    {t('login.signIn')}
                   </Button>
                   <Button
                     variant="ghost"
@@ -191,10 +201,10 @@ export function SyncSettings() {
                     disabled={busy || !account.trim() || password.length < 8}
                     className="gap-1.5 px-0"
                   >
-                    注册新账号
+                    {t('login.signUp')}
                   </Button>
                 </div>
-                <p className="mt-2 text-xs text-ink-faint">注册密码至少 8 位。</p>
+                <p className="mt-2 text-xs text-ink-faint">{t('sync.passwordHint')}</p>
               </div>
             </>
           )}

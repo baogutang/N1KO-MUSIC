@@ -21,6 +21,7 @@ import {
   Queue, FileText
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/i18n'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
 import { useThemeStore } from '@/store/themeStore'
 import { useIsMobileLayout } from '@/lib/platform'
@@ -67,6 +68,7 @@ const whoLinkCls = cn(
  * 双层进度条：发丝层=缓冲进度，朱红层=播放进度（demo .playing-progress）
  */
 const FSProgressBar = memo(function FSProgressBar() {
+  const { t } = useT()
   const currentTime = usePlayerStore(s => s.currentTime)
   const duration = usePlayerStore(s => s.duration)
   const buffered = usePlayerStore(s => s.buffered)
@@ -171,7 +173,7 @@ const FSProgressBar = memo(function FSProgressBar() {
         onKeyDown={handleKeyDown}
         role="slider"
         tabIndex={0}
-        aria-label="播放进度"
+        aria-label={t('player.progress')}
         aria-valuemin={0}
         aria-valuemax={Math.round(safeDuration)}
         aria-valuenow={Math.round(displayTime)}
@@ -204,6 +206,7 @@ const FSProgressBar = memo(function FSProgressBar() {
 
 export function FullscreenPlayer() {
   const navigate = useNavigate()
+  const { t } = useT()
 
   // 细粒度 selector：不订阅 currentTime / duration（由子组件处理）
   const currentSong     = usePlayerStore(s => s.currentSong)
@@ -319,7 +322,9 @@ export function FullscreenPlayer() {
 
   if (!currentSong) return null
 
-  const repeatLabel = repeatMode === 'one' ? '单曲循环' : repeatMode === 'all' ? '列表循环' : '不循环'
+  const repeatLabel = repeatMode === 'one'
+    ? t('player.repeatOne')
+    : repeatMode === 'all' ? t('player.repeatAll') : t('player.repeatOff')
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-paper text-ink">
@@ -352,11 +357,11 @@ export function FullscreenPlayer() {
               <CaretDown size={18} />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">收起播放器</TooltipContent>
+          <TooltipContent side="bottom">{t('player.collapse')}</TooltipContent>
         </Tooltip>
 
         <div className="text-center min-w-0 px-4">
-          <p className="text-[11px] tracking-[0.3em] text-ink-faint">正在播放</p>
+          <p className="text-[11px] tracking-[0.3em] text-ink-faint">{t('player.nowPlaying')}</p>
           <p className="font-serif text-[13.5px] font-semibold mt-1 truncate max-w-md mx-auto text-ink">
             {currentSong.title}
           </p>
@@ -377,13 +382,13 @@ export function FullscreenPlayer() {
             {currentSong.artistId && (
               <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2 cursor-pointer">
                 <MicrophoneStage size={16} />
-                查看歌手：{currentSong.artist}
+                {t('player.viewArtist', { name: currentSong.artist })}
               </DropdownMenuItem>
             )}
             {currentSong.albumId && (
               <DropdownMenuItem onClick={handleNavigateAlbum} className="gap-2 cursor-pointer">
                 <VinylRecord size={16} />
-                查看专辑：{currentSong.album}
+                {t('player.viewAlbum', { name: currentSong.album })}
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
@@ -392,18 +397,18 @@ export function FullscreenPlayer() {
               className="gap-2 cursor-pointer"
             >
               <FileText size={16} />
-              查看歌曲详情
+              {t('player.viewSongDetail')}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => { toggleFullscreen(); setCarMode(true) }}
               className="gap-2 cursor-pointer"
             >
               <SteeringWheel size={16} />
-              车载模式
+              {t('player.carMode')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <div className="px-3 py-2 space-y-1.5">
-              <p className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5">歌曲信息</p>
+              <p className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5">{t('player.songInfo')}</p>
               {currentSong.duration > 0 && (
                 <div className="flex items-center gap-2 text-xs text-ink-soft">
                   <Clock size={12} className="flex-shrink-0" />
@@ -420,7 +425,7 @@ export function FullscreenPlayer() {
               {currentSong.year && (
                 <div className="flex items-center gap-2 text-xs text-ink-soft">
                   <Info size={12} className="flex-shrink-0" />
-                  <span className="num">{currentSong.year} 年</span>
+                  <span className="num">{t('song.year', { year: currentSong.year })}</span>
                   {currentSong.genre && <span className="text-ink-faint">· {currentSong.genre}</span>}
                 </div>
               )}
@@ -448,7 +453,7 @@ export function FullscreenPlayer() {
                     : 'text-ink-soft'
                 )}
               >
-                {view === 'cover' ? '封面' : '歌词'}
+                {view === 'cover' ? t('player.tabCover') : t('player.tabLyrics')}
               </button>
             ))}
           </div>
@@ -506,7 +511,7 @@ export function FullscreenPlayer() {
                 <button
                   onClick={() => setPlaylistDialogOpen(true)}
                   className={cn(lineCircleBtn, 'w-8 h-8')}
-                  aria-label="添加到歌单"
+                  aria-label={t('action.addToPlaylist')}
                 >
                   <Queue size={16} />
                 </button>
@@ -518,7 +523,7 @@ export function FullscreenPlayer() {
                     'w-8 h-8',
                     currentSong.starred && 'text-primary border-primary'
                   )}
-                  aria-label={currentSong.starred ? '取消喜欢' : '加入喜欢'}
+                  aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
                 >
                   <Heart size={16} weight={currentSong.starred ? 'fill' : 'regular'} />
                 </button>
@@ -545,31 +550,31 @@ export function FullscreenPlayer() {
               <button
                 onClick={toggleShuffle}
                 className={cn(lineCircleBtn, 'w-9 h-9', shuffle && 'text-primary border-primary')}
-                aria-label="随机播放"
+                aria-label={t('player.shuffle')}
                 aria-pressed={shuffle}
               >
                 {shuffle ? <Shuffle size={17} /> : <ArrowsDownUp size={17} />}
               </button>
-              <button onClick={handlePrev} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label="上一首">
+              <button onClick={handlePrev} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.previous')}>
                 <SkipBack size={20} />
               </button>
               <button
                 onClick={togglePlay}
                 className="w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform duration-200"
-                aria-label={isPlaying ? '暂停' : '播放'}
+                aria-label={isPlaying ? t('player.pause') : t('player.play')}
               >
                 {isPlaying
                   ? <Pause size={22} weight="fill" />
                   : <Play size={22} weight="fill" className="ml-0.5" />
                 }
               </button>
-              <button onClick={next} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label="下一首">
+              <button onClick={next} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.next')}>
                 <SkipForward size={20} />
               </button>
               <button
                 onClick={cycleRepeatMode}
                 className={cn(lineCircleBtn, 'w-9 h-9', repeatMode !== 'none' && 'text-primary border-primary')}
-                aria-label={`循环：${repeatLabel}`}
+                aria-label={t('player.repeatWithMode', { mode: repeatLabel })}
                 aria-pressed={repeatMode !== 'none'}
               >
                 {repeatMode === 'one' ? <RepeatOnce size={17} /> : <Repeat size={17} />}
@@ -641,7 +646,7 @@ export function FullscreenPlayer() {
                     <Queue size={17} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">添加到歌单</TooltipContent>
+                <TooltipContent side="bottom">{t('action.addToPlaylist')}</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -657,7 +662,7 @@ export function FullscreenPlayer() {
                     <Heart size={17} weight={currentSong.starred ? 'fill' : 'regular'} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">{currentSong.starred ? '取消喜欢' : '加入喜欢'}</TooltipContent>
+                <TooltipContent side="bottom">{currentSong.starred ? t('player.unfavorite') : t('player.favorite')}</TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -676,13 +681,13 @@ export function FullscreenPlayer() {
                     'w-9 h-9',
                     shuffle && 'text-primary border-primary hover:text-primary'
                   )}
-                  aria-label="随机播放"
+                  aria-label={t('player.shuffle')}
                   aria-pressed={shuffle}
                 >
                   {shuffle ? <Shuffle size={17} /> : <ArrowsDownUp size={17} />}
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top">{shuffle ? '随机播放' : '顺序播放'}</TooltipContent>
+              <TooltipContent side="top">{shuffle ? t('player.shuffle') : t('player.inOrder')}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -691,7 +696,7 @@ export function FullscreenPlayer() {
                   <SkipBack size={20} />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top">上一首</TooltipContent>
+              <TooltipContent side="top">{t('player.previous')}</TooltipContent>
             </Tooltip>
 
             <button
@@ -710,7 +715,7 @@ export function FullscreenPlayer() {
                   <SkipForward size={20} />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top">下一首</TooltipContent>
+              <TooltipContent side="top">{t('player.next')}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -748,7 +753,7 @@ export function FullscreenPlayer() {
                         setVolume(v)
                       }}
                       className="h-32"
-                      aria-label="音量"
+                      aria-label={t('player.volume')}
                     />
                     <button
                       onClick={toggleMute}
@@ -773,7 +778,7 @@ export function FullscreenPlayer() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  音量 <span className="num">{Math.round((muted ? 0 : volume) * 100)}%</span>
+                  {t('player.volume')} <span className="num">{Math.round((muted ? 0 : volume) * 100)}%</span>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -783,7 +788,7 @@ export function FullscreenPlayer() {
         {/* 右列：歌词流（上下 22% 渐隐由 LyricDisplay 处理） */}
         <div className="hidden md:flex flex-1 max-w-xl self-stretch min-h-0 flex-col">
           <p className="flex items-center gap-3.5 flex-none pb-2 text-[11px] tracking-[0.34em] text-ink-faint select-none">
-            <span className="whitespace-nowrap">歌词 · LYRICS</span>
+            <span className="whitespace-nowrap">{t('player.lyricsHeading')}</span>
             <span className="flex-1 h-px bg-hair-soft" />
           </p>
           {lyrics ? (
