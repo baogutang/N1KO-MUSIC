@@ -20,6 +20,7 @@ import {
   HistoryPage,
   StatsPage,
   IssuePage,
+  OpenLinkPage,
   SettingsPage,
   RecommendationsPage,
   SongDetailPage,
@@ -96,6 +97,8 @@ export default function App() {
               <Route path="history" element={<HistoryPage />} />
               <Route path="stats" element={<StatsPage />} />
               <Route path="issue" element={<IssuePage />} />
+              {/* 深链接落点：web+n1ko:// 由 PWA 转成这个路径 */}
+              <Route path="open" element={<OpenLinkPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="songs/:id" element={<SongDetailPage />} />
               <Route path="songs/detail" element={<Navigate to="/library" replace />} />

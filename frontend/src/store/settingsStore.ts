@@ -34,6 +34,12 @@ const QUALITY_MAX_BITRATE: Record<AudioQuality, number> = {
 
 export { QUALITY_LABELS, QUALITY_MAX_BITRATE }
 
+/**
+ * 系统通知栏 / 锁屏上那两个可配的按键。
+ * 'track' 上一首下一首，'seek' 快退快进，'both' 两组都放（系统按容量取舍）。
+ */
+export type NotificationActions = 'track' | 'seek' | 'both'
+
 interface SettingsState {
   // --- 自定义 API 全局设置 ---
   /** 优先使用音乐服务接口，只有服务无数据时才从自定义 API 获取 */
@@ -104,6 +110,17 @@ interface SettingsState {
   preloadNext: boolean
   /** 队列播完自动续接相似曲目，而不是直接停 */
   autoContinueQueue: boolean
+  /**
+   * 系统通知 / 锁屏上放哪两个按键。
+   *
+   * 听歌的人要上一首下一首；听有声书和播客的人要快退快进——
+   * 同一块面板服务不了两种需求，所以让用户自己选。
+   */
+  notificationActions: NotificationActions
+  /** 快退快进的步长（秒）*/
+  seekStepSeconds: number
+  /** 耳机断开导致暂停后，重新插回时自动接着放 */
+  resumeAfterInterruption: boolean
 
   // --- Actions ---
   setApiPreferServer: (v: boolean) => void
@@ -132,6 +149,9 @@ interface SettingsState {
   setSmoothTransitions: (v: boolean) => void
   setPreloadNext: (v: boolean) => void
   setAutoContinueQueue: (v: boolean) => void
+  setNotificationActions: (v: NotificationActions) => void
+  setSeekStepSeconds: (v: number) => void
+  setResumeAfterInterruption: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -163,6 +183,9 @@ export const useSettingsStore = create<SettingsState>()(
       smoothTransitions: true,
       preloadNext: true,
       autoContinueQueue: true,
+      notificationActions: 'track',
+      seekStepSeconds: 15,
+      resumeAfterInterruption: true,
 
       // 全局来源优先级同时驱动封面和歌词，避免设置项只被持久化却不产生任何效果。
       // 用户仍可在下方用更细粒度的开关覆盖歌词策略。
@@ -197,6 +220,9 @@ export const useSettingsStore = create<SettingsState>()(
       setSmoothTransitions: (v) => set({ smoothTransitions: v }),
       setPreloadNext: (v) => set({ preloadNext: v }),
       setAutoContinueQueue: (v) => set({ autoContinueQueue: v }),
+      setNotificationActions: (v) => set({ notificationActions: v }),
+      setSeekStepSeconds: (v) => set({ seekStepSeconds: Math.min(120, Math.max(5, Math.round(v))) }),
+      setResumeAfterInterruption: (v) => set({ resumeAfterInterruption: v }),
     }),
     {
       name: STORAGE_KEYS.settingsStore,
@@ -221,6 +247,9 @@ export const useSettingsStore = create<SettingsState>()(
           if (state.smoothTransitions === undefined) state.smoothTransitions = true
           if (state.preloadNext === undefined) state.preloadNext = true
           if (state.autoContinueQueue === undefined) state.autoContinueQueue = true
+          if (state.notificationActions === undefined) state.notificationActions = 'track'
+          if (state.seekStepSeconds === undefined) state.seekStepSeconds = 15
+          if (state.resumeAfterInterruption === undefined) state.resumeAfterInterruption = true
         }
         return state
       },

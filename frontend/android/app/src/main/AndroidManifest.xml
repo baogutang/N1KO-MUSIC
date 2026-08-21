@@ -19,6 +19,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!--
+                n1ko:// 深链接。launchMode 已经是 singleTask，链接会走到
+                已经在跑的实例（onNewIntent），Capacitor 把它转成 appUrlOpen 事件。
+                解析规则见 src/services/deepLink.ts。
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="n1ko" />
+            </intent-filter>
         </activity>
 
         <provider

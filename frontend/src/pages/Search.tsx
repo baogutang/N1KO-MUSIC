@@ -5,7 +5,7 @@
  */
 
 import { Fragment, useState, useCallback, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { SongList } from '@/components/music/SongList'
@@ -13,9 +13,21 @@ import { useSearch } from '@/hooks/useServerQueries'
 
 export default function SearchPage() {
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
+  /**
+   * `?q=` 是这一页的入口参数：命令面板、深链接（n1ko://search?q=…）、
+   * 以及用户直接分享出去的一条搜索链接，都从这里进来。
+   * 只作为**初值**读一次——之后输入框自己说了算，不然每敲一个字都要改地址栏。
+   */
+  const [params] = useSearchParams()
+  const [query, setQuery] = useState(() => params.get('q') ?? '')
+  const [debouncedQuery, setDebouncedQuery] = useState(() => params.get('q') ?? '')
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
+
+  // 带着新的 q 再次进入本页（组件没卸载，比如从深链接跳过来）时同步一次
+  const urlQuery = params.get('q') ?? ''
+  useEffect(() => {
+    if (urlQuery) setQuery(urlQuery)
+  }, [urlQuery])
 
   // 300ms debounce：减少打字过程中的无效请求
   useEffect(() => {

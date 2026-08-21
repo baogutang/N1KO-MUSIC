@@ -30,6 +30,13 @@
       "dangerousDisableAssetCspModification": false
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["n1ko"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["dmg", "app", "nsis", "msi", "deb", "rpm", "appimage"],

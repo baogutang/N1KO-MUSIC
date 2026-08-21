@@ -24,6 +24,14 @@ export default defineConfig(({ mode }) => ({
               theme_color: '#f4efe3',
               background_color: '#f4efe3',
               display: 'standalone',
+              /**
+               * 浏览器里没有自定义协议，但 PWA 可以登记为 web+n1ko 的处理器。
+               * 装成 PWA 之后，系统上的 web+n1ko:// 链接就会落到 /open?url=…，
+               * 由 OpenLink 页解析并跳转——和原生壳的 n1ko:// 走同一套解析。
+               */
+              protocol_handlers: [
+                { protocol: 'web+n1ko', url: '/open?url=%s' },
+              ],
               icons: [
                 {
                   src: 'pwa-192x192.png',

@@ -19,6 +19,8 @@ import { useQueueSync } from '@/hooks/useQueueSync'
 import { useRadioRefill } from '@/hooks/useRadioRefill'
 import { useLongTrackBookmark } from '@/hooks/useLongTrackBookmark'
 import { useDirectScrobble } from '@/hooks/useDirectScrobble'
+import { useAudioInterruptions } from '@/hooks/useAudioInterruptions'
+import { useDeepLinks } from '@/hooks/useDeepLinks'
 import { useScrollMemory } from '@/hooks/useScrollMemory'
 import { useIsMobileLayout } from '@/lib/platform'
 import { Toaster } from '@/components/ui/toaster'
@@ -42,6 +44,8 @@ export default function MainLayout() {
   useRadioRefill()
   useLongTrackBookmark()
   useDirectScrobble()
+  useAudioInterruptions()
+  useDeepLinks()
 
   return (
     <>

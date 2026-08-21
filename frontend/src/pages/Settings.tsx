@@ -194,6 +194,7 @@ export default function Settings() {
     audioQuality, cellularAudioQuality, adaptiveQuality,
     replayGainMode, replayGainPreamp,
     playbackRate, smoothTransitions, preloadNext, autoContinueQueue,
+    notificationActions, seekStepSeconds, resumeAfterInterruption,
     setApiPreferServer, setApiAuthToken,
     setCoverRemoteTemplate, setCoverLoadAlbum, setCoverLoadArtist, setCoverShape,
     setLyricsRemoteTemplate, setLyricsConfirmTemplate, setLyricsUseRemote, setLyricsPreferRemote, setLyricsFontSize,
@@ -202,6 +203,7 @@ export default function Settings() {
     setAudioQuality, setCellularAudioQuality, setAdaptiveQuality,
     setReplayGainMode, setReplayGainPreamp,
     setPlaybackRate, setSmoothTransitions, setPreloadNext, setAutoContinueQueue,
+    setNotificationActions, setSeekStepSeconds, setResumeAfterInterruption,
   } = useSettingsStore()
   const [pinging, setPinging] = useState<string | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
@@ -571,6 +573,46 @@ export default function Settings() {
             <Toggle checked={autoContinueQueue} onChange={setAutoContinueQueue} label="队列播完自动续接" />
           </Row>
 
+          <Row
+            name="通知栏按键"
+            desc="锁屏与系统媒体面板上放哪两个键。听歌要上一首下一首，听有声书要快退快进——同一块面板服务不了两种需求"
+          >
+            <Segmented
+              label="通知栏按键"
+              value={notificationActions}
+              onChange={setNotificationActions}
+              options={[
+                { value: 'track', label: '切歌' },
+                { value: 'seek', label: '快退快进' },
+                { value: 'both', label: '都放' },
+              ]}
+            />
+          </Row>
+          {notificationActions !== 'track' && (
+            <Row name="快退快进步长" desc="锁屏上那两个键一次跳多少秒">
+              <div className="flex items-center gap-3">
+                <Slider
+                  value={[seekStepSeconds]}
+                  min={5}
+                  max={60}
+                  step={5}
+                  onValueChange={([v]) => setSeekStepSeconds(v)}
+                  className="w-[140px]"
+                />
+                <span className="font-num w-10 text-right text-sm">{seekStepSeconds}s</span>
+              </div>
+            </Row>
+          )}
+          <Row
+            name="耳机断开后自动恢复"
+            desc="拔掉耳机会立刻暂停（不然声音会甩到外放）；一分钟内插回来时接着放"
+          >
+            <Toggle
+              checked={resumeAfterInterruption}
+              onChange={setResumeAfterInterruption}
+              label="耳机断开后自动恢复"
+            />
+          </Row>
           <Row name="平滑过渡" desc="暂停与切歌时做短暂渐弱，而不是硬切">
             <Toggle checked={smoothTransitions} onChange={setSmoothTransitions} label="平滑过渡" />
           </Row>
