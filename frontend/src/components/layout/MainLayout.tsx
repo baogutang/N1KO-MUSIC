@@ -22,6 +22,7 @@ import { useLongTrackBookmark } from '@/hooks/useLongTrackBookmark'
 import { useDirectScrobble } from '@/hooks/useDirectScrobble'
 import { useAudioInterruptions } from '@/hooks/useAudioInterruptions'
 import { useDeepLinks } from '@/hooks/useDeepLinks'
+import { useOfflineLibraryCache } from '@/hooks/useOfflineLibraryCache'
 import { useScrollMemory } from '@/hooks/useScrollMemory'
 import { useIsMobileLayout } from '@/lib/platform'
 import { Toaster } from '@/components/ui/toaster'
@@ -47,6 +48,7 @@ export default function MainLayout() {
   useDirectScrobble()
   useAudioInterruptions()
   useDeepLinks()
+  useOfflineLibraryCache()
 
   return (
     <>
