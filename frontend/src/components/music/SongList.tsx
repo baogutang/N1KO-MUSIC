@@ -38,7 +38,9 @@ import { ShareDialog } from '@/components/music/ShareDialog'
 import { StarRating } from '@/components/music/StarRating'
 import { startRadio } from '@/services/radio'
 import { toast } from '@/components/ui/use-toast'
-import { playNextInQueue, playListFrom } from '@/utils/playActions'
+import { playAllInOrder, playNextInQueue, playListFrom } from '@/utils/playActions'
+import { useListSelection } from '@/hooks/useListSelection'
+import { SelectionBar, type SelectionBarAction } from '@/components/music/SelectionBar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +49,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { Song } from '@/api/types'
+
+/**
+ * 选择集的键。
+ * 用 id + 下标而不是单独的 id：同一首歌在一个歌单里出现两次是合法的，
+ * 只按 id 存会把两行绑在一起，选一行另一行也亮。
+ */
+function songIdentity(song: Song, index: number): string {
+  return `${song.id}#${index}`
+}
 
 interface SongListProps {
   songs: Song[]
@@ -58,6 +69,8 @@ interface SongListProps {
   showIndex?: boolean
   className?: string
   onPlaylistAdd?: (song: Song) => void
+  /** 关掉多选（队列抽屉这类自身已有拖拽语义的列表用得上） */
+  selectable?: boolean
 }
 
 export function SongList({
@@ -67,6 +80,7 @@ export function SongList({
   showIndex = true,
   className,
   onPlaylistAdd,
+  selectable = true,
 }: SongListProps) {
   // 只订阅 id 和 isPlaying，不订阅 currentTime，避免高频重渲染
   const currentSongId = usePlayerStore(s => s.currentSong?.id)
@@ -117,6 +131,85 @@ export function SongList({
     toggleStarRef.current.mutate({ id: song.id, type: 'song', isStarred: !nextStarred, song })
   }, [])
 
+  // ── 多选 ─────────────────────────────────────────────
+  const selection = useListSelection(songs, songIdentity)
+  const selectionRef = React.useRef(selection)
+  selectionRef.current = selection
+
+  // 选择态下点击行只勾选，不播放；非选择态时 handleClick 返回 false，照常播放
+  const handleRowClick = useCallback((index: number, event: React.MouseEvent) => {
+    if (!selectable) return false
+    return selectionRef.current.handleClick(index, event)
+  }, [selectable])
+
+  const handleRowLongPress = useCallback((index: number) => {
+    if (selectable) selectionRef.current.beginAt(index)
+  }, [selectable])
+
+  // songs 变了（切页、加载更多、换服务器）就把选择清掉，
+  // 否则选择条会显示一个用户看不见的旧选区。
+  // 签名只取长度和首尾 id：调用方多是 flatMap 出来的新数组，逐项拼串会在
+  // 上万首的库上每次渲染都白跑一遍，而这三个值已经能覆盖换页/换库/加载更多。
+  const songsIdentity = `${songs.length}:${songs[0]?.id ?? ''}:${songs[songs.length - 1]?.id ?? ''}`
+  const clearSelection = selection.clear
+  useEffect(() => { clearSelection() }, [songsIdentity, clearSelection])
+
+  // Esc 退出选择态
+  useEffect(() => {
+    if (!selection.active) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') clearSelection() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selection.active, clearSelection])
+
+  const [batchPlaylistSongs, setBatchPlaylistSongs] = React.useState<Song[] | null>(null)
+
+  // 解构出稳定引用喂给 renderRow：整个 selection 对象每次选中都换新，
+  // 直接依赖它等于每次都重建 renderRow，把 SongRow 的 memo 全部作废。
+  const { isSelected, active: selectionActive } = selection
+
+  const selectionActions: SelectionBarAction[] = useMemo(() => {
+    const picked = () => selectionRef.current.selectedItems()
+    return [
+      {
+        key: 'play', label: '播放', icon: 'play',
+        onClick: () => { const list = picked(); if (list.length) { playAllInOrder(list); clearSelection() } },
+      },
+      {
+        key: 'next', label: '下一首播放', icon: 'next',
+        onClick: () => {
+          const list = picked()
+          if (!list.length) return
+          playNextInQueue(list)
+          toast({ title: `已插入 ${list.length} 首到下一首` })
+          clearSelection()
+        },
+      },
+      {
+        key: 'playlist', label: '加入歌单', icon: 'playlist',
+        onClick: () => { const list = picked(); if (list.length) setBatchPlaylistSongs(list) },
+      },
+      {
+        key: 'star', label: '收藏', icon: 'star',
+        onClick: () => {
+          const list = picked().filter(song => !song.starred)
+          if (!list.length) {
+            toast({ title: '选中的歌曲都已收藏' })
+            return
+          }
+          for (const song of list) {
+            toggleStarRef.current.mutate({ id: song.id, type: 'song', isStarred: false, song })
+          }
+          clearSelection()
+        },
+      },
+      {
+        key: 'all', label: '全选', icon: 'all',
+        onClick: () => selectionRef.current.selectAll(),
+      },
+    ]
+  }, [clearSelection])
+
   const renderRow = useCallback((song: Song, index: number) => (
     <SongRow
       key={song.id + '-' + index}
@@ -133,10 +226,15 @@ export function SongList({
       onShare={caps.shares ? handleShare : undefined}
       onRadio={caps.radio ? handleRadio : undefined}
       canRate={caps.rating}
+      selected={isSelected(songIdentity(song, index))}
+      selectionActive={selectionActive}
+      onRowClick={selectable ? handleRowClick : undefined}
+      onLongPress={selectable ? handleRowLongPress : undefined}
     />
   ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, handlePlayIndex,
       handlePlaylistAdd, handleToggleStar, caps.shares, caps.radio, caps.rating,
-      handleShare, handleRadio])
+      handleShare, handleRadio, isSelected, selectionActive, selectable,
+      handleRowClick, handleRowLongPress])
 
   return (
     <>
@@ -147,6 +245,26 @@ export function SongList({
           {songs.map(renderRow)}
         </div>
       )}
+
+      {selectable && (
+        <SelectionBar
+          count={selection.count}
+          total={songs.length}
+          actions={selectionActions}
+          onClear={clearSelection}
+        />
+      )}
+
+      <AddToPlaylistDialog
+        open={batchPlaylistSongs !== null}
+        onOpenChange={open => {
+          if (!open) {
+            setBatchPlaylistSongs(null)
+            clearSelection()
+          }
+        }}
+        songs={batchPlaylistSongs ?? []}
+      />
 
       <AddToPlaylistDialog
         open={playlistAddSong !== null}
@@ -168,6 +286,10 @@ export function SongList({
  * 专辑详情之类的短列表直接实挂更简单，也避免测量带来的首帧抖动。
  */
 const VIRTUALIZE_THRESHOLD = 60
+/** 长按多久算「进入选择态」 */
+const LONG_PRESS_MS = 480
+/** 长按期间允许的手指位移，超过就当成滚动 */
+const LONG_PRESS_SLOP = 10
 /** 行高估计值：40px 封面 + 上下 10px 内边距 + 1px 分隔线 */
 const ESTIMATED_ROW_HEIGHT = 61
 
@@ -309,6 +431,11 @@ interface SongRowProps {
   onShare?: (song: Song) => void
   onRadio?: (song: Song) => void
   canRate?: boolean
+  selected?: boolean
+  selectionActive?: boolean
+  /** 返回 true 表示这次点击被选择逻辑吃掉了，不要播放 */
+  onRowClick?: (index: number, event: React.MouseEvent) => boolean
+  onLongPress?: (index: number) => void
 }
 
 // React.memo：只有 props 变化时才重渲染，播放进度更新不会触发歌曲行重渲染
@@ -326,6 +453,10 @@ const SongRow = React.memo(function SongRow({
   onShare,
   onRadio,
   canRate,
+  selected,
+  selectionActive,
+  onRowClick,
+  onLongPress,
 }: SongRowProps) {
   // 收藏状态直接读缓存里的这一条：mutation 的 onMutate 会同步就地改写缓存，
   // 视觉反馈依然是即时的，而且失败回滚也走同一条通路，不会出现两套真相。
@@ -339,6 +470,45 @@ const SongRow = React.memo(function SongRow({
 
   // 稳定的 handlePlay，只依赖 index 和 onPlayIndex（均为稳定引用）
   const handlePlay = useCallback(() => onPlayIndex(index), [onPlayIndex, index])
+
+  /**
+   * 行点击：先给多选一次机会。⌘/Ctrl 点选、Shift 连选、以及已经在选择态时的
+   * 普通点击都由它吃掉；其余情况照旧播放。
+   */
+  const handleRowClick = useCallback((e: React.MouseEvent) => {
+    if (onRowClick?.(index, e)) return
+    handlePlay()
+  }, [onRowClick, index, handlePlay])
+
+  /**
+   * 长按进入选择态——触摸端没有修饰键，这是唯一的入口。
+   * 手指移动超过 10px 就当成滚动，取消计时。
+   */
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pressOrigin = useRef<{ x: number; y: number } | null>(null)
+  const cancelPress = useCallback(() => {
+    if (pressTimer.current) clearTimeout(pressTimer.current)
+    pressTimer.current = null
+    pressOrigin.current = null
+  }, [])
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!onLongPress) return
+    const touch = e.touches[0]
+    pressOrigin.current = { x: touch.clientX, y: touch.clientY }
+    pressTimer.current = setTimeout(() => {
+      pressTimer.current = null
+      onLongPress(index)
+    }, LONG_PRESS_MS)
+  }, [onLongPress, index])
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const origin = pressOrigin.current
+    if (!origin) return
+    const touch = e.touches[0]
+    if (Math.hypot(touch.clientX - origin.x, touch.clientY - origin.y) > LONG_PRESS_SLOP) {
+      cancelPress()
+    }
+  }, [cancelPress])
+  useEffect(() => cancelPress, [cancelPress])
 
   const handleToggleStar = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -361,7 +531,20 @@ const SongRow = React.memo(function SongRow({
   }
 
   return (
-    <div className="song-row group" onClick={handlePlay}>
+    <div
+      className={cn('song-row group relative', selected && 'bg-paper-deep')}
+      onClick={handleRowClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={cancelPress}
+      onTouchCancel={cancelPress}
+      aria-selected={selectionActive ? !!selected : undefined}
+      data-selected={selected ? '' : undefined}
+    >
+      {/* 选中标记：一道贴边的朱线，不占位、不引入新色 */}
+      {selected && (
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-primary" />
+      )}
       {/* 序号：mono 01–NN；当前播放行变 accent EQ 三竖条；hover 浮现细线圆播放键 */}
       {showIndex && (
         <div className="w-8 flex-shrink-0 relative flex items-center justify-center">
