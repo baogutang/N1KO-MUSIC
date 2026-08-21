@@ -197,6 +197,15 @@ const MAX_RECOVER_SEEK_ATTEMPTS = 12
 /** 错误恢复重载次数 — 模块级，防止 reattach 重建闭包后归零造成无限重载 */
 let recoverAttempts = 0
 
+/**
+ * 当前音频元素的真实播放位置（秒）。
+ * audioEl 是模块级的 new Audio()，从不挂进 DOM，因此 document.querySelector('audio')
+ * 找不到它——需要读取实际位置的调用方必须走这里。
+ */
+export function getAudioCurrentTime(): number {
+  return audioEl.currentTime || 0
+}
+
 /** 从外部 seek（供 PlayerBar / FullscreenPlayer / LyricDisplay 调用）*/
 export function seekHowl(time: number) {
   usePlayerStore.getState().seekTo(time)
@@ -264,7 +273,9 @@ export function useAudioEngine() {
    */
   const targetVolume = useCallback(() => {
     if (mutedRef.current) return 0
-    const base = volumeRef.current
+    // 睡眠定时的收尾渐弱只作用在这里，绝不写回持久化的主音量
+    const fade = usePlayerStore.getState().sleepFadeScalar
+    const base = volumeRef.current * (Number.isFinite(fade) ? fade : 1)
     const { mode, preamp } = gainCtxRef.current
     if (mode === 'off') return base
     // auto 模式判断是否「按顺序放整张专辑」：随机开着就不是
@@ -288,6 +299,13 @@ export function useAudioEngine() {
    */
   const preloadedIdRef = useRef<string | null>(null)
   const rampRef = useRef<number | null>(null)
+  /** 取消在途的音量斜坡，连同它挂着的 onDone 一起作废 */
+  const cancelRamp = useCallback(() => {
+    if (rampRef.current !== null) {
+      cancelAnimationFrame(rampRef.current)
+      rampRef.current = null
+    }
+  }, [])
   const rampVolume = useCallback((to: number, ms: number, onDone?: () => void) => {
     if (rampRef.current !== null) {
       cancelAnimationFrame(rampRef.current)
@@ -1068,7 +1086,13 @@ export function useAudioEngine() {
 
   // --- 播放/暂停控制 ---
   useEffect(() => {
-    if (isPlaying && audioEl.paused) {
+    if (isPlaying) {
+      // 渐弱期间元素还没真正 pause，audioEl.paused 仍是 false。
+      // 若此时用户又按了播放，必须先取消那条待执行的暂停，否则渐弱回调稍后
+      // 仍会把刚恢复的播放停掉——表现为「点了播放没反应」。
+      cancelRamp()
+      audioEl.volume = targetVolume()
+      if (!audioEl.paused) return
       // readyState < 2（HAVE_CURRENT_DATA）说明还没有足够数据，等 canplay 事件
       if (audioEl.readyState < 2) return
       audioEl.play().catch(e => {
@@ -1076,22 +1100,31 @@ export function useAudioEngine() {
           console.warn('[AudioEngine] play rejected:', e.message)
         }
       })
-    } else if (!isPlaying && !audioEl.paused) {
+    } else if (!audioEl.paused) {
       // 在延音上硬停是最「像软件」的一个瞬间，用约 120ms 渐弱收尾
       rampVolume(0, 120, () => {
+        // 渐弱途中状态可能已经翻回播放，此时不能再暂停
+        if (usePlayerStore.getState().isPlaying) {
+          audioEl.volume = targetVolume()
+          return
+        }
         audioEl.pause()
         audioEl.volume = targetVolume()
       })
     }
-  }, [isPlaying, rampVolume, targetVolume])
+  }, [isPlaying, rampVolume, cancelRamp, targetVolume])
 
-  // --- 音量（含 ReplayGain 归一化）---
+  // --- 音量（含 ReplayGain 归一化与睡眠渐弱）---
+  const sleepFadeScalar = usePlayerStore(s => s.sleepFadeScalar)
   useEffect(() => {
     audioEl.volume = targetVolume()
-  }, [volume, muted, replayGainMode, replayGainPreamp, currentSongId, targetVolume])
+  }, [volume, muted, replayGainMode, replayGainPreamp, currentSongId, sleepFadeScalar, targetVolume])
 
   // --- 倍速播放：有声书 / 讲座 / 广播剧 ---
   useEffect(() => {
+    // defaultPlaybackRate 才是 load() 之后被恢复的那个值。只设 playbackRate 的话，
+    // 每次切歌 / 错误重载 / 音质切换都会把速度悄悄打回 1×，设置页却还显示 2×。
+    audioEl.defaultPlaybackRate = playbackRate
     audioEl.playbackRate = playbackRate
     // 变调补偿，避免倍速下变成花栗鼠
     audioEl.preservesPitch = true

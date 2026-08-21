@@ -29,6 +29,21 @@ const QUEUE_PERSIST_LIMIT = 300
 const QUEUE_PERSIST_LOOKBEHIND = 60
 
 /**
+ * 上一次窗口计算的输入与结果。
+ *
+ * persistStorage 靠浅比较跳过无关写入（播放稳态下零序列化、零写入），
+ * 而这个函数每次都会 slice 出新数组，等于让那条快速路径对长队列彻底失效——
+ * 恰恰是它最该保护的场景。输入未变时返回同一批引用即可。
+ */
+let lastWindowInput: {
+  queue: Song[]; queueIndex: number; shuffledIndexes: number[]
+  shuffleCursor: number; shuffle: boolean
+} | null = null
+let lastWindowResult: {
+  queue: Song[]; queueIndex: number; shuffledIndexes: number[]; shuffleCursor: number
+} | null = null
+
+/**
  * 取出可持久化的队列窗口，并把随机顺序一并重映射到窗口内下标。
  * 随机顺序必须跟着裁剪，否则恢复后下标会越界或指向错误曲目。
  */
@@ -43,6 +58,18 @@ function persistableQueueWindow(state: PlayerState): {
     return { queue, queueIndex, shuffledIndexes, shuffleCursor }
   }
 
+  if (
+    lastWindowResult &&
+    lastWindowInput &&
+    lastWindowInput.queue === queue &&
+    lastWindowInput.queueIndex === queueIndex &&
+    lastWindowInput.shuffledIndexes === shuffledIndexes &&
+    lastWindowInput.shuffleCursor === shuffleCursor &&
+    lastWindowInput.shuffle === shuffle
+  ) {
+    return lastWindowResult
+  }
+
   const start = Math.max(
     0,
     Math.min(queueIndex - QUEUE_PERSIST_LOOKBEHIND, queue.length - QUEUE_PERSIST_LIMIT)
@@ -55,12 +82,14 @@ function persistableQueueWindow(state: PlayerState): {
     : sliced.map((_, i) => i)
   const cursor = shuffle ? order.indexOf(nextIndex) : -1
 
-  return {
+  lastWindowInput = { queue, queueIndex, shuffledIndexes, shuffleCursor, shuffle }
+  lastWindowResult = {
     queue: sliced,
     queueIndex: nextIndex,
     shuffledIndexes: order.length === sliced.length ? order : sliced.map((_, i) => i),
     shuffleCursor: order.length === sliced.length ? cursor : -1,
   }
+  return lastWindowResult
 }
 
 /** 切歌防抖：记录上次切歌时间，50ms 内重复调用忽略 */
@@ -107,6 +136,15 @@ interface PlayerState {
   sleepTimerAt: number | null
   /** 'endOfTrack' 表示放完当前这首再停，忽略 sleepTimerAt 的精确时刻 */
   sleepTimerMode: 'duration' | 'endOfTrack'
+  /**
+   * 睡眠定时收尾时的临时衰减系数（0–1）。
+   *
+   * 刻意独立于 volume：渐弱如果直接改主音量，就会被持久化下来——
+   * 定时中途关掉 App，第二天打开音量停在 5%，滑块也显示 5%，
+   * 而且渐弱路径还会顺手清掉 muted，把一个特意静音的播放器轰开。
+   * 这个值不进 partialize，重启即恢复为 1。
+   */
+  sleepFadeScalar: number
 
   playSong: (song: Song, queue?: Song[]) => void
   /**
@@ -171,6 +209,7 @@ export const usePlayerStore = create<PlayerState>()(
       streamBuffering: false,
       sleepTimerAt: null,
       sleepTimerMode: 'duration',
+      sleepFadeScalar: 1,
 
       playSong: (song, queue) => {
         const state = get()
@@ -284,6 +323,12 @@ export const usePlayerStore = create<PlayerState>()(
 
       advanceOnEnded: () => {
         const state = get()
+        // 「这首放完」的睡眠定时只在自然播完这条路径上生效。
+        // 若改成监听曲目变化，用户手动按「下一首」也会被当成播完而静默停止。
+        if (state.sleepTimerAt !== null && state.sleepTimerMode === 'endOfTrack') {
+          set({ isPlaying: false, sleepTimerAt: null, sleepFadeScalar: 1 })
+          return
+        }
         if (state.repeatMode !== 'one') {
           state.next()
           return
@@ -372,15 +417,20 @@ export const usePlayerStore = create<PlayerState>()(
       setRepeatMode: (mode) => set({ repeatMode: mode }),
 
       setSleepTimer: (minutes, mode = 'duration') => {
+        // 任何一次设置/取消都把渐弱系数复位，避免残留的衰减挂在音量上
         if (mode === 'endOfTrack') {
-          set({ sleepTimerAt: Date.now(), sleepTimerMode: 'endOfTrack' })
+          set({ sleepTimerAt: Date.now(), sleepTimerMode: 'endOfTrack', sleepFadeScalar: 1 })
           return
         }
         if (minutes === null || !Number.isFinite(minutes) || minutes <= 0) {
-          set({ sleepTimerAt: null, sleepTimerMode: 'duration' })
+          set({ sleepTimerAt: null, sleepTimerMode: 'duration', sleepFadeScalar: 1 })
           return
         }
-        set({ sleepTimerAt: Date.now() + minutes * 60_000, sleepTimerMode: 'duration' })
+        set({
+          sleepTimerAt: Date.now() + minutes * 60_000,
+          sleepTimerMode: 'duration',
+          sleepFadeScalar: 1,
+        })
       },
 
       toggleShuffle: () => {

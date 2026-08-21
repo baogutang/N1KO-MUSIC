@@ -1,8 +1,11 @@
 /**
  * 睡眠定时。
  *
- * 到点前最后几秒渐弱再暂停，而不是硬切——在延音上突然静音是最刺耳的收尾方式。
- * 定时状态刻意不持久化：重启后残留的过期截止时间会让 App 一打开就暂停。
+ * 到点前最后几秒渐弱再暂停，而不是硬切。渐弱通过 playerStore 上一个
+ * 不持久化的 sleepFadeScalar 生效——绝不能去改主音量：那会被持久化下来，
+ * 第二天打开发现音量停在 5%，而且顺手清掉 muted 会把静音的播放器轰开。
+ *
+ * 定时状态本身也刻意不持久化：重启后残留的过期截止会让 App 一打开就暂停。
  */
 
 import { useEffect } from 'react'
@@ -20,44 +23,32 @@ export function useSleepTimer() {
   useEffect(() => {
     if (sleepTimerAt === null) return
 
-    // 「放完这首再停」由播放结束时判定，不看时刻
-    if (sleepTimerMode === 'endOfTrack') {
-      const unsubscribe = usePlayerStore.subscribe((state, prev) => {
-        // 曲目发生了变化（自然播完进入下一首）就在此刻停下
-        if (state.currentSong?.id !== prev.currentSong?.id) {
-          usePlayerStore.setState({ isPlaying: false, sleepTimerAt: null })
-        }
-      })
-      return unsubscribe
-    }
+    // 「放完这首再停」由 advanceOnEnded 在自然播完时判定（见 playerStore），
+    // 这里不监听曲目变化——那样连用户手动按「下一首」也会被当成播完而停掉。
+    if (sleepTimerMode === 'endOfTrack') return
 
-    let faded = false
     const tick = () => {
       const remaining = sleepTimerAt - Date.now()
       if (remaining <= 0) {
-        const store = usePlayerStore.getState()
-        store.pause()
-        usePlayerStore.setState({ sleepTimerAt: null })
-        // 暂停后把音量还原，否则下次播放是静音的
-        if (faded) store.setVolume(volumeBeforeFade)
+        usePlayerStore.getState().pause()
+        // 复位渐弱系数，否则下次播放会是几乎听不见的音量
+        usePlayerStore.setState({ sleepTimerAt: null, sleepFadeScalar: 1 })
         return
       }
-      if (smooth && !faded && remaining <= FADE_MS) {
-        faded = true
-        volumeBeforeFade = usePlayerStore.getState().volume
-      }
-      if (faded) {
-        const ratio = Math.max(0, Math.min(1, remaining / FADE_MS))
-        usePlayerStore.getState().setVolume(volumeBeforeFade * ratio)
+      if (!smooth) return
+      const scalar = remaining <= FADE_MS ? Math.max(0, remaining / FADE_MS) : 1
+      if (usePlayerStore.getState().sleepFadeScalar !== scalar) {
+        usePlayerStore.setState({ sleepFadeScalar: scalar })
       }
     }
 
-    let volumeBeforeFade = usePlayerStore.getState().volume
-    const timer = setInterval(tick, 500)
+    const timer = setInterval(tick, 250)
     return () => {
       clearInterval(timer)
-      // 定时被取消时把音量还原
-      if (faded) usePlayerStore.getState().setVolume(volumeBeforeFade)
+      // 定时被取消或组件卸载时立刻还原，不留残余衰减
+      if (usePlayerStore.getState().sleepFadeScalar !== 1) {
+        usePlayerStore.setState({ sleepFadeScalar: 1 })
+      }
     }
   }, [sleepTimerAt, sleepTimerMode, smooth])
 }

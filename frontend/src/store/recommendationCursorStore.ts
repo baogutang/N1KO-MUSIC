@@ -19,25 +19,41 @@ import { STORAGE_KEYS } from '@/services/storageKeys'
 interface RecommendationCursorState {
   /** key 形如 `${serverId}:${dayKey}` */
   cursors: Record<string, number>
-  /** 每批展示过的曲目 key，用于「换一批」时排除 */
+  /**
+   * 每批展示过的曲目 key，用于「换一批」时排除。
+   * 按 `${scope}#${batch}` 分桶：排除时只取更早的批次，
+   * 否则 queryFn 一旦重跑（StrictMode、refetch）就会把用户正看着的这批整批排掉。
+   */
   shown: Record<string, string[]>
   getCursor: (scope: string) => number
   advance: (scope: string) => void
-  rememberShown: (scope: string, keys: string[]) => void
-  getShown: (scope: string) => string[]
+  rememberShown: (scope: string, batch: number, keys: string[]) => void
+  /** 取该 scope 下所有早于 batch 的批次展示过的 key */
+  getShownBefore: (scope: string, batch: number) => string[]
 }
 
 /** 只保留最近这么多条已展示记录，避免键无限增长 */
 const MAX_SHOWN_PER_SCOPE = 300
-/** 只保留最近这么多个分桶（跨天/多服务器） */
-const MAX_SCOPES = 8
+/**
+ * 只保留最近这么多个分桶。
+ * 每个「服务器 + 日期」下每按一次换一批就多一个桶，因此这个上限要放宽一些。
+ */
+const MAX_SCOPES = 40
 
-function prune<T>(record: Record<string, T>): Record<string, T> {
+/**
+ * 裁剪到 MAX_SCOPES 个键。
+ *
+ * JS 字符串键按插入顺序遍历，但**已存在的键被重新赋值时位置不变**，
+ * 所以不能简单地认为尾部就是最新的。这里显式保住 keepKey，
+ * 避免刚写进去的当前批次被自己挤掉。
+ */
+function prune<T>(record: Record<string, T>, keepKey?: string): Record<string, T> {
   const keys = Object.keys(record)
   if (keys.length <= MAX_SCOPES) return record
-  const kept = keys.slice(-MAX_SCOPES)
+  const kept = new Set(keys.slice(-MAX_SCOPES))
+  if (keepKey && record[keepKey] !== undefined) kept.add(keepKey)
   const out: Record<string, T> = {}
-  for (const key of kept) out[key] = record[key]
+  for (const key of keys) if (kept.has(key)) out[key] = record[key]
   return out
 }
 
@@ -51,19 +67,31 @@ export const useRecommendationCursorStore = create<RecommendationCursorState>()(
 
       advance: (scope) =>
         set(state => ({
-          cursors: prune({ ...state.cursors, [scope]: (state.cursors[scope] ?? 0) + 1 }),
+          cursors: prune({ ...state.cursors, [scope]: (state.cursors[scope] ?? 0) + 1 }, scope),
         })),
 
-      rememberShown: (scope, keys) =>
+      rememberShown: (scope, batch, keys) =>
         set(state => {
           if (!keys.length) return state
-          const merged = [...(state.shown[scope] ?? []), ...keys]
-          // 去重后保留最近的一段
-          const deduped = Array.from(new Set(merged)).slice(-MAX_SHOWN_PER_SCOPE)
-          return { shown: prune({ ...state.shown, [scope]: deduped }) }
+          const bucket = `${scope}#${batch}`
+          const existing = state.shown[bucket] ?? []
+          // 同一批次重跑时覆盖而不是累加，避免桶无意义地膨胀
+          const deduped = Array.from(new Set(keys)).slice(0, MAX_SHOWN_PER_SCOPE)
+          if (existing.length === deduped.length && existing.every((k, i) => k === deduped[i])) {
+            return state
+          }
+          return { shown: prune({ ...state.shown, [bucket]: deduped }, bucket) }
         }),
 
-      getShown: (scope) => get().shown[scope] ?? [],
+      getShownBefore: (scope, batch) => {
+        const shown = get().shown
+        const out: string[] = []
+        for (let i = 0; i < batch; i++) {
+          const bucket = shown[`${scope}#${i}`]
+          if (bucket) out.push(...bucket)
+        }
+        return out
+      },
     }),
     {
       name: STORAGE_KEYS.recommendationCursor,

@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
 import { getAdapter, hasAdapter } from '@/api'
+import { getAudioCurrentTime, seekHowl } from '@/hooks/useAudioEngine'
 import type { Song } from '@/api/types'
 
 /** 写入节流：切歌/暂停都写会打爆服务器，10 秒一次足够 */
@@ -35,6 +36,18 @@ export function useQueueSync() {
   const isConnected = useServerStore(s => s.isConnected)
   const lastSavedRef = useRef(0)
   const lastPayloadRef = useRef('')
+  /** 本次会话是否真正播放过（而不是仅仅恢复了上次的队列） */
+  const hasPlayedRef = useRef(false)
+
+  useEffect(() => {
+    // isPlaying 第一次为真，或位置真的走动过，才算「播过」
+    const unsubscribe = usePlayerStore.subscribe(state => {
+      if (!hasPlayedRef.current && (state.isPlaying || (state.currentTime ?? 0) > 1)) {
+        hasPlayedRef.current = true
+      }
+    })
+    return unsubscribe
+  }, [])
 
   // --- 周期性写入 ---
   useEffect(() => {
@@ -45,6 +58,11 @@ export function useQueueSync() {
     const save = () => {
       const st = usePlayerStore.getState()
       if (!st.currentSong || !st.queue.length) return
+      // 只在本次会话真正播放过之后才上报。
+      // 启动时 onRehydrateStorage 会恢复上次的队列并把 currentTime 置 0，
+      // 若此时就写回去，等于「在另一台设备上打开一下」就把那边的续播点抹成 0——
+      // 而这恰恰是这个功能存在的场景。
+      if (!hasPlayedRef.current) return
       // 只上报当前曲附近的一段，长队列没必要整个推上去
       const start = Math.max(0, st.queueIndex - 20)
       const slice = st.queue.slice(start, start + MAX_SYNCED_QUEUE)
@@ -115,12 +133,24 @@ export function useRemoteQueueOffer() {
       ? Math.max(0, offer.songs.findIndex(s => s.id === offer.currentId))
       : 0
     usePlayerStore.getState().playQueue(offer.songs, index)
-    // 起播后再定位，避免加载路径把位置重置为 0
+
+    // 定位必须走 seekHowl：store 的 seekTo 只改状态，不会移动 audio 元素，
+    // 进度条会先跳到目标位置再被 timeupdate 拉回 0，看起来就是「没生效」。
+    // 而且要等音频真的可以定位（转码流的 seekable 随缓冲增长），
+    // 所以这里等 canplay 而不是拍一个固定延时。
     const seconds = offer.positionMs / 1000
     if (seconds > 1) {
-      setTimeout(() => usePlayerStore.getState().seekTo(seconds), 400)
+      let attempts = 0
+      const trySeek = () => {
+        attempts += 1
+        seekHowl(seconds)
+        // 转码流的 seekable 随缓冲增长，一次不一定落得到位，最多重试约 2 秒
+        if (Math.abs(getAudioCurrentTime() - seconds) > 2 && attempts < 10) {
+          setTimeout(trySeek, 200)
+        }
+      }
+      setTimeout(trySeek, 300)
     }
-    usePlayerStore.getState().pause()
     setOffer(null)
   }, [offer])
 

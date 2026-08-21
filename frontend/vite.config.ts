@@ -12,7 +12,10 @@ export default defineConfig(({ mode }) => ({
       ? []
       : [
           VitePWA({
-            registerType: 'autoUpdate',
+            // 必须是 prompt：autoUpdate 分支根本不会调用 onNeedRefresh，
+            // UpdatePrompt 永远不会出现，而新 SW 要等所有标签页关闭才接管——
+            // 常驻标签页的用户会长期停在旧版本且毫不知情。
+            registerType: 'prompt',
             includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
             manifest: {
               name: 'N1KO MUSIC',

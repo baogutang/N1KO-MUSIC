@@ -83,9 +83,15 @@ export function mapSongExtras(s: Record<string, unknown>): SongExtras | undefine
   if (bpm) ext.bpm = bpm
 
   if (Array.isArray(s.contributors)) {
-    const contributors = (s.contributors as Record<string, unknown>[])
-      .map((c): Contributor | null => {
-        const artist = c.artist as Record<string, unknown> | undefined
+    const contributors = (s.contributors as unknown[])
+      .map((raw): Contributor | null => {
+        // 服务器返回的是不受信任的 JSON：数组里出现 null、字符串或数字都不该让
+        // 整个 mapSong 抛错——那会连带把整页曲目渲染打断。
+        if (!raw || typeof raw !== 'object') return null
+        const c = raw as Record<string, unknown>
+        const artist = (c.artist && typeof c.artist === 'object')
+          ? c.artist as Record<string, unknown>
+          : undefined
         const name = artist?.name ?? c.name
         if (!name) return null
         return {
@@ -161,6 +167,12 @@ export class SubsonicAdapter implements MusicServerAdapter {
     this.client = axios.create({
       baseURL: `${this.baseUrl}/rest`,
       timeout: 30000,
+      // Subsonic 的多值参数是「同名重复」形式（id=a&id=b），而 axios 默认序列化成
+      // id[]=a&id[]=b，服务端只会当成一个叫 "id[]" 的未知参数整批忽略。
+      // 受影响的不只是新加的 savePlayQueue / createShare，还有既有的
+      // createPlaylist(songId) 与 updatePlaylist(songIdToAdd / songIndexToRemove)——
+      // 「新建歌单时带上歌曲」和「批量加入歌单」此前一直是静默失败的。
+      paramsSerializer: { indexes: null },
     })
   }
 

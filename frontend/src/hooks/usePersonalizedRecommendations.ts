@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getAdapter, hasAdapter } from '@/api'
 import { useServerStore } from '@/store/serverStore'
@@ -166,16 +166,21 @@ export function usePersonalizedRecommendations(size = 30) {
   const cacheKey = `${RECOMMENDATION_CACHE_PREFIX}${seed}:${size}`
 
   const query = useQuery({
-    // 画像版本进 queryKey：否则收听历史变化后重算出的新画像永远不会触发刷新
-    queryKey: [serverId ?? 'no-server', 'personalized-recommendations', size, seed, historyRevision],
+    // historyRevision 刻意不进 queryKey。播放中每 30 秒就会写一次收听历史，
+    // 节流后仍是每分钟一次；若它参与 key，每分钟都会重跑一整轮定向候选扇出
+    // （十几个歌手/流派请求）。画像的细微变化不值这个代价——
+    // 它会在下一次「换一批」或自然 refetch 时自然生效。
+    queryKey: [serverId ?? 'no-server', 'personalized-recommendations', size, seed],
     queryFn: async (): Promise<Song[]> => {
       if (!serverId || !hasAdapter()) return []
-      // 缓存只服务当天的首屏秒开。显式「换一批」必须真算——否则它只是在
-      // 回放当天早些时候算好的批次，用户看到的是一条预录的轮播带。
-      if (batch === 0) {
+      // 缓存键里已经含 batch，读它不会回放到别的批次，因此任何 batch 都可以
+      // 用缓存做首屏秒开。只有「刚刚按下换一批」的那一次必须真算——
+      // 否则按钮就只是在回放当天早些时候算好的结果。
+      if (!justAdvancedRef.current) {
         const cached = readCachedRecommendations(cacheKey)
         if (cached?.length) return cached.slice(0, size)
       }
+      justAdvancedRef.current = false
       const adapter = getAdapter()
       const [randomResult, starredResult, directedResult] = await Promise.allSettled([
         // 随机候选保留下来作为探索通道，让画像之外的曲目仍有机会出现
@@ -189,14 +194,16 @@ export function usePersonalizedRecommendations(size = 30) {
       const historySongs = events.slice(0, 150).map(event => event.song)
       const candidates = [...directedSongs, ...randomSongs, ...starredSongs, ...historySongs]
         .map(song => ({ ...song, serverId }))
+      // 排除集合只取「更早的批次」。若把当前批次也算进去，queryFn 一旦重跑
+      // （StrictMode、refetch）就会把用户正看着的这一批整批排掉。
       const exclude = batch > 0
-        ? new Set(useRecommendationCursorStore.getState().getShown(scope))
+        ? new Set(useRecommendationCursorStore.getState().getShownBefore(scope, batch))
         : undefined
       const recommendations = recommendSongs(
         candidates, events, size, seed, Date.now(), profile, exclude
       )
       cacheRecommendations(cacheKey, recommendations)
-      rememberShown(scope, recommendations.map(song => `${song.serverId ?? ''}:${song.id}`))
+      rememberShown(scope, batch, recommendations.map(song => `${song.serverId ?? ''}:${song.id}`))
       return recommendations
     },
     enabled: !!serverId && hasAdapter(),
@@ -204,10 +211,19 @@ export function usePersonalizedRecommendations(size = 30) {
     // 「换一批」会换掉 queryKey，默认行为是直接回到 pending 且 data 变 undefined，
     // 于是整个推荐区块（连同「换一批」按钮自己）在加载期间被卸载再整块闪回。
     // 保留上一批数据，只用 isFetching 表达加载中。
-    placeholderData: previous => previous,
+    //
+    // 但 placeholderData 是 observer 级而非 key 级的：切换服务器后它会把上一台
+    // 服务器的推荐顶上来，点下去还会去新服务器请求不存在的 id。必须限定同一服务器。
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey?.[0] === (serverId ?? 'no-server') ? previous : undefined,
   })
 
-  const refresh = useCallback(() => advanceBatch(scope), [advanceBatch, scope])
+  /** 标记「这一次是用户主动换一批」，用于跳过缓存强制真算 */
+  const justAdvancedRef = useRef(false)
+  const refresh = useCallback(() => {
+    justAdvancedRef.current = true
+    advanceBatch(scope)
+  }, [advanceBatch, scope])
 
   return {
     ...query,

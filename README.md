@@ -215,7 +215,17 @@ docker run -d --name n1ko-music-backend \
 ```
 
 Supported environment variables include `PORT`, `DATA_DIR`, `JWT_SECRET`, comma-separated `FRONTEND_URLS`,
-`TRUST_PROXY_HOPS`, `RATE_LIMIT_MAX`, and `AUTH_RATE_LIMIT_MAX`. A consistent backup is created in the data directory before database migrations.
+`TRUST_PROXY_HOPS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`, `ALLOW_REGISTRATION`,
+`LOGIN_ATTEMPT_MAX`, and `LOGIN_ATTEMPT_WINDOW_MS`. A consistent backup is created in the
+data directory before database migrations.
+
+> **Registration policy**: `ALLOW_REGISTRATION` defaults to `first-user` — registration is
+> open until the first account exists, then closes automatically. This matters as soon as
+> you expose the sync service to the internet. `open` and `closed` are also accepted.
+>
+> **JWT secret**: leave `JWT_SECRET` unset and the service generates a 48-byte random key
+> and persists it with mode 0600 — safer than picking one by hand. If you do set it, it
+> must be at least 32 characters or the service refuses to start.
 
 <br/>
 
