@@ -11,6 +11,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useAlbumShelf, type AlbumShelfType } from '@/hooks/useServerQueries'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 export function AlbumShelf({
   type,
@@ -23,6 +24,7 @@ export function AlbumShelf({
   tag: string
   limit?: number
 }) {
+  const { t } = useT()
   const navigate = useNavigate()
   const { data, isLoading } = useAlbumShelf(type, limit)
   const albums = data?.items ?? []
@@ -57,7 +59,7 @@ export function AlbumShelf({
               </span>
               {album.playCount ? (
                 <span className="font-num flex-none text-[11px] text-ink-faint">
-                  {album.playCount} 次
+                  {t('album.playCount', { count: album.playCount })}
                 </span>
               ) : album.year ? (
                 <span className="font-num flex-none text-[11px] text-ink-faint">{album.year}</span>

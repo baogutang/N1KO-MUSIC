@@ -7,6 +7,7 @@
 
 import { Play, ListPlus, Plus, Heart, X, CheckSquare } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/i18n'
 
 export interface SelectionBarAction {
   key: string
@@ -38,11 +39,12 @@ export function SelectionBar({
   onClear: () => void
   className?: string
 }) {
+  const { t } = useT()
   if (count === 0) return null
   return (
     <div
       role="toolbar"
-      aria-label={`已选 ${count} 首`}
+      aria-label={t('selection.count', { count, total })}
       className={cn(
         'sticky bottom-0 z-20 -mx-1 mt-px flex flex-wrap items-center gap-x-1 gap-y-1',
         'border-t-2 border-ink bg-paper/95 px-1 py-2 backdrop-blur-sm',
@@ -51,8 +53,7 @@ export function SelectionBar({
       )}
     >
       <span className="font-num mr-2 whitespace-nowrap pl-1 text-[12px] tracking-[0.08em]">
-        已选 <span className="text-primary">{count}</span>
-        <span className="text-ink-faint"> / {total}</span>
+        {t('selection.count', { count, total })}
       </span>
 
       {actions.filter(a => !a.hidden).map(action => {
@@ -75,11 +76,11 @@ export function SelectionBar({
 
       <button
         onClick={onClear}
-        aria-label="取消选择"
+        aria-label={t('selection.cancel')}
         className="ml-auto flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[12.5px] text-ink-faint transition-colors duration-200 hover:text-ink"
       >
         <X size={13} />
-        取消
+        {t('action.cancel')}
       </button>
     </div>
   )

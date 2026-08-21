@@ -18,7 +18,7 @@ import { LOCALES, setLocale, useT } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
 import {
   useSettingsStore,
-  QUALITY_LABELS,
+  QUALITY_LABEL_KEYS,
   type AudioQuality,
   type CoverShape,
 } from '@/store/settingsStore'
@@ -83,11 +83,28 @@ function Segmented<T extends string>({ value, onChange, options, label }: {
 }
 
 /** 端点配置行：左标签，右发丝线输入框 */
-const REPLAY_GAIN_OPTIONS: Array<{ value: ReplayGainMode; label: string }> = [
-  { value: 'off', label: '关闭' },
-  { value: 'auto', label: '自动' },
-  { value: 'track', label: '按单曲' },
-  { value: 'album', label: '按专辑' },
+const REPLAY_GAIN_OPTIONS: Array<{ value: ReplayGainMode; labelKey: string }> = [
+  { value: 'off', labelKey: 'settings.replayGain.off' },
+  { value: 'auto', labelKey: 'settings.replayGain.auto' },
+  { value: 'track', labelKey: 'settings.replayGain.track' },
+  { value: 'album', labelKey: 'settings.replayGain.album' },
+]
+
+/** 翻译目标语言：value 是发给自定义 API 的取值，不随界面语言变化 */
+const TRANSLATE_LANGS: Array<{ value: string; labelKey: string }> = [
+  { value: '英文', labelKey: 'settings.translate.lang.en' },
+  { value: '中文', labelKey: 'settings.translate.lang.zh' },
+  { value: '日文', labelKey: 'settings.translate.lang.ja' },
+  { value: '韩文', labelKey: 'settings.translate.lang.ko' },
+  { value: '法文', labelKey: 'settings.translate.lang.fr' },
+  { value: '德文', labelKey: 'settings.translate.lang.de' },
+]
+
+/** 翻译类型：同上，value 是接口取值 */
+const TRANSLATE_TYPES: Array<{ value: string; labelKey: string }> = [
+  { value: '无', labelKey: 'settings.translate.type.none' },
+  { value: '没有内置翻译', labelKey: 'settings.translate.type.noBuiltin' },
+  { value: '不内置', labelKey: 'settings.translate.type.notBuiltin' },
 ]
 
 function EndpointRow({ label, value, onChange, placeholder, desc }: {
@@ -123,6 +140,7 @@ function EndpointRow({ label, value, onChange, placeholder, desc }: {
  * CSV 给表格和第三方打卡导入工具用。两种都在本机生成。
  */
 function DataExportSection() {
+  const { t } = useT()
   const serverId = useServerStore(s => s.activeServerId)
   const [count, setCount] = useState<number | null>(null)
   const [importing, setImporting] = useState(false)
@@ -147,8 +165,8 @@ function DataExportSection() {
       const parsed = parseHistoryFile(await file.text(), serverId)
       if (!parsed) {
         toast({
-          title: '认不出这个文件',
-          description: '支持本应用导出的 JSON / CSV，以及 ListenBrainz 的导出',
+          title: t('settings.import.unknownFile'),
+          description: t('settings.import.unknownFileDesc'),
           variant: 'destructive',
         })
         return
@@ -157,15 +175,15 @@ function DataExportSection() {
       const added = await importListeningEvents(capped.events, serverId)
       refreshCount()
       const notes = [
-        capped.skipped > 0 ? `跳过 ${capped.skipped} 条残缺记录` : '',
-        capped.truncated > 0 ? `超出上限略过 ${capped.truncated} 条` : '',
+        capped.skipped > 0 ? t('settings.import.skipped', { count: capped.skipped }) : '',
+        capped.truncated > 0 ? t('settings.import.truncated', { count: capped.truncated }) : '',
       ].filter(Boolean).join(' · ')
       toast({
-        title: `已导入 ${added} 条收听记录`,
+        title: t('settings.import.done', { count: added }),
         description: notes || undefined,
       })
     } catch {
-      toast({ title: '导入失败', variant: 'destructive' })
+      toast({ title: t('settings.import.failed'), variant: 'destructive' })
     } finally {
       setImporting(false)
       if (importInputRef.current) importInputRef.current.value = ''
@@ -176,7 +194,7 @@ function DataExportSection() {
     if (!serverId) return
     const events = readListeningEvents(serverId)
     if (!events.length) {
-      toast({ title: '还没有可导出的收听记录' })
+      toast({ title: t('settings.export.nothing') })
       return
     }
     const stamp = new Date().toISOString().slice(0, 10)
@@ -189,18 +207,18 @@ function DataExportSection() {
     } else {
       downloadTextFile(`n1ko-music-history-${stamp}.csv`, historyToCSV(events), 'text/csv')
     }
-    toast({ title: `已导出 ${events.length} 条收听记录` })
+    toast({ title: t('settings.export.done', { count: events.length }) })
   }
 
   return (
-    <Section title="你的数据" tag="YOUR DATA">
+    <Section title={t('section.yourData')} tag={t('section.yourData.tag')}>
       <div className="flex items-center justify-between gap-6 py-5">
         <div className="min-w-0">
-          <p className="text-sm font-medium">导出收听历史</p>
+          <p className="text-sm font-medium">{t('settings.export.name')}</p>
           <p className="mt-0.5 text-xs text-ink-faint">
             {count == null
-              ? '正在统计…'
-              : `本机共 ${count} 条记录，在浏览器里直接生成，不经过任何服务器`}
+              ? t('settings.export.counting')
+              : t('settings.export.desc', { count })}
           </p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-5">
@@ -223,10 +241,9 @@ function DataExportSection() {
 
       <div className="flex items-center justify-between gap-6 py-5">
         <div className="min-w-0">
-          <p className="text-sm font-medium">导入既有打卡历史</p>
+          <p className="text-sm font-medium">{t('settings.import.name')}</p>
           <p className="mt-0.5 text-xs text-ink-faint">
-            支持 ListenBrainz 的导出、Last.fm 各家导出工具的 CSV，以及本应用自己导出的 JSON。
-            按时间去重，重复导入同一份文件不会翻倍。
+            {t('settings.import.desc')}
           </p>
         </div>
         <input
@@ -245,7 +262,7 @@ function DataExportSection() {
           onClick={() => importInputRef.current?.click()}
           className="flex-shrink-0 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary disabled:pointer-events-none disabled:opacity-40"
         >
-          {importing ? '导入中…' : '选择文件'}
+          {importing ? t('settings.import.busy') : t('action.chooseFile')}
         </button>
       </div>
     </Section>
@@ -256,7 +273,7 @@ export default function Settings() {
   const navigate = useNavigate()
   const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
   const { theme, setTheme } = useThemeStore()
-  const { locale } = useT()
+  const { t, locale } = useT()
   const volume    = usePlayerStore(s => s.volume)
   const setVolume = usePlayerStore(s => s.setVolume)
   const {
@@ -298,11 +315,11 @@ export default function Settings() {
       const adapter = createAdapter(server)
       const ok = await adapter.ping()
       toast({
-        title: ok ? '连接正常' : '连接失败',
+        title: ok ? t('settings.server.pingOk') : t('settings.server.pingFail'),
         variant: ok ? 'default' : 'destructive',
       })
     } catch {
-      toast({ title: '无法连接到服务器', variant: 'destructive' })
+      toast({ title: t('settings.server.pingError'), variant: 'destructive' })
     } finally {
       setPinging(null)
     }
@@ -311,13 +328,13 @@ export default function Settings() {
   function handleSwitch(id: string) {
     if (!activateServer(id)) {
       toast({
-        title: '该服务器需要重新登录',
-        description: '登录凭据已升级，请在登录页重新连接',
+        title: t('settings.server.reloginTitle'),
+        description: t('settings.server.reloginDesc'),
         variant: 'destructive',
       })
       return
     }
-    toast({ title: '已切换服务器' })
+    toast({ title: t('settings.server.switched') })
   }
 
   function handleRemove(id: string) {
@@ -326,7 +343,7 @@ export default function Settings() {
       navigate('/login')
     }
     removeServer(id)
-    toast({ title: '已移除服务器' })
+    toast({ title: t('settings.server.removed') })
   }
 
   function handleDisconnect() {
@@ -339,12 +356,12 @@ export default function Settings() {
       <div className="max-w-[720px]">
         {/* 报头 */}
         <header>
-          <p className="text-[11px] tracking-[0.3em] text-ink-faint mb-2">PREFERENCES</p>
-          <h1 className="font-serif text-4xl font-bold tracking-tight">设置</h1>
+          <p className="text-[11px] tracking-[0.3em] text-ink-faint mb-2">{t('settings.preferences.tag')}</p>
+          <h1 className="font-serif text-4xl font-bold tracking-tight">{t('nav.settings')}</h1>
         </header>
 
         {/* 服务器管理 */}
-        <Section title="服务器管理" tag="SERVERS">
+        <Section title={t('settings.servers')} tag={t('settings.servers.tag')}>
           <div>
             {servers.map(server => (
               <div
@@ -360,7 +377,7 @@ export default function Settings() {
                       {server.id === activeServerId && (
                         <span className="text-[11px] text-primary flex items-center gap-1 flex-shrink-0">
                           <CheckCircle weight="fill" className="w-3 h-3" />
-                          当前
+                          {t('settings.server.current')}
                         </span>
                       )}
                     </div>
@@ -374,8 +391,8 @@ export default function Settings() {
                     onClick={() => handlePing(server.id)}
                     disabled={pinging === server.id}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-foreground transition-colors duration-200 active:scale-95"
-                    title="测试连接"
-                    aria-label={`测试 ${server.name} 连接`}
+                    title={t('settings.server.ping')}
+                    aria-label={t('settings.server.pingAria', { name: server.name })}
                   >
                     {pinging === server.id
                       ? <ArrowsClockwise className="w-4 h-4 animate-spin" />
@@ -387,8 +404,8 @@ export default function Settings() {
                       type="button"
                       onClick={() => handleSwitch(server.id)}
                       className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-primary transition-colors duration-200 active:scale-95"
-                      title="切换到此服务器"
-                      aria-label={`切换到 ${server.name}`}
+                      title={t('settings.server.switch')}
+                      aria-label={t('settings.server.switchAria', { name: server.name })}
                     >
                       <CaretRight className="w-4 h-4" />
                     </button>
@@ -397,8 +414,8 @@ export default function Settings() {
                     type="button"
                     onClick={() => setPendingRemove(server.id)}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-destructive transition-colors duration-200 active:scale-95"
-                    title="移除服务器"
-                    aria-label={`移除 ${server.name}`}
+                    title={t('settings.server.remove')}
+                    aria-label={t('settings.server.removeAria', { name: server.name })}
                   >
                     <Trash className="w-4 h-4" />
                   </button>
@@ -408,8 +425,8 @@ export default function Settings() {
 
             {supportsScan && (
               <Row
-                name="重新扫描音乐库"
-                desc="往 NAS 里放了新专辑之后，不必再打开服务器后台"
+                name={t('settings.scan.name')}
+                desc={t('settings.scan.desc')}
               >
                 <button
                   onClick={() => scan.mutate()}
@@ -417,7 +434,7 @@ export default function Settings() {
                   className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink disabled:opacity-50"
                 >
                   <ArrowsClockwise size={13} className={scan.isPending ? 'animate-spin' : undefined} />
-                  {scan.isPending ? '扫描中' : '开始扫描'}
+                  {scan.isPending ? t('settings.scan.busy') : t('settings.scan.start')}
                 </button>
               </Row>
             )}
@@ -429,19 +446,19 @@ export default function Settings() {
               className="mt-5 gap-1.5"
             >
               <Plus className="w-3.5 h-3.5" />
-              添加新服务器
+              {t('settings.server.add')}
             </Button>
           </div>
         </Section>
 
         {/* 界面语言 */}
-        <Section title="界面语言" tag="LANGUAGE">
+        <Section title={t('settings.language')} tag={t('settings.language.tag')}>
           <Row
-            name="显示语言"
-            desc="缺失的译文会自动回落到简体中文，因此不完整的翻译也不会让界面出现空白"
+            name={t('settings.language.display')}
+            desc={t('settings.language.displayDesc')}
           >
             <Segmented
-              label="显示语言"
+              label={t('settings.language.display')}
               value={locale}
               onChange={setLocale}
               options={LOCALES.map(item => ({ value: item.value, label: item.label }))}
@@ -450,35 +467,35 @@ export default function Settings() {
         </Section>
 
         {/* 外观 */}
-        <Section title="外观" tag="APPEARANCE">
-          <Row name="主题模式" desc="深色、浅色或跟随系统">
+        <Section title={t('settings.appearance')} tag={t('settings.appearance.tag')}>
+          <Row name={t('settings.theme.name')} desc={t('settings.theme.desc')}>
             <Segmented
-              label="主题模式"
+              label={t('settings.theme.name')}
               value={theme}
               onChange={setTheme}
               options={[
-                { value: 'dark', label: '深色' },
-                { value: 'light', label: '浅色' },
-                { value: 'system', label: '跟随系统' },
+                { value: 'dark', label: t('settings.theme.dark') },
+                { value: 'light', label: t('settings.theme.light') },
+                { value: 'system', label: t('settings.theme.system') },
               ]}
             />
           </Row>
-          <Row name="播放详情页封面样式" desc="方形静止或黑胶旋转（唱片效果）">
+          <Row name={t('settings.coverShape.name')} desc={t('settings.coverShape.desc')}>
             <Segmented
-              label="封面样式"
+              label={t('settings.coverShape.label')}
               value={coverShape}
               onChange={(v) => setCoverShape(v as CoverShape)}
               options={[
-                { value: 'square', label: '方形' },
-                { value: 'circle', label: '黑胶' },
+                { value: 'square', label: t('settings.coverShape.square') },
+                { value: 'circle', label: t('settings.coverShape.circle') },
               ]}
             />
           </Row>
         </Section>
 
         {/* 音频 */}
-        <Section title="音频" tag="AUDIO">
-          <Row name="默认音量">
+        <Section title={t('settings.audio')} tag={t('settings.audio.tag')}>
+          <Row name={t('settings.volume.name')}>
             <div className="flex items-center gap-3 w-60">
               <Slider
                 value={[volume]}
@@ -486,7 +503,7 @@ export default function Settings() {
                 max={1}
                 step={0.01}
                 onValueChange={([v]) => setVolume(v)}
-                aria-label="默认音量"
+                aria-label={t('settings.volume.name')}
                 className="flex-1"
               />
               <span className="num text-xs text-ink-soft w-9 text-right">
@@ -495,12 +512,12 @@ export default function Settings() {
             </div>
           </Row>
           <div className="py-4 border-b border-hair-soft">
-            <p className="text-sm font-medium">流媒体音质 · Wi-Fi / 局域网</p>
+            <p className="text-sm font-medium">{t('settings.quality.wifi')}</p>
             <p className="text-xs text-ink-faint mt-0.5">
-              无损将请求服务器原始歌曲格式；其他选项将要求服务器转码为指定码率
+              {t('settings.quality.desc')}
             </p>
-            <div role="radiogroup" aria-label="Wi-Fi 流媒体音质" className="mt-2">
-              {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => (
+            <div role="radiogroup" aria-label={t('settings.quality.wifiAria')} className="mt-2">
+              {(Object.keys(QUALITY_LABEL_KEYS) as AudioQuality[]).map(q => (
                 <button
                   key={q}
                   type="button"
@@ -523,7 +540,7 @@ export default function Settings() {
                       audioQuality === q ? 'text-primary' : 'text-ink-soft group-hover:text-foreground'
                     )}
                   >
-                    {QUALITY_LABELS[q]}
+                    {t(QUALITY_LABEL_KEYS[q])}
                   </span>
                 </button>
               ))}
@@ -531,20 +548,20 @@ export default function Settings() {
           </div>
 
           <Row
-            name="按网络类型自动切换音质"
-            desc="在蜂窝网络下改用下方的移动网络档位，避免从家里的上行拉原始文件"
+            name={t('settings.adaptiveQuality.name')}
+            desc={t('settings.adaptiveQuality.desc')}
           >
-            <Toggle checked={adaptiveQuality} onChange={setAdaptiveQuality} label="按网络类型自动切换音质" />
+            <Toggle checked={adaptiveQuality} onChange={setAdaptiveQuality} label={t('settings.adaptiveQuality.name')} />
           </Row>
 
           {adaptiveQuality && (
             <div className="py-4 border-b border-hair-soft">
-              <p className="text-sm font-medium">流媒体音质 · 移动网络</p>
+              <p className="text-sm font-medium">{t('settings.quality.cellular')}</p>
               <p className="text-xs text-ink-faint mt-0.5">
-                检测到蜂窝网络或系统省流量模式时使用
+                {t('settings.quality.cellularDesc')}
               </p>
-              <div role="radiogroup" aria-label="移动网络流媒体音质" className="mt-2">
-                {(Object.keys(QUALITY_LABELS) as AudioQuality[]).map(q => (
+              <div role="radiogroup" aria-label={t('settings.quality.cellularAria')} className="mt-2">
+                {(Object.keys(QUALITY_LABEL_KEYS) as AudioQuality[]).map(q => (
                   <button
                     key={q}
                     type="button"
@@ -569,7 +586,7 @@ export default function Settings() {
                           : 'text-ink-soft group-hover:text-foreground'
                       )}
                     >
-                      {QUALITY_LABELS[q]}
+                      {t(QUALITY_LABEL_KEYS[q])}
                     </span>
                   </button>
                 ))}
@@ -578,12 +595,11 @@ export default function Settings() {
           )}
 
           <div className="py-4 border-b border-hair-soft">
-            <p className="text-sm font-medium">音量归一化 · ReplayGain</p>
+            <p className="text-sm font-medium">{t('settings.replayGain.name')}</p>
             <p className="text-xs text-ink-faint mt-0.5 max-w-[52ch]">
-              读取服务器已算好的增益，让不同年代的母带响度一致。
-              「自动」在顺序播放整张专辑时保留专辑内部动态，随机播放时逐曲归一。
+              {t('settings.replayGain.desc')}
             </p>
-            <div role="radiogroup" aria-label="音量归一化" className="mt-2 flex flex-wrap gap-x-7 gap-y-1">
+            <div role="radiogroup" aria-label={t('settings.replayGain.label')} className="mt-2 flex flex-wrap gap-x-7 gap-y-1">
               {REPLAY_GAIN_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
@@ -609,7 +625,7 @@ export default function Settings() {
                         : 'text-ink-soft group-hover:text-foreground'
                     )}
                   >
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </span>
                 </button>
               ))}
@@ -617,7 +633,7 @@ export default function Settings() {
           </div>
 
           {replayGainMode !== 'off' && (
-            <Row name="前置增益" desc="归一化之后再整体加减，单位分贝">
+            <Row name={t('settings.preamp.name')} desc={t('settings.preamp.desc')}>
               <div className="flex items-center gap-3 w-60">
                 <Slider
                   value={[replayGainPreamp]}
@@ -625,8 +641,10 @@ export default function Settings() {
                   max={15}
                   step={0.5}
                   onValueChange={([v]) => setReplayGainPreamp(v)}
-                  aria-label="前置增益"
-                  aria-valuetext={`${replayGainPreamp > 0 ? '+' : ''}${replayGainPreamp} 分贝`}
+                  aria-label={t('settings.preamp.name')}
+                  aria-valuetext={t('settings.preamp.valueText', {
+                    value: `${replayGainPreamp > 0 ? '+' : ''}${replayGainPreamp}`,
+                  })}
                   className="flex-1"
                 />
                 <span className="num text-xs text-ink-soft w-12 text-right">
@@ -636,7 +654,7 @@ export default function Settings() {
             </Row>
           )}
 
-          <Row name="播放速度" desc="有声书、讲座与广播剧适用，已开启变调补偿">
+          <Row name={t('settings.playbackRate.name')} desc={t('settings.playbackRate.desc')}>
             <div className="flex items-center gap-3 w-60">
               <Slider
                 value={[playbackRate]}
@@ -644,8 +662,8 @@ export default function Settings() {
                 max={3}
                 step={0.05}
                 onValueChange={([v]) => setPlaybackRate(v)}
-                aria-label="播放速度"
-                aria-valuetext={`${playbackRate.toFixed(2)} 倍速`}
+                aria-label={t('settings.playbackRate.name')}
+                aria-valuetext={t('settings.playbackRate.valueText', { rate: playbackRate.toFixed(2) })}
                 className="flex-1"
               />
               <span className="num text-xs text-ink-soft w-12 text-right">
@@ -654,31 +672,31 @@ export default function Settings() {
             </div>
           </Row>
 
-          <Row name="预加载下一首" desc="提前把下一首拉进缓存，切歌几乎没有空档（移动网络下不启用）">
-            <Toggle checked={preloadNext} onChange={setPreloadNext} label="预加载下一首" />
+          <Row name={t('settings.preload.name')} desc={t('settings.preload.desc')}>
+            <Toggle checked={preloadNext} onChange={setPreloadNext} label={t('settings.preload.name')} />
           </Row>
 
-          <Row name="队列播完自动续接" desc="按当前曲目继续找相似曲目接上，而不是直接停下">
-            <Toggle checked={autoContinueQueue} onChange={setAutoContinueQueue} label="队列播完自动续接" />
+          <Row name={t('settings.autoContinue.name')} desc={t('settings.autoContinue.desc')}>
+            <Toggle checked={autoContinueQueue} onChange={setAutoContinueQueue} label={t('settings.autoContinue.name')} />
           </Row>
 
           <Row
-            name="通知栏按键"
-            desc="锁屏与系统媒体面板上放哪两个键。听歌要上一首下一首，听有声书要快退快进——同一块面板服务不了两种需求"
+            name={t('settings.notificationActions.name')}
+            desc={t('settings.notificationActions.desc')}
           >
             <Segmented
-              label="通知栏按键"
+              label={t('settings.notificationActions.name')}
               value={notificationActions}
               onChange={setNotificationActions}
               options={[
-                { value: 'track', label: '切歌' },
-                { value: 'seek', label: '快退快进' },
-                { value: 'both', label: '都放' },
+                { value: 'track', label: t('settings.notificationActions.track') },
+                { value: 'seek', label: t('settings.notificationActions.seek') },
+                { value: 'both', label: t('settings.notificationActions.both') },
               ]}
             />
           </Row>
           {notificationActions !== 'track' && (
-            <Row name="快退快进步长" desc="锁屏上那两个键一次跳多少秒">
+            <Row name={t('settings.seekStep.name')} desc={t('settings.seekStep.desc')}>
               <div className="flex items-center gap-3">
                 <Slider
                   value={[seekStepSeconds]}
@@ -693,127 +711,127 @@ export default function Settings() {
             </Row>
           )}
           <Row
-            name="车载模式"
-            desc="超大触控目标、左右滑动切歌、屏幕常亮。移动端也可从底部「更多」进入，桌面按 ⇧C"
+            name={t('player.carMode')}
+            desc={t('settings.carMode.desc')}
           >
             <button
               type="button"
               onClick={() => usePlayerStore.getState().setCarMode(true)}
               className="text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary"
             >
-              进入
+              {t('settings.carMode.enter')}
             </button>
           </Row>
           <Row
-            name="耳机断开后自动恢复"
-            desc="拔掉耳机会立刻暂停（不然声音会甩到外放）；一分钟内插回来时接着放"
+            name={t('settings.resume.name')}
+            desc={t('settings.resume.desc')}
           >
             <Toggle
               checked={resumeAfterInterruption}
               onChange={setResumeAfterInterruption}
-              label="耳机断开后自动恢复"
+              label={t('settings.resume.name')}
             />
           </Row>
-          <Row name="平滑过渡" desc="暂停与切歌时做短暂渐弱，而不是硬切">
-            <Toggle checked={smoothTransitions} onChange={setSmoothTransitions} label="平滑过渡" />
+          <Row name={t('settings.smooth.name')} desc={t('settings.smooth.desc')}>
+            <Toggle checked={smoothTransitions} onChange={setSmoothTransitions} label={t('settings.smooth.name')} />
           </Row>
         </Section>
 
         {/* 自定义 API */}
-        <Section title="自定义 API" tag="CUSTOM API">
-          <Row name="优先使用音乐服务接口" desc="只有音乐服务接口无数据时才会从自定义 API 获取数据">
-            <Toggle label="优先使用音乐服务接口" checked={apiPreferServer} onChange={setApiPreferServer} />
+        <Section title={t('settings.customApi')} tag={t('settings.customApi.tag')}>
+          <Row name={t('settings.api.preferServer')} desc={t('settings.api.preferServerDesc')}>
+            <Toggle label={t('settings.api.preferServer')} checked={apiPreferServer} onChange={setApiPreferServer} />
           </Row>
 
           <EndpointRow
-            label="验证信息"
+            label={t('settings.api.authToken')}
             value={apiAuthToken}
             onChange={setApiAuthToken}
             placeholder="Authorization Token"
             desc={(
               <>
-                验证信息将作为请求头的
+                {t('settings.api.authTokenDesc1')}
                 <code className="num text-ink-soft border border-hair-soft rounded-sm px-1 mx-1">Authorization</code>
-                字段进行传输
+                {t('settings.api.authTokenDesc2')}
               </>
             )}
           />
 
-          <SubHead title="歌词接口" />
+          <SubHead title={t('settings.api.lyrics')} />
           <EndpointRow
-            label="地址"
+            label={t('settings.api.url')}
             value={lyricsRemoteTemplate}
             onChange={setLyricsRemoteTemplate}
             placeholder="https://lrcapi.example.com/api?title={title}&artist={artist}"
           />
 
-          <SubHead title="歌词确认接口" />
+          <SubHead title={t('settings.api.lyricsConfirm')} />
           <EndpointRow
-            label="地址"
+            label={t('settings.api.url')}
             value={lyricsConfirmTemplate}
             onChange={setLyricsConfirmTemplate}
             placeholder="https://lrcapi.example.com/confirm"
           />
 
-          <SubHead title="封面接口" />
+          <SubHead title={t('settings.api.cover')} />
           <EndpointRow
-            label="地址"
+            label={t('settings.api.url')}
             value={coverRemoteTemplate}
             onChange={setCoverRemoteTemplate}
             placeholder="https://api.example.com/cover?artist={artist}&album={album}"
           />
-          <Row name="加载专辑封面">
-            <Toggle label="加载专辑封面" checked={coverLoadAlbum} onChange={setCoverLoadAlbum} />
+          <Row name={t('settings.api.loadAlbumCover')}>
+            <Toggle label={t('settings.api.loadAlbumCover')} checked={coverLoadAlbum} onChange={setCoverLoadAlbum} />
           </Row>
-          <Row name="加载歌手图片">
-            <Toggle label="加载歌手图片" checked={coverLoadArtist} onChange={setCoverLoadArtist} />
+          <Row name={t('settings.api.loadArtistImage')}>
+            <Toggle label={t('settings.api.loadArtistImage')} checked={coverLoadArtist} onChange={setCoverLoadArtist} />
           </Row>
 
-          <SubHead title="歌曲详情接口" />
+          <SubHead title={t('settings.api.songDetail')} />
           <EndpointRow
-            label="地址"
+            label={t('settings.api.url')}
             value={songDetailTemplate}
             onChange={setSongDetailTemplate}
             placeholder="https://example.com/songs"
           />
           <EndpointRow
-            label="路径替换"
+            label={t('settings.api.pathReplace')}
             value={songDetailPathReplace}
             onChange={setSongDetailPathReplace}
             placeholder="pattern,replacement"
-            desc="配置后可在歌曲详情页跳转至对应网页"
+            desc={t('settings.api.pathReplaceDesc')}
           />
 
-          <SubHead title="翻译接口" />
-          <Row name="目标语言">
+          <SubHead title={t('settings.api.translate')} />
+          <Row name={t('settings.translate.targetLang')}>
             <select
               value={translateTargetLang}
               onChange={e => setTranslateTargetLang(e.target.value)}
-              aria-label="翻译目标语言"
+              aria-label={t('settings.translate.targetLangAria')}
               className="h-9 bg-transparent border-0 border-b border-hair rounded-none text-sm text-ink-soft cursor-pointer focus:outline-none focus:border-primary"
             >
-              {['英文', '中文', '日文', '韩文', '法文', '德文'].map(lang => (
-                <option key={lang} value={lang}>{lang}</option>
+              {TRANSLATE_LANGS.map(lang => (
+                <option key={lang.value} value={lang.value}>{t(lang.labelKey)}</option>
               ))}
             </select>
           </Row>
-          <Row name="类型">
+          <Row name={t('settings.translate.type')}>
             <select
               value={translateType}
               onChange={e => setTranslateType(e.target.value)}
-              aria-label="翻译类型"
+              aria-label={t('settings.translate.typeAria')}
               className="h-9 bg-transparent border-0 border-b border-hair rounded-none text-sm text-ink-soft cursor-pointer focus:outline-none focus:border-primary"
             >
-              {['无', '没有内置翻译', '不内置'].map(t => (
-                <option key={t} value={t}>{t}</option>
+              {TRANSLATE_TYPES.map(item => (
+                <option key={item.value} value={item.value}>{t(item.labelKey)}</option>
               ))}
             </select>
           </Row>
         </Section>
 
         {/* 歌词外观 */}
-        <Section title="歌词外观" tag="LYRICS">
-          <Row name="字号大小" desc="全屏播放器中歌词的字体大小（14–36px）">
+        <Section title={t('settings.lyrics')} tag={t('settings.lyrics.tag')}>
+          <Row name={t('settings.lyrics.fontSize')} desc={t('settings.lyrics.fontSizeDesc')}>
             <div className="flex items-center gap-3">
               <Slider
                 value={[lyricsFontSize]}
@@ -821,7 +839,7 @@ export default function Settings() {
                 max={36}
                 step={1}
                 onValueChange={([v]) => setLyricsFontSize(v)}
-                aria-label="歌词字号"
+                aria-label={t('settings.lyrics.fontSizeAria')}
                 className="w-28"
               />
               <span className="num text-xs text-ink-soft w-9 text-right">{lyricsFontSize}px</span>
@@ -844,12 +862,12 @@ export default function Settings() {
               </div>
             </div>
           </Row>
-          <Row name="启用远程歌词源" desc="通过上方自定义 API 获取 LRC 歌词，第一条显示设置">
-            <Toggle label="启用远程歌词源" checked={lyricsUseRemote} onChange={setLyricsUseRemote} />
+          <Row name={t('settings.lyrics.useRemote')} desc={t('settings.lyrics.useRemoteDesc')}>
+            <Toggle label={t('settings.lyrics.useRemote')} checked={lyricsUseRemote} onChange={setLyricsUseRemote} />
           </Row>
           {lyricsUseRemote && (
-            <Row name="远程歌词优先" desc="开启时远程优先，关闭时服务器优先">
-              <Toggle label="远程歌词优先" checked={lyricsPreferRemote} onChange={setLyricsPreferRemote} />
+            <Row name={t('settings.lyrics.preferRemote')} desc={t('settings.lyrics.preferRemoteDesc')}>
+              <Toggle label={t('settings.lyrics.preferRemote')} checked={lyricsPreferRemote} onChange={setLyricsPreferRemote} />
             </Row>
           )}
         </Section>
@@ -858,34 +876,34 @@ export default function Settings() {
         <SyncSettings />
 
         {/* 歌手档案：默认关闭的第三方查询 */}
-        <Section title="歌手档案" tag="DOSSIER">
+        <Section title={t('settings.dossier')} tag={t('settings.dossier.tag')}>
           <Row
-            name="从 MusicBrainz 补全"
-            desc="成立年份、来自哪里、乐队成员、官网——这些从来不在音频标签里。开启后，打开歌手页时会把该歌手的 MusicBrainz 编号发给 musicbrainz.org；不会发送你的账号、曲库或收听记录。默认关闭。"
+            name={t('settings.musicBrainz.name')}
+            desc={t('settings.musicBrainz.desc')}
           >
             <Toggle
               checked={musicBrainzEnabled}
               onChange={setMusicBrainzEnabled}
-              label="从 MusicBrainz 补全歌手档案"
+              label={t('settings.musicBrainz.toggle')}
             />
           </Row>
           {musicBrainzEnabled && (
             <div className="flex items-center justify-between gap-6 py-4">
               <div className="min-w-0">
-                <p className="text-sm font-medium">已缓存的档案</p>
+                <p className="text-sm font-medium">{t('settings.musicBrainz.cache')}</p>
                 <p className="mt-0.5 text-xs text-ink-faint">
-                  查过的档案会在本机保留 30 天，同一位歌手不会被反复查询
+                  {t('settings.musicBrainz.cacheDesc')}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => {
                   clearProfileCache()
-                  toast({ title: '已清除缓存的歌手档案' })
+                  toast({ title: t('settings.musicBrainz.cleared') })
                 }}
                 className="flex-shrink-0 text-sm text-ink-soft transition-colors hover:text-primary"
               >
-                清除
+                {t('settings.musicBrainz.clear')}
               </button>
             </div>
           )}
@@ -898,13 +916,13 @@ export default function Settings() {
         <DataExportSection />
 
         {/* 关于 */}
-        <Section title="关于" tag="ABOUT">
+        <Section title={t('settings.about')} tag={t('settings.about.tag')}>
           <div className="flex items-center justify-between py-4 border-b border-hair-soft">
-            <span className="text-sm text-ink-soft">版本</span>
+            <span className="text-sm text-ink-soft">{t('settings.about.version')}</span>
             <span className="num text-sm">v{pkg.version}</span>
           </div>
           <div className="flex items-center justify-between py-4 border-b border-hair-soft">
-            <span className="text-sm text-ink-soft">开源协议</span>
+            <span className="text-sm text-ink-soft">{t('settings.about.license')}</span>
             <span className="text-sm">MIT License</span>
           </div>
           <div className="flex items-center justify-between py-4 border-b border-hair-soft">
@@ -922,11 +940,11 @@ export default function Settings() {
 
         {/* 危险区 */}
         {activeServer && (
-          <Section title="危险区" tag="DANGER">
+          <Section title={t('settings.danger')} tag={t('settings.danger.tag')}>
             <div className="flex items-center justify-between gap-6 py-5">
               <div>
-                <p className="text-sm font-medium">断开当前服务器连接</p>
-                <p className="text-xs text-ink-faint mt-0.5">将退出登录并返回服务器选择页</p>
+                <p className="text-sm font-medium">{t('settings.disconnect.name')}</p>
+                <p className="text-xs text-ink-faint mt-0.5">{t('settings.disconnect.desc')}</p>
               </div>
               {confirmDisconnect ? (
                 <div className="flex items-center gap-4 flex-shrink-0">
@@ -935,14 +953,14 @@ export default function Settings() {
                     onClick={handleDisconnect}
                     className="text-sm font-semibold text-destructive underline decoration-1 underline-offset-[6px] decoration-destructive/40 hover:decoration-destructive transition-colors"
                   >
-                    确认断开
+                    {t('settings.disconnect.confirm')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmDisconnect(false)}
                     className="text-sm text-ink-faint hover:text-foreground transition-colors"
                   >
-                    取消
+                    {t('action.cancel')}
                   </button>
                 </div>
               ) : (
@@ -952,7 +970,7 @@ export default function Settings() {
                   className="flex-shrink-0 flex items-center gap-1.5 text-sm font-semibold text-destructive underline decoration-1 underline-offset-[6px] decoration-destructive/40 hover:decoration-destructive transition-colors"
                 >
                   <SignOut className="w-4 h-4" />
-                  断开连接
+                  {t('settings.disconnect.action')}
                 </button>
               )}
             </div>
@@ -963,21 +981,23 @@ export default function Settings() {
       <Dialog open={pendingRemove !== null} onOpenChange={open => { if (!open) setPendingRemove(null) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>移除这个服务器？</DialogTitle>
+            <DialogTitle>{t('settings.removeDialog.title')}</DialogTitle>
             <DialogDescription>
-              将永久删除
+              {t('settings.removeDialog.before')}
               <span className="font-medium text-foreground">
-                「{servers.find(s => s.id === pendingRemove)?.name ?? ''}」
+                {t('settings.removeDialog.name', {
+                  name: servers.find(s => s.id === pendingRemove)?.name ?? '',
+                })}
               </span>
-              的地址、用户名与登录凭据，无法撤销。
-              {pendingRemove === activeServerId && '这是当前连接的服务器，移除后会退出到服务器选择页。'}
+              {t('settings.removeDialog.after')}
+              {pendingRemove === activeServerId && t('settings.removeDialog.activeWarning')}
               <span className="block mt-2 text-ink-faint">
-                服务器上的音乐不会受到任何影响。
+                {t('settings.removeDialog.safe')}
               </span>
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setPendingRemove(null)}>取消</Button>
+            <Button variant="outline" onClick={() => setPendingRemove(null)}>{t('action.cancel')}</Button>
             <Button
               variant="destructive"
               onClick={() => {
@@ -985,7 +1005,7 @@ export default function Settings() {
                 setPendingRemove(null)
               }}
             >
-              移除
+              {t('action.remove')}
             </Button>
           </div>
         </DialogContent>

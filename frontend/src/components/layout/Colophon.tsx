@@ -11,35 +11,37 @@
 import { useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { issueNumber } from '@/services/issueNumber'
+import { useT } from '@/i18n'
 import pkg from '../../../package.json'
 
-/** 路径到栏目名。找不到就不写栏目，不去猜。 */
-const SECTION_NAMES: Array<[RegExp, string]> = [
-  [/^\/$/, '首页'],
-  [/^\/library/, '音乐库'],
-  [/^\/albums\/[^/]+$/, '专辑'],
-  [/^\/albums$/, '专辑'],
-  [/^\/artists\/[^/]+$/, '歌手'],
-  [/^\/artists$/, '歌手'],
-  [/^\/playlists/, '歌单'],
-  [/^\/recommendations/, '推荐'],
-  [/^\/favorites/, '收藏'],
-  [/^\/history/, '最近播放'],
-  [/^\/stats/, '统计'],
-  [/^\/issue/, '本期'],
-  [/^\/search/, '检索'],
-  [/^\/songs\//, '曲目'],
-  [/^\/settings/, '设置'],
+/** 路径到栏目名的文案 key。找不到就不写栏目，不去猜。 */
+const SECTION_KEYS: Array<[RegExp, string]> = [
+  [/^\/$/, 'nav.home'],
+  [/^\/library/, 'nav.library'],
+  [/^\/albums\/[^/]+$/, 'section.albums'],
+  [/^\/albums$/, 'section.albums'],
+  [/^\/artists\/[^/]+$/, 'nav.artists'],
+  [/^\/artists$/, 'nav.artists'],
+  [/^\/playlists/, 'nav.playlists'],
+  [/^\/recommendations/, 'nav.recommendations'],
+  [/^\/favorites/, 'nav.favorites'],
+  [/^\/history/, 'nav.history'],
+  [/^\/stats/, 'nav.stats'],
+  [/^\/issue/, 'nav.issue'],
+  [/^\/search/, 'section.search'],
+  [/^\/songs\//, 'nav.songDetail'],
+  [/^\/settings/, 'nav.settings'],
 ]
 
-export function sectionNameFor(pathname: string): string | null {
-  return SECTION_NAMES.find(([pattern]) => pattern.test(pathname))?.[1] ?? null
+export function sectionKeyFor(pathname: string): string | null {
+  return SECTION_KEYS.find(([pattern]) => pattern.test(pathname))?.[1] ?? null
 }
 
 export function Colophon() {
+  const { t } = useT()
   const { pathname } = useLocation()
   const issue = useMemo(() => issueNumber(), [])
-  const section = sectionNameFor(pathname)
+  const sectionKey = sectionKeyFor(pathname)
 
   return (
     <footer className="mt-16 border-t border-hair pt-4">
@@ -49,7 +51,7 @@ export function Colophon() {
         </span>
         <span className="font-num">
           {issue.label}
-          {section && <span className="ml-3 tracking-[0.18em]">· {section}</span>}
+          {sectionKey && <span className="ml-3 tracking-[0.18em]">· {t(sectionKey)}</span>}
         </span>
         <span className="font-num">v{pkg.version}</span>
       </div>
@@ -64,17 +66,18 @@ export function Colophon() {
  * 滚动时随内容一起走——它不是第二条导航，只是一个位置提示。
  */
 export function RunningHead() {
+  const { t } = useT()
   const { pathname } = useLocation()
-  const section = sectionNameFor(pathname)
+  const sectionKey = sectionKeyFor(pathname)
   const issue = useMemo(() => issueNumber(), [])
-  if (!section) return null
+  if (!sectionKey) return null
 
   return (
     <div
       aria-hidden
       className="flex items-baseline justify-between gap-4 pt-3 text-[10px] tracking-[0.28em] text-ink-faint"
     >
-      <span>{section}</span>
+      <span>{t(sectionKey)}</span>
       <span className="font-num">{issue.label}</span>
     </div>
   )

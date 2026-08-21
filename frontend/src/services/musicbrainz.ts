@@ -15,6 +15,8 @@
  *    而档案数据几乎不变。这里串行发请求、间隔不低于 1.1 秒，结果长期缓存。
  */
 
+import { t } from '@/i18n'
+
 const API_BASE = 'https://musicbrainz.org/ws/2'
 /** MusicBrainz 的匿名限速是 1 req/s，留一点余量 */
 const DEFAULT_MIN_INTERVAL_MS = 1_100
@@ -46,8 +48,8 @@ export interface ArtistProfile {
   beginArea?: string
   /** 乐队成员（含曾经的）*/
   members: Array<{ name: string; from?: number; to?: number }>
-  /** 外部链接，只留几类明确有用的 */
-  links: Array<{ label: string; url: string }>
+  /** 外部链接，只留几类明确有用的。存 key，渲染时才翻译。 */
+  links: Array<{ labelKey: string; url: string }>
   fetchedAt: number
 }
 
@@ -92,15 +94,19 @@ function schedule<T>(task: () => Promise<T>): Promise<T> {
   return run
 }
 
-/** 只留这几类链接：其余大多是数据库互链，对读者没有意义 */
+/**
+ * 只留这几类链接：其余大多是数据库互链，对读者没有意义。
+ * 值是文案 key 不是文案——档案会被缓存 30 天，存翻译好的字符串
+ * 等于把语言一起腌进缓存里。
+ */
 const LINK_LABELS: Record<string, string> = {
-  'official homepage': '官网',
-  wikidata: 'Wikidata',
-  wikipedia: '维基百科',
-  bandcamp: 'Bandcamp',
-  soundcloud: 'SoundCloud',
-  youtube: 'YouTube',
-  discogs: 'Discogs',
+  'official homepage': 'link.homepage',
+  wikidata: 'link.wikidata',
+  wikipedia: 'link.wikipedia',
+  bandcamp: 'link.bandcamp',
+  soundcloud: 'link.soundcloud',
+  youtube: 'link.youtube',
+  discogs: 'link.discogs',
 }
 
 function yearOf(value: unknown): number | undefined {
@@ -135,10 +141,10 @@ function mapProfile(mbid: string, data: Record<string, unknown>, now: number): A
       })
       continue
     }
-    const label = LINK_LABELS[type]
+    const labelKey = LINK_LABELS[type]
     const url = relation.url?.resource
-    if (label && url && !links.some(link => link.label === label)) {
-      links.push({ label, url })
+    if (labelKey && url && !links.some(link => link.labelKey === labelKey)) {
+      links.push({ labelKey, url })
     }
   }
 

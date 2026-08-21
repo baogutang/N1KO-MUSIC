@@ -11,11 +11,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useServerStore } from '@/store/serverStore'
 import { useLibraryScopeStore } from '@/store/libraryScopeStore'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
+import { useT } from '@/i18n'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
 export function LibraryScopeMenu({ className }: { className?: string }) {
+  const { t } = useT()
   const activeServerId = useServerStore(s => s.activeServerId)
   const scope = useLibraryScopeStore(s => (activeServerId ? s.scopes[activeServerId] : undefined))
   const setScope = useLibraryScopeStore(s => s.setScope)
@@ -42,16 +44,16 @@ export function LibraryScopeMenu({ className }: { className?: string }) {
             'transition-colors duration-200 hover:text-ink',
             className
           )}
-          aria-label="切换音乐库"
+          aria-label={t('library.scopeSwitch')}
         >
           <Books size={12} aria-hidden="true" />
-          {current?.name ?? '全部音乐库'}
+          {current?.name ?? t('library.scopeAll')}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48 glass">
         <DropdownMenuItem onClick={() => choose(undefined)} className="gap-2">
           <span className="w-3.5">{!scope && <Check size={12} className="text-primary" />}</span>
-          全部音乐库
+          {t('library.scopeAll')}
         </DropdownMenuItem>
         {folders.map(folder => (
           <DropdownMenuItem key={folder.id} onClick={() => choose(folder.id)} className="gap-2">

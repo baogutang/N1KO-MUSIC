@@ -8,30 +8,33 @@
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { prefetchRoute } from '@/routes/lazyRoutes'
+import { useT } from '@/i18n'
 
 const navItems = [
-  { to: '/', label: '首页' },
-  { to: '/library', label: '音乐库' },
-  { to: '/artists', label: '歌手' },
-  { to: '/playlists', label: '歌单' },
-  { to: '/recommendations', label: '推荐' },
-  { to: '/favorites', label: '收藏' },
-  { to: '/stats', label: '统计' },
-  { to: '/issue', label: '本期' },
+  { to: '/', labelKey: 'nav.home' },
+  { to: '/library', labelKey: 'nav.library' },
+  { to: '/artists', labelKey: 'nav.artists' },
+  { to: '/playlists', labelKey: 'nav.playlists' },
+  { to: '/recommendations', labelKey: 'nav.recommendations' },
+  { to: '/favorites', labelKey: 'nav.favorites' },
+  { to: '/stats', labelKey: 'nav.stats' },
+  { to: '/issue', labelKey: 'nav.issue' },
 ]
 
 export function TopNav() {
+  const { t } = useT()
+
   return (
     <nav
       className="flex-shrink-0 border-b border-hair select-none"
-      aria-label="主导航"
+      aria-label={t('nav.main')}
       data-tauri-drag-region
     >
       <ul
         className="max-w-[1180px] mx-auto px-10 flex items-center gap-8"
         data-tauri-drag-region
       >
-        {navItems.map(({ to, label }) => (
+        {navItems.map(({ to, labelKey }) => (
           <li key={to}>
             <NavLink
               to={to}
@@ -48,7 +51,7 @@ export function TopNav() {
                 )
               }
             >
-              {label}
+              {t(labelKey)}
             </NavLink>
           </li>
         ))}

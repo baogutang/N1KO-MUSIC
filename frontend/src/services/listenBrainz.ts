@@ -12,6 +12,7 @@
  */
 
 import type { Song } from '@/api/types'
+import { t } from '@/i18n'
 
 export const LISTENBRAINZ_DEFAULT_URL = 'https://api.listenbrainz.org'
 
@@ -104,7 +105,7 @@ export async function submitListens(
   listenType: 'single' | 'import' | 'playing_now',
   signal?: AbortSignal
 ): Promise<SubmitOutcome> {
-  if (!token.trim()) return { ok: false, retryable: false, message: '还没有填写 token' }
+  if (!token.trim()) return { ok: false, retryable: false, message: t('scrobble.error.noToken') }
   if (!listens.length) return { ok: true }
 
   try {
@@ -129,7 +130,7 @@ export async function submitListens(
     return {
       ok: false,
       retryable: true,
-      message: error instanceof Error ? error.message : '网络错误',
+      message: error instanceof Error ? error.message : t('scrobble.error.network'),
     }
   }
 }
@@ -147,7 +148,7 @@ export async function validateToken(
     const data = await response.json() as { valid?: boolean; user_name?: string; message?: string }
     return { valid: !!data.valid, userName: data.user_name, message: data.message }
   } catch (error) {
-    return { valid: false, message: error instanceof Error ? error.message : '网络错误' }
+    return { valid: false, message: error instanceof Error ? error.message : t('scrobble.error.network') }
   }
 }
 

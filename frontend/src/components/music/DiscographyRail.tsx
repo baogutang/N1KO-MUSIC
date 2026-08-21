@@ -15,6 +15,7 @@ import type { Album } from '@/api/types'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { t as translate, useT } from '@/i18n'
 import { cn } from '@/lib/utils'
 
 export interface ArtistMarginalia {
@@ -33,17 +34,26 @@ export interface ArtistMarginalia {
 function formatDate(ts?: number): string | null {
   if (!ts) return null
   const d = new Date(ts)
-  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月`
+  return translate('artist.yearMonth', { year: d.getFullYear(), month: d.getMonth() + 1 })
 }
 
 function relativeDays(ts?: number): string | null {
   if (!ts) return null
   const days = Math.floor((Date.now() - ts) / 86_400_000)
-  if (days <= 0) return '今天'
-  if (days === 1) return '昨天'
-  if (days < 30) return `${days} 天前`
-  if (days < 365) return `${Math.floor(days / 30)} 个月前`
-  return `${Math.floor(days / 365)} 年前`
+  if (days <= 0) return translate('artist.today')
+  if (days === 1) return translate('artist.yesterday')
+  if (days < 30) return translate('artist.daysAgo', { count: days })
+  if (days < 365) {
+    const months = Math.floor(days / 30)
+    // 英文里 1 个月要用单数说法，运行时不做复数规则，因此分两个 key
+    return months === 1
+      ? translate('artist.monthAgo')
+      : translate('artist.monthsAgo', { count: months })
+  }
+  const years = Math.floor(days / 365)
+  return years === 1
+    ? translate('artist.yearAgo')
+    : translate('artist.yearsAgo', { count: years })
 }
 
 export function DiscographyRail({
@@ -55,6 +65,7 @@ export function DiscographyRail({
   marginalia?: ArtistMarginalia
   onPlayAlbum?: (album: Album) => void
 }) {
+  const { t } = useT()
   const navigate = useNavigate()
 
   /** 按年份倒序分组；无年份的收在最后 */
@@ -93,10 +104,16 @@ export function DiscographyRail({
     <section aria-labelledby="discography">
       <div className="section-head">
         <h2 id="discography">
-          唱片目录<small>DISCOGRAPHY</small>
+          {t('section.discography')}<small>DISCOGRAPHY</small>
         </h2>
         <span className="more num">
-          {span ? `${span.min}–${span.max} · ` : ''}共 {albums.length} 张
+          {span
+            ? t('artist.discographySpan', {
+                from: span.min,
+                to: span.max,
+                count: albums.length,
+              })
+            : t('artist.discographyCount', { count: albums.length })}
         </span>
       </div>
 
@@ -111,7 +128,7 @@ export function DiscographyRail({
               <div className="relative -ml-px border-l border-hair pl-4 pt-4">
                 <span className="font-num absolute -left-px top-4 block h-[2px] w-3 bg-primary" aria-hidden />
                 <span className="font-num text-[13px] font-semibold tracking-[0.06em] text-ink">
-                  {group.year === 'unknown' ? '年份不详' : group.year}
+                  {group.year === 'unknown' ? t('artist.unknownYear') : group.year}
                 </span>
               </div>
               <ul className="pt-3">
@@ -138,7 +155,7 @@ export function DiscographyRail({
                           </span>
                           {album.songCount != null && (
                             <span className="font-num mt-0.5 block text-[11px] text-ink-faint">
-                              {album.songCount} 首
+                              {t('album.trackCount', { count: album.songCount })}
                             </span>
                           )}
                         </span>
@@ -146,7 +163,7 @@ export function DiscographyRail({
                       {onPlayAlbum && (
                         <button
                           onClick={() => onPlayAlbum(album)}
-                          aria-label={`播放《${album.name}》`}
+                          aria-label={t('album.playNamed', { name: album.name })}
                           className={cn(
                             'grid h-7 w-7 flex-none place-items-center rounded-full border border-hair',
                             'text-ink-soft opacity-0 transition-all duration-200',
@@ -168,23 +185,33 @@ export function DiscographyRail({
         {marginalia && marginalia.plays > 0 && (
           <aside className="mt-8 border-t border-hair pt-4 lg:mt-4 lg:border-t-0 lg:border-l lg:pl-6 lg:pt-4">
             <p className="mb-3 text-[10.5px] uppercase tracking-[0.24em] text-primary">
-              你与这位歌手
+              {t('artist.yourHistory')}
             </p>
             <dl className="space-y-3 text-[12.5px]">
               {formatDate(marginalia.firstHeardAt) && (
-                <MarginRow label="初次听到" value={formatDate(marginalia.firstHeardAt)!} />
+                <MarginRow
+                  label={t('artist.firstHeard')}
+                  value={formatDate(marginalia.firstHeardAt)!}
+                />
               )}
-              <MarginRow label="累计播放" value={`${marginalia.plays} 次`} mono />
+              <MarginRow
+                label={t('artist.totalPlays')}
+                value={t('artist.playCount', { count: marginalia.plays })}
+                mono
+              />
               {marginalia.favouriteAlbum && (
-                <MarginRow label="听得最多" value={marginalia.favouriteAlbum} />
+                <MarginRow label={t('artist.mostPlayed')} value={marginalia.favouriteAlbum} />
               )}
               {relativeDays(marginalia.lastHeardAt) && (
-                <MarginRow label="上次听是" value={relativeDays(marginalia.lastHeardAt)!} />
+                <MarginRow
+                  label={t('artist.lastHeard')}
+                  value={relativeDays(marginalia.lastHeardAt)!}
+                />
               )}
               {marginalia.neverPlayedAlbums > 0 && (
                 <MarginRow
-                  label="还没听过"
-                  value={`${marginalia.neverPlayedAlbums} 张`}
+                  label={t('artist.neverPlayed')}
+                  value={t('artist.albumCount', { count: marginalia.neverPlayedAlbums })}
                   mono
                 />
               )}

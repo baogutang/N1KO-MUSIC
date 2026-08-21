@@ -41,7 +41,7 @@ function Section({ title, tag, children }: { title: string; tag: string; childre
     <section className="mt-12">
       <div className="flex items-baseline justify-between border-b border-hair pb-2.5">
         <h2 className="font-serif text-xl font-semibold">{title}</h2>
-        <span className="text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
+        <span className="latin-tag text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
       </div>
       <dl className="divide-y divide-hair-soft">
         {children}

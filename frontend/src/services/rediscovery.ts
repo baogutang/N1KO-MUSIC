@@ -14,6 +14,7 @@
  */
 
 import type { Song } from '@/api/types'
+import { t } from '@/i18n'
 import { isQualifiedListeningEvent, type ListeningEvent } from '@/services/listeningHistory'
 
 const DAY_MS = 86_400_000
@@ -73,16 +74,15 @@ function circularDayDistance(a: number, b: number): number {
 }
 
 function formatYearsAgo(years: number): string {
-  return years === 1 ? '去年今天' : `${years} 年前的今天`
+  return years === 1
+    ? t('rediscovery.lastYearToday')
+    : t('rediscovery.yearsAgoToday', { years })
 }
 
 function formatGap(days: number): string {
-  if (days >= 365) {
-    const years = Math.floor(days / 365)
-    return `${years} 年没听了`
-  }
-  if (days >= 60) return `${Math.floor(days / 30)} 个月没听了`
-  return `${days} 天没听了`
+  if (days >= 365) return t('rediscovery.yearsSince', { years: Math.floor(days / 365) })
+  if (days >= 60) return t('rediscovery.monthsSince', { months: Math.floor(days / 30) })
+  return t('rediscovery.daysSince', { days })
 }
 
 /**

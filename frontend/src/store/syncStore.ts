@@ -10,6 +10,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createPersistStorage } from '@/store/persistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
+import { t } from '@/i18n'
 import {
   checkSyncService,
   describeSyncError,
@@ -71,14 +72,14 @@ export const useSyncStore = create<SyncState>()(
       testConnection: async () => {
         const { baseUrl } = get()
         if (!baseUrl) {
-          set({ lastError: '请先填写同步服务地址' })
+          set({ lastError: t('sync.error.needAddress') })
           return false
         }
         set({ busy: true, lastError: null })
         const result = await checkSyncService(baseUrl)
         set({
           busy: false,
-          lastError: result.ok ? null : '无法连接到同步服务，请检查地址是否可访问',
+          lastError: result.ok ? null : t('sync.error.unreachableCheck'),
         })
         return result.ok
       },
@@ -86,7 +87,7 @@ export const useSyncStore = create<SyncState>()(
       signIn: async (username, password) => {
         const { baseUrl } = get()
         if (!baseUrl) {
-          set({ lastError: '请先填写同步服务地址' })
+          set({ lastError: t('sync.error.needAddress') })
           return false
         }
         set({ busy: true, lastError: null })
@@ -103,7 +104,7 @@ export const useSyncStore = create<SyncState>()(
       signUp: async (username, password) => {
         const { baseUrl } = get()
         if (!baseUrl) {
-          set({ lastError: '请先填写同步服务地址' })
+          set({ lastError: t('sync.error.needAddress') })
           return false
         }
         set({ busy: true, lastError: null })
@@ -122,7 +123,7 @@ export const useSyncStore = create<SyncState>()(
       invalidateToken: () => set({
         token: null,
         username: null,
-        lastError: '同步登录已过期，请重新登录',
+        lastError: t('sync.error.expired'),
       }),
     }),
     {

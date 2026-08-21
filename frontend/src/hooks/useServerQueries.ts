@@ -22,6 +22,7 @@ import { useLyricCacheStore } from '@/store/lyricCacheStore'
 import { parseLrc } from '@/hooks/useLyrics'
 import { mirrorFavorite } from '@/services/historySync'
 import type { ListParams, Lyrics, Song } from '@/api/types'
+import { t } from '@/i18n'
 
 // ===================================================
 // Query Keys - 统一管理缓存键
@@ -388,7 +389,7 @@ export function useLibraryScan() {
   return useMutation({
     mutationFn: async () => {
       const adapter = getAdapter()
-      if (!adapter.startScan) throw new Error('该服务器不支持从客户端触发扫描')
+      if (!adapter.startScan) throw new Error(t('error.scanUnsupported'))
       await adapter.startScan()
       // 轮询到扫描结束，最多等 5 分钟
       const deadline = Date.now() + 5 * 60_000
@@ -415,7 +416,7 @@ export function useSetRating() {
       id: string; rating: number; type?: 'song' | 'album'
     }) => {
       const adapter = getAdapter()
-      if (!adapter.setRating) throw new Error('该服务器不支持评分')
+      if (!adapter.setRating) throw new Error(t('error.ratingUnsupported'))
       await adapter.setRating(id, rating, type)
     },
     onSuccess: (_data, variables) => {
@@ -618,11 +619,17 @@ export type AlbumShelfType =
   | 'newest' | 'recent' | 'frequent' | 'highest' | 'starred'
   | 'random' | 'byYear' | 'alphabeticalByName' | 'alphabeticalByArtist'
 
-export const ALBUM_SHELVES: Array<{ type: AlbumShelfType; label: string; tag: string }> = [
-  { type: 'frequent', label: '最常播放', tag: 'MOST PLAYED' },
-  { type: 'recent', label: '最近播放', tag: 'RECENTLY PLAYED' },
-  { type: 'highest', label: '评分最高', tag: 'TOP RATED' },
-  { type: 'starred', label: '已收藏', tag: 'STARRED' },
+/**
+ * 书架定义。
+ *
+ * 存 labelKey 而不是已翻译的文案：这是模块级常量，在模块求值那一刻就定型了，
+ * 直接写 t(...) 会把语言钉死在首次加载时的那一种，之后切语言不会变。
+ */
+export const ALBUM_SHELVES: Array<{ type: AlbumShelfType; labelKey: string; tag: string }> = [
+  { type: 'frequent', labelKey: 'shelf.frequent', tag: 'MOST PLAYED' },
+  { type: 'recent', labelKey: 'shelf.recent', tag: 'RECENTLY PLAYED' },
+  { type: 'highest', labelKey: 'shelf.highest', tag: 'TOP RATED' },
+  { type: 'starred', labelKey: 'shelf.starred', tag: 'STARRED' },
 ]
 
 /**

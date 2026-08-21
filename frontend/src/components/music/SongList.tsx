@@ -41,6 +41,7 @@ import { toast } from '@/components/ui/use-toast'
 import { playAllInOrder, playNextInQueue, playListFrom } from '@/utils/playActions'
 import { useListSelection } from '@/hooks/useListSelection'
 import { SelectionBar, type SelectionBarAction } from '@/components/music/SelectionBar'
+import { useT } from '@/i18n'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,6 +83,7 @@ export function SongList({
   onPlaylistAdd,
   selectable = true,
 }: SongListProps) {
+  const { t } = useT()
   // 只订阅 id 和 isPlaying，不订阅 currentTime，避免高频重渲染
   const currentSongId = usePlayerStore(s => s.currentSong?.id)
   const isPlaying = usePlayerStore(s => s.isPlaying)
@@ -117,8 +119,8 @@ export function SongList({
   const handleShare = useCallback((song: Song) => setShareSong(song), [])
   const handleRadio = useCallback(async (song: Song) => {
     const ok = await startRadio({ kind: 'song', id: song.id, name: song.title })
-    if (!ok) toast({ title: '这台服务器没有提供相似曲目', variant: 'destructive' })
-  }, [])
+    if (!ok) toast({ title: t('song.radioUnsupported'), variant: 'destructive' })
+  }, [t])
 
   // 收藏 mutation 提到列表层。此前每一行各持有一个 useMutation 实例，
   // 一千行就是一千个订阅者。
@@ -172,29 +174,29 @@ export function SongList({
     const picked = () => selectionRef.current.selectedItems()
     return [
       {
-        key: 'play', label: '播放', icon: 'play',
+        key: 'play', label: t('action.play'), icon: 'play',
         onClick: () => { const list = picked(); if (list.length) { playAllInOrder(list); clearSelection() } },
       },
       {
-        key: 'next', label: '下一首播放', icon: 'next',
+        key: 'next', label: t('action.playNext'), icon: 'next',
         onClick: () => {
           const list = picked()
           if (!list.length) return
           playNextInQueue(list)
-          toast({ title: `已插入 ${list.length} 首到下一首` })
+          toast({ title: t('queue.insertedNext', { count: list.length }) })
           clearSelection()
         },
       },
       {
-        key: 'playlist', label: '加入歌单', icon: 'playlist',
+        key: 'playlist', label: t('action.addToPlaylist'), icon: 'playlist',
         onClick: () => { const list = picked(); if (list.length) setBatchPlaylistSongs(list) },
       },
       {
-        key: 'star', label: '收藏', icon: 'star',
+        key: 'star', label: t('action.favorite'), icon: 'star',
         onClick: () => {
           const list = picked().filter(song => !song.starred)
           if (!list.length) {
-            toast({ title: '选中的歌曲都已收藏' })
+            toast({ title: t('song.allFavorited') })
             return
           }
           for (const song of list) {
@@ -204,11 +206,12 @@ export function SongList({
         },
       },
       {
-        key: 'all', label: '全选', icon: 'all',
+        key: 'all', label: t('action.selectAll'), icon: 'all',
         onClick: () => selectionRef.current.selectAll(),
       },
     ]
-  }, [clearSelection])
+    // t 的引用随语言变（见 i18n/useT），因此它本身就是这里需要的那个依赖
+  }, [clearSelection, t])
 
   const renderRow = useCallback((song: Song, index: number) => (
     <SongRow
@@ -275,7 +278,7 @@ export function SongList({
       <ShareDialog
         open={shareSong !== null}
         onOpenChange={open => { if (!open) setShareSong(null) }}
-        target={shareSong ? { ids: [shareSong.id], label: shareSong.title, kind: '歌曲' } : null}
+        target={shareSong ? { ids: [shareSong.id], label: shareSong.title, kind: 'song' } : null}
       />
     </>
   )
@@ -461,6 +464,7 @@ const SongRow = React.memo(function SongRow({
   // 收藏状态直接读缓存里的这一条：mutation 的 onMutate 会同步就地改写缓存，
   // 视觉反馈依然是即时的，而且失败回滚也走同一条通路，不会出现两套真相。
   const localStarred = !!song.starred
+  const { t } = useT()
   const navigate = useNavigate()
   // 行是 memo 的，封面 URL 只在这首歌变化时才重算
   const coverUrl = useMemo(
@@ -567,7 +571,7 @@ const SongRow = React.memo(function SongRow({
           <button
             onClick={(e) => { e.stopPropagation(); handlePlay() }}
             className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-            aria-label="播放"
+            aria-label={t('action.play')}
           >
             <span className="w-[22px] h-[22px] rounded-full border border-hair flex items-center justify-center text-ink-soft hover:text-primary hover:border-primary active:scale-[0.94] transition-colors duration-200">
               {isPlaying && isCurrentSong ? (
@@ -645,7 +649,7 @@ const SongRow = React.memo(function SongRow({
             ? 'opacity-100 text-primary'
             : 'opacity-0 group-hover:opacity-100 text-ink-faint hover:text-primary'
         )}
-        aria-label={localStarred ? '取消喜欢' : '加入喜欢'}
+        aria-label={localStarred ? t('player.unfavorite') : t('player.favorite')}
       >
         <Heart
           className="w-4 h-4"
@@ -664,7 +668,7 @@ const SongRow = React.memo(function SongRow({
           <button
             onClick={(e) => e.stopPropagation()}
             className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1.5 flex-shrink-0 text-ink-soft hover:text-ink"
-            aria-label="更多操作"
+            aria-label={t('action.more')}
           >
             <DotsThree className="w-4 h-4" weight="bold" />
           </button>
@@ -677,20 +681,20 @@ const SongRow = React.memo(function SongRow({
 
           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePlay() }} className="gap-2">
             <Play className="w-4 h-4" weight="fill" />
-            立即播放
+            {t('song.playNow')}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => { e.stopPropagation(); playNextInQueue([song]) }}
             className="gap-2"
           >
             <Plus className="w-4 h-4" />
-            下一首播放
+            {t('action.playNext')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
 
           <DropdownMenuItem onClick={handleToggleStar} className="gap-2">
             <Heart className={cn('w-4 h-4', localStarred ? 'text-primary' : '')} weight={localStarred ? 'fill' : 'regular'} />
-            {localStarred ? '取消喜欢' : '加入喜欢'}
+            {localStarred ? t('player.unfavorite') : t('player.favorite')}
           </DropdownMenuItem>
 
           {onRadio && (
@@ -699,13 +703,13 @@ const SongRow = React.memo(function SongRow({
               className="gap-2"
             >
               <BroadcastIcon className="w-4 h-4" />
-              以这首开台
+              {t('song.startRadio')}
             </DropdownMenuItem>
           )}
 
           {canRate && (
             <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-xs text-ink-faint">评分</span>
+              <span className="text-xs text-ink-faint">{t('song.rating')}</span>
               <StarRating id={song.id} value={song.userRating} size={13} />
             </div>
           )}
@@ -713,13 +717,13 @@ const SongRow = React.memo(function SongRow({
           {song.artistId && (
             <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2">
               <MicrophoneStage className="w-4 h-4" />
-              查看歌手
+              {t('song.viewArtist')}
             </DropdownMenuItem>
           )}
           {song.albumId && (
             <DropdownMenuItem onClick={handleNavigateAlbum} className="gap-2">
               <Disc className="w-4 h-4" />
-              查看专辑
+              {t('song.viewAlbum')}
             </DropdownMenuItem>
           )}
 
@@ -729,7 +733,7 @@ const SongRow = React.memo(function SongRow({
             className="gap-2"
           >
             <FileText className="w-4 h-4" />
-            查看歌曲详情
+            {t('song.viewDetail')}
           </DropdownMenuItem>
 
           {(onPlaylistAdd || onShare) && (
@@ -738,7 +742,7 @@ const SongRow = React.memo(function SongRow({
               {onPlaylistAdd && (
                 <DropdownMenuItem onClick={() => onPlaylistAdd(song)} className="gap-2">
                   <Plus className="w-4 h-4" />
-                  添加到歌单
+                  {t('action.addToPlaylist')}
                 </DropdownMenuItem>
               )}
               {onShare && (
@@ -747,7 +751,7 @@ const SongRow = React.memo(function SongRow({
                   className="gap-2"
                 >
                   <ShareNetwork className="w-4 h-4" />
-                  分享链接
+                  {t('share.link')}
                 </DropdownMenuItem>
               )}
             </>
@@ -755,7 +759,7 @@ const SongRow = React.memo(function SongRow({
 
           <DropdownMenuSeparator />
           <div className="px-3 py-2 space-y-1.5">
-            <p className="text-xs text-ink-faint uppercase tracking-[0.14em] mb-1">歌曲信息</p>
+            <p className="text-xs text-ink-faint uppercase tracking-[0.14em] mb-1">{t('song.info')}</p>
             {song.duration > 0 && (
               <div className="flex items-center gap-2 text-xs text-ink-faint">
                 <ClockCounterClockwise className="w-3 h-3 flex-shrink-0" />
@@ -774,7 +778,7 @@ const SongRow = React.memo(function SongRow({
             {song.year && (
               <div className="flex items-center gap-2 text-xs text-ink-faint">
                 <Info className="w-3 h-3 flex-shrink-0" />
-                <span className="font-num">{song.year} 年</span>
+                <span className="font-num">{t('song.year', { year: song.year })}</span>
                 {song.genre && <span className="text-ink-faint/60">· {song.genre}</span>}
               </div>
             )}

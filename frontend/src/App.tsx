@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useThemeStore } from './store/themeStore'
 import { useServerStore } from './store/serverStore'
+import { useT } from '@/i18n'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { CircleNotch } from '@phosphor-icons/react'
 import {
@@ -27,10 +28,11 @@ import {
 } from './routes/lazyRoutes'
 
 function RouteLoading() {
+  const { t } = useT()
   return (
     <div className="flex min-h-[40vh] items-center justify-center text-muted-foreground gap-2">
       <CircleNotch className="w-5 h-5 animate-spin" />
-      <span className="text-sm">加载中...</span>
+      <span className="text-sm">{t('empty.loading')}</span>
     </div>
   )
 }

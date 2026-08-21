@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { buildRediscovery } from './rediscovery'
 import type { ListeningEvent } from '@/services/listeningHistory'
 import type { Song } from '@/api/types'
+import { setLocale } from '@/i18n'
+
+/**
+ * 说明句的断言里带着中文字面量，因此把语言钉在源语言上。
+ * 测试环境没有 navigator.language，默认会落到 en-US。
+ */
+setLocale('zh-CN')
 
 const DAY = 86_400_000
 /** 用本地时间构造，否则「年中第几天」的断言会随运行机器的时区漂移 */

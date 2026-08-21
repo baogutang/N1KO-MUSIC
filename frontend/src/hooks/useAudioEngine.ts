@@ -34,6 +34,7 @@ import { toast } from '@/components/ui/use-toast'
 import type { Song } from '@/api/types'
 import { computeReplayGainScalar } from '@/utils/replayGain'
 import { isMeteredConnection, onConnectionChange } from '@/lib/network'
+import { t } from '@/i18n'
 import {
   createListeningEventId,
   deriveListeningOutcome,
@@ -920,14 +921,14 @@ export function useAudioEngine() {
         }
 
         const errMsg = {
-          1: '播放已中止',
-          2: '网络错误',
-          3: '解码失败（格式不支持）',
-          4: '音频源不可用',
-        }[code] ?? '未知错误'
+          1: t('player.error.aborted'),
+          2: t('player.error.network'),
+          3: t('player.error.decode'),
+          4: t('player.error.unsupported'),
+        }[code] ?? t('error.unknown')
         console.error('[AudioEngine] audio error:', rawCode, err?.message, '| URL:', streamUrl)
         toast({
-          title: `播放失败: ${errMsg}`,
+          title: t('player.error.title', { message: errMsg }),
           description: `错误码=${rawCode} ${err?.message || ''}\nURL: ${streamUrl.substring(0, 120)}...`,
           variant: 'destructive',
         })

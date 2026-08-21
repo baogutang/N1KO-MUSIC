@@ -20,6 +20,7 @@ import { seekHowl } from '@/hooks/useAudioEngine'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import type { LyricLine } from '@/api/types'
+import { useT } from '@/i18n'
 
 /**
  * 清洗歌词行文本：剥离增强 LRC（A2 逐字时间戳）残留。
@@ -48,6 +49,7 @@ export const LyricDisplay = memo(function LyricDisplay({
   variant = 'fullscreen',
   className,
 }: LyricDisplayProps) {
+  const { t } = useT()
   // 自行从 store 订阅 currentTime（如果外部没传）
   const storeTime = usePlayerStore(s => s.currentTime)
   const currentTimeSec = externalTime ?? storeTime
@@ -155,7 +157,7 @@ export const LyricDisplay = memo(function LyricDisplay({
   if (!hasLyrics) {
     return (
       <div className={cn('flex items-center justify-center h-full', className)}>
-        <p className="font-serif text-[15px] text-ink-faint">纯音乐，或无歌词可用</p>
+        <p className="font-serif text-[15px] text-ink-faint">{t('lyrics.none')}</p>
       </div>
     )
   }

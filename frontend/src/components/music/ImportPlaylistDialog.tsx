@@ -21,6 +21,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 import type { Song } from '@/api/types'
 
 type Stage = 'pick' | 'resolving' | 'review' | 'creating'
@@ -35,6 +36,7 @@ export function ImportPlaylistDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const { t } = useT()
   const queryClient = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [stage, setStage] = useState<Stage>('pick')
@@ -56,7 +58,7 @@ export function ImportPlaylistDialog({
     const text = await file.text()
     const entries = parsePlaylistFile(file.name, text)
     if (!entries.length) {
-      toast({ title: '没能从这个文件里读出曲目', variant: 'destructive' })
+      toast({ title: t('playlist.import.noEntries'), variant: 'destructive' })
       return
     }
     setName(file.name.replace(/\.[^.]+$/, ''))
@@ -71,10 +73,10 @@ export function ImportPlaylistDialog({
       setTruncated(result.truncated)
       setStage('review')
     } catch {
-      toast({ title: '匹配曲目时出错', variant: 'destructive' })
+      toast({ title: t('playlist.import.matchFailed'), variant: 'destructive' })
       setStage('pick')
     }
-  }, [])
+  }, [t])
 
   const handleCreate = useCallback(async () => {
     if (!name.trim() || !matched.length) return
@@ -83,14 +85,14 @@ export function ImportPlaylistDialog({
       const adapter = getAdapter()
       await adapter.createPlaylist(name.trim(), matched.map(song => song.id))
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
-      toast({ title: `已导入 ${matched.length} 首到「${name.trim()}」` })
+      toast({ title: t('playlist.import.done', { count: matched.length, name: name.trim() }) })
       onOpenChange(false)
       reset()
     } catch {
-      toast({ title: '创建歌单失败', variant: 'destructive' })
+      toast({ title: t('playlist.createFailed'), variant: 'destructive' })
       setStage('review')
     }
-  }, [name, matched, queryClient, onOpenChange, reset])
+  }, [name, matched, queryClient, onOpenChange, reset, t])
 
   return (
     <Dialog
@@ -102,9 +104,9 @@ export function ImportPlaylistDialog({
     >
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>导入歌单</DialogTitle>
+          <DialogTitle>{t('playlist.import.title')}</DialogTitle>
           <DialogDescription>
-            支持 M3U / M3U8 / XSPF。文件只在本机解析，不会上传。
+            {t('playlist.import.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -125,9 +127,9 @@ export function ImportPlaylistDialog({
               className="flex w-full flex-col items-center gap-2.5 border border-dashed border-hair py-10 text-ink-soft transition-colors duration-200 hover:border-primary hover:text-primary"
             >
               <UploadSimple size={22} />
-              <span className="text-sm">选择歌单文件</span>
+              <span className="text-sm">{t('playlist.import.pickFile')}</span>
               <span className="font-num text-[11px] text-ink-faint">
-                单次最多 {MAX_IMPORT_ENTRIES} 首
+                {t('playlist.import.limit', { count: MAX_IMPORT_ENTRIES })}
               </span>
             </button>
           </div>
@@ -135,7 +137,7 @@ export function ImportPlaylistDialog({
 
         {stage === 'resolving' && (
           <p className="py-10 text-center text-sm text-ink-soft">
-            正在和你的曲库对照…
+            {t('playlist.import.resolving')}
           </p>
         )}
 
@@ -143,7 +145,7 @@ export function ImportPlaylistDialog({
           <div className="space-y-5 py-1">
             <div>
               <label htmlFor="import-playlist-name" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
-                歌单名
+                {t('playlist.name')}
               </label>
               <Input
                 id="import-playlist-name"
@@ -154,16 +156,28 @@ export function ImportPlaylistDialog({
             </div>
 
             <p className="font-num text-[13px]">
-              对上 <span className="text-primary">{matched.length}</span> 首
-              {missing.length > 0 && <span className="text-ink-faint"> · 没找到 {missing.length} 首</span>}
-              {truncated > 0 && <span className="text-ink-faint"> · 超出上限略过 {truncated} 首</span>}
+              <span className="text-primary">
+                {t('playlist.import.matched', { count: matched.length })}
+              </span>
+              {missing.length > 0 && (
+                <span className="text-ink-faint">
+                  {' · '}
+                  {t('playlist.import.missing', { count: missing.length })}
+                </span>
+              )}
+              {truncated > 0 && (
+                <span className="text-ink-faint">
+                  {' · '}
+                  {t('playlist.import.truncated', { count: truncated })}
+                </span>
+              )}
             </p>
 
             {missing.length > 0 && (
               <div className="border-t border-hair pt-3">
                 <p className="mb-2 flex items-center gap-1.5 text-[11px] tracking-[0.16em] text-ink-faint">
                   <Warning size={12} />
-                  你的曲库里没有这些
+                  {t('playlist.import.missingTitle')}
                 </p>
                 <ul className="space-y-1 text-[12.5px] text-ink-soft">
                   {missing.slice(0, MISSING_PREVIEW).map((entry, i) => (
@@ -176,7 +190,7 @@ export function ImportPlaylistDialog({
                 </ul>
                 {missing.length > MISSING_PREVIEW && (
                   <p className="font-num mt-1.5 text-[11px] text-ink-faint">
-                    另有 {missing.length - MISSING_PREVIEW} 首未列出
+                    {t('playlist.import.moreMissing', { count: missing.length - MISSING_PREVIEW })}
                   </p>
                 )}
               </div>
@@ -184,10 +198,12 @@ export function ImportPlaylistDialog({
 
             <div className="flex justify-end gap-3 pt-1">
               <Button variant="ghost" onClick={reset} disabled={stage === 'creating'}>
-                换个文件
+                {t('playlist.import.anotherFile')}
               </Button>
               <Button onClick={handleCreate} disabled={!matched.length || !name.trim() || stage === 'creating'}>
-                {stage === 'creating' ? '创建中…' : `创建歌单（${matched.length} 首）`}
+                {stage === 'creating'
+                  ? t('action.creating')
+                  : t('playlist.import.create', { count: matched.length })}
               </Button>
             </div>
           </div>

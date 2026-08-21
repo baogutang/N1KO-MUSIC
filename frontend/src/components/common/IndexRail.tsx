@@ -11,6 +11,7 @@
 
 import { useCallback, useMemo, useRef } from 'react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/i18n'
 
 /** 无法归入 A–Z 的一律进这一桶 */
 export const OTHER_BUCKET = '#'
@@ -60,6 +61,7 @@ export function IndexRail({
   onJump: (letter: string) => void
   className?: string
 }) {
+  const { t } = useT()
   const railRef = useRef<HTMLDivElement>(null)
   const lastRef = useRef<string | null>(null)
 
@@ -84,7 +86,7 @@ export function IndexRail({
     <div
       ref={railRef}
       role="navigation"
-      aria-label="按字母跳转"
+      aria-label={t('index.jump')}
       onTouchStart={e => { lastRef.current = null; jumpFromPoint(e.touches[0].clientY) }}
       onTouchMove={e => { e.preventDefault(); jumpFromPoint(e.touches[0].clientY) }}
       className={cn(
@@ -98,7 +100,7 @@ export function IndexRail({
           key={letter}
           data-letter={letter}
           onClick={() => onJump(letter)}
-          aria-label={`跳到 ${letter}`}
+          aria-label={t('index.jumpTo', { letter })}
           aria-current={activeLetter === letter ? 'true' : undefined}
           className={cn(
             'font-num w-5 rounded-sm py-[1px] text-center text-[10px] leading-[1.35] tracking-tight',

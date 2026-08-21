@@ -38,7 +38,7 @@ function SectionHead({ title, tag }: { title: string; tag: string }) {
   return (
     <div className="flex items-baseline justify-between border-b border-hair pb-3">
       <h2 className="font-serif text-[22px] font-semibold">{title}</h2>
-      <span className="text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
+      <span className="latin-tag text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
     </div>
   )
 }
@@ -50,7 +50,7 @@ function RankedList({ title, tag, items }: { title: string; tag: string; items: 
     <div>
       <div className="flex items-baseline justify-between border-b border-hair pb-2.5">
         <h3 className="font-serif text-lg font-semibold">{title}</h3>
-        <span className="text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
+        <span className="latin-tag text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
       </div>
       <ol className="divide-y divide-hair-soft">
         {items.map((item, i) => (
@@ -138,7 +138,7 @@ export default function Stats() {
       {/* 报头 + 时间范围切换 */}
       <header className="flex items-end justify-between gap-6">
         <div>
-          <p className="text-[11px] tracking-[0.3em] text-ink-faint mb-2">LISTENING REPORT</p>
+          <p className="latin-tag text-[11px] tracking-[0.3em] text-ink-faint mb-2">LISTENING REPORT</p>
           <h1 className="font-serif text-4xl font-bold tracking-tight text-balance">
             {t('stats.title')}
           </h1>

@@ -8,6 +8,7 @@ import { persist } from 'zustand/middleware'
 import { createPersistStorage } from '@/store/persistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 import { PREAMP_MAX_DB, PREAMP_MIN_DB, type ReplayGainMode } from '@/utils/replayGain'
+import { t } from '@/i18n'
 
 /** 封面图来源优先级 */
 export type CoverSource = 'server_first' | 'remote_first' | 'remote_only' | 'server_only'
@@ -18,11 +19,15 @@ export type CoverShape = 'square' | 'circle'
 /** 音频质量 */
 export type AudioQuality = 'lossless' | 'high' | 'medium' | 'low'
 
-const QUALITY_LABELS: Record<AudioQuality, string> = {
-  lossless: '无损原码（原始格式）',
-  high: '高质量（320kbps）',
-  medium: '标准（192kbps）',
-  low: '省流（128kbps）',
+/**
+ * 音质档位的文案 key（不是文案本身）。
+ * 模块级常量在求值那一刻就定型，直接放翻译好的字符串会把语言钉死在首次加载时。
+ */
+const QUALITY_LABEL_KEYS: Record<AudioQuality, string> = {
+  lossless: 'audio.quality.lossless',
+  high: 'audio.quality.high',
+  medium: 'audio.quality.medium',
+  low: 'audio.quality.low',
 }
 
 const QUALITY_MAX_BITRATE: Record<AudioQuality, number> = {
@@ -32,7 +37,7 @@ const QUALITY_MAX_BITRATE: Record<AudioQuality, number> = {
   low: 128,
 }
 
-export { QUALITY_LABELS, QUALITY_MAX_BITRATE }
+export { QUALITY_LABEL_KEYS, QUALITY_MAX_BITRATE }
 
 /**
  * 系统通知栏 / 锁屏上那两个可配的按键。

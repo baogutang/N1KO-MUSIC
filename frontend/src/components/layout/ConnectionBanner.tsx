@@ -11,11 +11,13 @@ import { ArrowsClockwise, WifiSlash } from '@phosphor-icons/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { getAdapter, hasAdapter } from '@/api'
 import { useServerStore } from '@/store/serverStore'
+import { useT } from '@/i18n'
 
 /** 浏览器报离线后多久探一次服务器 */
 const PROBE_INTERVAL_MS = 20_000
 
 export function ConnectionBanner() {
+  const { t } = useT()
   const activeServerId = useServerStore(s => s.activeServerId)
   const [browserOffline, setBrowserOffline] = useState(() => !navigator.onLine)
   const [serverUnreachable, setServerUnreachable] = useState(false)
@@ -86,9 +88,9 @@ export function ConnectionBanner() {
     >
       <WifiSlash size={13} aria-hidden="true" className="text-primary flex-shrink-0" />
       <span>
-        {browserOffline ? '设备已离线' : '连不上音乐服务器'}
+        {browserOffline ? t('empty.offline.device') : t('empty.offline.server')}
         <span className="text-ink-faint">
-          {browserOffline ? '，显示的是本地缓存内容' : '，可能是离开了服务器所在的网络'}
+          {browserOffline ? t('empty.offline.deviceHint') : t('empty.offline.serverHint')}
         </span>
       </span>
       <button
@@ -97,7 +99,7 @@ export function ConnectionBanner() {
         className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary disabled:opacity-50"
       >
         <ArrowsClockwise size={11} className={retrying ? 'animate-spin' : undefined} aria-hidden="true" />
-        重试
+        {t('action.retry')}
       </button>
     </div>
   )

@@ -12,8 +12,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { parseDeepLink, runDeepLinkCommand, DEEP_LINK_SCHEME } from '@/services/deepLink'
 import { EmptyState, LoadingState } from '@/components/common/EmptyState'
+import { useT } from '@/i18n'
 
 export default function OpenLinkPage() {
+  const { t } = useT()
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const [failed, setFailed] = useState<string | null>(null)
@@ -35,15 +37,15 @@ export default function OpenLinkPage() {
 
   if (!failed) {
     return (
-      <LoadingState label="正在打开…" />
+      <LoadingState label={t('empty.opening')} />
     )
   }
 
   return (
     <EmptyState
-      title="这条链接看不懂。"
+      title={t('empty.deepLink.title')}
       description={failed}
-      action={{ label: '回到首页', onClick: () => navigate('/', { replace: true }) }}
+      action={{ label: t('action.backHome'), onClick: () => navigate('/', { replace: true }) }}
     />
   )
 }

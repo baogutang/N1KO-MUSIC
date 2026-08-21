@@ -11,6 +11,7 @@ import { Star } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useSetRating } from '@/hooks/useServerQueries'
 import { toast } from '@/components/ui/use-toast'
+import { useT } from '@/i18n'
 
 export function StarRating({
   id,
@@ -25,6 +26,7 @@ export function StarRating({
   size?: number
   className?: string
 }) {
+  const { t } = useT()
   const setRating = useSetRating()
   const [hover, setHover] = useState(0)
   const current = value ?? 0
@@ -34,7 +36,7 @@ export function StarRating({
     // 点当前分值等于取消
     const rating = next === current ? 0 : next
     setRating.mutate({ id, rating, type }, {
-      onError: () => toast({ title: '评分未能保存', variant: 'destructive' }),
+      onError: () => toast({ title: t('rating.saveFailed'), variant: 'destructive' }),
     })
   }
 
@@ -42,7 +44,7 @@ export function StarRating({
     <div
       className={cn('inline-flex items-center gap-0.5', className)}
       role="radiogroup"
-      aria-label="评分"
+      aria-label={t('rating.label')}
       onMouseLeave={() => setHover(0)}
     >
       {[1, 2, 3, 4, 5].map(n => (
@@ -51,7 +53,7 @@ export function StarRating({
           type="button"
           role="radio"
           aria-checked={current === n}
-          aria-label={`${n} 星`}
+          aria-label={t('rating.stars', { count: n })}
           onMouseEnter={() => setHover(n)}
           onClick={e => { e.stopPropagation(); apply(n) }}
           className={cn(

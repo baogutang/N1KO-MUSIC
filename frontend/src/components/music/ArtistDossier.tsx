@@ -13,13 +13,15 @@ import { ArrowSquareOut } from '@phosphor-icons/react'
 import { useSettingsStore } from '@/store/settingsStore'
 import { fetchArtistProfile, type ArtistProfile } from '@/services/musicbrainz'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { t as translate, useT } from '@/i18n'
 import { cn } from '@/lib/utils'
 
 function lifeSpanLabel(profile: ArtistProfile): string | null {
   if (!profile.beginYear) return null
-  const verb = profile.type === 'Person' ? '生于' : '成立于'
   if (profile.endYear) return `${profile.beginYear}–${profile.endYear}`
-  return `${verb} ${profile.beginYear}`
+  return profile.type === 'Person'
+    ? translate('artist.bornIn', { year: profile.beginYear })
+    : translate('artist.foundedIn', { year: profile.beginYear })
 }
 
 export function ArtistDossier({
@@ -29,6 +31,7 @@ export function ArtistDossier({
   musicBrainzId?: string
   className?: string
 }) {
+  const { t } = useT()
   const enabled = useSettingsStore(s => s.musicBrainzEnabled)
   const [profile, setProfile] = useState<ArtistProfile | null>(null)
 
@@ -48,9 +51,14 @@ export function ArtistDossier({
   const span = lifeSpanLabel(profile)
   const origin = profile.beginArea || profile.area
   const facts = [
-    span ? { label: '年代', value: span } : null,
-    origin ? { label: '来自', value: origin } : null,
-    profile.type ? { label: '类型', value: profile.type === 'Person' ? '个人' : '团体' } : null,
+    span ? { label: t('artist.years'), value: span } : null,
+    origin ? { label: t('artist.origin'), value: origin } : null,
+    profile.type
+      ? {
+          label: t('artist.kind'),
+          value: profile.type === 'Person' ? t('artist.kindPerson') : t('artist.kindGroup'),
+        }
+      : null,
   ].filter((fact): fact is { label: string; value: string } => fact !== null)
 
   if (!facts.length && !profile.members.length && !profile.links.length) return null
@@ -59,9 +67,10 @@ export function ArtistDossier({
     <section className={cn('border-t border-hair pt-5', className)} aria-labelledby="artist-dossier">
       <div className="mb-4 flex items-baseline justify-between gap-4">
         <h2 id="artist-dossier" className="text-[10.5px] uppercase tracking-[0.24em] text-primary">
-          档案 · DOSSIER
+          {t('section.dossier')}
+          <span className="latin-tag"> · DOSSIER</span>
         </h2>
-        <span className="text-[10px] tracking-[0.16em] text-ink-faint">MUSICBRAINZ</span>
+        <span className="latin-tag text-[10px] tracking-[0.16em] text-ink-faint">MUSICBRAINZ</span>
       </div>
 
       <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-[minmax(0,4fr)_minmax(0,6fr)]">
@@ -78,7 +87,9 @@ export function ArtistDossier({
 
         {profile.members.length > 0 && (
           <div className="min-w-0">
-            <p className="mb-2 text-[10.5px] tracking-[0.14em] text-ink-faint">成员</p>
+            <p className="mb-2 text-[10.5px] tracking-[0.14em] text-ink-faint">
+              {t('artist.members')}
+            </p>
             <ul className="space-y-1">
               {profile.members.map(member => (
                 <li
@@ -90,7 +101,7 @@ export function ArtistDossier({
                   </span>
                   {(member.from || member.to) && (
                     <span className="font-num flex-none text-[11px] text-ink-faint">
-                      {member.from ?? '?'}–{member.to ?? '至今'}
+                      {member.from ?? '?'}–{member.to ?? t('artist.present')}
                     </span>
                   )}
                 </li>
@@ -104,13 +115,13 @@ export function ArtistDossier({
         <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2">
           {profile.links.map(link => (
             <a
-              key={link.label}
+              key={link.labelKey}
               href={link.url}
               target="_blank"
               rel="noopener noreferrer nofollow"
               className="inline-flex items-center gap-1.5 text-[12px] text-ink-soft transition-colors hover:text-primary"
             >
-              {link.label}
+              {t(link.labelKey)}
               <ArrowSquareOut size={11} />
             </a>
           ))}

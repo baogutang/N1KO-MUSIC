@@ -10,6 +10,7 @@
 import type { ListeningEvent } from '@/services/listeningHistory'
 import { isQualifiedListeningEvent } from '@/services/listeningHistory'
 import type { Song } from '@/api/types'
+import { t } from '@/i18n'
 
 const DAY_MS = 86_400_000
 /** 两次收听间隔超过这个值就算两次独立的「一场」 */
@@ -108,11 +109,15 @@ function startOfLocalDay(timestamp: number): number {
   return date.getTime()
 }
 
-function formatDurationCn(seconds: number): string {
+function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.round((seconds % 3600) / 60)
-  if (hours >= 1) return minutes > 0 ? `${hours} 小时 ${minutes} 分钟` : `${hours} 小时`
-  return `${Math.max(1, minutes)} 分钟`
+  if (hours >= 1) {
+    return minutes > 0
+      ? t('duration.hoursMinutes', { hours, minutes })
+      : t('duration.hours', { hours })
+  }
+  return t('duration.minutes', { minutes: Math.max(1, minutes) })
 }
 
 function rank(map: Map<string, { count: number; song: Song }>, limit: number): IssueEntry[] {
@@ -253,7 +258,7 @@ function buildSuperlatives(
   }
   bestSession = Math.max(bestSession, sessionEnd - sessionStart)
   if (bestSession > 20 * 60_000) {
-    out.push({ label: '最长的一场', value: formatDurationCn(bestSession / 1000) })
+    out.push({ label: t('issue.superlative.longestSession'), value: formatDuration(bestSession / 1000) })
   }
 
   // 单曲重复最多
@@ -266,9 +271,9 @@ function buildSuperlatives(
   const mostRepeated = Array.from(repeat.values()).sort((a, b) => b.count - a.count)[0]
   if (mostRepeated && mostRepeated.count >= 3) {
     out.push({
-      label: '单曲重复最多',
+      label: t('issue.superlative.mostRepeated'),
       value: mostRepeated.song.title,
-      detail: `${mostRepeated.count} 次`,
+      detail: t('issue.playCount', { count: mostRepeated.count }),
     })
   }
 
@@ -282,9 +287,9 @@ function buildSuperlatives(
   if (heaviest && heaviest[1] > 600) {
     const d = new Date(heaviest[0])
     out.push({
-      label: '最重的一天',
-      value: `${d.getMonth() + 1} 月 ${d.getDate()} 日`,
-      detail: formatDurationCn(heaviest[1]),
+      label: t('issue.superlative.heaviestDay'),
+      value: t('issue.monthDay', { month: d.getMonth() + 1, day: d.getDate() }),
+      detail: formatDuration(heaviest[1]),
     })
   }
 
@@ -292,9 +297,9 @@ function buildSuperlatives(
   const longestArtist = Array.from(artistSeconds.entries()).sort((a, b) => b[1] - a[1])[0]
   if (longestArtist && longestArtist[1] > 600) {
     out.push({
-      label: '陪伴最久',
+      label: t('issue.superlative.longestCompany'),
       value: artists.get(longestArtist[0])?.song.artist ?? longestArtist[0],
-      detail: formatDurationCn(longestArtist[1]),
+      detail: formatDuration(longestArtist[1]),
     })
   }
 
@@ -318,22 +323,27 @@ function buildEditorsNote(input: {
   const { period, plays, listenedSeconds, activeDays, uniqueArtists, coverArtist, discoveries } = input
   if (!plays) return ''
 
-  const unit = period.kind === 'month' ? '这个月' : '这一年'
+  const unit = period.kind === 'month' ? t('issue.unitMonth') : t('issue.unitYear')
   const sentences: string[] = []
 
-  sentences.push(
-    `${unit}你听了 ${plays} 次，累计 ${formatDurationCn(listenedSeconds)}，` +
-    `分布在 ${activeDays} 天里。`
-  )
+  sentences.push(t('issue.note.summary', {
+    unit, plays, duration: formatDuration(listenedSeconds), days: activeDays,
+  }))
   if (uniqueArtists > 0) {
-    sentences.push(`一共来自 ${uniqueArtists} 位歌手。`)
+    sentences.push(t('issue.note.artists', { count: uniqueArtists }))
   }
   if (coverArtist && coverArtist.count >= 3) {
-    sentences.push(`其中 ${coverArtist.title} 出现了 ${coverArtist.count} 次，是${unit}的主角。`)
+    sentences.push(t('issue.note.cover', {
+      name: coverArtist.title, count: coverArtist.count, unit,
+    }))
   }
   if (discoveries.length) {
-    const names = discoveries.slice(0, 3).map(d => d.title).join('、')
-    sentences.push(`${unit}第一次听到的有 ${names}。`)
+    const names = discoveries.slice(0, 3).map(d => d.title).join(t('issue.nameSeparator'))
+    sentences.push(t('issue.note.discoveries', { unit, names }))
   }
-  return sentences.join('')
+  /**
+   * 中文句子自带句末留白，直接相接即可；英文需要一个空格。
+   * 分隔符本身也交给词条，而不是在这里写死。
+   */
+  return sentences.join(t('issue.sentenceJoiner'))
 }

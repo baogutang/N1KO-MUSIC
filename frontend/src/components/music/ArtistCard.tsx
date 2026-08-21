@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
 import type { Artist } from '@/api/types'
+import { useT } from '@/i18n'
 
 interface ArtistCardProps {
   artist: Artist
@@ -15,6 +16,7 @@ interface ArtistCardProps {
 }
 
 export function ArtistCard({ artist, className }: ArtistCardProps) {
+  const { t } = useT()
   const navigate = useNavigate()
 
   const imageUrl = artist.artistImageUrl ||
@@ -45,7 +47,7 @@ export function ArtistCard({ artist, className }: ArtistCardProps) {
       </p>
       {artist.albumCount !== undefined && (
         <p className="text-xs text-ink-faint mt-0.5">
-          <span className="font-num">{artist.albumCount}</span> 张专辑
+          {t('artist.albumCountShort', { count: artist.albumCount ?? 0 })}
         </p>
       )}
     </button>

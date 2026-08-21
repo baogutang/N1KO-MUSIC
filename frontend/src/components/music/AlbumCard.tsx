@@ -14,6 +14,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/hooks/useServerQueries'
 import { playListFrom } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 interface AlbumCardProps {
   album: Album
@@ -21,6 +22,7 @@ interface AlbumCardProps {
 }
 
 export function AlbumCard({ album, className }: AlbumCardProps) {
+  const { t } = useT()
   const navigate = useNavigate()
   const playSong  = usePlayerStore(s => s.playSong)
   const queryClient = useQueryClient()
@@ -77,7 +79,7 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
         {/* 播放键：细线圆，hover 浮现；再 hover 填充 accent */}
         <button
           onClick={handlePlay}
-          aria-label="播放整张专辑"
+          aria-label={t('album.playWhole')}
           className="absolute right-2.5 bottom-2.5 w-9 h-9 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 hover:bg-primary hover:border-primary active:scale-[0.94]"
         >
           <Play className="w-3.5 h-3.5 ml-px" weight="fill" />

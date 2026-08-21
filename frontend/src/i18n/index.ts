@@ -78,12 +78,24 @@ export function setLocale(locale: Locale): void {
  * 界面上出现一个 {count} 是明确的 bug 信号，出现 "undefined" 只会让人困惑。
  */
 export function t(key: string, vars?: Record<string, string | number>): string {
-  const template = CATALOGS[currentLocale][key]
-    ?? CATALOGS[SOURCE_LOCALE][key]
-    ?? key
+  const template = translate(key, currentLocale)
   if (!vars) return template
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
     name in vars ? String(vars[name]) : match)
+}
+
+/**
+ * 查表。
+ *
+ * 用 `key in catalog` 而不是 `catalog[key] ?? fallback`：**空字符串是一种合法的译文**。
+ * 中文的量词（「3 位歌手」的「位」、「5 张专辑」的「张」）在英文里根本不存在，
+ * 正确的英文译文就是空。用 `??` 的话空串会被当成缺失、回落成中文，
+ * 于是英文界面上会冒出一个「位」。
+ */
+function translate(key: string, locale: Locale): string {
+  if (key in CATALOGS[locale]) return CATALOGS[locale][key]
+  if (key in CATALOGS[SOURCE_LOCALE]) return CATALOGS[SOURCE_LOCALE][key]
+  return key
 }
 
 function subscribe(listener: () => void): () => void {
@@ -94,15 +106,31 @@ function subscribe(listener: () => void): () => void {
 /**
  * 组件里用这个。
  *
- * 返回的 t 在切换语言时引用会变，因此 useMemo/useCallback 把它列进依赖就能
- * 正确地跟着重算。
+ * 返回的 t **每换一次语言就换一个引用**，因此把它放进 useMemo / useCallback 的
+ * 依赖数组是有效的，切语言时依赖它的记忆值会跟着重算。
+ * 这一点必须成立：模块级的那个 t 引用永远不变，直接把它列进依赖等于没列，
+ * 记忆住的旧语言文案会一直留在界面上。
  */
-export function useT(): { t: typeof t; locale: Locale } {
-  const locale = useSyncExternalStore(subscribe, getLocale, () => SOURCE_LOCALE)
-  return { t, locale }
+const boundCache = new Map<Locale, typeof t>()
+function boundT(locale: Locale): typeof t {
+  const cached = boundCache.get(locale)
+  if (cached) return cached
+  const bound: typeof t = (key, vars) => {
+    const template = translate(key, locale)
+    if (!vars) return template
+    return template.replace(/\{(\w+)\}/g, (match, name: string) =>
+      name in vars ? String(vars[name]) : match)
+  }
+  boundCache.set(locale, bound)
+  return bound
 }
 
-/** 供构建期脚本核对覆盖率：源语言有、目标语言没有的 key */
+export function useT(): { t: typeof t; locale: Locale } {
+  const locale = useSyncExternalStore(subscribe, getLocale, () => SOURCE_LOCALE)
+  return { t: boundT(locale), locale }
+}
+
+/** 供构建期脚本核对覆盖率：源语言有、目标语言没有的 key（空串算已翻译） */
 export function missingKeys(locale: Locale): string[] {
   const target = CATALOGS[locale]
   return Object.keys(CATALOGS[SOURCE_LOCALE]).filter(key => !(key in target))

@@ -11,8 +11,10 @@ import { useArtists } from '@/hooks/useServerQueries'
 import { buildIndexBuckets, IndexRail } from '@/components/common/IndexRail'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
+import { useT } from '@/i18n'
 
 export default function ArtistsPage() {
+  const { t } = useT()
   const navigate = useNavigate()
   const { data: artists, isLoading } = useArtists()
   const [filter, setFilter] = useState('')
@@ -61,10 +63,10 @@ export default function ArtistsPage() {
   return (
     <div className="pt-9 animate-fade-in">
       <div className="mb-6">
-        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">歌手</h1>
+        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('nav.artists')}</h1>
         {!isLoading && (
-          <p className="text-sm text-ink-soft mt-1.5">
-            共 <span className="num">{filtered.length}</span> 位
+          <p className="num text-sm text-ink-soft mt-1.5">
+            {t('artist.total', { count: filtered.length })}
           </p>
         )}
       </div>
@@ -73,7 +75,7 @@ export default function ArtistsPage() {
       <div className="relative max-w-sm mb-8">
         <MagnifyingGlass size={15} className="absolute left-0 top-1/2 -translate-y-1/2 text-ink-faint" />
         <input
-          placeholder="筛选歌手…"
+          placeholder={t('artist.filterPlaceholder')}
           value={filter}
           onChange={e => setFilter(e.target.value)}
           className="w-full border-b border-hair bg-transparent py-2 pl-6 pr-2 text-sm text-ink placeholder:text-ink-faint transition-colors duration-200 focus:border-primary focus:outline-none focus-visible:outline-none"
@@ -90,7 +92,7 @@ export default function ArtistsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState ruled title="没有名字相符的歌手。" description="换个关键词试试。" />
+        <EmptyState ruled title={t('empty.artists.title')} description={t('empty.artists.description')} />
       ) : (
         <div className="flex gap-3">
           <div className="min-w-0 flex-1 border-t border-hair">
@@ -118,7 +120,7 @@ export default function ArtistsPage() {
                       </span>
                       {artist.albumCount != null && (
                         <span className="num flex-shrink-0 text-xs text-ink-faint">
-                          收录 {artist.albumCount} 张
+                          {t('artist.albumCount', { count: artist.albumCount })}
                         </span>
                       )}
                     </button>

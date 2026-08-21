@@ -11,11 +11,13 @@ import { getAdapter } from '@/api'
 import { useServerStore } from '@/store/serverStore'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 /** 服务器上「正在播放」的刷新间隔 */
 const REFRESH_MS = 60_000
 
 export function NowPlayingOnServer() {
+  const { t } = useT()
   const navigate = useNavigate()
   const activeServerId = useServerStore(s => s.activeServerId)
   const isConnected = useServerStore(s => s.isConnected)
@@ -38,7 +40,7 @@ export function NowPlayingOnServer() {
     <section aria-labelledby="now-on-server">
       <div className="section-head">
         <h2 id="now-on-server">
-          此刻 · 服务器上<small>NOW ON THE SERVER</small>
+          {t('nowPlaying.onServer')}<small>NOW ON THE SERVER</small>
         </h2>
       </div>
       <ul className="border-t border-hair">
@@ -61,7 +63,7 @@ export function NowPlayingOnServer() {
             </span>
             {entry.minutesAgo != null && (
               <span className="font-num flex-none text-[11px] text-ink-faint">
-                {entry.minutesAgo === 0 ? '刚刚' : `${entry.minutesAgo} 分钟前`}
+                {entry.minutesAgo === 0 ? t('nowPlaying.justNow') : t('nowPlaying.minutesAgo', { count: entry.minutesAgo })}
               </span>
             )}
           </li>

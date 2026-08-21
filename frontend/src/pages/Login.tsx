@@ -17,15 +17,18 @@ import { JellyfinAdapter } from '@/api/adapters/jellyfin'
 import { EmbyAdapter } from '@/api/adapters/emby'
 import { setActiveAdapter } from '@/api'
 import type { ServerType } from '@/api/types'
+import { useT } from '@/i18n'
 
-const SERVER_TYPES: Array<{ type: ServerType; label: string; desc: string }> = [
-  { type: 'navidrome', label: 'Navidrome', desc: '开源音乐服务器（推荐）' },
-  { type: 'subsonic', label: 'Subsonic', desc: '经典 Subsonic 兼容服务器' },
-  { type: 'jellyfin', label: 'Jellyfin', desc: '开源媒体服务器' },
-  { type: 'emby', label: 'Emby', desc: '多媒体服务器' },
+// 说明句只存 key：这张表在模块加载时就建好了，直接存译文会把语言钉死在首次加载那一刻
+const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string }> = [
+  { type: 'navidrome', label: 'Navidrome', descKey: 'login.type.navidrome' },
+  { type: 'subsonic', label: 'Subsonic', descKey: 'login.type.subsonic' },
+  { type: 'jellyfin', label: 'Jellyfin', descKey: 'login.type.jellyfin' },
+  { type: 'emby', label: 'Emby', descKey: 'login.type.emby' },
 ]
 
 export default function LoginPage() {
+  const { t } = useT()
   const navigate = useNavigate()
   const { servers, addServer, activateServer, updateServerAuth } = useServerStore()
 
@@ -47,7 +50,7 @@ export default function LoginPage() {
       setSelectedType(server.type)
       setForm({ url: server.url, username: server.username, password: '', name: server.name })
       setStep('credentials')
-      setError('登录凭据已升级，请重新输入密码完成连接')
+      setError(t('login.errorCredentialsUpgraded'))
     }
   }
 
@@ -59,7 +62,7 @@ export default function LoginPage() {
 
   const handleConnect = async () => {
     if (!selectedType || !form.url || !form.username || !form.password) {
-      setError('请填写所有必填字段')
+      setError(t('login.errorRequired'))
       return
     }
 
@@ -82,7 +85,7 @@ export default function LoginPage() {
         })
         result = await tempAdapter.login(url, form.username, form.password)
         if (!result.success) {
-          setError(result.error || '连接失败，请检查服务器地址和账号密码')
+          setError(result.error || t('login.errorFailed'))
           return
         }
         adapter = new SubsonicAdapter({
@@ -109,7 +112,7 @@ export default function LoginPage() {
         const tempAdapter = new AdapterClass({ url, token: '', userId: '' })
         result = await tempAdapter.login(url, form.username, form.password)
         if (!result.success) {
-          setError(result.error || '连接失败，请检查服务器地址和账号密码')
+          setError(result.error || t('login.errorFailed'))
           return
         }
         adapter = new AdapterClass({
@@ -133,7 +136,7 @@ export default function LoginPage() {
 
       navigate('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : '连接失败，请检查网络或服务器地址')
+      setError(err instanceof Error ? err.message : t('login.errorNetwork'))
     } finally {
       setIsLoading(false)
     }
@@ -153,12 +156,14 @@ export default function LoginPage() {
         </header>
 
         <h1 className="text-center font-serif text-[28px] font-bold tracking-[-0.01em] text-foreground">
-          连接你的音乐服务器
+          {t('login.title')}
         </h1>
         <p className="mt-3 mb-10 text-center text-[13.5px] leading-relaxed text-ink-soft">
           {step === 'type'
-            ? '选择服务器类型，或从已保存的服务器快速连接。'
-            : `正在配置 ${SERVER_TYPES.find(t => t.type === selectedType)?.label ?? ''} 的连接信息。`}
+            ? t('login.subtitleChooseType')
+            : t('login.subtitleConfiguring', {
+                type: SERVER_TYPES.find(item => item.type === selectedType)?.label ?? '',
+              })}
         </p>
 
         {step === 'type' ? (
@@ -167,7 +172,7 @@ export default function LoginPage() {
             {servers.length > 0 && (
               <div className="mb-10">
                 <p className="mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
-                  已保存的服务器 · SAVED
+                  {t('login.savedServers')}
                 </p>
                 <ol className="border-t border-hair">
                   {servers.map((server, i) => (
@@ -198,16 +203,16 @@ export default function LoginPage() {
                     </li>
                   ))}
                 </ol>
-                <p className="pt-3 text-center text-[12px] text-ink-faint">或添加新服务器</p>
+                <p className="pt-3 text-center text-[12px] text-ink-faint">{t('login.addNewServer')}</p>
               </div>
             )}
 
             {/* 服务器类型：发丝线行式单选（当前项 accent + 左 2px 竖线） */}
             <p className="mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
-              选择服务器类型 · SERVER TYPE
+              {t('login.serverType')}
             </p>
             <div className="border-t border-hair">
-              {SERVER_TYPES.map(({ type, label, desc }) => {
+              {SERVER_TYPES.map(({ type, label, descKey }) => {
                 const active = selectedType === type
                 return (
                   <button
@@ -235,7 +240,7 @@ export default function LoginPage() {
                       >
                         {label}
                       </span>
-                      <span className="block text-[12px] text-ink-faint">{desc}</span>
+                      <span className="block text-[12px] text-ink-faint">{t(descKey)}</span>
                     </span>
                     <CaretRight
                       size={13}
@@ -255,21 +260,21 @@ export default function LoginPage() {
                 className="inline-flex items-center gap-1.5 text-[12.5px] tracking-[0.08em] text-ink-soft hover:text-primary transition-colors"
               >
                 <ArrowLeft size={13} />
-                返回
+                {t('action.back')}
               </button>
               <span className="text-ink-faint">·</span>
               <span className="font-serif text-[14px] font-semibold text-foreground">
-                {SERVER_TYPES.find(t => t.type === selectedType)?.label}
+                {SERVER_TYPES.find(item => item.type === selectedType)?.label}
               </span>
             </div>
 
             {/* 服务器名称（可选）*/}
             <div>
               <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
-                服务器名称（可选）
+                {t('login.serverName')}
               </label>
               <Input
-                placeholder="我的 Navidrome"
+                placeholder={t('login.serverNamePlaceholder')}
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               />
@@ -278,7 +283,7 @@ export default function LoginPage() {
             {/* 服务器地址 */}
             <div>
               <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
-                服务器地址 <span className="text-destructive">*</span>
+                {t('login.serverUrl')} <span className="text-destructive">*</span>
               </label>
               <Input
                 placeholder="https://music.example.com"
@@ -291,7 +296,7 @@ export default function LoginPage() {
             {/* 用户名 */}
             <div>
               <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
-                用户名 <span className="text-destructive">*</span>
+                {t('login.username')} <span className="text-destructive">*</span>
               </label>
               <Input
                 placeholder="admin"
@@ -303,7 +308,7 @@ export default function LoginPage() {
             {/* 密码 */}
             <div>
               <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
-                密码 <span className="text-destructive">*</span>
+                {t('login.password')} <span className="text-destructive">*</span>
               </label>
               <div className="relative">
                 <Input
@@ -318,7 +323,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint hover:text-foreground transition-colors duration-200"
-                  aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                  aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
                 >
                   {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
                 </button>
@@ -341,10 +346,10 @@ export default function LoginPage() {
                 {isLoading ? (
                   <>
                     <CircleNotch className="w-4 h-4 mr-2 animate-spin" />
-                    正在连接…
+                    {t('login.connecting')}
                   </>
                 ) : (
-                  '连接服务器'
+                  t('login.connect')
                 )}
               </Button>
             </div>

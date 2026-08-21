@@ -6,6 +6,7 @@ import {
   formatRate,
 } from '@/services/listeningStats'
 import type { ListeningEvent, ListeningOutcome } from '@/services/listeningHistory'
+import { t } from '@/i18n'
 
 /**
  * 统计按「本地」日历天与本地小时分桶，因此固定时刻必须用本地时间构造。
@@ -221,7 +222,7 @@ describe('computeListeningStats', () => {
       7,
       NOW
     )
-    expect(stats?.topArtists[0].title).toBe('未知歌手')
+    expect(stats?.topArtists[0].title).toBe(t('artist.unknown'))
     expect(stats?.topAlbums).toEqual([])
     expect(stats?.uniqueAlbums).toBe(0)
   })

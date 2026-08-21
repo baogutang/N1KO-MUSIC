@@ -13,6 +13,7 @@
 
 import { cn } from '@/lib/utils'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 export function EmptyState({
   title,
@@ -60,13 +61,16 @@ export function EmptyState({
  * 和空态同一个位置、同一套字号，只是话不同——这样从「加载中」变成「空」时
  * 版面不会跳。
  */
-export function LoadingState({ label = '正在加载…', ruled = false }: {
+export function LoadingState({ label, ruled = false }: {
   label?: string
   ruled?: boolean
 }) {
+  const { t } = useT()
   return (
     <div className={cn('py-20 text-center', ruled && 'border-t border-hair')}>
-      <p className="font-serif text-[15px] text-ink-faint">{spaceCJK(label)}</p>
+      <p className="font-serif text-[15px] text-ink-faint">
+        {spaceCJK(label ?? t('empty.loading'))}
+      </p>
     </div>
   )
 }

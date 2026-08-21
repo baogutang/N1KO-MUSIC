@@ -20,19 +20,22 @@ import { prefetchRoute } from '@/routes/lazyRoutes'
 import { toast } from '@/components/ui/use-toast'
 import { LibraryScopeMenu } from './LibraryScopeMenu'
 import { issueNumber } from '@/services/issueNumber'
+import { useT } from '@/i18n'
 
 export function Masthead() {
+  const { t, locale } = useT()
   const navigate = useNavigate()
   const { servers, activeServerId, disconnect, activateServer } = useServerStore()
   const activeServer = servers.find(s => s.id === activeServerId)
 
   const now = new Date()
-  const dateLabel = new Intl.DateTimeFormat('zh-CN', {
+  // 日期跟着界面语言走：中文界面写「2026年8月21日 星期五」，英文界面写 "21 August 2026"
+  const dateLabel = new Intl.DateTimeFormat(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   }).format(now)
-  const weekLabel = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(now)
+  const weekLabel = new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(now)
   // 刊号按 ISO 周推算，同一天在任何一台设备上都是同一期
   const issue = issueNumber(now.getTime())
 
@@ -48,7 +51,7 @@ export function Masthead() {
         {/* 品牌 + 服务器状态下拉 */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="group flex items-baseline gap-3 text-left" aria-label="服务器菜单">
+            <button className="group flex items-baseline gap-3 text-left" aria-label={t('settings.server.menu')}>
               <span className="font-sans font-bold text-[15px] tracking-[0.3em] text-foreground">
                 N1KO MUSIC
               </span>
@@ -61,7 +64,7 @@ export function Masthead() {
                   aria-hidden="true"
                 />
                 <span className="max-w-[180px] truncate">
-                  {activeServer ? activeServer.name : '未连接'}
+                  {activeServer ? activeServer.name : t('settings.server.notConnected')}
                 </span>
                 <CaretDown size={10} className="text-ink-faint flex-shrink-0" />
               </span>
@@ -74,8 +77,8 @@ export function Masthead() {
                 onClick={() => {
                   if (!activateServer(server.id)) {
                     toast({
-                      title: '该服务器需要重新登录',
-                      description: '登录凭据已升级，请在登录页重新连接',
+                      title: t('settings.server.reloginTitle'),
+                      description: t('settings.server.reloginDesc'),
                       variant: 'destructive',
                     })
                   }
@@ -96,12 +99,12 @@ export function Masthead() {
               onClick={() => navigate('/settings')}
             >
               <Plus size={16} className="mr-2" />
-              添加服务器
+              {t('settings.server.add')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={disconnect}>
               <SignOut size={16} className="mr-2" />
-              断开连接
+              {t('settings.disconnect.action')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

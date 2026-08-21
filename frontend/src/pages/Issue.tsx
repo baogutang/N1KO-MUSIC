@@ -352,7 +352,7 @@ function RankTable({
         className="mb-4 flex items-baseline gap-2.5 border-b border-hair pb-2 font-serif text-[19px] font-bold"
       >
         {title}
-        <span className="font-num text-[9.5px] tracking-[0.22em] text-ink-faint">{tag}</span>
+        <span className="latin-tag font-num text-[9.5px] tracking-[0.22em] text-ink-faint">{tag}</span>
       </h2>
       <ol>
         {entries.map((entry, i) => (

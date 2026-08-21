@@ -71,7 +71,8 @@ describe('fetchArtistProfile', () => {
   it('只保留有意义的外部链接，数据库互链丢掉', async () => {
     stubOk()
     const profile = (await fetchArtistProfile(MBID))!
-    expect(profile.links.map(l => l.label).sort()).toEqual(['Wikidata', '官网'])
+    // 存的是文案 key 不是文案：档案缓存 30 天，不该把语言一起腌进去
+    expect(profile.links.map(l => l.labelKey).sort()).toEqual(['link.homepage', 'link.wikidata'])
   })
 
   it('MBID 形状不对时一个请求都不发', async () => {

@@ -18,6 +18,7 @@ import { useServerStore } from '@/store/serverStore'
 import { isQualifiedListeningEvent, readListeningEvents } from '@/services/listeningHistory'
 import { cn } from '@/lib/utils'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 /** 全部歌曲默认展示数量 */
 const SONGS_INITIAL_SHOW = 20
@@ -25,6 +26,7 @@ const SONGS_INITIAL_SHOW = 20
 const TOP_SONGS_SHOW = 5
 
 export default function ArtistDetailPage() {
+  const { t } = useT()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: artist, isLoading } = useArtistDetail(id ?? '')
@@ -130,7 +132,7 @@ export default function ArtistDetailPage() {
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">歌手 · ARTIST</p>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">{t('artist.eyebrow')}</p>
           <h1 className="mt-3 font-serif text-4xl font-black tracking-[-0.01em] text-ink text-balance lg:text-5xl">
             {spaceCJK(artist.name)}
           </h1>
@@ -143,7 +145,7 @@ export default function ArtistDetailPage() {
                 onClick={() => setBioExpanded(v => !v)}
                 className="mt-2 text-xs tracking-[0.14em] text-ink-faint transition-colors duration-200 hover:text-primary"
               >
-                {bioExpanded ? '收起 ↑' : '展开 ↓'}
+                {bioExpanded ? `${t('action.collapse')} ↑` : `${t('action.expand')} ↓`}
               </button>
             </div>
           )}
@@ -154,7 +156,7 @@ export default function ArtistDetailPage() {
                 className="inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
               >
                 <Play size={13} weight="fill" />
-                播放全部
+                {t('player.playAll')}
               </button>
             )}
             {playableSongs.length > 0 && (
@@ -163,7 +165,7 @@ export default function ArtistDetailPage() {
                 className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
               >
                 <Shuffle size={14} />
-                随机播放
+                {t('player.shuffle')}
               </button>
             )}
           </div>
@@ -174,7 +176,7 @@ export default function ArtistDetailPage() {
       {topSongs.length > 0 && (
         <section>
           <div className="section-head">
-            <h2>热门歌曲<small>TOP SONGS</small></h2>
+            <h2>{t('section.topSongs')}<small>TOP SONGS</small></h2>
           </div>
           <SongList songs={topSongs.slice(0, TOP_SONGS_SHOW)} showCover showAlbum showIndex />
         </section>
@@ -184,8 +186,8 @@ export default function ArtistDetailPage() {
       {allSongs.length > 0 && (
         <section>
           <div className="section-head">
-            <h2>全部歌曲<small>ALL SONGS</small></h2>
-            <span className="more num">共 {allSongs.length} 首</span>
+            <h2>{t('section.allSongs')}<small>ALL SONGS</small></h2>
+            <span className="more num">{t('song.trackTotal', { count: allSongs.length })}</span>
           </div>
           <SongList songs={displayedSongs} showCover showAlbum showIndex />
           {hasMoreSongs && (
@@ -195,9 +197,9 @@ export default function ArtistDetailPage() {
                 className="inline-flex items-center gap-2 rounded border border-hair px-4 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
               >
                 {showAllSongs ? (
-                  <>收起 <CaretUp size={13} /></>
+                  <>{t('action.collapse')} <CaretUp size={13} /></>
                 ) : (
-                  <>查看全部 <span className="num">{allSongs.length}</span> 首 <CaretDown size={13} /></>
+                  <>{t('artist.showAllSongs', { count: allSongs.length })} <CaretDown size={13} /></>
                 )}
               </button>
             </div>
@@ -227,12 +229,12 @@ export default function ArtistDetailPage() {
       {artist.similarArtists && artist.similarArtists.length > 0 && (
         <section className="pb-4">
           <div className="section-head">
-            <h2>相似歌手<small>SIMILAR ARTISTS</small></h2>
+            <h2>{t('section.similarArtists')}<small>SIMILAR ARTISTS</small></h2>
           </div>
           <p className="font-serif text-lg leading-[2.2] md:text-xl">
             {artist.similarArtists.map((similar, i) => (
               <Fragment key={similar.id}>
-                {i > 0 && <span className="text-ink-faint">，</span>}
+                {i > 0 && <span className="text-ink-faint">{t('artist.listSeparator')}</span>}
                 <button
                   onClick={() => navigate(`/artists/${similar.id}`)}
                   className="border-b border-transparent transition-colors duration-200 hover:border-primary hover:text-primary"

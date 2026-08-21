@@ -22,10 +22,33 @@ describe('目录完整性', () => {
     expect(Object.keys(enUS).filter(key => !(key in zhCN))).toEqual([])
   })
 
-  it('没有空值：缺翻译应该整条不写，靠回落，而不是留一个空串', () => {
-    for (const [key, value] of Object.entries({ ...zhCN, ...enUS })) {
-      expect(value.trim(), `${key} 是空的`).not.toBe('')
+  /**
+   * 少数几个词条在中文里就是空的，且必须是空的：
+   * 中文句子自带句末留白，句与句之间不需要分隔符，英文需要一个空格。
+   * 这类词条列在这里，其余任何空值都是漏翻。
+   */
+  const INTENTIONALLY_EMPTY_IN_SOURCE = new Set(['issue.sentenceJoiner'])
+
+  it('源语言里没有意外的空值——中文是唯一必须完整的那一份', () => {
+    for (const [key, value] of Object.entries(zhCN)) {
+      if (INTENTIONALLY_EMPTY_IN_SOURCE.has(key)) continue
+      expect(value.trim(), `${key} 在源语言里是空的`).not.toBe('')
     }
+  })
+
+  it('故意留空的那几个词条确实还在，改名了要在这里同步', () => {
+    for (const key of INTENTIONALLY_EMPTY_IN_SOURCE) {
+      expect(key in zhCN, `${key} 不在词条表里了`).toBe(true)
+    }
+  })
+
+  it('目标语言允许空串，那是「这个语言里没有这个成分」的正确写法', () => {
+    // 量词就是典型：中文「3 位歌手」的「位」，英文里根本不存在
+    expect(zhCN['stats.unitArtists']).not.toBe('')
+    expect(enUS['stats.unitArtists']).toBe('')
+    setLocale('en-US')
+    // 关键：空串必须**赢过**回落，否则英文界面上会冒出一个「位」
+    expect(t('stats.unitArtists')).toBe('')
   })
 
   it('同一个 key 在两种语言里的占位符集合必须一致', () => {

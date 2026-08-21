@@ -5,6 +5,13 @@ import { describe, expect, it } from 'vitest'
 import { buildIssue, monthPeriod, shiftPeriod, yearPeriod } from '@/services/issue'
 import type { ListeningEvent } from '@/services/listeningHistory'
 import type { Song } from '@/api/types'
+import { setLocale } from '@/i18n'
+
+/**
+ * 这一组用例验的是「编者按由哪些真实数值拼成」，断言里带着中文字面量，
+ * 因此把语言钉在源语言上。测试环境没有 navigator.language，默认会落到 en-US。
+ */
+setLocale('zh-CN')
 
 const NOW = new Date(2026, 7, 15, 12, 0, 0, 0).getTime()
 

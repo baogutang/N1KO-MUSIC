@@ -15,6 +15,7 @@ import {
 } from '@/services/notes'
 import { useServerStore } from '@/store/serverStore'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 import { cn } from '@/lib/utils'
 
 function formatDate(timestamp: number): string {
@@ -22,10 +23,10 @@ function formatDate(timestamp: number): string {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`
 }
 
-const PLACEHOLDERS: Record<NoteTarget, string> = {
-  song: '写点什么：第一次是在哪听到的，或者这段间奏为什么好。',
-  album: '写点什么：为什么留着这张。',
-  artist: '写点什么：从哪一首开始的。',
+const PLACEHOLDER_KEYS: Record<NoteTarget, string> = {
+  song: 'song.notePlaceholder',
+  album: 'album.notePlaceholder',
+  artist: 'artist.notePlaceholder',
 }
 
 export function MarginNote({
@@ -37,6 +38,7 @@ export function MarginNote({
   targetId: string
   className?: string
 }) {
+  const { t } = useT()
   const serverId = useServerStore(s => s.activeServerId)
   const [note, setNote] = useState(() =>
     serverId ? readNote(target, targetId, serverId) : null)
@@ -55,6 +57,8 @@ export function MarginNote({
   }, [editing])
 
   if (!serverId) return null
+
+  const placeholder = t(PLACEHOLDER_KEYS[target])
 
   const startEditing = () => {
     setDraft(note?.body ?? '')
@@ -87,11 +91,12 @@ export function MarginNote({
   return (
     <aside
       className={cn('border-t border-hair pt-4', className)}
-      aria-label="边注"
+      aria-label={t('section.marginalia')}
     >
       <div className="mb-2.5 flex items-baseline justify-between gap-3">
         <p className="text-[10.5px] uppercase tracking-[0.24em] text-primary">
-          边注 · MARGINALIA
+          {t('section.marginalia')}
+          <span className="latin-tag"> · MARGINALIA</span>
         </p>
         {!editing && (
           <button
@@ -99,7 +104,7 @@ export function MarginNote({
             className="flex items-center gap-1.5 text-[11px] text-ink-faint transition-colors hover:text-primary"
           >
             <PencilSimple size={11} />
-            {note ? '修改' : '写一条'}
+            {note ? t('action.edit') : t('action.writeNote')}
           </button>
         )}
       </div>
@@ -117,7 +122,7 @@ export function MarginNote({
               if (event.key === 'Escape') discard()
             }}
             rows={5}
-            placeholder={PLACEHOLDERS[target]}
+            placeholder={placeholder}
             className="w-full resize-none border-b border-hair bg-transparent pb-2 font-serif text-[14px] leading-[1.85] text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
           />
           <div className="mt-2.5 flex items-center gap-4">
@@ -126,14 +131,14 @@ export function MarginNote({
               className="flex items-center gap-1.5 text-[12px] font-semibold transition-colors hover:text-primary"
             >
               <Check size={12} />
-              存下
+              {t('action.save')}
             </button>
             <button
               onClick={discard}
               className="flex items-center gap-1.5 text-[12px] text-ink-faint transition-colors hover:text-ink"
             >
               <X size={12} />
-              放弃
+              {t('action.discard')}
             </button>
             {note && (
               <button
@@ -141,7 +146,7 @@ export function MarginNote({
                 className="ml-auto flex items-center gap-1.5 text-[12px] text-ink-faint transition-colors hover:text-destructive"
               >
                 <Trash size={12} />
-                删掉
+                {t('action.delete')}
               </button>
             )}
             <span className="font-num ml-auto text-[10.5px] text-ink-faint">
@@ -163,7 +168,7 @@ export function MarginNote({
           onClick={startEditing}
           className="block w-full text-left font-serif text-[13px] leading-[1.85] text-ink-faint transition-colors hover:text-ink-soft"
         >
-          {spaceCJK(PLACEHOLDERS[target])}
+          {spaceCJK(placeholder)}
         </button>
       )}
     </aside>

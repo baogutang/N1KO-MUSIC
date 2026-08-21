@@ -17,6 +17,7 @@ import { useEffect, useRef } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { toast } from '@/components/ui/use-toast'
+import { t } from '@/i18n'
 
 /**
  * 插回耳机后多久之内算「同一次打断」。
@@ -62,7 +63,7 @@ export function useAudioInterruptions(): void {
         if (state.isPlaying) {
           state.pause()
           interruptedAt = Date.now()
-          toast({ title: '耳机已断开，播放已暂停' })
+          toast({ title: t('player.headphonesUnplugged') })
         }
         return
       }

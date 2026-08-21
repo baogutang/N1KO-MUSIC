@@ -86,7 +86,7 @@ export default function Playlists() {
         <div>
           <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
             {t('nav.playlists')}
-            <span className="ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
+            <span className="latin-tag ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
               PLAYLISTS
             </span>
           </h1>

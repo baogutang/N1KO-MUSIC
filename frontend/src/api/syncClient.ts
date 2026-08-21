@@ -8,6 +8,7 @@
 
 import axios, { type AxiosInstance } from 'axios'
 import type { Song } from '@/api/types'
+import { t } from '@/i18n'
 
 export interface SyncAuthResult {
   token: string
@@ -60,13 +61,13 @@ export function describeSyncError(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status
     const detail = (error.response?.data as { error?: string } | undefined)?.error
-    if (status === 401) return '账号或密码不正确'
-    if (status === 409) return '该用户名已被占用'
-    if (status === 429) return '请求过于频繁，请稍后再试'
+    if (status === 401) return t('sync.error.credentials')
+    if (status === 409) return t('sync.error.taken')
+    if (status === 429) return t('sync.error.rateLimited')
     if (detail) return detail
-    if (!error.response) return '无法连接到同步服务，请检查地址'
+    if (!error.response) return t('sync.error.unreachable')
   }
-  return error instanceof Error ? error.message : '未知错误'
+  return error instanceof Error ? error.message : t('error.unknown')
 }
 
 /** 探测服务是否可用；顺带确认这确实是一个 N1KO 同步服务而不是随便一个地址 */

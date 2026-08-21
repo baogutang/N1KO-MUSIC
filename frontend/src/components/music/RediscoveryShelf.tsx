@@ -18,12 +18,14 @@ import { readListeningEvents } from '@/services/listeningHistory'
 import { buildRediscovery, type RediscoveryEntry } from '@/services/rediscovery'
 import { playAllInOrder, playListFrom } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 import { cn } from '@/lib/utils'
 
 /** 一栏最多列这么多，再多这一页就不是首页了 */
 const PER_COLUMN = 5
 
 export function RediscoveryShelf() {
+  const { t } = useT()
   const navigate = useNavigate()
   const serverId = useServerStore(s => s.activeServerId)
 
@@ -33,9 +35,24 @@ export function RediscoveryShelf() {
   )
 
   const columns = [
-    { key: 'anniversary', title: '去年今日', tag: 'ON THIS DAY', entries: rediscovery.anniversary },
-    { key: 'dormant', title: '久违', tag: 'LONG UNPLAYED', entries: rediscovery.dormant },
-    { key: 'onceOnly', title: '只听过一次', tag: 'HEARD ONCE', entries: rediscovery.onceOnly },
+    {
+      key: 'anniversary',
+      title: t('section.onThisDay'),
+      tag: 'ON THIS DAY',
+      entries: rediscovery.anniversary,
+    },
+    {
+      key: 'dormant',
+      title: t('section.longUnplayed'),
+      tag: 'LONG UNPLAYED',
+      entries: rediscovery.dormant,
+    },
+    {
+      key: 'onceOnly',
+      title: t('section.heardOnce'),
+      tag: 'HEARD ONCE',
+      entries: rediscovery.onceOnly,
+    },
   ].filter(column => column.entries.length > 0)
 
   if (!columns.length) return null
@@ -44,9 +61,9 @@ export function RediscoveryShelf() {
     <section aria-labelledby="home-rediscovery">
       <div className="section-head">
         <h2 id="home-rediscovery">
-          重听<small>FROM YOUR OWN SHELF</small>
+          {t('section.rediscovery')}<small>FROM YOUR OWN SHELF</small>
         </h2>
-        <span className="more num">全部来自你自己的收听记录</span>
+        <span className="more num">{t('stats.rediscoverySource')}</span>
       </div>
 
       <div
@@ -61,7 +78,7 @@ export function RediscoveryShelf() {
             <div className="mb-3 flex items-baseline justify-between gap-3 border-b border-hair pb-2">
               <h3 className="flex items-baseline gap-2.5 font-serif text-[17px] font-bold">
                 {column.title}
-                <span className="font-num text-[9.5px] tracking-[0.22em] text-ink-faint">
+                <span className="latin-tag font-num text-[9.5px] tracking-[0.22em] text-ink-faint">
                   {column.tag}
                 </span>
               </h3>
@@ -71,7 +88,7 @@ export function RediscoveryShelf() {
                   className="flex-none text-[11px] text-ink-faint transition-colors hover:text-primary"
                 >
                   <Play size={10} weight="fill" className="mr-1 inline" />
-                  全放
+                  {t('player.playAllShort')}
                 </button>
               )}
             </div>
