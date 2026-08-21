@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { prefetchRoute } from '@/routes/lazyRoutes'
 import { toast } from '@/components/ui/use-toast'
+import { LibraryScopeMenu } from './LibraryScopeMenu'
 
 export function Masthead() {
   const navigate = useNavigate()
@@ -101,6 +102,9 @@ export function Masthead() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* 音乐库切换：服务器暴露多于一个库时才出现 */}
+        <LibraryScopeMenu className="hidden sm:inline-flex" />
 
         {/* 日期（数字等宽 tabular） */}
         <p className="num text-[12px] tracking-[0.14em] text-ink-soft flex-shrink-0">

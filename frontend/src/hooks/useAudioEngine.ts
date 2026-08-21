@@ -341,6 +341,37 @@ export function useAudioEngine() {
   }, [])
 
   /**
+   * 长音轨起播时跳到服务端记下的断点。
+   *
+   * 只对 20 分钟以上的曲目生效，且必须等到音频可以定位之后再 seek——
+   * 转码流的 seekable 随缓冲增长，起播那一刻定位多半落不到位。
+   */
+  const bookmarkAppliedRef = useRef<string | null>(null)
+  useEffect(() => {
+    const song = currentSongRef.current
+    if (!song || !currentSongId) return
+    if (bookmarkAppliedRef.current === currentSongId) return
+    const position = song.ext?.bookmarkPosition
+    if (!position || (song.duration ?? 0) < 20 * 60) return
+    // 距离结尾太近就不必续了
+    if (song.duration - position / 1000 < 30) return
+    bookmarkAppliedRef.current = currentSongId
+
+    let attempts = 0
+    const seconds = position / 1000
+    const trySeek = () => {
+      if (usePlayerStore.getState().currentSong?.id !== currentSongId) return
+      attempts += 1
+      seekHowl(seconds)
+      if (Math.abs(audioEl.currentTime - seconds) > 2 && attempts < 12) {
+        setTimeout(trySeek, 250)
+      }
+    }
+    const timer = setTimeout(trySeek, 500)
+    return () => clearTimeout(timer)
+  }, [currentSongId])
+
+  /**
    * 下一首预热（弱无缝）。
    *
    * 对着家里的 NAS，切歌那一下的空档是一次完整的网络往返。这里用一个隐藏的

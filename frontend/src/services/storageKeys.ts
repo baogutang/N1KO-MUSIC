@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   coverCache: 'msp-cover-cache',
   syncStore: 'msp-sync-store',
   recommendationCursor: 'msp-recommendation-cursor',
+  libraryScope: 'msp-library-scope',
 } as const
 
 /** 每日推荐结果缓存前缀，实际键形如 `msp-recommendation:{serverId}:{yyyy-mm-dd}:{batch}:{size}` */

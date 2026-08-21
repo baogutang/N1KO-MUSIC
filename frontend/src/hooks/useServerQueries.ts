@@ -17,6 +17,7 @@ import {
 import { getAdapter } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
+import { useLibraryScopeStore } from '@/store/libraryScopeStore'
 import { useLyricCacheStore } from '@/store/lyricCacheStore'
 import { parseLrc } from '@/hooks/useLyrics'
 import { mirrorFavorite } from '@/services/historySync'
@@ -30,7 +31,16 @@ import type { ListParams, Lyrics, Song } from '@/api/types'
  * 所有服务器数据的缓存键均以当前激活服务器 id 作为前缀，
  * 避免切换服务器后命中上一个服务器的缓存（不同服务器的同名键/同 id 会互相污染）。
  */
-const serverKey = () => useServerStore.getState().activeServerId ?? 'no-server'
+const serverKey = () => {
+  const id = useServerStore.getState().activeServerId ?? 'no-server'
+  // 库范围参与缓存键：切库等于换一整套缓存，不会串到另一个库的内容
+  const scope = useLibraryScopeStore.getState().getScope(useServerStore.getState().activeServerId)
+  return scope ? `${id}@${scope}` : id
+}
+
+/** 当前选定的音乐库，未选时为 undefined（表示全部库） */
+const currentFolderId = () =>
+  useLibraryScopeStore.getState().getScope(useServerStore.getState().activeServerId)
 
 export const queryKeys = {
   songs: (params?: ListParams) => [serverKey(), 'songs', params] as const,
@@ -76,7 +86,7 @@ function bindCustomCoverRevokeOnQueryRemoved(queryClient: QueryClient) {
 export function useRandomSongs(size = 50) {
   return useQuery({
     queryKey: queryKeys.randomSongs(size),
-    queryFn: () => getAdapter().getRandomSongs(size),
+    queryFn: () => getAdapter().getRandomSongs(size, currentFolderId()),
     staleTime: 5 * 60 * 1000, // 5 分钟
   })
 }
@@ -85,7 +95,7 @@ export function useRandomSongs(size = 50) {
 export function useSongs(params: ListParams = {}) {
   return useQuery({
     queryKey: [serverKey(), 'songs', 'all', params] as const,
-    queryFn: () => getAdapter().getSongs(params),
+    queryFn: () => getAdapter().getSongs({ musicFolderId: currentFolderId(), ...params }),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -95,7 +105,7 @@ export function useSongsInfinite(size = 100) {
   return useInfiniteQuery({
     queryKey: [serverKey(), 'songs', 'infinite', size] as const,
     queryFn: ({ pageParam = 0 }) =>
-      getAdapter().getSongs({ size, offset: pageParam as number }),
+      getAdapter().getSongs({ size, offset: pageParam as number, musicFolderId: currentFolderId() }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -350,7 +360,7 @@ export function useAlbumsInfinite(size = 50, type = 'newest') {
     // key 必须含 size：同一 type 不同 size 的两个书架否则会串缓存
     queryKey: [serverKey(), 'albums', 'infinite', type, size],
     queryFn: ({ pageParam = 0 }) =>
-      getAdapter().getAlbums({ size, offset: pageParam as number, type }),
+      getAdapter().getAlbums({ size, offset: pageParam as number, type, musicFolderId: currentFolderId() }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -367,7 +377,7 @@ export function useAlbumsInfinite(size = 50, type = 'newest') {
 export function useAlbumShelf(type: AlbumShelfType, size = 12) {
   return useQuery({
     queryKey: [serverKey(), 'albums', 'shelf', type, size] as const,
-    queryFn: () => getAdapter().getAlbums({ type, size }),
+    queryFn: () => getAdapter().getAlbums({ type, size, musicFolderId: currentFolderId() }),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -444,7 +454,7 @@ export function useRecentAlbums(size = 20) {
 export function useArtists() {
   return useQuery({
     queryKey: queryKeys.artists(),
-    queryFn: () => getAdapter().getArtists(),
+    queryFn: () => getAdapter().getArtists(currentFolderId()),
     staleTime: 10 * 60 * 1000,
   })
 }

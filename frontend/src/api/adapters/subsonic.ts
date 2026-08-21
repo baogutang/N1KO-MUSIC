@@ -321,6 +321,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       albumCount: 0,
       artistCount: 0,
       songOffset: offset,
+      musicFolderId: params.musicFolderId,
     })
     const result = data.searchResult3 ?? {}
     const songs = ((result.song ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
@@ -535,6 +536,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       fromYear: params.fromYear,
       toYear: params.toYear,
       genre: params.genre,
+      musicFolderId: params.musicFolderId,
     })
     const albums = ((data.albumList2 as Record<string, unknown[]> | undefined)?.album ?? []) as Record<string, unknown>[]
     return { items: albums.map(this.mapAlbum.bind(this)), offset: params.offset ?? 0, size: albums.length }
@@ -557,8 +559,10 @@ export class SubsonicAdapter implements MusicServerAdapter {
     return data.items
   }
 
-  async getRandomSongs(size = 50): Promise<Song[]> {
-    const data = await this.request<{ randomSongs?: { song?: unknown[] } }>('/getRandomSongs', { size })
+  async getRandomSongs(size = 50, musicFolderId?: string): Promise<Song[]> {
+    const data = await this.request<{ randomSongs?: { song?: unknown[] } }>(
+      '/getRandomSongs', { size, musicFolderId }
+    )
     const songs = ((data.randomSongs as Record<string, unknown[]> | undefined)?.song ?? []) as Record<string, unknown>[]
     return songs.map(this.mapSong.bind(this))
   }
@@ -596,10 +600,10 @@ export class SubsonicAdapter implements MusicServerAdapter {
     return this.songListEndpoint('/getSimilarSongs2', { id: songId, count }, 'similarSongs2')
   }
 
-  async getArtists(): Promise<Artist[]> {
+  async getArtists(musicFolderId?: string): Promise<Artist[]> {
     const data = await this.request<{
       artists?: { index?: Array<{ artist?: unknown[] }> }
-    }>('/getArtists')
+    }>('/getArtists', { musicFolderId })
     const indexes = (data.artists as Record<string, unknown> | undefined)?.index as Array<Record<string, unknown>> | undefined ?? []
     const artists: Artist[] = []
     for (const index of indexes) {
@@ -681,6 +685,8 @@ export class SubsonicAdapter implements MusicServerAdapter {
       coverArt: p.coverArt ? String(p.coverArt) : undefined,
       isPublic: !!p.public,
       created: p.created ? String(p.created) : undefined,
+      readonly: p.readonly === true,
+      validUntil: p.validUntil ? String(p.validUntil) : undefined,
     }))
   }
 
@@ -696,6 +702,8 @@ export class SubsonicAdapter implements MusicServerAdapter {
       songCount: songs.length,
       coverArt: pl.coverArt ? String(pl.coverArt) : undefined,
       isPublic: !!pl.public,
+      readonly: pl.readonly === true,
+      validUntil: pl.validUntil ? String(pl.validUntil) : undefined,
       songs,
     }
   }

@@ -206,6 +206,13 @@ export interface Playlist {
   created?: string
   changed?: string
   serverId?: string
+  /**
+   * Navidrome 的智能歌单会带 readonly:true 一起返回，长得和普通歌单一模一样。
+   * 不标出来的话，用户对它做的编辑操作会静默失效。
+   */
+  readonly?: boolean
+  /** 智能歌单的缓存有效期 */
+  validUntil?: string
 }
 
 /** 歌单详情（含歌曲列表）*/
@@ -279,6 +286,8 @@ export interface ListParams {
   genre?: string
   fromYear?: number
   toYear?: number
+  /** 限定到某个音乐库（多库服务器）。缺省表示全部库。 */
+  musicFolderId?: string
 }
 
 export interface PageResult<T> {
@@ -332,10 +341,10 @@ export interface MusicServerAdapter {
   getAlbums(params?: ListParams): Promise<PageResult<Album>>
   getAlbumDetail(albumId: string): Promise<AlbumDetail>
   getRecentAlbums(size?: number): Promise<Album[]>
-  getRandomSongs(size?: number): Promise<Song[]>
+  getRandomSongs(size?: number, musicFolderId?: string): Promise<Song[]>
 
   // --- 歌手 ---
-  getArtists(): Promise<Artist[]>
+  getArtists(musicFolderId?: string): Promise<Artist[]>
   getArtistDetail(artistId: string): Promise<ArtistDetail>
 
   // --- 歌单 ---

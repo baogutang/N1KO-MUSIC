@@ -22,6 +22,8 @@ import {
   Disc,
   MicrophoneStage,
   FileText,
+  ShareNetwork,
+  Broadcast as BroadcastIcon,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
@@ -31,6 +33,11 @@ import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useToggleStar } from '@/hooks/useServerQueries'
+import { useServerCapabilities } from '@/hooks/useServerCapabilities'
+import { ShareDialog } from '@/components/music/ShareDialog'
+import { StarRating } from '@/components/music/StarRating'
+import { startRadio } from '@/services/radio'
+import { toast } from '@/components/ui/use-toast'
 import { playNextInQueue, playListFrom } from '@/utils/playActions'
 import {
   DropdownMenu,
@@ -90,6 +97,15 @@ export function SongList({
     }
   }, [onPlaylistAdd])
 
+  // 分享对话框与收藏 mutation 一样提升到列表层，保持 SongRow 的 memo 结构
+  const [shareSong, setShareSong] = React.useState<Song | null>(null)
+  const caps = useServerCapabilities()
+  const handleShare = useCallback((song: Song) => setShareSong(song), [])
+  const handleRadio = useCallback(async (song: Song) => {
+    const ok = await startRadio({ kind: 'song', id: song.id, name: song.title })
+    if (!ok) toast({ title: '这台服务器没有提供相似曲目', variant: 'destructive' })
+  }, [])
+
   // 收藏 mutation 提到列表层。此前每一行各持有一个 useMutation 实例，
   // 一千行就是一千个订阅者。
   const toggleStar = useToggleStar()
@@ -114,8 +130,13 @@ export function SongList({
       onPlayIndex={handlePlayIndex}
       onPlaylistAdd={handlePlaylistAdd}
       onToggleStar={handleToggleStar}
+      onShare={caps.shares ? handleShare : undefined}
+      onRadio={caps.radio ? handleRadio : undefined}
+      canRate={caps.rating}
     />
-  ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, handlePlayIndex, handlePlaylistAdd, handleToggleStar])
+  ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, handlePlayIndex,
+      handlePlaylistAdd, handleToggleStar, caps.shares, caps.radio, caps.rating,
+      handleShare, handleRadio])
 
   return (
     <>
@@ -131,6 +152,12 @@ export function SongList({
         open={playlistAddSong !== null}
         onOpenChange={open => { if (!open) setPlaylistAddSong(null) }}
         songs={playlistAddSong ? [playlistAddSong] : []}
+      />
+
+      <ShareDialog
+        open={shareSong !== null}
+        onOpenChange={open => { if (!open) setShareSong(null) }}
+        target={shareSong ? { ids: [shareSong.id], label: shareSong.title, kind: '歌曲' } : null}
       />
     </>
   )
@@ -278,6 +305,10 @@ interface SongRowProps {
   onPlayIndex: (index: number) => void
   onPlaylistAdd?: (song: Song) => void
   onToggleStar: (song: Song, nextStarred: boolean) => void
+  /** 服务器不支持时为 undefined，对应菜单项直接不出现 */
+  onShare?: (song: Song) => void
+  onRadio?: (song: Song) => void
+  canRate?: boolean
 }
 
 // React.memo：只有 props 变化时才重渲染，播放进度更新不会触发歌曲行重渲染
@@ -292,6 +323,9 @@ const SongRow = React.memo(function SongRow({
   onPlayIndex,
   onPlaylistAdd,
   onToggleStar,
+  onShare,
+  onRadio,
+  canRate,
 }: SongRowProps) {
   // 收藏状态直接读缓存里的这一条：mutation 的 onMutate 会同步就地改写缓存，
   // 视觉反馈依然是即时的，而且失败回滚也走同一条通路，不会出现两套真相。
@@ -476,6 +510,23 @@ const SongRow = React.memo(function SongRow({
             {localStarred ? '取消喜欢' : '加入喜欢'}
           </DropdownMenuItem>
 
+          {onRadio && (
+            <DropdownMenuItem
+              onClick={(e) => { e.stopPropagation(); void onRadio(song) }}
+              className="gap-2"
+            >
+              <BroadcastIcon className="w-4 h-4" />
+              以这首开台
+            </DropdownMenuItem>
+          )}
+
+          {canRate && (
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-xs text-ink-faint">评分</span>
+              <StarRating id={song.id} value={song.userRating} size={13} />
+            </div>
+          )}
+
           {song.artistId && (
             <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2">
               <MicrophoneStage className="w-4 h-4" />
@@ -498,13 +549,24 @@ const SongRow = React.memo(function SongRow({
             查看歌曲详情
           </DropdownMenuItem>
 
-          {onPlaylistAdd && (
+          {(onPlaylistAdd || onShare) && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onPlaylistAdd(song)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                添加到歌单
-              </DropdownMenuItem>
+              {onPlaylistAdd && (
+                <DropdownMenuItem onClick={() => onPlaylistAdd(song)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  添加到歌单
+                </DropdownMenuItem>
+              )}
+              {onShare && (
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onShare(song) }}
+                  className="gap-2"
+                >
+                  <ShareNetwork className="w-4 h-4" />
+                  分享链接
+                </DropdownMenuItem>
+              )}
             </>
           )}
 

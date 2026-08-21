@@ -15,6 +15,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 export default function Playlists() {
   const navigate = useNavigate()
@@ -179,13 +180,24 @@ export default function Playlists() {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="text-destructive gap-2"
-                        onClick={() => setDeleteTarget({ id: pl.id, name: pl.name })}
-                      >
-                        <Trash className="w-4 h-4" />
-                        删除歌单
-                      </DropdownMenuItem>
+                      {pl.readonly ? (
+                        // 智能歌单由服务器按规则生成，删除/编辑在它上面是无效操作，
+                        // 与其让用户点了没反应，不如说明它是什么
+                        <div className="px-3 py-2 max-w-[13rem]">
+                          <p className="font-serif text-sm font-semibold">智能歌单</p>
+                          <p className="mt-1 text-xs text-ink-faint">
+                            由服务器按规则自动维护，内容会自行更新，客户端不能修改。
+                          </p>
+                        </div>
+                      ) : (
+                        <DropdownMenuItem
+                          className="text-destructive gap-2"
+                          onClick={() => setDeleteTarget({ id: pl.id, name: pl.name })}
+                        >
+                          <Trash className="w-4 h-4" />
+                          删除歌单
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -194,13 +206,16 @@ export default function Playlists() {
               {/* 图注：衬线歌单名 + mono 小字曲目数 */}
               <div className="min-w-0 px-0.5">
                 <p className="font-serif font-semibold text-[15px] leading-snug truncate transition-colors group-hover:text-primary">
-                  {pl.name}
+                  {spaceCJK(pl.name)}
                 </p>
-                {pl.songCount !== undefined && (
-                  <p className="mt-0.5 text-xs text-ink-faint">
-                    <span className="font-num">{pl.songCount}</span> 首
-                  </p>
-                )}
+                <p className="mt-0.5 flex items-baseline gap-2 text-xs text-ink-faint">
+                  {pl.songCount !== undefined && (
+                    <span><span className="font-num">{pl.songCount}</span> 首</span>
+                  )}
+                  {pl.readonly && (
+                    <span className="text-[10.5px] tracking-[0.14em] text-primary">智能 · 自动更新</span>
+                  )}
+                </p>
               </div>
             </div>
           ))}
