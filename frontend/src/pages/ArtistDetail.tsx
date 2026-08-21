@@ -4,14 +4,16 @@
  * 分区：热门歌曲 Top5 / 全部歌曲（默认 20，可展开）/ 专辑封面墙 / 相似歌手文字索引行
  */
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Play, Shuffle, CaretDown, CaretUp, MicrophoneStage } from '@phosphor-icons/react'
-import { AlbumCard } from '@/components/music/AlbumCard'
+import { DiscographyRail, type ArtistMarginalia } from '@/components/music/DiscographyRail'
 import { SongList } from '@/components/music/SongList'
 import { useArtistDetail } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { useServerStore } from '@/store/serverStore'
+import { isQualifiedListeningEvent, readListeningEvents } from '@/services/listeningHistory'
 import { cn } from '@/lib/utils'
 
 /** 全部歌曲默认展示数量 */
@@ -31,6 +33,46 @@ export default function ArtistDetailPage() {
   useEffect(() => {
     setImgError(false)
   }, [artist?.id])
+
+  /**
+   * 页边注：你自己与这位歌手的关系。
+   * 全部来自本地收听历史，不需要任何额外请求。
+   */
+  const serverId = useServerStore(st => st.activeServerId)
+  const marginalia: ArtistMarginalia | undefined = useMemo(() => {
+    if (!artist?.name || !serverId) return undefined
+    const key = artist.name.trim().toLocaleLowerCase()
+    const events = readListeningEvents(serverId)
+      .filter(e => (e.song.artist ?? '').trim().toLocaleLowerCase() === key)
+    if (!events.length) return undefined
+
+    const qualified = events.filter(isQualifiedListeningEvent)
+    const albumCounts = new Map<string, number>()
+    for (const e of qualified) {
+      if (!e.song.album) continue
+      albumCounts.set(e.song.album, (albumCounts.get(e.song.album) ?? 0) + 1)
+    }
+    const favourite = Array.from(albumCounts.entries()).sort((a, b) => b[1] - a[1])[0]
+    const playedAlbums = new Set(qualified.map(e => e.song.albumId ?? e.song.album))
+
+    return {
+      firstHeardAt: Math.min(...events.map(e => e.endedAt)),
+      lastHeardAt: Math.max(...events.map(e => e.endedAt)),
+      plays: qualified.length,
+      favouriteAlbum: favourite?.[0],
+      neverPlayedAlbums: (artist.albums ?? [])
+        .filter(a => !playedAlbums.has(a.id) && !playedAlbums.has(a.name)).length,
+    }
+  }, [artist?.name, artist?.albums, serverId])
+
+  const handlePlayAlbum = useCallback(async (album: { id: string }) => {
+    try {
+      const detail = await getAdapter().getAlbumDetail(album.id)
+      if (detail.songs.length) playAllInOrder(detail.songs)
+    } catch {
+      // 拉取失败时不做任何事；用户可以点进专辑页再播
+    }
+  }, [])
 
   const serverImageUrl = artist?.artistImageUrl ||
     (artist?.coverArt && hasAdapter() ? getAdapter().getCoverUrl(artist.coverArt, 300) : undefined)
@@ -160,20 +202,16 @@ export default function ArtistDetailPage() {
         </section>
       )}
 
-      {/* 专辑封面墙 */}
-      {artist.albums.length > 0 && (
-        <section>
-          <div className="section-head">
-            <h2>专辑<small>ALBUMS</small></h2>
-            <span className="more num">共 {artist.albums.length} 张</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-5 gap-y-7 [&>*]:min-w-0">
-            {artist.albums.map(album => (
-              <AlbumCard key={album.id} album={album} />
-            ))}
-          </div>
-        </section>
-      )}
+      {/*
+        唱片目录：年份轨 + 你自己的历史作页边注。
+        此前这里是一片 xl:grid-cols-6 的封面墙——恰恰是设计契约想避免的东西
+        （卡片堆叠 + 大面积重复色块），却留在最该体现「生涯」的那一页上。
+      */}
+      <DiscographyRail
+        albums={artist.albums}
+        marginalia={marginalia}
+        onPlayAlbum={handlePlayAlbum}
+      />
 
       {/* 相似歌手：文字索引行（逗号分隔链接） */}
       {artist.similarArtists && artist.similarArtists.length > 0 && (
