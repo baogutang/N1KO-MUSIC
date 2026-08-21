@@ -22,8 +22,8 @@ export default function OpenLinkPage() {
 
   useEffect(() => {
     const raw = params.get('url') ?? ''
-    // protocol_handlers 送来的是 web+n1ko://…，换回内部统一的 scheme 再解析
-    const normalized = raw.replace(/^web\+n1ko:/i, `${DEEP_LINK_SCHEME}:`)
+    // protocol_handlers 送来的是 web+niko://…，换回内部统一的 scheme 再解析
+    const normalized = raw.replace(/^web\+niko:/i, `${DEEP_LINK_SCHEME}:`)
     const action = parseDeepLink(normalized)
 
     if (!action) {

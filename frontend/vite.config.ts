@@ -25,12 +25,20 @@ export default defineConfig(({ mode }) => ({
               background_color: '#f4efe3',
               display: 'standalone',
               /**
-               * 浏览器里没有自定义协议，但 PWA 可以登记为 web+n1ko 的处理器。
-               * 装成 PWA 之后，系统上的 web+n1ko:// 链接就会落到 /open?url=…，
+               * 浏览器里没有自定义协议，但 PWA 可以登记为 web+ 前缀的处理器。
+               * 装成 PWA 之后，系统上的 web+niko:// 链接会落到 ./open?url=…，
                * 由 OpenLink 页解析并跳转——和原生壳的 n1ko:// 走同一套解析。
+               *
+               * 两个坑都踩过：
+               * 1. scheme 是 `web+niko` 不是 `web+n1ko`。规范只允许 "web+" 后跟
+               *    ASCII 小写字母，中间的数字 1 会让浏览器在解析 manifest 时
+               *    直接丢掉整条 entry——没有报错，只是永远不生效。
+               * 2. url 必须是相对的。构建的 base 是 './'，manifest 的 scope 因此
+               *    也是 './'；写成绝对的 /open 会跑到 scope 之外（规范要求
+               *    handler 的 url 落在 scope 内），部署到子路径时还会 404。
                */
               protocol_handlers: [
-                { protocol: 'web+n1ko', url: '/open?url=%s' },
+                { protocol: 'web+niko', url: './open?url=%s' },
               ],
               icons: [
                 {
