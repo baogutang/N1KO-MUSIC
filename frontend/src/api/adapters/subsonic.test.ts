@@ -104,3 +104,63 @@ describe('取消信号的透传', () => {
     })
   }
 })
+
+/**
+ * 分享能力必须问服务器，不能问适配器。
+ *
+ * Subsonic 系适配器一律实现了 createShare，所以「有没有这个方法」永远为真。
+ * 而 Navidrome 的 `ND_ENABLESHARING` 默认是关的，关着时整个分享 API 回 501。
+ * 只看方法存在，入口就会出现在一台根本不支持分享的服务器上，点下去才报错——
+ * 这正是 useServerCapabilities 开头那条「不支持就不出现」要挡掉的情况。
+ */
+describe('分享能力探测', () => {
+  function makeAdapter(respond: (url: string) => unknown) {
+    const adapter = new SubsonicAdapter({
+      url: 'https://example.test', username: 'u', token: 't', salt: 's',
+    })
+    ;(adapter as unknown as { client: unknown }).client = {
+      get: async (url: string) => {
+        const result = respond(url)
+        if (result instanceof Error) throw result
+        return { data: result }
+      },
+    }
+    return adapter
+  }
+
+  it('服务器把分享关掉（501）时报告不支持', async () => {
+    const err = Object.assign(new Error('Request failed with status code 501'), {
+      response: { status: 501 },
+    })
+    const adapter = makeAdapter(() => err)
+    expect(await adapter.probeShares()).toBe(false)
+  })
+
+  it('分享开着但一条都还没建过时，报告支持', async () => {
+    // 这是最容易被写错的一种：空列表不等于不支持
+    const adapter = makeAdapter(() => ({
+      'subsonic-response': { status: 'ok', shares: {} },
+    }))
+    expect(await adapter.probeShares()).toBe(true)
+  })
+
+  it('已有分享时报告支持', async () => {
+    const adapter = makeAdapter(() => ({
+      'subsonic-response': {
+        status: 'ok',
+        shares: { share: [{ id: '1', url: 'https://example.test/share/1' }] },
+      },
+    }))
+    expect(await adapter.probeShares()).toBe(true)
+  })
+
+  it('服务器回 Subsonic 层面的错误时也报告不支持', async () => {
+    const adapter = makeAdapter(() => ({
+      'subsonic-response': {
+        status: 'failed',
+        error: { code: 30, message: 'not implemented' },
+      },
+    }))
+    expect(await adapter.probeShares()).toBe(false)
+  })
+})

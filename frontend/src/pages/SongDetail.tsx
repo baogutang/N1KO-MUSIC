@@ -31,6 +31,8 @@ import { formatDuration, formatFileSize } from '@/utils/formatters'
 import type { Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { MarginNote } from '@/components/music/MarginNote'
+import { ShareDialog } from '@/components/music/ShareDialog'
+import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 import { useT } from '@/i18n'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
@@ -665,6 +667,8 @@ export default function SongDetailPage() {
 
   const [lyricsSearchOpen, setLyricsSearchOpen] = useState(false)
   const [coverPickerOpen, setCoverPickerOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const capabilities = useServerCapabilities()
 
   if (isLoading && !song) {
     return (
@@ -784,6 +788,16 @@ export default function SongDetailPage() {
             linkable
           />
 
+          {/* 只有服务器真的开着分享才出现——见 useServerCapabilities */}
+          {capabilities.shares && (
+            <Row
+              label={t('share.link')}
+              value={t('share.createHint')}
+              onClick={() => setShareOpen(true)}
+              linkable
+            />
+          )}
+
           {song.year != null && (
             <Row label={t('song.field.year')} value={String(song.year)} mono />
           )}
@@ -851,6 +865,12 @@ export default function SongDetailPage() {
       </div>
 
       {/* 歌词搜索 */}
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        target={{ ids: [song.id], label: song.title, kind: 'song' }}
+      />
+
       <LyricsSearchDialog
         open={lyricsSearchOpen}
         onClose={() => setLyricsSearchOpen(false)}

@@ -426,6 +426,8 @@ export interface MusicServerAdapter {
 
   /** 公开分享链接 */
   createShare?(ids: string[], options?: { description?: string; expiresAt?: number }): Promise<{ id: string; url: string }>
+  /** 真的问一次服务器分享有没有开；没有这个方法时退回「有 createShare 就算支持」 */
+  probeShares?(): Promise<boolean>
   getShares?(): Promise<Array<{ id: string; url: string; description?: string; expiresAt?: number; visitCount?: number }>>
   deleteShare?(shareId: string): Promise<void>
 

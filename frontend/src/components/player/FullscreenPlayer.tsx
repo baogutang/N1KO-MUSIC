@@ -17,7 +17,7 @@ import {
   Play, Pause, SkipBack, SkipForward, Heart,
   Repeat, RepeatOnce, Shuffle, ArrowsDownUp,
   SpeakerHigh, SpeakerX, SpeakerLow,
-  CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel,
+  CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork,
   Queue, FileText
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
@@ -44,6 +44,8 @@ import { toPaperSafe } from '@/utils/paperSafe'
 import { formatDuration } from '@/utils/formatters'
 import { useSettingsStore } from '@/store/settingsStore'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
+import { ShareDialog } from '@/components/music/ShareDialog'
+import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 
 /** macOS 检测：FullscreenPlayer 是 fixed 覆盖层，需要独立处理 traffic-light 区域 */
 const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
@@ -227,6 +229,8 @@ export function FullscreenPlayer() {
 
   const [showVolumePanel, setShowVolumePanel] = useState(false)
   const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const capabilities = useServerCapabilities()
   const isMobile = useIsMobileLayout()
   // 移动端封面 / 歌词 视图切换（桌面双列布局歌词常显，无需切换）
   const [mobileView, setMobileView] = useState<'cover' | 'lyrics'>('cover')
@@ -399,6 +403,15 @@ export function FullscreenPlayer() {
               <FileText size={16} />
               {t('player.viewSongDetail')}
             </DropdownMenuItem>
+            {capabilities.shares && (
+              <DropdownMenuItem
+                onClick={() => setShareDialogOpen(true)}
+                className="gap-2 cursor-pointer"
+              >
+                <ShareNetwork size={16} />
+                {t('share.link')}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onClick={() => { toggleFullscreen(); setCarMode(true) }}
               className="gap-2 cursor-pointer"
@@ -804,6 +817,12 @@ export function FullscreenPlayer() {
         </div>
       </div>
       )}
+
+      <ShareDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        target={currentSong ? { ids: [currentSong.id], label: currentSong.title, kind: 'song' } : null}
+      />
 
       <AddToPlaylistDialog
         open={playlistDialogOpen}

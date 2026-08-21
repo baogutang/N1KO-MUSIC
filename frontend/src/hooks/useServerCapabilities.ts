@@ -38,9 +38,15 @@ const NONE: ClientCapabilities = {
 }
 
 /**
- * 方法存在与否是同步可知的（都是 adapter 上的可选方法），
- * 只有多音乐库需要真的问一次服务器——有些服务器实现了接口但只返回一个库，
- * 那种情况下切换器没有意义，不该出现。
+ * 大部分能力靠「adapter 上有没有这个方法」就能同步判断，但有两项不行，
+ * 它们必须真的问一次服务器：
+ *
+ * - **多音乐库**：有些服务器实现了接口却只返回一个库，切换器没有意义。
+ * - **分享**：Subsonic 系适配器一律实现了 createShare，可服务器那边可能整个关着
+ *   （Navidrome 的 `ND_ENABLESHARING` 默认为 false，会回 501）。只看方法存在
+ *   就等于永远说「支持」，入口照常出现，点下去才报错——这正是要避免的那种交互。
+ *
+ * 两者都遵循同一条原则：**没有得到服务器的肯定答复，入口就不出现。**
  */
 export function useServerCapabilities(): ClientCapabilities & { folders: Array<{ id: string; name: string }> } {
   const activeServerId = useServerStore(s => s.activeServerId)
@@ -64,6 +70,15 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeServerId])
 
+  // 探测一次分享是否真的开着。getShares 通了就是开着的；501 / 报错都算关着。
+  const { data: sharesEnabled } = useQuery({
+    queryKey: [activeServerId ?? 'no-server', 'shares-enabled'],
+    queryFn: () => getAdapter().probeShares?.() ?? true,
+    enabled: !!activeServerId && isConnected && methods.shares,
+    staleTime: 30 * 60 * 1000,
+    retry: false,
+  })
+
   const { data: folders } = useQuery({
     queryKey: [activeServerId ?? 'no-server', 'music-folders'],
     queryFn: () => getAdapter().getMusicFolders?.() ?? [],
@@ -73,6 +88,8 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
 
   return {
     ...methods,
+    // 探测没回来之前按「不支持」算：宁可入口晚半秒出现，也不要点下去才失败
+    shares: methods.shares && sharesEnabled === true,
     // 只有一个库时切换器没有意义
     musicFolders: methods.musicFolders && (folders?.length ?? 0) > 1,
     folders: folders ?? [],

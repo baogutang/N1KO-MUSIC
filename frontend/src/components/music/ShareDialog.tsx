@@ -33,6 +33,18 @@ const KIND_TITLE_KEYS: Record<ShareTarget['kind'], string> = {
   playlist: 'share.title.playlist',
 }
 
+/**
+ * 服务器把分享整个关掉时回的是 501。这种情况不是「出错了再试一次」，
+ * 而是「这台服务器不提供这个功能」——照抄 axios 的 "Request failed with
+ * status code 501" 给用户看，等于什么都没说。能力探测已经会提前把入口藏掉，
+ * 这里是最后一道：万一探测时是开着的、创建时被关了，也要说清楚发生了什么。
+ */
+function isSharingDisabled(err: unknown): boolean {
+  const status = (err as { response?: { status?: number } })?.response?.status
+  if (status === 501) return true
+  return err instanceof Error && /\b501\b/.test(err.message)
+}
+
 interface ShareRecord {
   id: string
   url: string
@@ -94,9 +106,12 @@ export function ShareDialog({
       setCreated(share)
       void loadExisting()
     } catch (err) {
+      const disabled = isSharingDisabled(err)
       toast({
-        title: t('share.createFailed'),
-        description: err instanceof Error ? err.message : undefined,
+        title: disabled ? t('share.serverDisabled') : t('share.createFailed'),
+        description: disabled
+          ? t('share.serverDisabledHint')
+          : err instanceof Error ? err.message : undefined,
         variant: 'destructive',
       })
     } finally {

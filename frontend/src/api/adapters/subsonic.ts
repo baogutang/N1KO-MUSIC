@@ -933,6 +933,25 @@ export class SubsonicAdapter implements MusicServerAdapter {
     return { id: String(share.id ?? ''), url: String(share.url ?? '') }
   }
 
+  /**
+   * 服务器到底开没开分享。
+   *
+   * 不能靠「适配器有没有 createShare 这个方法」来判断——Subsonic 系适配器永远有，
+   * 于是关掉了分享的服务器上入口照样出现，点下去才 501。
+   * Navidrome 的 `ND_ENABLESHARING` 默认就是关的，这是最常见的一种服务器。
+   *
+   * 这里真的问一次服务器：getShares 通了就是开着的。**故意不吞异常**——
+   * 吞掉就和 getShares() 一样分不出「没有分享」和「不支持分享」。
+   */
+  async probeShares(): Promise<boolean> {
+    try {
+      await this.request('/getShares')
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async getShares(): Promise<Array<{
     id: string; url: string; description?: string; expiresAt?: number; visitCount?: number
   }>> {
