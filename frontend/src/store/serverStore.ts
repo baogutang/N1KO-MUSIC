@@ -9,8 +9,11 @@ import type { ServerConfig, ServerType } from '@/api/types'
 import { createAdapter, setActiveAdapter, clearAdapter } from '@/api'
 import { queryClient } from '@/lib/queryClient'
 import { usePlayerStore } from '@/store/playerStore'
-import { createPersistStorage } from '@/store/persistStorage'
+import { createSecurePersistStorage } from '@/store/securePersistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
+
+/** persist 实际写盘的那一份，storage 适配器按它的形状加解密 */
+type PersistedServerState = Pick<ServerState, 'servers' | 'activeServerId' | 'username'>
 
 interface ServerState {
   /** 已配置的服务器列表 */
@@ -154,8 +157,31 @@ export const useServerStore = create<ServerState>()(
     }),
     {
       name: STORAGE_KEYS.serverStore,
-      // 含登录凭据，进程被杀不能丢，同步写入
-      storage: createPersistStorage({ debounceMs: 0 }),
+      /**
+       * 凭据加密后落盘（设备密钥见 services/deviceKey.ts），底层仍是同步写入：
+       * 进程被杀不能丢。
+       *
+       * 代价是 rehydrate 变成异步的——Web Crypto 只有异步接口。因此路由守卫
+       * 必须先等 hasHydrated，否则会在解密完成前把已登录用户踢去登录页。
+       */
+      storage: createSecurePersistStorage<PersistedServerState>({
+        collect: state => state.servers.flatMap(server => [
+          ...(server.token ? [[`${server.id}:token`, server.token] as [string, string]] : []),
+          ...(server.salt ? [[`${server.id}:salt`, server.salt] as [string, string]] : []),
+        ]),
+        apply: (state, values) => ({
+          ...state,
+          servers: state.servers.map(server => {
+            const token = values.get(`${server.id}:token`)
+            const salt = values.get(`${server.id}:salt`)
+            return {
+              ...server,
+              ...(token !== undefined ? { token } : {}),
+              ...(salt !== undefined ? { salt } : {}),
+            }
+          }),
+        }),
+      }) as never,
       // 不持久化 isConnected，每次刷新重新连接
       partialize: (state) => ({
         servers: state.servers,

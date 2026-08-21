@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useThemeStore } from './store/themeStore'
 import { useServerStore } from './store/serverStore'
@@ -34,8 +34,24 @@ function RouteLoading() {
   )
 }
 
+/**
+ * 凭据是加密存放的，解密只有异步接口，所以 rehydrate 完成前
+ * activeServerId 一定是 null。这时候判断「有没有登录」会把已登录的用户
+ * 一脚踢到登录页，刷新一次就掉线一次。先等它 hydrate 完。
+ */
+function useServerStoreHydrated(): boolean {
+  const [hydrated, setHydrated] = useState(() => useServerStore.persist.hasHydrated())
+  useEffect(() => {
+    if (hydrated) return
+    return useServerStore.persist.onFinishHydration(() => setHydrated(true))
+  }, [hydrated])
+  return hydrated
+}
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
+  const hydrated = useServerStoreHydrated()
   const { activeServerId, servers } = useServerStore()
+  if (!hydrated) return <RouteLoading />
   const isAuthenticated = activeServerId && servers.some(s => s.id === activeServerId)
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
