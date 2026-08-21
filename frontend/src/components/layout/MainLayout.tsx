@@ -18,6 +18,7 @@ import { useSleepTimer } from '@/hooks/useSleepTimer'
 import { useQueueSync } from '@/hooks/useQueueSync'
 import { useRadioRefill } from '@/hooks/useRadioRefill'
 import { useLongTrackBookmark } from '@/hooks/useLongTrackBookmark'
+import { useDirectScrobble } from '@/hooks/useDirectScrobble'
 import { useScrollMemory } from '@/hooks/useScrollMemory'
 import { useIsMobileLayout } from '@/lib/platform'
 import { Toaster } from '@/components/ui/toaster'
@@ -40,6 +41,7 @@ export default function MainLayout() {
   useQueueSync()
   useRadioRefill()
   useLongTrackBookmark()
+  useDirectScrobble()
 
   return (
     <>

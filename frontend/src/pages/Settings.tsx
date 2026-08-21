@@ -35,6 +35,7 @@ import {
   hairInputClass,
 } from '@/components/settings/primitives'
 import { SyncSettings } from '@/components/settings/SyncSettings'
+import { ScrobbleSettings } from '@/components/settings/ScrobbleSettings'
 import { readListeningEvents } from '@/services/listeningHistory'
 import { downloadTextFile, historyToCSV, historyToJSON } from '@/services/playlistFiles'
 import pkg from '../../package.json'
@@ -712,6 +713,9 @@ export default function Settings() {
 
         {/* 跨设备同步（可选自建后端） */}
         <SyncSettings />
+
+        {/* 直连打卡 */}
+        <ScrobbleSettings />
 
         {/* 你的数据：想拿走随时能拿走 */}
         <DataExportSection />

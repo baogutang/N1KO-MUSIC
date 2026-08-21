@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   syncStore: 'msp-sync-store',
   recommendationCursor: 'msp-recommendation-cursor',
   libraryScope: 'msp-library-scope',
+  scrobbleStore: 'msp-scrobble-store',
 } as const
 
 /** 每日推荐结果缓存前缀，实际键形如 `msp-recommendation:{serverId}:{yyyy-mm-dd}:{batch}:{size}` */

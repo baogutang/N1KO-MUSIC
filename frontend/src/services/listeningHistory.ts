@@ -362,3 +362,21 @@ export function deriveListeningOutcome(
   if (listenedSeconds < Math.min(30, Math.max(5, durationSeconds * 0.1))) return 'skipped'
   return 'abandoned'
 }
+
+/**
+ * 订阅新写入的收听事件。
+ *
+ * 包一层是为了让消费方不必知道事件名，也不必自己拆 CustomEvent 的 detail。
+ * 注意同一个 eventId 会被写多次（一次播放期间进度在涨），
+ * 消费方要自己按 eventId 去重。
+ */
+export function subscribeListeningEvents(
+  handler: (event: ListeningEvent) => void
+): () => void {
+  const onUpdated = (raw: Event) => {
+    const detail = (raw as CustomEvent<{ event?: ListeningEvent }>).detail
+    if (detail?.event) handler(detail.event)
+  }
+  window.addEventListener('msp-history-updated', onUpdated)
+  return () => window.removeEventListener('msp-history-updated', onUpdated)
+}
