@@ -86,7 +86,7 @@ function bindCustomCoverRevokeOnQueryRemoved(queryClient: QueryClient) {
 export function useRandomSongs(size = 50) {
   return useQuery({
     queryKey: queryKeys.randomSongs(size),
-    queryFn: () => getAdapter().getRandomSongs(size, currentFolderId()),
+    queryFn: ({ signal }) => getAdapter().getRandomSongs(size, currentFolderId(), signal),
     staleTime: 5 * 60 * 1000, // 5 分钟
   })
 }
@@ -95,7 +95,7 @@ export function useRandomSongs(size = 50) {
 export function useSongs(params: ListParams = {}) {
   return useQuery({
     queryKey: [serverKey(), 'songs', 'all', params] as const,
-    queryFn: () => getAdapter().getSongs({ musicFolderId: currentFolderId(), ...params }),
+    queryFn: ({ signal }) => getAdapter().getSongs({ musicFolderId: currentFolderId(), ...params, signal }),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -104,8 +104,8 @@ export function useSongs(params: ListParams = {}) {
 export function useSongsInfinite(size = 100) {
   return useInfiniteQuery({
     queryKey: [serverKey(), 'songs', 'infinite', size] as const,
-    queryFn: ({ pageParam = 0 }) =>
-      getAdapter().getSongs({ size, offset: pageParam as number, musicFolderId: currentFolderId() }),
+    queryFn: ({ pageParam = 0, signal }) =>
+      getAdapter().getSongs({ size, offset: pageParam as number, musicFolderId: currentFolderId(), signal }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -349,7 +349,7 @@ export function useCustomCoverUrl(params: CustomCoverParams | null) {
 export function useAlbums(params: ListParams = {}) {
   return useQuery({
     queryKey: queryKeys.albums(params),
-    queryFn: () => getAdapter().getAlbums(params),
+    queryFn: ({ signal }) => getAdapter().getAlbums({ ...params, signal }),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -359,8 +359,8 @@ export function useAlbumsInfinite(size = 50, type = 'newest') {
   return useInfiniteQuery({
     // key 必须含 size：同一 type 不同 size 的两个书架否则会串缓存
     queryKey: [serverKey(), 'albums', 'infinite', type, size],
-    queryFn: ({ pageParam = 0 }) =>
-      getAdapter().getAlbums({ size, offset: pageParam as number, type, musicFolderId: currentFolderId() }),
+    queryFn: ({ pageParam = 0, signal }) =>
+      getAdapter().getAlbums({ size, offset: pageParam as number, type, musicFolderId: currentFolderId(), signal }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -377,7 +377,7 @@ export function useAlbumsInfinite(size = 50, type = 'newest') {
 export function useAlbumShelf(type: AlbumShelfType, size = 12) {
   return useQuery({
     queryKey: [serverKey(), 'albums', 'shelf', type, size] as const,
-    queryFn: () => getAdapter().getAlbums({ type, size, musicFolderId: currentFolderId() }),
+    queryFn: ({ signal }) => getAdapter().getAlbums({ type, size, musicFolderId: currentFolderId(), signal }),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -431,7 +431,7 @@ export function useSetRating() {
 export function useAlbumDetail(albumId: string) {
   return useQuery({
     queryKey: queryKeys.albumDetail(albumId),
-    queryFn: () => getAdapter().getAlbumDetail(albumId),
+    queryFn: ({ signal }) => getAdapter().getAlbumDetail(albumId, signal),
     enabled: !!albumId,
     staleTime: 10 * 60 * 1000,
   })
@@ -441,7 +441,7 @@ export function useAlbumDetail(albumId: string) {
 export function useRecentAlbums(size = 20) {
   return useQuery({
     queryKey: queryKeys.recentAlbums(size),
-    queryFn: () => getAdapter().getRecentAlbums(size),
+    queryFn: ({ signal }) => getAdapter().getRecentAlbums(size, signal),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -454,7 +454,7 @@ export function useRecentAlbums(size = 20) {
 export function useArtists() {
   return useQuery({
     queryKey: queryKeys.artists(),
-    queryFn: () => getAdapter().getArtists(currentFolderId()),
+    queryFn: ({ signal }) => getAdapter().getArtists(currentFolderId(), signal),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -463,7 +463,7 @@ export function useArtists() {
 export function useArtistDetail(artistId: string) {
   return useQuery({
     queryKey: queryKeys.artistDetail(artistId),
-    queryFn: () => getAdapter().getArtistDetail(artistId),
+    queryFn: ({ signal }) => getAdapter().getArtistDetail(artistId, signal),
     enabled: !!artistId,
     staleTime: 10 * 60 * 1000,
   })
@@ -477,7 +477,7 @@ export function useArtistDetail(artistId: string) {
 export function usePlaylists() {
   return useQuery({
     queryKey: queryKeys.playlists(),
-    queryFn: () => getAdapter().getPlaylists(),
+    queryFn: ({ signal }) => getAdapter().getPlaylists(signal),
     staleTime: 3 * 60 * 1000,
   })
 }
@@ -486,7 +486,7 @@ export function usePlaylists() {
 export function usePlaylistDetail(playlistId: string) {
   return useQuery({
     queryKey: queryKeys.playlistDetail(playlistId),
-    queryFn: () => getAdapter().getPlaylistDetail(playlistId),
+    queryFn: ({ signal }) => getAdapter().getPlaylistDetail(playlistId, signal),
     enabled: !!playlistId,
     staleTime: 3 * 60 * 1000,
   })
@@ -535,7 +535,7 @@ export function useAddToPlaylist() {
 export function useStarred() {
   return useQuery({
     queryKey: queryKeys.starred(),
-    queryFn: () => getAdapter().getStarred(),
+    queryFn: ({ signal }) => getAdapter().getStarred(signal),
     staleTime: 3 * 60 * 1000,
   })
 }
@@ -669,7 +669,7 @@ function patchStarredInCache(
 export function useGenres() {
   return useQuery({
     queryKey: queryKeys.genres(),
-    queryFn: () => getAdapter().getGenres(),
+    queryFn: ({ signal }) => getAdapter().getGenres(signal),
     staleTime: 30 * 60 * 1000,
   })
 }

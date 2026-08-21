@@ -322,7 +322,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       artistCount: 0,
       songOffset: offset,
       musicFolderId: params.musicFolderId,
-    })
+    }, params.signal)
     const result = data.searchResult3 ?? {}
     const songs = ((result.song ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
     return {
@@ -537,31 +537,31 @@ export class SubsonicAdapter implements MusicServerAdapter {
       toYear: params.toYear,
       genre: params.genre,
       musicFolderId: params.musicFolderId,
-    })
+    }, params.signal)
     const albums = ((data.albumList2 as Record<string, unknown[]> | undefined)?.album ?? []) as Record<string, unknown>[]
     return { items: albums.map(this.mapAlbum.bind(this)), offset: params.offset ?? 0, size: albums.length }
   }
 
-  async getAlbumDetail(albumId: string): Promise<AlbumDetail> {
+  async getAlbumDetail(albumId: string, signal?: AbortSignal): Promise<AlbumDetail> {
     // 两个请求并行：唱片说明是附加信息，不该让曲目列表多等一个往返。
     // getAlbumInfo 内部已吞掉错误，失败只是拿不到说明。
     const [data, info] = await Promise.all([
-      this.request<{ album?: Record<string, unknown> }>('/getAlbum', { id: albumId }),
-      this.getAlbumInfo(albumId),
+      this.request<{ album?: Record<string, unknown> }>('/getAlbum', { id: albumId }, signal),
+      this.getAlbumInfo(albumId, signal),
     ])
     const album = (data.album ?? {}) as Record<string, unknown>
     const songs = ((album.song ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
     return { ...this.mapAlbum(album), songs, ...(info ?? {}) }
   }
 
-  async getRecentAlbums(size = 20): Promise<Album[]> {
-    const data = await this.getAlbums({ type: 'newest', size })
+  async getRecentAlbums(size = 20, signal?: AbortSignal): Promise<Album[]> {
+    const data = await this.getAlbums({ type: 'newest', size, signal })
     return data.items
   }
 
-  async getRandomSongs(size = 50, musicFolderId?: string): Promise<Song[]> {
+  async getRandomSongs(size = 50, musicFolderId?: string, signal?: AbortSignal): Promise<Song[]> {
     const data = await this.request<{ randomSongs?: { song?: unknown[] } }>(
-      '/getRandomSongs', { size, musicFolderId }
+      '/getRandomSongs', { size, musicFolderId }, signal
     )
     const songs = ((data.randomSongs as Record<string, unknown[]> | undefined)?.song ?? []) as Record<string, unknown>[]
     return songs.map(this.mapSong.bind(this))
@@ -600,10 +600,10 @@ export class SubsonicAdapter implements MusicServerAdapter {
     return this.songListEndpoint('/getSimilarSongs2', { id: songId, count }, 'similarSongs2')
   }
 
-  async getArtists(musicFolderId?: string): Promise<Artist[]> {
+  async getArtists(musicFolderId?: string, signal?: AbortSignal): Promise<Artist[]> {
     const data = await this.request<{
       artists?: { index?: Array<{ artist?: unknown[] }> }
-    }>('/getArtists', { musicFolderId })
+    }>('/getArtists', { musicFolderId }, signal)
     const indexes = (data.artists as Record<string, unknown> | undefined)?.index as Array<Record<string, unknown>> | undefined ?? []
     const artists: Artist[] = []
     for (const index of indexes) {
@@ -615,11 +615,11 @@ export class SubsonicAdapter implements MusicServerAdapter {
     return artists
   }
 
-  async getArtistDetail(artistId: string): Promise<ArtistDetail> {
+  async getArtistDetail(artistId: string, signal?: AbortSignal): Promise<ArtistDetail> {
     // Phase 1: 基本信息（并行）
     const [artistData, infoData] = await Promise.allSettled([
-      this.request<{ artist?: Record<string, unknown> }>('/getArtist', { id: artistId }),
-      this.request<{ artistInfo2?: Record<string, unknown> }>('/getArtistInfo2', { id: artistId }),
+      this.request<{ artist?: Record<string, unknown> }>('/getArtist', { id: artistId }, signal),
+      this.request<{ artistInfo2?: Record<string, unknown> }>('/getArtistInfo2', { id: artistId }, signal),
     ])
     const artist = artistData.status === 'fulfilled'
       ? (artistData.value.artist ?? {}) as Record<string, unknown>
@@ -634,7 +634,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
 
     // Phase 2: 热门歌曲 + 全部专辑歌曲（并行）
     const topSongsPromise = artistName
-      ? this.request<{ topSongs?: { song?: unknown[] } }>('/getTopSongs', { artist: artistName, count: 50 })
+      ? this.request<{ topSongs?: { song?: unknown[] } }>('/getTopSongs', { artist: artistName, count: 50 }, signal)
           .catch(() => null)
       : Promise.resolve(null)
     // 每张专辑一次 /getAlbum。多产歌手会一次打出几十个请求，
@@ -645,7 +645,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       mapWithConcurrency(
         albums.slice(0, MAX_ARTIST_ALBUM_FETCH),
         ARTIST_ALBUM_CONCURRENCY,
-        a => this.request<{ album?: Record<string, unknown> }>('/getAlbum', { id: a.id })
+        a => this.request<{ album?: Record<string, unknown> }>('/getAlbum', { id: a.id }, signal)
           .catch(() => null)
       ),
     ])
@@ -674,8 +674,8 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
   }
 
-  async getPlaylists(): Promise<Playlist[]> {
-    const data = await this.request<{ playlists?: { playlist?: unknown[] } }>('/getPlaylists')
+  async getPlaylists(signal?: AbortSignal): Promise<Playlist[]> {
+    const data = await this.request<{ playlists?: { playlist?: unknown[] } }>('/getPlaylists', {}, signal)
     const list = ((data.playlists as Record<string, unknown[]> | undefined)?.playlist ?? []) as Record<string, unknown>[]
     return list.map(p => ({
       id: String(p.id),
@@ -692,8 +692,8 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }))
   }
 
-  async getPlaylistDetail(playlistId: string): Promise<PlaylistDetail> {
-    const data = await this.request<{ playlist?: Record<string, unknown> }>('/getPlaylist', { id: playlistId })
+  async getPlaylistDetail(playlistId: string, signal?: AbortSignal): Promise<PlaylistDetail> {
+    const data = await this.request<{ playlist?: Record<string, unknown> }>('/getPlaylist', { id: playlistId }, signal)
     const pl = (data.playlist ?? {}) as Record<string, unknown>
     const songs = ((pl.entry ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
     return {
@@ -735,10 +735,10 @@ export class SubsonicAdapter implements MusicServerAdapter {
     await this.postRequest('/updatePlaylist', { playlistId, songIndexToRemove: songIndexes })
   }
 
-  async getStarred(): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }> {
+  async getStarred(signal?: AbortSignal): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }> {
     const data = await this.request<{
       starred2?: { song?: unknown[]; album?: unknown[]; artist?: unknown[] }
-    }>('/getStarred2')
+    }>('/getStarred2', {}, signal)
     const starred = (data.starred2 ?? {}) as {
       song?: Record<string, unknown>[]
       album?: Record<string, unknown>[]
@@ -798,10 +798,10 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
   }
 
-  async getGenres(): Promise<Array<{ name: string; songCount: number; albumCount: number }>> {
+  async getGenres(signal?: AbortSignal): Promise<Array<{ name: string; songCount: number; albumCount: number }>> {
     const data = await this.request<{
       genres?: { genre?: unknown[] }
-    }>('/getGenres')
+    }>('/getGenres', {}, signal)
     const genres = ((data.genres as Record<string, unknown[]> | undefined)?.genre ?? []) as Record<string, unknown>[]
     return genres.map(g => ({
       name: String(g.value || g.name || ''),
@@ -875,11 +875,11 @@ export class SubsonicAdapter implements MusicServerAdapter {
   }
 
   /** 专辑说明 / 乐评，用于「唱片说明」内页 */
-  async getAlbumInfo(albumId: string): Promise<{
+  async getAlbumInfo(albumId: string, signal?: AbortSignal): Promise<{
     notes?: string; musicBrainzId?: string; externalUrl?: string
   } | null> {
     try {
-      const data = await this.request<{ albumInfo?: Record<string, unknown> }>('/getAlbumInfo2', { id: albumId })
+      const data = await this.request<{ albumInfo?: Record<string, unknown> }>('/getAlbumInfo2', { id: albumId }, signal)
       const info = data.albumInfo
       if (!info) return null
       const notes = info.notes ? String(info.notes) : undefined
