@@ -28,6 +28,7 @@ import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 /** docked 外壳：上缘 1px 发丝线 + 纸面底（DESIGN §4.2） */
 const barShell = 'flex-shrink-0 border-t border-hair bg-paper'
@@ -259,13 +260,22 @@ export function PlayerBar() {
             />
           </button>
 
-          <div className="min-w-0">
+          {/*
+            切歌翻页：key 换掉就重新播一次动画，新的曲目信息像纸页被翻过来。
+            transform-origin 落在左缘、perspective 给得很浅——这是一次翻页，
+            不是一个特效；幅度大了会变成 PPT 转场。
+          */}
+          <div
+            key={currentSong.id}
+            className="min-w-0 animate-page-turn motion-reduce:animate-none"
+            style={{ transformOrigin: 'left center', perspective: '640px' }}
+          >
             <p className="font-serif text-[14.5px] font-semibold text-foreground truncate hover:text-primary cursor-pointer transition-colors duration-200"
               onClick={toggleFullscreen}>
-              {currentSong.title}
+              {spaceCJK(currentSong.title)}
             </p>
             <p className="text-[11.5px] text-ink-soft truncate mt-0.5">
-              {currentSong.artist}{currentSong.album ? ` · ${currentSong.album}` : ''}
+              {spaceCJK(currentSong.artist)}{currentSong.album ? ` · ${spaceCJK(currentSong.album)}` : ''}
             </p>
           </div>
 

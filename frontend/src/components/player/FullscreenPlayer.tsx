@@ -39,6 +39,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getCachedColors } from '@/utils/colorExtract'
+import { toPaperSafe } from '@/utils/paperSafe'
 import { formatDuration } from '@/utils/formatters'
 import { useSettingsStore } from '@/store/settingsStore'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
@@ -253,10 +254,20 @@ export function FullscreenPlayer() {
     if (!url) return
     let alive = true
     getCachedColors(url).then(colors => {
-      if (alive) setBleedColors({ primary: colors.primary, secondary: colors.secondary })
+      if (!alive) return
+      /**
+       * 取到的原色不能直接用。一张荧光粉的封面会把整块版面染成粉色，
+       * 一张纯黑的会把纸压成灰——那就不是「纸、墨、朱」了。
+       * toPaperSafe 只留色相，把饱和度和明度夹进纸的邻域，
+       * 于是不管封面多刺眼，落到版面上的都是一层薄晕。
+       */
+      setBleedColors({
+        primary: toPaperSafe(colors.primary, !isLight),
+        secondary: toPaperSafe(colors.secondary, !isLight),
+      })
     })
     return () => { alive = false }
-  }, [resolvedCoverUrl, coverUrl])
+  }, [resolvedCoverUrl, coverUrl, isLight])
 
   const { data: lyrics } = useLyricsQuery(
     currentSong?.id ?? '',
@@ -317,7 +328,8 @@ export function FullscreenPlayer() {
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
         style={{
-          opacity: bleedColors ? (isLight ? 0.3 : 0.16) : 0,
+          // 色本身已经夹进安全带，这里的不透明度可以给得更实，晕染才看得见
+          opacity: bleedColors ? (isLight ? 0.55 : 0.4) : 0,
           background: bleedColors
             ? `radial-gradient(55% 60% at 20% 12%, ${bleedColors.primary} 0%, transparent 72%),` +
               ` radial-gradient(45% 50% at 86% 92%, ${bleedColors.secondary} 0%, transparent 75%)`

@@ -13,6 +13,7 @@ import { usePlayerStore } from '@/store/playerStore'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
 import { isNativePlatform } from '@/lib/platform'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 /** 主控制轻触感（仅原生壳） */
 function lightImpact() {
@@ -70,12 +71,17 @@ export function MiniPlayer() {
               customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
             />
           </span>
-          <span className="min-w-0">
+          {/* 切歌翻页，与桌面播放条同一套动作 */}
+          <span
+            key={currentSong.id}
+            className="block min-w-0 animate-page-turn motion-reduce:animate-none"
+            style={{ transformOrigin: 'left center', perspective: '640px' }}
+          >
             <span className="block font-serif text-[14px] font-semibold text-foreground truncate">
-              {currentSong.title}
+              {spaceCJK(currentSong.title)}
             </span>
             <span className="block text-[11px] text-ink-soft truncate mt-0.5">
-              {currentSong.artist}
+              {spaceCJK(currentSong.artist)}
             </span>
           </span>
         </button>

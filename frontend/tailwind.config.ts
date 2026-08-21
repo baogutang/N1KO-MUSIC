@@ -115,6 +115,17 @@ export default {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
         },
+        /**
+         * 翻页。
+         *
+         * 切歌时新曲目信息不是淡入，而是像纸页被翻过来一样从边缘立起。
+         * transform-origin 由使用方给（左缘翻页），这里只描述动作本身；
+         * 幅度刻意压得很小——它是一次翻页，不是一个特效。
+         */
+        'page-turn': {
+          from: { opacity: '0', transform: 'rotateY(-7deg) translateX(-6px)' },
+          to: { opacity: '1', transform: 'rotateY(0deg) translateX(0)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s var(--ease)',
@@ -125,6 +136,7 @@ export default {
         'slide-in-right': 'slide-in-right 0.3s var(--ease)',
         'spin-slow': 'spin-slow 8s linear infinite',
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+        'page-turn': 'page-turn 0.42s var(--ease)',
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
