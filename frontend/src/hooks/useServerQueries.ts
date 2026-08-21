@@ -552,17 +552,33 @@ export function useToggleStar() {
       // 音乐服务器始终是收藏的权威来源，同步服务只做跨设备镜像，失败不影响本次操作
       if (type === 'song') void mirrorFavorite(id, !isStarred, song)
     },
+    /**
+     * 乐观更新走缓存，而不是靠调用方传进来的回滚闭包。
+     *
+     * 列表层现在只有一个共享的 mutation 实例，而 MutationObserver 的
+     * 每次调用回调（mutate 的第二个参数）会被下一次调用覆盖：
+     * 连着点两个收藏、第一个请求随后失败时，第一次的回滚永远不会执行，
+     * 那一行会一直显示成已收藏。改成 mutation 级的 onMutate / onError
+     * 就与观察者无关了，每一次调用各自回滚。
+     */
+    onMutate: (variables) => {
+      const sid = serverKey()
+      patchStarredInCache(queryClient, sid, variables.id, !variables.isStarred)
+      return { sid, id: variables.id, previous: variables.isStarred }
+    },
+    onError: (_error, _variables, context) => {
+      if (!context) return
+      patchStarredInCache(queryClient, context.sid, context.id, context.previous)
+    },
     onSuccess: (_data, variables) => {
       const sid = serverKey()
-      // 先就地改掉已缓存的那一条，避免大库下把几十页 infinite 数据全部重拉。
-      // 只失效不改写会让用户点一次收藏就触发几十个请求。
-      patchStarredInCache(queryClient, sid, variables.id, !variables.isStarred)
       // 收藏汇总页本身必须重取（条目会进出列表，不是就地改标记）
       queryClient.invalidateQueries({ queryKey: [sid, 'starred'] })
       // 其余家族标记为过期，但不立即重取：下次真正用到时才刷新
       for (const family of ['songs', 'albums', 'artists', 'search', 'playlists'] as const) {
         queryClient.invalidateQueries({ queryKey: [sid, family], refetchType: 'none' })
       }
+      void variables
     },
   })
 }

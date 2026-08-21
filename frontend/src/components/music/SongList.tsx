@@ -95,11 +95,10 @@ export function SongList({
   const toggleStar = useToggleStar()
   const toggleStarRef = React.useRef(toggleStar)
   toggleStarRef.current = toggleStar
-  const handleToggleStar = useCallback((song: Song, nextStarred: boolean, revert: () => void) => {
-    toggleStarRef.current.mutate(
-      { id: song.id, type: 'song', isStarred: !nextStarred, song },
-      { onError: revert }
-    )
+  // 回滚由 mutation 自身的 onError 通过缓存完成，这里不再传每次调用的回调——
+  // 共享 observer 下后一次调用会把前一次的回调顶掉，导致回滚丢失。
+  const handleToggleStar = useCallback((song: Song, nextStarred: boolean) => {
+    toggleStarRef.current.mutate({ id: song.id, type: 'song', isStarred: !nextStarred, song })
   }, [])
 
   const renderRow = useCallback((song: Song, index: number) => (
@@ -278,7 +277,7 @@ interface SongRowProps {
   showIndex: boolean
   onPlayIndex: (index: number) => void
   onPlaylistAdd?: (song: Song) => void
-  onToggleStar: (song: Song, nextStarred: boolean, revert: () => void) => void
+  onToggleStar: (song: Song, nextStarred: boolean) => void
 }
 
 // React.memo：只有 props 变化时才重渲染，播放进度更新不会触发歌曲行重渲染
@@ -294,7 +293,9 @@ const SongRow = React.memo(function SongRow({
   onPlaylistAdd,
   onToggleStar,
 }: SongRowProps) {
-  const [localStarred, setLocalStarred] = React.useState(!!song.starred)
+  // 收藏状态直接读缓存里的这一条：mutation 的 onMutate 会同步就地改写缓存，
+  // 视觉反馈依然是即时的，而且失败回滚也走同一条通路，不会出现两套真相。
+  const localStarred = !!song.starred
   const navigate = useNavigate()
   // 行是 memo 的，封面 URL 只在这首歌变化时才重算
   const coverUrl = useMemo(
@@ -302,18 +303,12 @@ const SongRow = React.memo(function SongRow({
     [song.coverArt]
   )
 
-  useEffect(() => {
-    setLocalStarred(!!song.starred)
-  }, [song.id, song.starred])
-
   // 稳定的 handlePlay，只依赖 index 和 onPlayIndex（均为稳定引用）
   const handlePlay = useCallback(() => onPlayIndex(index), [onPlayIndex, index])
 
   const handleToggleStar = (e: React.MouseEvent) => {
     e.stopPropagation()
-    const newStarred = !localStarred
-    setLocalStarred(newStarred)
-    onToggleStar(song, newStarred, () => setLocalStarred(!newStarred))
+    onToggleStar(song, !localStarred)
   }
 
   const handleNavigateArtist = (e: React.MouseEvent) => {
