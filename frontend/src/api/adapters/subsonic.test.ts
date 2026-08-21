@@ -109,58 +109,87 @@ describe('取消信号的透传', () => {
  * 分享能力必须问服务器，不能问适配器。
  *
  * Subsonic 系适配器一律实现了 createShare，所以「有没有这个方法」永远为真。
- * 而 Navidrome 的 `ND_ENABLESHARING` 默认是关的，关着时整个分享 API 回 501。
- * 只看方法存在，入口就会出现在一台根本不支持分享的服务器上，点下去才报错——
- * 这正是 useServerCapabilities 开头那条「不支持就不出现」要挡掉的情况。
+ * Navidrome 把四个分享端点绑在同一个 EnableSharing 开关上，关掉时一起回 501，
+ * 所以 getShares 恰好在 createShare 会失败的时候失败。
+ *
+ * 最要紧的是**区分「服务器说没有」和「没问到服务器」**：后者一旦被当成前者，
+ * react-query 会把它当成功结果缓存下来，一次网络抖动就能让分享入口消失半小时。
  */
 describe('分享能力探测', () => {
   function makeAdapter(respond: (url: string) => unknown) {
+    const calls: string[] = []
     const adapter = new SubsonicAdapter({
       url: 'https://example.test', username: 'u', token: 't', salt: 's',
     })
     ;(adapter as unknown as { client: unknown }).client = {
       get: async (url: string) => {
+        calls.push(url)
         const result = respond(url)
         if (result instanceof Error) throw result
-        return { data: result }
+        return result
       },
     }
-    return adapter
+    return { adapter, calls }
   }
 
+  const ok = (body: unknown) => ({ status: 200, data: { 'subsonic-response': body } })
+
+  it('探的是 getShares —— 与 createShare 共用同一个开关的那个端点', async () => {
+    const { adapter, calls } = makeAdapter(() => ok({ status: 'ok', shares: {} }))
+    await adapter.probeShares()
+    expect(calls).toEqual(['/getShares'])
+  })
+
   it('服务器把分享关掉（501）时报告不支持', async () => {
-    const err = Object.assign(new Error('Request failed with status code 501'), {
-      response: { status: 501 },
-    })
-    const adapter = makeAdapter(() => err)
+    const { adapter } = makeAdapter(() => ({ status: 501, data: '' }))
+    expect(await adapter.probeShares()).toBe(false)
+  })
+
+  it('端点根本不存在（404）时报告不支持', async () => {
+    const { adapter } = makeAdapter(() => ({ status: 404, data: '' }))
     expect(await adapter.probeShares()).toBe(false)
   })
 
   it('分享开着但一条都还没建过时，报告支持', async () => {
     // 这是最容易被写错的一种：空列表不等于不支持
-    const adapter = makeAdapter(() => ({
-      'subsonic-response': { status: 'ok', shares: {} },
-    }))
+    const { adapter } = makeAdapter(() => ok({ status: 'ok', shares: {} }))
     expect(await adapter.probeShares()).toBe(true)
   })
 
   it('已有分享时报告支持', async () => {
-    const adapter = makeAdapter(() => ({
-      'subsonic-response': {
-        status: 'ok',
-        shares: { share: [{ id: '1', url: 'https://example.test/share/1' }] },
-      },
+    const { adapter } = makeAdapter(() => ok({
+      status: 'ok', shares: { share: [{ id: '1', url: 'https://example.test/share/1' }] },
     }))
     expect(await adapter.probeShares()).toBe(true)
   })
 
   it('服务器回 Subsonic 层面的错误时也报告不支持', async () => {
-    const adapter = makeAdapter(() => ({
-      'subsonic-response': {
-        status: 'failed',
-        error: { code: 30, message: 'not implemented' },
-      },
+    const { adapter } = makeAdapter(() => ok({
+      status: 'failed', error: { code: 30, message: 'not implemented' },
     }))
     expect(await adapter.probeShares()).toBe(false)
+  })
+
+  /**
+   * 下面这几条是这次修的核心：没问到服务器不是答案。
+   * 必须抛出去，让 react-query 进入 error 态——那里才有重试和重挂载重取；
+   * 一旦 resolve 成 false，它就成了「成功结果」，被缓存 30 分钟，
+   * 而 NAS 唤醒、隧道重连、VPN 还没起来这类抖动恰恰都发生在启动那一刻。
+   */
+  describe('没问到服务器时不能当成「不支持」', () => {
+    it('断网 / 超时要抛出去，而不是悄悄返回 false', async () => {
+      const { adapter } = makeAdapter(() => new Error('Network Error'))
+      await expect(adapter.probeShares()).rejects.toThrow('Network Error')
+    })
+
+    it('网关错误（502）要抛出去', async () => {
+      const { adapter } = makeAdapter(() => ({ status: 502, data: '' }))
+      await expect(adapter.probeShares()).rejects.toThrow('502')
+    })
+
+    it('认证过期（401）要抛出去——那是登录的问题，不是分享的问题', async () => {
+      const { adapter } = makeAdapter(() => ({ status: 401, data: '' }))
+      await expect(adapter.probeShares()).rejects.toThrow('401')
+    })
   })
 })

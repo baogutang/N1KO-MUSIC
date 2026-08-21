@@ -938,18 +938,30 @@ export class SubsonicAdapter implements MusicServerAdapter {
    *
    * 不能靠「适配器有没有 createShare 这个方法」来判断——Subsonic 系适配器永远有，
    * 于是关掉了分享的服务器上入口照样出现，点下去才 501。
-   * Navidrome 的 `ND_ENABLESHARING` 默认就是关的，这是最常见的一种服务器。
    *
-   * 这里真的问一次服务器：getShares 通了就是开着的。**故意不吞异常**——
-   * 吞掉就和 getShares() 一样分不出「没有分享」和「不支持分享」。
+   * 关键在于把两件事分开：
+   *
+   * - **服务器回答了「没有」**（501/404，或 200 带一个 failed body）→ 返回 false，
+   *   这是一个可以缓存的结论。
+   * - **压根没问到服务器**（断网、超时、502、认证过期）→ **抛出去**。
+   *   这不是答案，是没拿到答案。把它当成 false 会被 react-query 当作成功结果缓存下来，
+   *   于是 NAS 刚唤醒、隧道刚重连那一下的抖动，会让一台分享明明开着的服务器
+   *   在接下来半小时里都没有分享入口。抛出去才能走正常的重试与重取。
+   *
+   * 因此这里绕开 request()——它把 501 和断网都变成同一种 Error，分不出来。
    */
   async probeShares(): Promise<boolean> {
-    try {
-      await this.request('/getShares')
-      return true
-    } catch {
-      return false
+    const response = await this.client.get<SubsonicResponse<unknown>>('/getShares', {
+      params: this.buildParams({}),
+      // 501 要作为「答案」拿到手，而不是变成异常
+      validateStatus: () => true,
+    })
+    // 这两个状态码的含义是「这个端点不在这台服务器上」，是确定的否定答案
+    if (response.status === 501 || response.status === 404) return false
+    if (response.status >= 400) {
+      throw new Error(`getShares probe failed with status ${response.status}`)
     }
+    return response.data?.['subsonic-response']?.status === 'ok'
   }
 
   async getShares(): Promise<Array<{

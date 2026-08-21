@@ -70,13 +70,15 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeServerId])
 
-  // 探测一次分享是否真的开着。getShares 通了就是开着的；501 / 报错都算关着。
+  // 探测一次分享是否真的开着。probeShares 只在服务器明确回答时 resolve；
+  // 连不上时它会抛错，让这个查询进入 error 态——**不要**在这里 retry: false，
+  // 那会把一次网络抖动变成半小时没有分享入口（抖动时 data 是 undefined 而非 false，
+  // 于是重挂载和重试都还能把它救回来）。
   const { data: sharesEnabled } = useQuery({
     queryKey: [activeServerId ?? 'no-server', 'shares-enabled'],
     queryFn: () => getAdapter().probeShares?.() ?? true,
     enabled: !!activeServerId && isConnected && methods.shares,
     staleTime: 30 * 60 * 1000,
-    retry: false,
   })
 
   const { data: folders } = useQuery({
@@ -88,7 +90,8 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
 
   return {
     ...methods,
-    // 探测没回来之前按「不支持」算：宁可入口晚半秒出现，也不要点下去才失败
+    // 只认肯定答复：探测在飞、或者根本没问到服务器时都按「不支持」算。
+    // 入口晚出现一会儿，好过点下去才失败。
     shares: methods.shares && sharesEnabled === true,
     // 只有一个库时切换器没有意义
     musicFolders: methods.musicFolders && (folders?.length ?? 0) > 1,

@@ -42,7 +42,9 @@ const KIND_TITLE_KEYS: Record<ShareTarget['kind'], string> = {
 function isSharingDisabled(err: unknown): boolean {
   const status = (err as { response?: { status?: number } })?.response?.status
   if (status === 501) return true
-  return err instanceof Error && /\b501\b/.test(err.message)
+  // 兜底只认 axios 那句固定措辞。裸的 /501/ 会误伤任何碰巧含这三个数字的
+  // 服务器错误文本（比如歌名或路径里带 501），把无关的失败说成「没开分享」。
+  return err instanceof Error && /status code 501\b/.test(err.message)
 }
 
 interface ShareRecord {

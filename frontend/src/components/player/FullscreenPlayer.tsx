@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import type { KeyboardEvent } from 'react'
+import type { Song } from '@/api/types'
 import { useNavigate } from 'react-router-dom'
 import {
   Play, Pause, SkipBack, SkipForward, Heart,
@@ -228,8 +229,11 @@ export function FullscreenPlayer() {
   const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
 
   const [showVolumePanel, setShowVolumePanel] = useState(false)
-  const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false)
-  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  // 这两个对话框都要把「打开那一刻的歌」钉住，而不是一直读 currentSong：
+  // 用户填备注、选有效期的这几秒里，上一首可能已经播完自动切走了，
+  // 那时按 currentSong 生成的会是下一首的链接，而且悄无声息。
+  const [playlistSong, setPlaylistSong] = useState<Song | null>(null)
+  const [shareSong, setShareSong] = useState<Song | null>(null)
   const capabilities = useServerCapabilities()
   const isMobile = useIsMobileLayout()
   // 移动端封面 / 歌词 视图切换（桌面双列布局歌词常显，无需切换）
@@ -405,7 +409,7 @@ export function FullscreenPlayer() {
             </DropdownMenuItem>
             {capabilities.shares && (
               <DropdownMenuItem
-                onClick={() => setShareDialogOpen(true)}
+                onClick={() => setShareSong(currentSong)}
                 className="gap-2 cursor-pointer"
               >
                 <ShareNetwork size={16} />
@@ -522,7 +526,7 @@ export function FullscreenPlayer() {
 
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setPlaylistDialogOpen(true)}
+                  onClick={() => setPlaylistSong(currentSong)}
                   className={cn(lineCircleBtn, 'w-8 h-8')}
                   aria-label={t('action.addToPlaylist')}
                 >
@@ -655,7 +659,7 @@ export function FullscreenPlayer() {
             <div className="flex items-center gap-2 flex-none pt-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button onClick={() => setPlaylistDialogOpen(true)} className={cn(lineCircleBtn, 'w-8 h-8')}>
+                  <button onClick={() => setPlaylistSong(currentSong)} className={cn(lineCircleBtn, 'w-8 h-8')}>
                     <Queue size={17} />
                   </button>
                 </TooltipTrigger>
@@ -819,15 +823,15 @@ export function FullscreenPlayer() {
       )}
 
       <ShareDialog
-        open={shareDialogOpen}
-        onOpenChange={setShareDialogOpen}
-        target={currentSong ? { ids: [currentSong.id], label: currentSong.title, kind: 'song' } : null}
+        open={shareSong !== null}
+        onOpenChange={open => { if (!open) setShareSong(null) }}
+        target={shareSong ? { ids: [shareSong.id], label: shareSong.title, kind: 'song' } : null}
       />
 
       <AddToPlaylistDialog
-        open={playlistDialogOpen}
-        onOpenChange={setPlaylistDialogOpen}
-        songs={currentSong ? [currentSong] : []}
+        open={playlistSong !== null}
+        onOpenChange={open => { if (!open) setPlaylistSong(null) }}
+        songs={playlistSong ? [playlistSong] : []}
       />
     </div>
   )
