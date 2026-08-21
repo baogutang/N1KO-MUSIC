@@ -38,6 +38,7 @@ import { SyncSettings } from '@/components/settings/SyncSettings'
 import { ScrobbleSettings } from '@/components/settings/ScrobbleSettings'
 import { importListeningEvents, readListeningEvents } from '@/services/listeningHistory'
 import { capImport, parseHistoryFile } from '@/services/historyImport'
+import { clearProfileCache } from '@/services/musicbrainz'
 import { downloadTextFile, historyToCSV, historyToJSON } from '@/services/playlistFiles'
 import pkg from '../../package.json'
 import type { ReplayGainMode } from '@/utils/replayGain'
@@ -265,7 +266,7 @@ export default function Settings() {
     audioQuality, cellularAudioQuality, adaptiveQuality,
     replayGainMode, replayGainPreamp,
     playbackRate, smoothTransitions, preloadNext, autoContinueQueue,
-    notificationActions, seekStepSeconds, resumeAfterInterruption,
+    notificationActions, seekStepSeconds, resumeAfterInterruption, musicBrainzEnabled,
     setApiPreferServer, setApiAuthToken,
     setCoverRemoteTemplate, setCoverLoadAlbum, setCoverLoadArtist, setCoverShape,
     setLyricsRemoteTemplate, setLyricsConfirmTemplate, setLyricsUseRemote, setLyricsPreferRemote, setLyricsFontSize,
@@ -274,7 +275,7 @@ export default function Settings() {
     setAudioQuality, setCellularAudioQuality, setAdaptiveQuality,
     setReplayGainMode, setReplayGainPreamp,
     setPlaybackRate, setSmoothTransitions, setPreloadNext, setAutoContinueQueue,
-    setNotificationActions, setSeekStepSeconds, setResumeAfterInterruption,
+    setNotificationActions, setSeekStepSeconds, setResumeAfterInterruption, setMusicBrainzEnabled,
   } = useSettingsStore()
   const [pinging, setPinging] = useState<string | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
@@ -838,6 +839,40 @@ export default function Settings() {
 
         {/* 跨设备同步（可选自建后端） */}
         <SyncSettings />
+
+        {/* 歌手档案：默认关闭的第三方查询 */}
+        <Section title="歌手档案" tag="DOSSIER">
+          <Row
+            name="从 MusicBrainz 补全"
+            desc="成立年份、来自哪里、乐队成员、官网——这些从来不在音频标签里。开启后，打开歌手页时会把该歌手的 MusicBrainz 编号发给 musicbrainz.org；不会发送你的账号、曲库或收听记录。默认关闭。"
+          >
+            <Toggle
+              checked={musicBrainzEnabled}
+              onChange={setMusicBrainzEnabled}
+              label="从 MusicBrainz 补全歌手档案"
+            />
+          </Row>
+          {musicBrainzEnabled && (
+            <div className="flex items-center justify-between gap-6 py-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">已缓存的档案</p>
+                <p className="mt-0.5 text-xs text-ink-faint">
+                  查过的档案会在本机保留 30 天，同一位歌手不会被反复查询
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  clearProfileCache()
+                  toast({ title: '已清除缓存的歌手档案' })
+                }}
+                className="flex-shrink-0 text-sm text-ink-soft transition-colors hover:text-primary"
+              >
+                清除
+              </button>
+            </div>
+          )}
+        </Section>
 
         {/* 直连打卡 */}
         <ScrobbleSettings />

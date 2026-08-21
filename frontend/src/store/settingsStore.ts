@@ -121,6 +121,13 @@ interface SettingsState {
   seekStepSeconds: number
   /** 耳机断开导致暂停后，重新插回时自动接着放 */
   resumeAfterInterruption: boolean
+  /**
+   * 从 MusicBrainz 补歌手档案。
+   *
+   * 默认关闭：发请求等于把「你在看哪位歌手」告诉第三方，
+   * 而自托管本来就是为了不让任何人知道你在听什么。要开由用户自己开。
+   */
+  musicBrainzEnabled: boolean
 
   // --- Actions ---
   setApiPreferServer: (v: boolean) => void
@@ -152,6 +159,7 @@ interface SettingsState {
   setNotificationActions: (v: NotificationActions) => void
   setSeekStepSeconds: (v: number) => void
   setResumeAfterInterruption: (v: boolean) => void
+  setMusicBrainzEnabled: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -186,6 +194,7 @@ export const useSettingsStore = create<SettingsState>()(
       notificationActions: 'track',
       seekStepSeconds: 15,
       resumeAfterInterruption: true,
+      musicBrainzEnabled: false,
 
       // 全局来源优先级同时驱动封面和歌词，避免设置项只被持久化却不产生任何效果。
       // 用户仍可在下方用更细粒度的开关覆盖歌词策略。
@@ -223,6 +232,7 @@ export const useSettingsStore = create<SettingsState>()(
       setNotificationActions: (v) => set({ notificationActions: v }),
       setSeekStepSeconds: (v) => set({ seekStepSeconds: Math.min(120, Math.max(5, Math.round(v))) }),
       setResumeAfterInterruption: (v) => set({ resumeAfterInterruption: v }),
+      setMusicBrainzEnabled: (v) => set({ musicBrainzEnabled: v }),
     }),
     {
       name: STORAGE_KEYS.settingsStore,
@@ -250,6 +260,7 @@ export const useSettingsStore = create<SettingsState>()(
           if (state.notificationActions === undefined) state.notificationActions = 'track'
           if (state.seekStepSeconds === undefined) state.seekStepSeconds = 15
           if (state.resumeAfterInterruption === undefined) state.resumeAfterInterruption = true
+          if (state.musicBrainzEnabled === undefined) state.musicBrainzEnabled = false
         }
         return state
       },

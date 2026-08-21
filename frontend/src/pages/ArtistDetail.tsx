@@ -9,6 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Play, Shuffle, CaretDown, CaretUp, MicrophoneStage } from '@phosphor-icons/react'
 import { DiscographyRail, type ArtistMarginalia } from '@/components/music/DiscographyRail'
 import { MarginNote } from '@/components/music/MarginNote'
+import { ArtistDossier } from '@/components/music/ArtistDossier'
 import { SongList } from '@/components/music/SongList'
 import { useArtistDetail } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
@@ -214,6 +215,9 @@ export default function ArtistDetailPage() {
         marginalia={marginalia}
         onPlayAlbum={handlePlayAlbum}
       />
+
+      {/* 档案：曲库标签里没有的那部分。默认关闭，见设置「歌手档案」 */}
+      <ArtistDossier musicBrainzId={artist.musicBrainzId} className="mt-12" />
 
       {/* 你自己写的那一条，和上面「你与这位歌手」的自动统计并置：
           一边是行为算出来的，一边是你亲手写的 */}
