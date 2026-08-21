@@ -34,6 +34,22 @@ function noteKey(target: NoteTarget, targetId: string, serverId: string): string
   return `${serverId}:${target}:${targetId}`
 }
 
+/**
+ * 时间戳对齐到整秒。
+ *
+ * 服务端的 updated_at 是整秒（SQLite unixepoch()），拉回来时乘 1000 得到毫秒。
+ * 本地如果用 Date.now() 的毫秒精度，同一条刚推上去的边注在下一轮对账里
+ * 恒有 `theirs.updatedAt < mine.updatedAt`（差着那几百毫秒的余数），
+ * 于是每次同步都把它重推一遍；反方向上，同一秒内服务端确实更新的版本
+ * 也会因为比不过本地的毫秒余数而被丢掉。
+ *
+ * 两边用同一个粒度，比较才是准确的。同一秒内的两次写入分不出先后——
+ * 但这是一个人写给自己的笔记，不存在这种并发。
+ */
+function toWholeSeconds(timestamp: number): number {
+  return Math.floor(timestamp / 1000) * 1000
+}
+
 type NoteMap = Record<string, Note>
 
 function readAll(): NoteMap {
@@ -97,8 +113,8 @@ export function saveNote(
     serverId,
     body: trimmed,
     // 复活一条被删掉的边注时，写作时间是这一次——那是新写的，不是旧的回来了
-    createdAt: existing && !existing.deleted ? existing.createdAt : now,
-    updatedAt: now,
+    createdAt: existing && !existing.deleted ? existing.createdAt : toWholeSeconds(now),
+    updatedAt: toWholeSeconds(now),
   }
   map[key] = note
   writeAll(map)
@@ -122,7 +138,7 @@ export function deleteNote(
   const map = readAll()
   const key = noteKey(target, targetId, serverId)
   if (!map[key]) return
-  map[key] = { ...map[key], body: '', deleted: true, updatedAt: now }
+  map[key] = { ...map[key], body: '', deleted: true, updatedAt: toWholeSeconds(now) }
   writeAll(map)
 
   const remote = syncTarget()
@@ -141,11 +157,19 @@ export async function syncNotes(): Promise<{ pulled: number; pushed: number } | 
   const remote = syncTarget()
   if (!remote) return null
 
-  const local = readAll()
   let pulled = 0
   let pushed = 0
 
   const page = await fetchRemoteNotes(remote.baseUrl, remote.token)
+
+  /**
+   * 拉取结果必须合并进**此刻**的本地状态，不能合进请求发出前的快照。
+   *
+   * 请求在飞的这几秒里界面是可交互的：用户完全可能正好写下或删掉一条边注。
+   * 把旧快照整份写回去，那条刚写的边注就被无声抹掉了——而删除方向更糟，
+   * 本地墓碑被抹掉后，这条已经删掉的边注会在下次启动时复活。
+   */
+  const local = readAll()
   for (const incoming of page) {
     const key = noteKey(incoming.targetType, incoming.targetId, incoming.serverId)
     const mine = local[key]

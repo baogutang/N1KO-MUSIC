@@ -30,6 +30,21 @@ export function useDirectScrobble(): void {
 
   useEffect(() => {
     if (!enabled || !token.trim()) return
+    /**
+     * 端点必须是一个校验过的完整地址才发请求。
+     *
+     * 第二道防线：设置页已经改成失焦才提交、且换端点会断开 token，
+     * 但这里是真正带着 Authorization 头出网的地方，不该假设上游一定守规矩。
+     * 解析不出主机名的地址一律不发——半截 URL 上没有可信的收件人。
+     */
+    let endpointHost = ''
+    try {
+      endpointHost = new URL(apiUrl).hostname
+    } catch {
+      return
+    }
+    if (!endpointHost.includes('.') && endpointHost !== 'localhost') return
+
     const store = useScrobbleStore.getState
 
     /**

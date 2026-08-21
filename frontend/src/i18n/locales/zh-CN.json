@@ -805,5 +805,7 @@
   "link.youtube": "YouTube",
   "link.discogs": "Discogs",
   "issue.nameSeparator": "、",
-  "issue.sentenceJoiner": ""
+  "issue.sentenceJoiner": "",
+  "scrobble.endpointChanged": "端点地址已更改，已断开连接",
+  "scrobble.endpointChangedDesc": "token 是发给某一台主机的。换了地址就要重新填一次，不会把旧 token 带过去。"
 }

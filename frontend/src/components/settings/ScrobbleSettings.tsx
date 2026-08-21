@@ -6,7 +6,7 @@
  * 因此不提供假的「Last.fm 直连」——这一点在界面上直说。
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle, WarningCircle } from '@phosphor-icons/react'
 import { Section, Row, Toggle } from '@/components/settings/primitives'
 import { Input } from '@/components/ui/input'
@@ -24,6 +24,26 @@ export function ScrobbleSettings() {
   } = useScrobbleStore()
   const [draftToken, setDraftToken] = useState('')
   const [checking, setChecking] = useState(false)
+  const [draftUrl, setDraftUrl] = useState(apiUrl)
+
+  // 别处改了端点（比如断开重置）时，草稿跟上
+  useEffect(() => { setDraftUrl(apiUrl) }, [apiUrl])
+
+  const commitEndpoint = () => {
+    const next = draftUrl.trim()
+    if (!next || next === apiUrl) {
+      setDraftUrl(apiUrl)
+      return
+    }
+    if (token) {
+      // 换主机等于换服务：断开并要求重新校验，绝不把旧 token 带到新地址
+      reset()
+      setConfig({ apiUrl: next })
+      toast({ title: t('scrobble.endpointChanged'), description: t('scrobble.endpointChangedDesc') })
+      return
+    }
+    setConfig({ apiUrl: next })
+  }
 
   const handleConnect = async () => {
     const candidate = draftToken.trim()
@@ -62,10 +82,20 @@ export function ScrobbleSettings() {
         />
       </Row>
 
+      {/*
+        端点地址是**草稿**，失焦或回车才提交。
+        以前是每敲一个键就写进 store，而 useDirectScrobble 依赖 apiUrl，
+        于是打 "https://lb.example" 的过程中，token 会被依次发往
+        https://l、https://lb、https://lb.e……每一个能解析的前缀主机。
+        提交时如果已经连着一个 token，一并断开：token 是发给某一台主机的，
+        换了主机就必须重新校验，不能顺手带过去。
+      */}
       <Row name={t('scrobble.endpoint')} desc={t('scrobble.endpointDesc')}>
         <Input
-          value={apiUrl}
-          onChange={e => setConfig({ apiUrl: e.target.value })}
+          value={draftUrl}
+          onChange={e => setDraftUrl(e.target.value)}
+          onBlur={commitEndpoint}
+          onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
           placeholder={LISTENBRAINZ_DEFAULT_URL}
           className="w-[260px]"
         />
