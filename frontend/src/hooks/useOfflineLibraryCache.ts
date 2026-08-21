@@ -50,7 +50,13 @@ export function useOfflineLibraryCache(): void {
   useEffect(() => {
     if (!serverId) return
     let cancelled = false
-    /** 已经尝试恢复过的查询键：同一个键不必反复读盘 */
+    /**
+     * 已经尝试恢复过的查询键：同一个键不必反复读盘。
+     *
+     * 命中缓存并成功恢复的键会被移出去。否则一旦 React Query 把那条查询回收，
+     * 下一次再进同一个页面就不会再从盘上恢复——离线时看到的是错误态，
+     * 而盘上明明有内容。
+     */
     const attempted = new Set<string>()
 
     const restore = async (query: Query<unknown, unknown, unknown, readonly unknown[]>) => {
@@ -68,6 +74,8 @@ export function useOfflineLibraryCache(): void {
       if (queryClient.getQueryData(query.queryKey) !== undefined) return
 
       queryClient.setQueryData(query.queryKey, entry.value)
+      // 恢复成功：把标记撤掉，这条查询被回收后再回来还能再恢复一次
+      attempted.delete(key)
       /**
        * 过期的仍然摆出来，但立刻标记为陈旧去拉新的。
        * 「先看到上次的东西，再被悄悄换成新的」好过白屏等一秒；

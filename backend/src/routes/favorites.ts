@@ -124,8 +124,21 @@ router.get('/', (req: Request, res: Response) => {
     total,
     offset,
     limit,
-    /** 下一次增量同步的游标：本批里最大的 updated_at */
-    cursor: rows.length ? rows[rows.length - 1].updated_at : since,
+    /**
+     * 下一次增量同步的游标。
+     *
+     * 两点讲究：
+     * 1. 取本批里真正的 **最大** updated_at，而不是最后一行的值——全量模式按
+     *    favorited_at DESC 排，最后一行恰恰是最旧的那条，直接拿来当游标
+     *    会让客户端下一轮跳过几乎所有记录。
+     * 2. 只有翻到最后一页才给出新游标。增量查询用的是严格大于（`updated_at >
+     *    since`），如果分页边界正好切在一组时间戳相同的记录中间，客户端提前推进
+     *    游标就会永久丢掉这一组的剩余部分。没翻完就把原样的 since 还回去，
+     *    客户端照常按 offset 继续翻。
+     */
+    cursor: offset + rows.length >= total
+      ? rows.reduce((max, row) => Math.max(max, row.updated_at), since ?? 0)
+      : since,
   })
 })
 

@@ -111,7 +111,14 @@ router.get('/', (req: Request, res: Response) => {
     total,
     offset,
     limit,
-    cursor: rows.length ? rows[rows.length - 1].updated_at : since,
+    /**
+     * 下一次增量同步的游标。与收藏同理：取本批真正的最大值（全量模式按
+     * updated_at DESC 排，最后一行是最旧的），且只有翻到最后一页才推进——
+     * 增量查询用严格大于，分页边界切在同一时间戳中间时提前推进会丢记录。
+     */
+    cursor: offset + rows.length >= total
+      ? rows.reduce((max, row) => Math.max(max, row.updated_at), since ?? 0)
+      : since,
   })
 })
 

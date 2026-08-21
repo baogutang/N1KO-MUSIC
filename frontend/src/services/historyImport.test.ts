@@ -158,6 +158,39 @@ describe('CSV', () => {
   })
 })
 
+describe('自家 CSV 的无损往返', () => {
+  /**
+   * 之前把「曲目多长」当成「听了多久」塞进事件，于是导出再导入一次，
+   * 所有跳过都变成了完整听完——统计、画像、《本期》被这一次往返悄悄改写。
+   */
+  it('收听时长和 outcome 原样回来，跳过不会变成听完', () => {
+    const csv = [
+      'endedAt,isoTime,title,artist,album,listenedSeconds,durationSeconds,outcome',
+      `${TS_MS},2024-06-01T12:00:00.000Z,晚安,陈粒,小梦大半,5,213,skipped`,
+    ].join('\n')
+    const event = parseHistoryFile(csv, SERVER)!.events[0]
+    expect(event.listenedSeconds).toBe(5)
+    expect(event.outcome).toBe('skipped')
+    expect(event.song.duration).toBe(213)
+    expect(event.completionRate).toBeCloseTo(5 / 213, 4)
+  })
+
+  it('outcome 列是垃圾值时退回「听完」，而不是写进一个非法状态', () => {
+    const csv = [
+      'endedAt,isoTime,title,artist,album,listenedSeconds,durationSeconds,outcome',
+      `${TS_MS},2024-06-01T12:00:00.000Z,晚安,陈粒,小梦大半,5,213,nonsense`,
+    ].join('\n')
+    expect(parseHistoryFile(csv, SERVER)!.events[0].outcome).toBe('completed')
+  })
+
+  it('外部 CSV 没有这两列时仍按「听完」计', () => {
+    const csv = ['artist,track,utc_time', `A,B,${TS_S}`].join('\n')
+    const event = parseHistoryFile(csv, SERVER)!.events[0]
+    expect(event.outcome).toBe('completed')
+    expect(event.listenedSeconds).toBe(event.song.duration)
+  })
+})
+
 describe('识别失败', () => {
   it('认不出来的文件返回 null，不去硬解析', () => {
     expect(parseHistoryFile('这不是任何一种历史文件', SERVER)).toBeNull()

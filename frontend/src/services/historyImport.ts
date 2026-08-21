@@ -10,9 +10,12 @@
  *   2. ListenBrainz 的导出 JSON（listens 数组）
  *   3. 通用 CSV：本应用导出的那份，以及各家 Last.fm 导出工具的常见列名
  *
- * 有一件事必须说清楚：外部记录只有「哪年哪月听了哪首」，没有听了多少秒。
- * 因此导入的事件按「听完」计（completionRate = 1），这在推荐画像上是合理的——
- * 一条打卡本来就代表一次达标的收听；但它不会凭空编造跳过、秒切之类的负面信号。
+ * 有一件事必须说清楚：**外部**记录只有「哪年哪月听了哪首」，没有听了多少秒。
+ * 这类事件按「听完」计，这在推荐画像上是合理的——一条打卡本来就代表一次达标的
+ * 收听；但它不会凭空编造跳过、秒切之类的负面信号。
+ *
+ * 自家导出的 JSON 和 CSV 是例外：它们带着真实的收听时长与 outcome，
+ * 原样读回来，导出再导入是无损的往返。
  */
 
 import type { Song } from '@/api/types'
@@ -51,13 +54,24 @@ export function syntheticSongId(artist: string, title: string): string {
   return `import:${(hash >>> 0).toString(36)}`
 }
 
+const KNOWN_OUTCOMES = ['completed', 'qualified', 'abandoned', 'skipped'] as const
+type KnownOutcome = (typeof KNOWN_OUTCOMES)[number]
+
+function isKnownOutcome(value: string | undefined): value is KnownOutcome {
+  return !!value && (KNOWN_OUTCOMES as readonly string[]).includes(value)
+}
+
 function makeEvent(
   serverId: string,
   artist: string,
   title: string,
   album: string | undefined,
   endedAtMs: number,
-  durationSeconds = ASSUMED_DURATION_SECONDS
+  durationSeconds = ASSUMED_DURATION_SECONDS,
+  /** 真实收听时长。外部打卡记录没有这一项，自家导出的 CSV 有。 */
+  listenedSeconds?: number,
+  /** 收听结果。同上，只有自家导出才带得回来。 */
+  outcome?: KnownOutcome
 ): ListeningEvent {
   const songId = syntheticSongId(artist, title)
   const song: Song = {
@@ -68,17 +82,22 @@ function makeEvent(
     album: album?.trim() || '',
     duration: durationSeconds,
   } as Song
+  /**
+   * 没带收听时长的外部记录按「听完」计。
+   * 一条打卡本来就代表一次达标的收听——但不会凭空编造跳过之类的负面信号。
+   */
+  const listened = listenedSeconds ?? durationSeconds
   return {
     version: 2,
     // eventId 含时间戳：同一首歌的每一次收听都是独立的一条，不能互相覆盖
     eventId: `${songId}@${Math.floor(endedAtMs / 1000)}`,
     serverId,
     song,
-    startedAt: endedAtMs - durationSeconds * 1000,
+    startedAt: endedAtMs - listened * 1000,
     endedAt: endedAtMs,
-    listenedSeconds: durationSeconds,
-    completionRate: 1,
-    outcome: 'completed',
+    listenedSeconds: listened,
+    completionRate: durationSeconds > 0 ? Math.min(1, listened / durationSeconds) : 1,
+    outcome: outcome ?? 'completed',
   }
 }
 
@@ -226,14 +245,27 @@ function parseCsv(text: string, serverId: string): ImportResult | null {
       : Date.parse(rawTime)
     if (!isPlausibleTimestamp(endedAt)) { skipped++; continue }
 
-    const durationCell = find('durationseconds') >= 0
-      ? Number(cells[find('durationseconds')])
-      : NaN
+    /**
+     * 自家导出的 CSV 里，曲目时长和实际收听时长是两列。
+     *
+     * 之前把 durationSeconds（整首歌多长）当成 listenedSeconds（真听了多久）
+     * 塞进 makeEvent，于是导出再导入一次，所有「跳过」都会变成「完整听完」——
+     * 统计、画像、《本期》全部被这次往返悄悄改写。两列分开读，
+     * 并且把 outcome 也读回来，往返才是无损的。
+     */
+    const durationCell = Number(cells[find('durationseconds')] ?? '')
+    const listenedCell = Number(cells[find('listenedseconds')] ?? '')
+    const outcomeCell = cells[find('outcome')]?.trim()
+    const duration = Number.isFinite(durationCell) && durationCell > 0
+      ? durationCell
+      : ASSUMED_DURATION_SECONDS
     events.push(makeEvent(
       serverId, artist, title,
       albumIndex >= 0 ? cells[albumIndex] : undefined,
       endedAt,
-      Number.isFinite(durationCell) && durationCell > 0 ? durationCell : ASSUMED_DURATION_SECONDS
+      duration,
+      Number.isFinite(listenedCell) && listenedCell > 0 ? listenedCell : undefined,
+      isKnownOutcome(outcomeCell) ? outcomeCell : undefined
     ))
   }
   if (!events.length) return null

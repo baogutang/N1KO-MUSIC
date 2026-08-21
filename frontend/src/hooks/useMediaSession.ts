@@ -40,7 +40,16 @@ export function useMediaSession() {
 
   useEffect(() => {
     if (!('mediaSession' in navigator)) return
-    if (!currentSong) return
+    /**
+     * 队列被清空、或断开服务器之后，系统媒体面板不能还挂着上一首。
+     * 之前这里直接 return，于是那首歌会一直留在 Windows SMTC / macOS Now Playing
+     * 上，按键处理器也还活着——用户在系统面板上按播放，应用里什么都没有。
+     */
+    if (!currentSong) {
+      navigator.mediaSession.metadata = null
+      navigator.mediaSession.playbackState = 'none'
+      return
+    }
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentSong.title,

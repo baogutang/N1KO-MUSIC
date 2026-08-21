@@ -36,21 +36,41 @@ export function useLongTrackBookmark() {
     const adapter = getAdapter()
     if (!adapter.createBookmark) return
 
+    /**
+     * 记下最近一次看到的「哪首歌播到哪」。
+     *
+     * 清理时要补记的是**上一首**的位置，而换歌时 React 先提交新状态、
+     * 再跑上一轮 effect 的清理——那时候现读 store 读到的已经是新歌了。
+     * 所以位置要在 tick 里就存下来，清理时用存下来的这一份。
+     */
+    let lastSeen: { id: string; duration: number; seconds: number } | null = null
+
+    const writeBookmark = (song: { id: string; duration: number }, seconds: number) => {
+      // 快听完了就清掉，否则下次打开会提示从倒数第二分钟继续
+      if (song.duration - seconds < NEAR_END_SECONDS) {
+        adapter.deleteBookmark?.(song.id).catch(() => {})
+        return
+      }
+      lastSavedRef.current = Date.now()
+      adapter.createBookmark?.(song.id, Math.round(seconds * 1000)).catch(() => {})
+    }
+
     const tick = () => {
       const st = usePlayerStore.getState()
       const song = st.currentSong
       if (!song || !isLongTrack(song.duration)) return
       const seconds = st.currentTime || 0
       if (seconds < 60) return
-
-      // 快听完了就清掉，否则下次打开会提示从倒数第二分钟继续
-      if (song.duration - seconds < NEAR_END_SECONDS) {
-        adapter.deleteBookmark?.(song.id).catch(() => {})
-        return
-      }
+      lastSeen = { id: song.id, duration: song.duration, seconds }
       if (Date.now() - lastSavedRef.current < SAVE_INTERVAL_MS) return
-      lastSavedRef.current = Date.now()
-      adapter.createBookmark?.(song.id, Math.round(seconds * 1000)).catch(() => {})
+      writeBookmark(song, seconds)
+    }
+
+    /** 清理时补记：用捕获到的那一份，而不是现读 store */
+    const flushCapturedProgress = () => {
+      if (!lastSeen) return
+      writeBookmark({ id: lastSeen.id, duration: lastSeen.duration }, lastSeen.seconds)
+      lastSeen = null
     }
 
     const timer = setInterval(tick, SAVE_INTERVAL_MS)
@@ -61,7 +81,14 @@ export function useLongTrackBookmark() {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', flush)
       window.removeEventListener('pagehide', tick)
-      tick()
+      /**
+       * 卸载/换歌前补记一次断点。
+       *
+       * 必须用 effect 里捕获到的那一份状态，不能在 tick 里现读 store：
+       * 换歌时 React 先提交新状态、再跑上一轮的清理，现读读到的是**新歌**，
+       * 于是旧歌的断点永远存不下来，而新歌被写进一个不属于它的位置。
+       */
+      flushCapturedProgress()
     }
   }, [isConnected, activeServerId, currentSongId])
 }

@@ -74,10 +74,20 @@ describe('t', () => {
     expect(t('nav.home')).toBe('Home')
   })
 
-  it('目标语言缺词时回落到中文，而不是显示空白', () => {
+  it('目标语言缺词时回落到源语言，而不是显示空白', () => {
     setLocale('en-US')
-    // 用一个只存在于源语言的假 key 验证回落链路的最后一环
-    expect(t('nav.home')).not.toBe('nav.home')
+    /**
+     * 真的造一个「只有中文有、英文没有」的 key 来验回落。
+     * 之前这里用的是 nav.home——两个目录里都有，走的根本不是回落分支，
+     * 断言恒成立，等于没测。
+     */
+    const onlyInSource = '__fallback_probe__'
+    ;(zhCN as Record<string, string>)[onlyInSource] = '只有中文有这一条'
+    try {
+      expect(t(onlyInSource)).toBe('只有中文有这一条')
+    } finally {
+      delete (zhCN as Record<string, string>)[onlyInSource]
+    }
   })
 
   it('两种语言都没有的 key 显示 key 本身——缺口要在界面上看得见', () => {

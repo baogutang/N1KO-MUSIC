@@ -47,6 +47,8 @@ export function useAudioInterruptions(): void {
     let outputCount: number | null = null
     /** 上一次因为设备消失而暂停的时刻；null 表示当前不是被打断的状态 */
     let interruptedAt: number | null = null
+    /** 打断发生时正在放的是哪一首，插回来时用来确认「还是同一首」 */
+    let interruptedSongId: string | null = null
     let disposed = false
 
     const sync = async () => {
@@ -63,6 +65,7 @@ export function useAudioInterruptions(): void {
         if (state.isPlaying) {
           state.pause()
           interruptedAt = Date.now()
+          interruptedSongId = state.currentSong?.id ?? null
           toast({ title: t('player.headphonesUnplugged') })
         }
         return
@@ -70,11 +73,17 @@ export function useAudioInterruptions(): void {
 
       if (next > previous && interruptedAt !== null) {
         const withinWindow = Date.now() - interruptedAt < RESUME_WINDOW_MS
+        const sameSong = usePlayerStore.getState().currentSong?.id === interruptedSongId
         interruptedAt = null
+        interruptedSongId = null
         if (!withinWindow || !resumeRef.current) return
         const state = usePlayerStore.getState()
-        // 期间用户自己按了播放，或者换了歌，就不要再插手
-        if (!state.isPlaying && state.currentSong) state.resume()
+        /**
+         * 三个条件缺一不可：还在窗口内、用户没自己按播放、**而且还是同一首**。
+         * 换过歌就说明用户已经在别的地方接着听了，这时候替他按下播放
+         * 是在打断他，不是在帮他。
+         */
+        if (!state.isPlaying && state.currentSong && sameSong) state.resume()
       }
     }
 

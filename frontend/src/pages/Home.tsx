@@ -47,8 +47,9 @@ export default function HomePage() {
     ? getAdapter().getCoverUrl(heroAlbum.coverArt, 600)
     : undefined
 
-  // 不 memo：useT 返回的 t 引用是稳定的，放进依赖数组也不会因为切语言重算，
-  // 而这几句拼字符串本来就不值一个 memo
+  // 不 memo：几句字符串拼接本来就不值一个 memo，每次渲染直接算更简单。
+  // （useT 返回的 t 引用其实是随语言变的，放进依赖数组是有效的——
+  //  只是这里根本用不着 memo。）
   const heroLede = buildHeroLede(heroAlbum, t)
 
   // 播放整张专辑（先查缓存再拉详情，与 AlbumCard 同一策略）

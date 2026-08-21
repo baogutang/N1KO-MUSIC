@@ -61,7 +61,23 @@ export function ArtistDossier({
       : null,
   ].filter((fact): fact is { label: string; value: string } => fact !== null)
 
-  if (!facts.length && !profile.members.length && !profile.links.length) return null
+  /**
+   * 外部链接要过 scheme 白名单再进 href。
+   *
+   * 这些 URL 来自 MusicBrainz——一个任何人都能编辑的公共数据库。
+   * musicbrainz.ts 自己的注释强调「外部来的值不该直接拼进 URL」，
+   * 那条纪律在这里同样适用：javascript: 和 data: 绝不能落到 href 上。
+   */
+  const safeLinks = profile.links.filter(link => {
+    try {
+      const scheme = new URL(link.url).protocol
+      return scheme === 'https:' || scheme === 'http:'
+    } catch {
+      return false
+    }
+  })
+
+  if (!facts.length && !profile.members.length && !safeLinks.length) return null
 
   return (
     <section className={cn('border-t border-hair pt-5', className)} aria-labelledby="artist-dossier">
@@ -70,7 +86,11 @@ export function ArtistDossier({
           {t('section.dossier')}
           <span className="latin-tag"> · DOSSIER</span>
         </h2>
-        <span className="latin-tag text-[10px] tracking-[0.16em] text-ink-faint">MUSICBRAINZ</span>
+        {/*
+          刻意不加 latin-tag：那条规则隐藏的是「中文标题旁边重复一遍的拉丁小标」，
+          而这里是数据来源署名，英文界面下同样该出现。
+        */}
+        <span className="text-[10px] tracking-[0.16em] text-ink-faint">MUSICBRAINZ</span>
       </div>
 
       <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-[minmax(0,4fr)_minmax(0,6fr)]">
@@ -111,9 +131,9 @@ export function ArtistDossier({
         )}
       </div>
 
-      {profile.links.length > 0 && (
+      {safeLinks.length > 0 && (
         <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2">
-          {profile.links.map(link => (
+          {safeLinks.map(link => (
             <a
               key={link.labelKey}
               href={link.url}

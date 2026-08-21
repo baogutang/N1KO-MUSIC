@@ -8,9 +8,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/services/storageKeys'
+import { createSecurePersistStorage } from '@/store/securePersistStorage'
 import {
   LISTENBRAINZ_DEFAULT_URL, trimPending, type ListenPayload,
 } from '@/services/listenBrainz'
+
+/** persist 实际写盘的那一份 */
+type PersistedScrobbleState = Omit<ScrobbleState,
+  'setConfig' | 'enqueue' | 'drainPending' | 'noteSuccess' | 'noteError' | 'reset'>
 
 interface ScrobbleState {
   enabled: boolean
@@ -64,6 +69,19 @@ export const useScrobbleStore = create<ScrobbleState>()(
         pending: [],
       }),
     }),
-    { name: STORAGE_KEYS.scrobbleStore }
+    {
+      name: STORAGE_KEYS.scrobbleStore,
+      /**
+       * ListenBrainz 的 token 也加密落盘：它能代表你往公开的收听档案里写东西，
+       * 和其它凭据一个量级，没有理由是这里唯一躺在明文里的那一个。
+       */
+      storage: createSecurePersistStorage<PersistedScrobbleState>({
+        collect: state => (state.token ? [['token', state.token]] : []),
+        apply: (state, values) => {
+          const token = values.get('token')
+          return token === undefined ? state : { ...state, token }
+        },
+      }) as never,
+    }
   )
 )

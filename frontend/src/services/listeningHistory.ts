@@ -185,12 +185,30 @@ function persist(event: ListeningEvent, allEvents: ListeningEvent[]): void {
 }
 
 /** 按 eventId 去重，同一 eventId 保留 endedAt 更新的那条 */
+/**
+ * 同一个 eventId 的两条记录，哪一条更完整。
+ *
+ * 「导入时判断要不要收下」和「合并时判断留哪一条」必须用**同一个**判据。
+ * 之前前者看 endedAt 或 listenedSeconds 任一更大，后者只看 endedAt——
+ * 于是「结束更早但听得更久」的那条会被写进 IndexedDB、却被内存里的旧值挡住：
+ * 盘上和内存里从此不是一份数据，刷新一次结果就变。
+ */
+function isMoreComplete(candidate: ListeningEvent, existing: ListeningEvent): boolean {
+  return candidate.endedAt > existing.endedAt
+    || candidate.listenedSeconds > existing.listenedSeconds
+}
+
 function dedupeByEventId(groups: ListeningEvent[][]): ListeningEvent[] {
   const merged = new Map<string, ListeningEvent>()
   for (const group of groups) {
     for (const event of group) {
       const existing = merged.get(event.eventId)
-      if (!existing || event.endedAt >= existing.endedAt) merged.set(event.eventId, event)
+      // 相等时后来者胜：调用方按「越靠后越新」的顺序传入分组
+      if (!existing || isMoreComplete(event, existing)
+        || (event.endedAt === existing.endedAt
+            && event.listenedSeconds === existing.listenedSeconds)) {
+        merged.set(event.eventId, event)
+      }
     }
   }
   return Array.from(merged.values())
@@ -316,7 +334,7 @@ export async function importListeningEvents(
   const known = new Map(existing.map(event => [event.eventId, event]))
   const changed = normalized.filter(event => {
     const previous = known.get(event.eventId)
-    return !previous || event.endedAt > previous.endedAt || event.listenedSeconds > previous.listenedSeconds
+    return !previous || isMoreComplete(event, previous)
   })
   if (!changed.length) return 0
 

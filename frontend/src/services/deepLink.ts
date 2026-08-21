@@ -74,7 +74,17 @@ export function parseDeepLink(raw: string): DeepLinkAction | null {
   const segments = url.pathname.replace(/^\/+/, '').split('/').filter(Boolean)
   // 多段路径没有任何合法含义，同样判为畸形
   if (segments.length > 1) return null
-  const id = decodeURIComponent(segments[0] ?? '')
+  /**
+   * decodeURIComponent 遇到畸形的百分号转义（`%`、`%zz`）会抛 URIError，
+   * 而这个函数对外的约定是「认不出来返回 null，绝不抛错」——
+   * 调用方（useDeepLinks / OpenLink 页）都没有 try/catch，抛出去就是白屏。
+   */
+  let id: string
+  try {
+    id = decodeURIComponent(segments[0] ?? '')
+  } catch {
+    return null
+  }
   const wantsPlay = url.searchParams.get('play') === '1'
 
   switch (action) {

@@ -807,5 +807,6 @@
   "issue.nameSeparator": ", ",
   "issue.sentenceJoiner": " ",
   "scrobble.endpointChanged": "Endpoint changed — disconnected",
-  "scrobble.endpointChangedDesc": "A token belongs to the host that issued it. Enter it again for the new address; the old one is not carried over."
+  "scrobble.endpointChangedDesc": "A token belongs to the host that issued it. Enter it again for the new address; the old one is not carried over.",
+  "player.error.detail": "Error code {code}{message}"
 }

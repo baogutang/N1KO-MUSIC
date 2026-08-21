@@ -479,7 +479,21 @@ const SongRow = React.memo(function SongRow({
    * 行点击：先给多选一次机会。⌘/Ctrl 点选、Shift 连选、以及已经在选择态时的
    * 普通点击都由它吃掉；其余情况照旧播放。
    */
+  /**
+   * 长按已经触发过，接下来那一次 click 要吞掉。
+   *
+   * 触摸端在 touchend 之后还会补发一个合成 click。长按把这一行选中之后，
+   * 那个 click 走到 handleRowClick，看到选择集非空，于是**立刻把刚选中的这行
+   * 取消掉**——长按在触摸端是进入选择态的唯一入口，等于整个功能不可用。
+   */
+  const longPressFired = useRef(false)
+
   const handleRowClick = useCallback((e: React.MouseEvent) => {
+    // 长按刚刚把这一行选中，紧跟着的合成 click 不能再把它取消掉
+    if (longPressFired.current) {
+      longPressFired.current = false
+      return
+    }
     if (onRowClick?.(index, e)) return
     handlePlay()
   }, [onRowClick, index, handlePlay])
@@ -497,10 +511,15 @@ const SongRow = React.memo(function SongRow({
   }, [])
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!onLongPress) return
+    // 上一次没走完的计时必须先清掉，否则多指连点会留下孤儿计时器
+    if (pressTimer.current) clearTimeout(pressTimer.current)
     const touch = e.touches[0]
+    if (!touch) return
+    longPressFired.current = false
     pressOrigin.current = { x: touch.clientX, y: touch.clientY }
     pressTimer.current = setTimeout(() => {
       pressTimer.current = null
+      longPressFired.current = true
       onLongPress(index)
     }, LONG_PRESS_MS)
   }, [onLongPress, index])
@@ -508,6 +527,7 @@ const SongRow = React.memo(function SongRow({
     const origin = pressOrigin.current
     if (!origin) return
     const touch = e.touches[0]
+    if (!touch) return
     if (Math.hypot(touch.clientX - origin.x, touch.clientY - origin.y) > LONG_PRESS_SLOP) {
       cancelPress()
     }

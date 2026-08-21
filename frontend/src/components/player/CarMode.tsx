@@ -49,11 +49,21 @@ function useWakeLock(active: boolean): void {
     const acquire = async () => {
       if (disposed || document.visibilityState !== 'visible') return
       try {
-        sentinel = await nav.wakeLock!.request('screen')
+        const next = await nav.wakeLock!.request('screen')
         if (disposed) {
-          void sentinel.release()
-          sentinel = null
+          void next.release()
+          return
         }
+        sentinel = next
+        /**
+         * 浏览器可以自己撤销这把锁（电量过低、系统省电模式介入），
+         * 而且撤销时**不会**触发 visibilitychange。只盯着可见性的话，
+         * 屏幕一旦被系统黑掉就再也不会重新顶住——正是开车时最需要它亮着的时候。
+         */
+        next.addEventListener('release', () => {
+          if (sentinel === next) sentinel = null
+          void acquire()
+        })
       } catch {
         // 电量过低 / 用户拒绝 / 浏览器不支持：退化成普通行为即可
       }

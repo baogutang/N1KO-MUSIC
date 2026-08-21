@@ -73,6 +73,12 @@ describe('parseDeepLink', () => {
     expect(parseDeepLink('n1ko://')).toBeNull()
   })
 
+  it('畸形的百分号转义不抛错——调用方没有 try/catch，抛出去就是白屏', () => {
+    expect(parseDeepLink('n1ko://song/%')).toBeNull()
+    expect(parseDeepLink('n1ko://song/%zz')).toBeNull()
+    expect(parseDeepLink('n1ko://album/abc%')).toBeNull()
+  })
+
   it('不是合法 URL 时不抛错', () => {
     expect(parseDeepLink('')).toBeNull()
     expect(parseDeepLink('n1ko:/ /broken')).toBeNull()
