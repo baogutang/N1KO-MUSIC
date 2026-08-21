@@ -67,8 +67,24 @@ const migrations: Migration[] = [
           PRIMARY KEY (playlist_id, server_id, song_id),
           FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
         );
+        /*
+          song_data 在新表上有 json_valid 约束，而**旧表没有**。只要历史上有一行
+          存进过非 JSON（手工改过库、从半损坏的转储里恢复过、写到一半断电），
+          这条 INSERT 就会抛 CHECK 失败 —— 整个迁移事务回滚，而迁移在启动时执行，
+          于是服务从此每次启动都在同一个地方崩，且错误信息里没有表名也没有行号。
+          用户看到的是「升级之后后端再也起不来了」。
+
+          坏行不能丢（那是用户的歌单），也不能原样塞进去（约束不认）。
+          包成 {"_recovered": "原始字节"}：行还在、原文一个字节没少、约束满足，
+          客户端的 safeJsonObject 会把它当成一条缺元数据的曲目正常渲染。
+        */
         INSERT INTO playlist_songs_new (playlist_id, song_id, server_id, song_data, position, added_at)
-          SELECT playlist_id, song_id, server_id, song_data, MAX(position, 0), added_at FROM playlist_songs;
+          SELECT playlist_id, song_id, server_id,
+                 CASE WHEN json_valid(song_data)
+                      THEN song_data
+                      ELSE json_object('_recovered', song_data) END,
+                 MAX(position, 0), added_at
+          FROM playlist_songs;
         DROP TABLE playlist_songs;
         ALTER TABLE playlist_songs_new RENAME TO playlist_songs;
       `)
@@ -242,7 +258,9 @@ function rebuildFavoritesWithTombstones(): void {
     );
     INSERT OR IGNORE INTO favorites_new (user_id, song_id, server_id, song_data, favorited_at, updated_at)
       SELECT user_id, song_id, server_id,
-             ${hasSongData ? "CASE WHEN json_valid(song_data) THEN song_data ELSE '{}' END" : "'{}'"},
+             ${hasSongData
+               ? "CASE WHEN json_valid(song_data) THEN song_data ELSE json_object('_recovered', song_data) END"
+               : "'{}'"},
              ${hasFavoritedAt ? 'favorited_at' : 'unixepoch()'},
              ${hasFavoritedAt ? 'favorited_at' : 'unixepoch()'}
       FROM favorites
@@ -276,7 +294,11 @@ function rebuildPlayHistoryWithRequiredEventId(): void {
       );
       INSERT INTO play_history_new (id, user_id, event_id, song_id, server_id, song_data, played_at, duration)
         SELECT id, user_id, event_id, song_id, server_id,
-               CASE WHEN json_valid(song_data) THEN song_data ELSE '{}' END,
+               -- 坏 JSON 包成 {"_recovered": …} 而不是换成 '{}'：
+               -- 约束要满足，但用户的字节不该被悄悄抹掉
+               CASE WHEN json_valid(song_data)
+                    THEN song_data
+                    ELSE json_object('_recovered', song_data) END,
                played_at,
                CASE WHEN duration < 0 THEN NULL ELSE duration END
         FROM play_history;
