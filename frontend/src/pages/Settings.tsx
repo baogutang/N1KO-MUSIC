@@ -5,7 +5,7 @@
  * 多色 accent 预设与歌词高亮色选择器已随 v2 契约移除（统一朱红 accent）。
  */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Trash, CheckCircle, ArrowsClockwise,
@@ -36,7 +36,8 @@ import {
 } from '@/components/settings/primitives'
 import { SyncSettings } from '@/components/settings/SyncSettings'
 import { ScrobbleSettings } from '@/components/settings/ScrobbleSettings'
-import { readListeningEvents } from '@/services/listeningHistory'
+import { importListeningEvents, readListeningEvents } from '@/services/listeningHistory'
+import { capImport, parseHistoryFile } from '@/services/historyImport'
 import { downloadTextFile, historyToCSV, historyToJSON } from '@/services/playlistFiles'
 import pkg from '../../package.json'
 import type { ReplayGainMode } from '@/utils/replayGain'
@@ -122,10 +123,52 @@ function EndpointRow({ label, value, onChange, placeholder, desc }: {
 function DataExportSection() {
   const serverId = useServerStore(s => s.activeServerId)
   const [count, setCount] = useState<number | null>(null)
+  const [importing, setImporting] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
+  const refreshCount = useCallback(() => {
     setCount(serverId ? readListeningEvents(serverId).length : 0)
   }, [serverId])
+
+  useEffect(() => { refreshCount() }, [refreshCount])
+
+  /**
+   * 导入既有打卡历史。
+   *
+   * 换到自托管播放器最劝退的一件事，是多年的收听记录留在了别处、新软件从零开始。
+   * 那些记录本来就是你的，应该能拿回来。
+   */
+  const handleImport = async (file: File) => {
+    if (!serverId) return
+    setImporting(true)
+    try {
+      const parsed = parseHistoryFile(await file.text(), serverId)
+      if (!parsed) {
+        toast({
+          title: '认不出这个文件',
+          description: '支持本应用导出的 JSON / CSV，以及 ListenBrainz 的导出',
+          variant: 'destructive',
+        })
+        return
+      }
+      const capped = capImport(parsed)
+      const added = await importListeningEvents(capped.events, serverId)
+      refreshCount()
+      const notes = [
+        capped.skipped > 0 ? `跳过 ${capped.skipped} 条残缺记录` : '',
+        capped.truncated > 0 ? `超出上限略过 ${capped.truncated} 条` : '',
+      ].filter(Boolean).join(' · ')
+      toast({
+        title: `已导入 ${added} 条收听记录`,
+        description: notes || undefined,
+      })
+    } catch {
+      toast({ title: '导入失败', variant: 'destructive' })
+    } finally {
+      setImporting(false)
+      if (importInputRef.current) importInputRef.current.value = ''
+    }
+  }
 
   const handleExport = (format: 'json' | 'csv') => {
     if (!serverId) return
@@ -174,6 +217,34 @@ function DataExportSection() {
             CSV
           </button>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-6 py-5">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">导入既有打卡历史</p>
+          <p className="mt-0.5 text-xs text-ink-faint">
+            支持 ListenBrainz 的导出、Last.fm 各家导出工具的 CSV，以及本应用自己导出的 JSON。
+            按时间去重，重复导入同一份文件不会翻倍。
+          </p>
+        </div>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".json,.csv,application/json,text/csv"
+          className="sr-only"
+          onChange={event => {
+            const file = event.target.files?.[0]
+            if (file) void handleImport(file)
+          }}
+        />
+        <button
+          type="button"
+          disabled={importing || !serverId}
+          onClick={() => importInputRef.current?.click()}
+          className="flex-shrink-0 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary disabled:pointer-events-none disabled:opacity-40"
+        >
+          {importing ? '导入中…' : '选择文件'}
+        </button>
       </div>
     </Section>
   )
