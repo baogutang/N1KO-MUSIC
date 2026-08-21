@@ -30,6 +30,7 @@ import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { formatDuration, formatFileSize } from '@/utils/formatters'
 import type { Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { MarginNote } from '@/components/music/MarginNote'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
@@ -729,6 +730,9 @@ export default function SongDetailPage() {
             </p>
           </div>
         </div>
+
+        {/* 边注：先于所有服务器给的字段——这一条是你写的，其余都是别人写的 */}
+        <MarginNote target="song" targetId={song.id} className="mt-10 max-w-[38em]" />
 
         {/* 基础信息 */}
         <Section title="基础" tag="BASIC">

@@ -74,7 +74,9 @@ const LEGACY_SCHEMA = `
 `
 
 /** 表名（含索引所属的表），schema_migrations 是运行时记账表，不参与比对 */
-const TABLES = ['users', 'servers', 'playlists', 'playlist_songs', 'play_history', 'favorites']
+const TABLES = [
+  'users', 'servers', 'playlists', 'playlist_songs', 'play_history', 'favorites', 'notes',
+]
 
 async function buildDatabase(legacySql) {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'n1ko-music-drift-'))

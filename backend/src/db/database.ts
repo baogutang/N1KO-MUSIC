@@ -155,6 +155,23 @@ const migrations: Migration[] = [
       `)
     },
   },
+  {
+    /**
+     * 边注。
+     *
+     * 建表语句写在 schema.sql 里（CREATE TABLE IF NOT EXISTS 对老库也会执行，
+     * 因为那张表本来就不存在）；索引必须放这里——schema.sql 的规矩是
+     * 不能引用「后来才加的列」，而这整张表对老库来说都是新的。
+     */
+    version: 5,
+    name: 'notes-index',
+    up: () => {
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_notes_user_updated
+          ON notes(user_id, updated_at DESC);
+      `)
+    },
+  },
 ]
 
 /** 表定义里是否已经带上了某段约束文本（比较时忽略空白差异） */

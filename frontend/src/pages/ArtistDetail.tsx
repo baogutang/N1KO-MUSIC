@@ -8,6 +8,7 @@ import { Fragment, useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Play, Shuffle, CaretDown, CaretUp, MicrophoneStage } from '@phosphor-icons/react'
 import { DiscographyRail, type ArtistMarginalia } from '@/components/music/DiscographyRail'
+import { MarginNote } from '@/components/music/MarginNote'
 import { SongList } from '@/components/music/SongList'
 import { useArtistDetail } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
@@ -213,6 +214,10 @@ export default function ArtistDetailPage() {
         marginalia={marginalia}
         onPlayAlbum={handlePlayAlbum}
       />
+
+      {/* 你自己写的那一条，和上面「你与这位歌手」的自动统计并置：
+          一边是行为算出来的，一边是你亲手写的 */}
+      <MarginNote target="artist" targetId={artist.id} className="mt-10 max-w-[38em]" />
 
       {/* 相似歌手：文字索引行（逗号分隔链接） */}
       {artist.similarArtists && artist.similarArtists.length > 0 && (

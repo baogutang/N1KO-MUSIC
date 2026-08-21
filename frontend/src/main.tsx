@@ -14,6 +14,7 @@ import {
   pullRemoteHistory,
   startHistorySync,
 } from './services/historySync'
+import { syncNotes } from './services/notes'
 
 // 清掉旧版每 30 秒新增一条、从不回收的推荐缓存键：已被撑满配额的用户
 // 加载一次即可自愈。（persist 适配器本身也会在写入失败时回收，此处是提前腾空间。）
@@ -27,6 +28,13 @@ void initListeningHistory().then(() => {
   backfillPendingScrobbles()
   // 本地历史就绪后再拉远端，合并时才能正确识别哪些是新记录
   void pullRemoteHistory()
+  /**
+   * 边注对账。
+   *
+   * 未配置同步后端时是空操作。放在这里而不是每次打开详情页时同步：
+   * 边注体量很小，启动对一次账就够，页面上读的永远是本地那份。
+   */
+  void syncNotes().catch(() => {})
 })
 
 function bothStoresHydrated() {

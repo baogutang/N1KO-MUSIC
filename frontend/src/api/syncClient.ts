@@ -164,3 +164,69 @@ export async function removeFavorite(
     params: { songId, serverId },
   })
 }
+
+/**
+ * 边注同步。
+ *
+ * 形状与收藏一致（PUT 覆盖 / DELETE 立墓碑 / GET 拉全量），
+ * 客户端因此可以共用同一套「后写的赢」的对账逻辑。
+ */
+export interface RemoteNote {
+  targetType: 'song' | 'album' | 'artist'
+  targetId: string
+  serverId: string
+  body: string
+  createdAt: number
+  updatedAt: number
+  deleted?: boolean
+}
+
+export async function pushNote(
+  baseUrl: string,
+  token: string,
+  note: { targetType: RemoteNote['targetType']; targetId: string; serverId: string; body: string }
+): Promise<void> {
+  await createClient(baseUrl, token).put('/api/notes', {
+    targetType: note.targetType,
+    targetId: note.targetId,
+    serverId: note.serverId,
+    body: note.body,
+  })
+}
+
+export async function removeRemoteNote(
+  baseUrl: string,
+  token: string,
+  targetType: RemoteNote['targetType'],
+  targetId: string,
+  serverId: string
+): Promise<void> {
+  await createClient(baseUrl, token).delete('/api/notes', {
+    params: { targetType, targetId, serverId },
+  })
+}
+
+/** 拉全量（含墓碑）。边注体量很小，不做分页游标也不会出问题。 */
+export async function fetchRemoteNotes(
+  baseUrl: string,
+  token: string
+): Promise<RemoteNote[]> {
+  const response = await createClient(baseUrl, token).get<{ items?: unknown[] }>('/api/notes', {
+    params: { limit: 500, since: 0 },
+  })
+  const items = Array.isArray(response.data?.items) ? response.data.items : []
+  return items.flatMap(raw => {
+    const item = raw as Partial<RemoteNote>
+    if (!item.targetType || !item.targetId || !item.serverId) return []
+    return [{
+      targetType: item.targetType,
+      targetId: item.targetId,
+      serverId: item.serverId,
+      body: item.body ?? '',
+      createdAt: Number(item.createdAt ?? item.updatedAt ?? 0) * 1000,
+      // 服务端用秒，本地用毫秒——在边界上换算一次，别让两种单位在内部混着走
+      updatedAt: Number(item.updatedAt ?? 0) * 1000,
+      ...(item.deleted ? { deleted: true } : {}),
+    }]
+  })
+}

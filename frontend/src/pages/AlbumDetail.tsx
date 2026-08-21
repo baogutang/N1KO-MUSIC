@@ -17,6 +17,7 @@ import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
+import { MarginNote } from '@/components/music/MarginNote'
 
 export default function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -179,6 +180,9 @@ export default function AlbumDetailPage() {
           <LinerNotes album={album} />
         )}
       </div>
+
+      {/* 边注：内页说明是唱片公司写的，这一条是你写的 */}
+      <MarginNote target="album" targetId={album.id} className="mt-12 max-w-[38em]" />
     </div>
   )
 }

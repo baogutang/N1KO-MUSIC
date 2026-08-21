@@ -119,3 +119,25 @@ CREATE TABLE IF NOT EXISTS favorites (
 
 -- 增量同步索引 idx_favorites_user_updated 同样只能建在迁移里：
 -- 老库的 favorites 还没有 updated_at 列（原因见文件开头）。
+
+-- ===================================================
+-- 边注：你写在页边的东西
+-- ===================================================
+-- 服务器上的曲目元数据是别人写的，这张表存的是**你自己**写的：
+-- 为什么留着这张专辑、这首歌是哪年夏天听的、这段间奏为什么好。
+-- 它是这个软件里唯一不能从曲库或行为里重新算出来的数据，因此也是最该被
+-- 同步和备份的那一份。
+--
+-- deleted_at 与 favorites 同理：删除本身也是一条要同步出去的事实。
+CREATE TABLE IF NOT EXISTS notes (
+  user_id     TEXT NOT NULL,
+  target_type TEXT NOT NULL CHECK(target_type IN ('song', 'album', 'artist')),
+  target_id   TEXT NOT NULL,
+  server_id   TEXT NOT NULL,
+  body        TEXT NOT NULL,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  deleted_at  INTEGER,
+  PRIMARY KEY (user_id, server_id, target_type, target_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

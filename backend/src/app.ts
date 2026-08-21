@@ -7,6 +7,7 @@ import { rateLimit } from 'express-rate-limit'
 import db from './db/database'
 import authRouter from './routes/auth'
 import favoritesRouter from './routes/favorites'
+import notesRouter from './routes/notes'
 import playlistsRouter from './routes/playlists'
 import statsRouter from './routes/stats'
 import {
@@ -64,6 +65,7 @@ app.use('/api/auth', rateLimit({
   skipSuccessfulRequests: true,
 }), authRouter)
 app.use('/api/favorites', favoritesRouter)
+app.use('/api/notes', notesRouter)
 app.use('/api/playlists', playlistsRouter)
 app.use('/api/stats', statsRouter)
 

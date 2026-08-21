@@ -70,7 +70,7 @@ test('legacy databases are backed up and migrated transactionally', async () => 
   )
   assert.equal(migrated.prepare('SELECT COUNT(*) count FROM playlists').get().count, 1)
 
-  assert.equal(migrated.prepare('SELECT COUNT(*) count FROM schema_migrations').get().count, 4)
+  assert.equal(migrated.prepare('SELECT COUNT(*) count FROM schema_migrations').get().count, 5)
   migrated.close()
 
   const files = await readdir(dataDir)
