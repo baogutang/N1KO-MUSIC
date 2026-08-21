@@ -54,7 +54,8 @@ test('health is backed by SQLite and reports the package version', async () => {
   })
   assert.equal(response.status, 200)
   assert.equal(body.status, 'ok')
-  assert.equal(body.version, '1.3.0')
+  // 从 package.json 读，而不是写死——否则每次升版本这条都会假红
+  assert.equal(body.version, require('../package.json').version)
   assert.equal(response.headers.get('access-control-allow-origin'), 'http://tauri.localhost')
 })
 

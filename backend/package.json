@@ -1,6 +1,6 @@
 {
   "name": "n1ko-music-backend",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Optional N1KO MUSIC sync service for accounts, playlists and listening history",
   "license": "MIT",
   "repository": "https://github.com/baogutang/N1KO-MUSIC",
