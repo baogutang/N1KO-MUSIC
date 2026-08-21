@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { SongList } from '@/components/music/SongList'
 import { AlbumShelf } from '@/components/music/AlbumShelf'
+import { RediscoveryShelf } from '@/components/music/RediscoveryShelf'
 import { NowPlayingOnServer } from '@/components/music/NowPlayingOnServer'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { useRecentAlbums, useArtists, queryKeys } from '@/hooks/useServerQueries'
@@ -222,6 +223,10 @@ export default function HomePage() {
       <NowPlayingOnServer />
 
       {/* ============ 服务端已算好的书架：最常播放 / 最近播放 ============ */}
+      {/* 重听：从自己的历史里翻出来的，放在「最常播放」之前——
+          最常播放是你已经知道的，这一栏才是你忘了的 */}
+      <RediscoveryShelf />
+
       <AlbumShelf type="frequent" label="最常播放" tag="MOST PLAYED" limit={6} />
       <AlbumShelf type="recent" label="最近播放" tag="RECENTLY PLAYED" limit={6} />
 

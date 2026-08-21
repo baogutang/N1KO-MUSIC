@@ -10,6 +10,7 @@
 import { getAdapter, hasAdapter } from '@/api'
 import { usePlayerStore } from '@/store/playerStore'
 import { readListeningEvents } from '@/services/listeningHistory'
+import { readMutedSets } from '@/store/tasteStore'
 import { buildRecommendationProfile, recommendSongs } from '@/services/recommendationEngine'
 import type { Song } from '@/api/types'
 
@@ -68,7 +69,10 @@ function rankForRadio(candidates: Song[], exclude: Set<string>, size: number, se
     Math.min(size, fresh.length),
     `radio:${Date.now()}`,
     Date.now(),
-    profile
+    profile,
+    undefined,
+    // 电台同样尊重「不再推荐」：那是一句关于口味的话，不是关于某个入口的
+    readMutedSets()
   )
 }
 

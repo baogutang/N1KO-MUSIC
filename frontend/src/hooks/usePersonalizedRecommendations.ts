@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getAdapter, hasAdapter } from '@/api'
 import { useServerStore } from '@/store/serverStore'
 import { useRecommendationCursorStore } from '@/store/recommendationCursorStore'
+import { readMutedSets } from '@/store/tasteStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import {
   artistSeedCountFor,
@@ -200,7 +201,7 @@ export function usePersonalizedRecommendations(size = 30) {
         ? new Set(useRecommendationCursorStore.getState().getShownBefore(scope, batch))
         : undefined
       const recommendations = recommendSongs(
-        candidates, events, size, seed, Date.now(), profile, exclude
+        candidates, events, size, seed, Date.now(), profile, exclude, readMutedSets()
       )
       cacheRecommendations(cacheKey, recommendations)
       rememberShown(scope, batch, recommendations.map(song => `${song.serverId ?? ''}:${song.id}`))

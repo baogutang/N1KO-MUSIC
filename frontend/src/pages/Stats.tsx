@@ -16,6 +16,7 @@ import {
   type RankedEntry,
   type StatsRange,
 } from '@/services/listeningStats'
+import { TasteProfile } from '@/components/music/TasteProfile'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
@@ -276,6 +277,10 @@ export default function Stats() {
             <RankedList title="最爱歌手" tag="TOP ARTISTS" items={stats.topArtists} />
             <RankedList title="最爱专辑" tag="TOP ALBUMS" items={stats.topAlbums} />
           </section>
+
+          {/* 画像：上面几栏是「你听了什么」，这一栏是「引擎因此认为你是谁」，
+              而且可以当场改 */}
+          <TasteProfile />
         </>
       )}
     </div>

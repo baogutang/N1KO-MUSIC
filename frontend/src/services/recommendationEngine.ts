@@ -256,11 +256,20 @@ export function recommendSongs(
   now = Date.now(),
   prebuiltProfile?: RecommendationProfile,
   /** 本轮之前已经展示过的曲目 key，「换一批」不该把刚划走的歌再端上来 */
-  exclude?: ReadonlySet<string>
+  exclude?: ReadonlySet<string>,
+  /**
+   * 用户手动关掉的歌手 / 曲风（已归一化的键）。
+   *
+   * 这是硬过滤而不是降权：用户说「别再给我推这个」时，
+   * 让它偶尔从探索项里冒出来就是没听懂话。
+   */
+  muted?: { artists?: ReadonlySet<string>; genres?: ReadonlySet<string> }
 ): Song[] {
   const deduped = new Map<string, Song>()
   for (const song of candidates) {
     if (!song?.id) continue
+    if (muted?.artists?.has(normalized(song.artist))) continue
+    if (muted?.genres?.has(normalized(song.genre))) continue
     deduped.set(songKey(song), song)
   }
 
