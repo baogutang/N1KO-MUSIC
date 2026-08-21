@@ -23,20 +23,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
  * 每条都必须写清楚「为什么本项目不受影响」和「什么时候可以删掉这条」。
  */
 const ALLOWLIST = [
-  {
-    id: 'GHSA-qwww-vcr4-c8h2',
-    // 例外按工作区限定：否则在不含该依赖的工作区里会被误报为「陈旧例外」
-    workspace: 'frontend',
-    package: 'react-router',
-    reason:
-      'RSC Mode CSRF：仅影响 React Server Components 模式下的 server action。' +
-      '本项目是纯客户端 SPA（BrowserRouter），不含 RSC、不含 server action，该代码路径不存在。',
-    // 公告影响 >=7.12.0 <8.3.0，而 8.x 尚未发布（最新为 7.18.1）；
-    // 降到 7.12.0 以下又会落回 GHSA-wrjc-x8rr-h8h6 的 useNavigate 开放重定向 ——
-    // 那条对本项目反而有实际面（会把服务器返回的 id 拼进路径）。
-    // 也就是说当前不存在能同时避开两者的已发布版本。
-    removeWhen: 'react-router 发布 >= 8.3.0 后升级并删除本条',
-  },
+  // 目前没有需要登记的例外。
+  // react-router 的 GHSA-qwww-vcr4-c8h2（RSC 模式 CSRF）已在 7.18.2 修复，
+  // 依赖升上去之后这条例外自然作废，已删除。
 ]
 
 const workspace = process.argv[2]
