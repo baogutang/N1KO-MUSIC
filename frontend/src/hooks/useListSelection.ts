@@ -19,7 +19,7 @@ export interface ListSelection<T> {
   isSelected: (id: string) => boolean
   /** 普通点击：选择态下即勾选，非选择态返回 false 交回调用方（去播放） */
   handleClick: (index: number, event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => boolean
-  /** 长按 / 右键：无条件进入选择态 */
+  /** 长按：无条件进入选择态（触摸端唯一的入口） */
   beginAt: (index: number) => void
   toggleAt: (index: number) => void
   selectAll: () => void
@@ -33,6 +33,14 @@ export function useListSelection<T>(
   getId: (item: T, index: number) => string
 ): ListSelection<T> {
   const [ids, setIds] = useState<ReadonlySet<string>>(() => new Set())
+  /**
+   * 选择集的同步镜像。
+   *
+   * 事件处理里需要「此刻选了几个」这个事实，而 state 在同一轮事件里读到的
+   * 可能还是上一帧的值。镜像在每次渲染时更新，读它总是当前这一帧的真相。
+   */
+  const idsRef = useRef(ids)
+  idsRef.current = ids
   /** Shift 连选的锚点 */
   const anchorRef = useRef<number | null>(null)
 
@@ -55,6 +63,7 @@ export function useListSelection<T>(
     })
   }, [])
 
+  /** 长按：无条件把这一行选中并进入选择态 */
   const beginAt = useCallback((index: number) => {
     const item = itemsRef.current[index]
     if (!item) return
@@ -94,21 +103,18 @@ export function useListSelection<T>(
       toggleAt(index)
       return true
     }
-    // 已经在选择态时，普通点击继续勾选（触摸端唯一的可用手势）
-    let handled = false
-    setIds(prev => {
-      if (prev.size === 0) return prev
-      handled = true
-      const item = itemsRef.current[index]
-      if (!item) return prev
-      const id = getIdRef.current(item, index)
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      anchorRef.current = index
-      return next
-    })
-    return handled
+    /**
+     * 已经在选择态时，普通点击继续勾选（触摸端唯一的可用手势）。
+     *
+     * 判断走 ref 而不是 setState 的 updater 返回值。
+     * 之前是在 updater 里置一个外部变量再读出来——那只在 React 恰好同步执行
+     * reducer 时成立（当前 fiber 上没有其它待处理更新）。哪天这个 handler 里
+     * 多一个 setState，它就会静默返回 false，于是选择态下点一行**开始播放**。
+     * 这种「今天碰巧对」的写法不该留在决定用户听不听得到声音的路径上。
+     */
+    if (idsRef.current.size === 0) return false
+    toggleAt(index)
+    return true
   }, [selectRangeTo, toggleAt])
 
   const selectAll = useCallback(() => {

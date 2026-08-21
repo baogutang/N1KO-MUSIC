@@ -60,6 +60,30 @@ describe('目录完整性', () => {
     }
   })
 
+  /**
+   * 词条表里不该有没人用的条目。
+   *
+   * 死条目对译者是纯粹的浪费——他们看不出哪些还在界面上，只能全译一遍。
+   * 用源码全文匹配 `'key'` / "key"：足够简单，也足够挡住实际会发生的那种遗留。
+   */
+  it('每一条词条都真的被代码引用', async () => {
+    const fs = await import('node:fs')
+    const files: string[] = []
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = `${dir}/${entry.name}`
+        if (entry.isDirectory()) {
+          if (!full.includes('i18n/locales')) walk(full)
+        } else if (/\.(ts|tsx)$/.test(entry.name)) files.push(full)
+      }
+    }
+    walk('src')
+    const source = files.map(f => fs.readFileSync(f, 'utf8')).join('\n')
+    const unused = Object.keys(zhCN)
+      .filter(key => !source.includes(`'${key}'`) && !source.includes(`\"${key}\"`))
+    expect(unused, `这些词条没有任何调用方，删掉或接上：\n${unused.join('\n')}`).toEqual([])
+  })
+
   it('key 一律是「区域.主题」形式，Weblate 里才能按前缀分组', () => {
     for (const key of Object.keys(zhCN)) {
       expect(key, `${key} 不符合命名约定`).toMatch(/^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+$/)

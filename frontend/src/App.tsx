@@ -46,7 +46,16 @@ function useServerStoreHydrated(): boolean {
   const [hydrated, setHydrated] = useState(() => useServerStore.persist.hasHydrated())
   useEffect(() => {
     if (hydrated) return
-    return useServerStore.persist.onFinishHydration(() => setHydrated(true))
+    const unsubscribe = useServerStore.persist.onFinishHydration(() => setHydrated(true))
+    /**
+     * 订阅之后再补检一次。
+     *
+     * 今天 main.tsx 的 Bootstrap 已经在渲染 App 之前等过 hydration，走不到这里；
+     * 但只要那道闸被移走、或者有人后来调了 persist.rehydrate()，
+     * 「事件在订阅之前就发完了」就会变成永远停在加载态。补这一行的代价是零。
+     */
+    if (useServerStore.persist.hasHydrated()) setHydrated(true)
+    return unsubscribe
   }, [hydrated])
   return hydrated
 }

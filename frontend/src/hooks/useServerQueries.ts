@@ -619,18 +619,6 @@ export type AlbumShelfType =
   | 'newest' | 'recent' | 'frequent' | 'highest' | 'starred'
   | 'random' | 'byYear' | 'alphabeticalByName' | 'alphabeticalByArtist'
 
-/**
- * 书架定义。
- *
- * 存 labelKey 而不是已翻译的文案：这是模块级常量，在模块求值那一刻就定型了，
- * 直接写 t(...) 会把语言钉死在首次加载时的那一种，之后切语言不会变。
- */
-export const ALBUM_SHELVES: Array<{ type: AlbumShelfType; labelKey: string; tag: string }> = [
-  { type: 'frequent', labelKey: 'shelf.frequent', tag: 'MOST PLAYED' },
-  { type: 'recent', labelKey: 'shelf.recent', tag: 'RECENTLY PLAYED' },
-  { type: 'highest', labelKey: 'shelf.highest', tag: 'TOP RATED' },
-  { type: 'starred', labelKey: 'shelf.starred', tag: 'STARRED' },
-]
 
 /**
  * 就地把所有缓存里该 id 的 starred 标记改掉。
