@@ -1,6 +1,6 @@
 /**
  * 主导航行（杂志编辑风，DESIGN v2 §3）
- * 纯文字链接：首页 / 音乐库 / 歌手 / 歌单 / 推荐 / 收藏 / 统计
+ * 纯文字链接：首页 / 音乐库 / 歌手 / 歌单 / 推荐 / 收藏 / 统计 / 本期
  * 当前项 accent 色 + 下方 2px accent 短划线（不是背景块）；hover 变 accent
  * /albums 并入音乐库页；/history 在用户菜单；/search 在顶部工具条
  */
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/recommendations', label: '推荐' },
   { to: '/favorites', label: '收藏' },
   { to: '/stats', label: '统计' },
+  { to: '/issue', label: '本期' },
 ]
 
 export function TopNav() {

@@ -19,6 +19,7 @@ import {
   FavoritesPage,
   HistoryPage,
   StatsPage,
+  IssuePage,
   SettingsPage,
   RecommendationsPage,
   SongDetailPage,
@@ -78,6 +79,7 @@ export default function App() {
               <Route path="favorites" element={<FavoritesPage />} />
               <Route path="history" element={<HistoryPage />} />
               <Route path="stats" element={<StatsPage />} />
+              <Route path="issue" element={<IssuePage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="songs/:id" element={<SongDetailPage />} />
               <Route path="songs/detail" element={<Navigate to="/library" replace />} />
