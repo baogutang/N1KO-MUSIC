@@ -17,7 +17,7 @@ import {
   Play, Pause, SkipBack, SkipForward, Heart,
   Repeat, RepeatOnce, Shuffle, ArrowsDownUp,
   SpeakerHigh, SpeakerX, SpeakerLow,
-  CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage,
+  CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel,
   Queue, FileText
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
@@ -218,6 +218,7 @@ export function FullscreenPlayer() {
   const setRepeatMode   = usePlayerStore(s => s.setRepeatMode)
   const toggleShuffle   = usePlayerStore(s => s.toggleShuffle)
   const toggleFullscreen = usePlayerStore(s => s.toggleFullscreen)
+  const setCarMode = usePlayerStore(s => s.setCarMode)
   const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
 
   const [showVolumePanel, setShowVolumePanel] = useState(false)
@@ -380,6 +381,13 @@ export function FullscreenPlayer() {
             >
               <FileText size={16} />
               查看歌曲详情
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => { toggleFullscreen(); setCarMode(true) }}
+              className="gap-2 cursor-pointer"
+            >
+              <SteeringWheel size={16} />
+              车载模式
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <div className="px-3 py-2 space-y-1.5">

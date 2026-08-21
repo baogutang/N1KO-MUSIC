@@ -8,7 +8,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   House, Books, UsersThree, Playlist, DotsThree,
-  Sparkle, Heart, ChartBar, ClockCounterClockwise,
+  Sparkle, Heart, ChartBar, ClockCounterClockwise, Newspaper, SteeringWheel,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import {
@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { prefetchRoute } from '@/routes/lazyRoutes'
+import { usePlayerStore } from '@/store/playerStore'
 
 const tabs = [
   { to: '/', label: '首页', icon: House },
@@ -28,6 +29,7 @@ const tabs = [
 
 const moreItems = [
   { to: '/recommendations', label: '推荐', icon: Sparkle },
+  { to: '/issue', label: '本期', icon: Newspaper },
   { to: '/favorites', label: '收藏', icon: Heart },
   { to: '/stats', label: '统计', icon: ChartBar },
   { to: '/history', label: '最近播放', icon: ClockCounterClockwise },
@@ -35,6 +37,7 @@ const moreItems = [
 
 export function BottomNav() {
   const navigate = useNavigate()
+  const setCarMode = usePlayerStore(s => s.setCarMode)
 
   return (
     <nav
@@ -83,6 +86,14 @@ export function BottomNav() {
                   {label}
                 </DropdownMenuItem>
               ))}
+              {/*
+                车载模式放在这里而不是只藏在全屏播放器的 ⋯ 里：
+                真要开车的人不会为了进它连点四层。
+              */}
+              <DropdownMenuItem onClick={() => setCarMode(true)}>
+                <SteeringWheel size={16} className="mr-2" />
+                车载模式
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </li>

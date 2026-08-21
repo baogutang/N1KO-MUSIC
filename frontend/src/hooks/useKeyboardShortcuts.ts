@@ -77,6 +77,13 @@ export function useKeyboardShortcuts() {
         return
       }
 
+      // ⇧C：进车载模式。用 shift 组合是为了不和曲库页面里的单键筛选打架。
+      if (e.key.toLowerCase() === 'c' && e.shiftKey && !meta) {
+        e.preventDefault()
+        store.setCarMode(true)
+        return
+      }
+
       if (e.key === 'ArrowRight' && meta) {
         e.preventDefault()
         store.next()

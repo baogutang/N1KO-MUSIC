@@ -604,6 +604,18 @@ export default function Settings() {
             </Row>
           )}
           <Row
+            name="车载模式"
+            desc="超大触控目标、左右滑动切歌、屏幕常亮。移动端也可从底部「更多」进入，桌面按 ⇧C"
+          >
+            <button
+              type="button"
+              onClick={() => usePlayerStore.getState().setCarMode(true)}
+              className="text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary"
+            >
+              进入
+            </button>
+          </Row>
+          <Row
             name="耳机断开后自动恢复"
             desc="拔掉耳机会立刻暂停（不然声音会甩到外放）；一分钟内插回来时接着放"
           >

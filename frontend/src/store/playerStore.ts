@@ -130,6 +130,8 @@ interface PlayerState {
 
   isFullscreen: boolean
   isQueueOpen: boolean
+  /** 车载模式：大触控目标 + 屏幕常亮，见 components/player/CarMode.tsx */
+  isCarMode: boolean
   streamBuffering: boolean
 
   /** 睡眠定时的截止时间戳；null 表示未设置。刻意不持久化——重启后残留的过期截止会让 App 一打开就暂停 */
@@ -179,6 +181,7 @@ interface PlayerState {
   jumpToIndex: (index: number) => void
   setFullscreen: (open: boolean) => void
   toggleFullscreen: () => void
+  setCarMode: (open: boolean) => void
   setQueueOpen: (open: boolean) => void
   setStreamBuffering: (buffering: boolean) => void
   updateCurrentSong: (song: Partial<Song>) => void
@@ -206,6 +209,7 @@ export const usePlayerStore = create<PlayerState>()(
       shuffleCursor: -1,
       isFullscreen: false,
       isQueueOpen: false,
+      isCarMode: false,
       streamBuffering: false,
       sleepTimerAt: null,
       sleepTimerMode: 'duration',
@@ -670,6 +674,7 @@ export const usePlayerStore = create<PlayerState>()(
 
       setFullscreen: (open) => set({ isFullscreen: open }),
       toggleFullscreen: () => set(state => ({ isFullscreen: !state.isFullscreen })),
+      setCarMode: (open) => set({ isCarMode: open }),
       setQueueOpen: (open) => set({ isQueueOpen: open }),
       setStreamBuffering: (buffering) => set({ streamBuffering: buffering }),
 
@@ -693,6 +698,7 @@ export const usePlayerStore = create<PlayerState>()(
           shuffleCursor: -1,
           isFullscreen: false,
           isQueueOpen: false,
+          isCarMode: false,
           streamBuffering: false,
           playVersion: state.playVersion + 1,
         }))
