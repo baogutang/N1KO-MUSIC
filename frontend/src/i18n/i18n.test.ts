@@ -80,7 +80,7 @@ describe('目录完整性', () => {
     walk('src')
     const source = files.map(f => fs.readFileSync(f, 'utf8')).join('\n')
     const unused = Object.keys(zhCN)
-      .filter(key => !source.includes(`'${key}'`) && !source.includes(`\"${key}\"`))
+      .filter(key => !source.includes(`'${key}'`) && !source.includes(`"${key}"`))
     expect(unused, `这些词条没有任何调用方，删掉或接上：\n${unused.join('\n')}`).toEqual([])
   })
 
