@@ -1,5 +1,16 @@
 -- N1KO MUSIC - SQLite Schema
 -- 本地持久化数据，用于跨设备同步和离线功能
+--
+-- 【本文件的唯一规矩】
+-- 它在**每次启动**时整段执行一遍，老库也不例外。而 CREATE TABLE IF NOT EXISTS
+-- 碰到已存在的表会整段跳过——于是这里写的新列、新约束对老库全都不生效。
+-- 因此：
+--   1. 任何引用「后来才加的列」的语句（尤其是 CREATE INDEX）都不能写在这里，
+--      否则老库启动时会当场报 no such column 把服务顶死；
+--   2. 表结构的演进一律写进 src/db/database.ts 的 migrations，迁移在全新库上
+--      同样会跑，两条路径因此收敛到同一份 schema；
+--   3. test/schema-drift.test.mjs 会把「全新安装」和「老库升级」两条路径跑出来
+--      逐列逐索引对比，这条规矩一旦破了它就会红。
 
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
@@ -79,6 +90,11 @@ CREATE TABLE IF NOT EXISTS play_history (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- 幂等键 idx_play_history_user_event 故意**不**写在这里。
+-- 本文件在每次启动时都会整段执行一遍，包括老库；而老库的 play_history 还没有
+-- event_id 列，CREATE INDEX 会当场报 “no such column” 把服务顶死。
+-- 该索引由迁移 3 建立（迁移在全新库上同样会跑），两条路径生成的索引完全一致。
+
 CREATE INDEX IF NOT EXISTS idx_play_history_user_played ON play_history(user_id, played_at DESC);
 CREATE INDEX IF NOT EXISTS idx_play_history_user_server_song ON play_history(user_id, server_id, song_id);
 CREATE INDEX IF NOT EXISTS idx_play_history_user_server_played ON play_history(user_id, server_id, played_at DESC);
@@ -86,12 +102,20 @@ CREATE INDEX IF NOT EXISTS idx_play_history_user_server_played ON play_history(u
 -- ===================================================
 -- 收藏（本地缓存 + 同步标记）
 -- ===================================================
+-- deleted_at 是墓碑而不是真删除：取消收藏必须能同步出去。
+-- 硬删除的话，一台离线的设备下次同步时会拿着它那份旧列表把这首歌重新 PUT 回来，
+-- 于是取消收藏在多设备之间永远生效不了。
 CREATE TABLE IF NOT EXISTS favorites (
   user_id      TEXT NOT NULL,
   song_id      TEXT NOT NULL,
   server_id    TEXT NOT NULL,
   song_data    TEXT NOT NULL CHECK(json_valid(song_data)),
   favorited_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+  deleted_at   INTEGER,
   PRIMARY KEY (user_id, song_id, server_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- 增量同步索引 idx_favorites_user_updated 同样只能建在迁移里：
+-- 老库的 favorites 还没有 updated_at 列（原因见文件开头）。

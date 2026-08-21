@@ -168,3 +168,58 @@ test('favorites reject malformed input', async () => {
   const badLimit = await request('/api/favorites?limit=9999', { headers: authHeaders })
   assert.equal(badLimit.response.status, 400)
 })
+
+test('取消收藏留下墓碑，增量同步能把删除带到其它设备', async () => {
+  const registered = await request('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ username: 'fav-tombstone', password: 'correct-horse' }),
+  })
+  const authHeaders = { authorization: `Bearer ${registered.body.token}` }
+  const put = (songId) => request('/api/favorites', {
+    method: 'PUT',
+    headers: authHeaders,
+    body: JSON.stringify({ songId, serverId: 'server-a', songData: { id: songId, title: songId } }),
+  })
+
+  await put('keep')
+  await put('drop')
+
+  // 设备 B 在这一刻同步过一次
+  const beforeDelete = await request('/api/favorites', { headers: authHeaders })
+  assert.equal(beforeDelete.body.total, 2)
+  const cursor = beforeDelete.body.cursor - 1
+
+  const removed = await request('/api/favorites?songId=drop&serverId=server-a', {
+    method: 'DELETE',
+    headers: authHeaders,
+  })
+  assert.equal(removed.response.status, 200)
+
+  // 全量列表里删掉的那首消失了
+  const active = await request('/api/favorites', { headers: authHeaders })
+  assert.equal(active.body.total, 1)
+  assert.equal(active.body.items[0].id, 'keep')
+
+  // 增量列表里它作为墓碑出现，设备 B 因此知道要把本地那份删掉。
+  // 没有这一步，设备 B 会拿着旧列表把它重新 PUT 回来。
+  const delta = await request(`/api/favorites?since=${cursor}`, { headers: authHeaders })
+  const tombstone = delta.body.items.find(item => item.id === 'drop')
+  assert.ok(tombstone, '增量结果里必须带上墓碑')
+  assert.equal(tombstone.deleted, true)
+
+  // 重复删除仍然是 404，不会把墓碑再压一次
+  const again = await request('/api/favorites?songId=drop&serverId=server-a', {
+    method: 'DELETE',
+    headers: authHeaders,
+  })
+  assert.equal(again.response.status, 404)
+
+  // 重新收藏等于复活：回到 201，并从全量列表里重新出现
+  const revived = await put('drop')
+  assert.equal(revived.response.status, 201)
+  const afterRevive = await request('/api/favorites', { headers: authHeaders })
+  assert.equal(afterRevive.body.total, 2)
+
+  const badSince = await request('/api/favorites?since=abc', { headers: authHeaders })
+  assert.equal(badSince.response.status, 400)
+})

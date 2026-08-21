@@ -90,6 +90,21 @@ function normalizeMap<K>(map: Map<K, number>) {
   }
 }
 
+/**
+ * 跳过的强度。
+ *
+ * 秒跳（<= 3s）算满额的两倍，之后线性回落，到 SKIP_SEVERITY_FLOOR_SECONDS
+ * 之后回到 1 倍。上下界写死，避免异常时长把权重放飞。
+ */
+const INSTANT_SKIP_SECONDS = 3
+const SKIP_SEVERITY_FLOOR_SECONDS = 20
+export function skipSeverity(listenedSeconds: number): number {
+  if (listenedSeconds <= INSTANT_SKIP_SECONDS) return 2
+  if (listenedSeconds >= SKIP_SEVERITY_FLOOR_SECONDS) return 1
+  const span = SKIP_SEVERITY_FLOOR_SECONDS - INSTANT_SKIP_SECONDS
+  return 1 + (SKIP_SEVERITY_FLOOR_SECONDS - listenedSeconds) / span
+}
+
 export function buildRecommendationProfile(
   events: ListeningEvent[],
   now = Date.now()
@@ -123,9 +138,19 @@ export function buildRecommendationProfile(
 
     if (qualified) profile.positiveEventCount++
     addWeight(profile.songAffinity, key, weight)
-    // 跳过计数同样按时间衰减：其他信号都乘了 recency，只有它硬加 1，
-    // 于是一年前跳过 4 次的歌 skipPenalty 永远是 0.6 满额，再也出不来。
-    if (event.outcome === 'skipped') addWeight(profile.skipCounts, key, recency)
+    /**
+     * 跳过计数按时间衰减，再按「跳得多快」加权。
+     *
+     * 其他信号都乘了 recency，只有它硬加 1，于是一年前跳过 4 次的歌
+     * skipPenalty 永远是 0.6 满额，再也出不来。
+     *
+     * 而且并非所有跳过都一样重：两秒就摁掉是明确的拒绝——听到前奏就知道
+     * 不要；播到二十五秒才切更像「好歌，但现在不想听」。前者应该显著压低，
+     * 后者不该被当成同等强度的负面信号。
+     */
+    if (event.outcome === 'skipped') {
+      addWeight(profile.skipCounts, key, recency * skipSeverity(event.listenedSeconds))
+    }
     profile.lastPlayedAt.set(key, Math.max(profile.lastPlayedAt.get(key) ?? 0, event.endedAt))
 
     const artist = normalized(event.song.artist)

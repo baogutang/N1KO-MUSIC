@@ -76,7 +76,7 @@ describe('buildPlayingNow', () => {
 
 describe('submitListens', () => {
   function stubFetch(status: number, body = '') {
-    const spy = vi.fn(async () => new Response(body, { status }))
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => new Response(body, { status }))
     vi.stubGlobal('fetch', spy)
     return spy
   }
@@ -137,13 +137,13 @@ describe('submitListens', () => {
   it('Authorization 头用 Token 前缀', async () => {
     const spy = stubFetch(200, '{}')
     await submitListens('https://lb.test', ' tok ', [listen], 'single')
-    expect(spy.mock.calls[0][1].headers.Authorization).toBe('Token tok')
+    expect((spy.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toBe('Token tok')
   })
 })
 
 describe('validateToken', () => {
   it('走专用校验接口，不靠提交假记录来试', async () => {
-    const spy = vi.fn(async () => new Response(
+    const spy = vi.fn(async (_url: string) => new Response(
       JSON.stringify({ valid: true, user_name: 'niko' }), { status: 200 }
     ))
     vi.stubGlobal('fetch', spy)
