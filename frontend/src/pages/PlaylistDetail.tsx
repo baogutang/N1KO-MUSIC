@@ -1,5 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Play, Shuffle, MusicNote } from '@phosphor-icons/react'
+import { ArrowLeft, Play, Shuffle, MusicNote, DownloadSimple } from '@phosphor-icons/react'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { downloadTextFile, safeFileName, toM3U, toXSPF } from '@/services/playlistFiles'
+import { toast } from '@/components/ui/use-toast'
 import { usePlaylistDetail } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
@@ -19,6 +24,18 @@ export default function PlaylistDetail() {
   function handleShuffle() {
     if (!playlist?.songs.length) return
     playAllShuffled(playlist.songs, 0)
+  }
+
+  /** 导出：整段在浏览器里完成，文件不经过任何服务器 */
+  function handleExport(format: 'm3u' | 'xspf') {
+    if (!playlist?.songs.length) return
+    const base = safeFileName(playlist.name)
+    if (format === 'm3u') {
+      downloadTextFile(`${base}.m3u8`, toM3U(playlist.songs, playlist.name), 'audio/x-mpegurl')
+    } else {
+      downloadTextFile(`${base}.xspf`, toXSPF(playlist.songs, playlist.name), 'application/xspf+xml')
+    }
+    toast({ title: `已导出 ${playlist.songs.length} 首` })
   }
 
   const totalDuration = playlist?.songs.reduce((sum: number, s) => sum + (s.duration ?? 0), 0) ?? 0
@@ -123,6 +140,24 @@ export default function PlaylistDetail() {
               <Shuffle className="w-4 h-4" />
               随机播放
             </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={!playlist.songs.length}
+                className="inline-flex items-center gap-2 text-sm tracking-[0.12em] text-ink-soft transition-colors hover:text-primary active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+              >
+                <DownloadSimple className="w-4 h-4" />
+                导出
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => handleExport('m3u')}>
+                  M3U8<span className="ml-2 text-[11px] text-ink-faint">通用</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('xspf')}>
+                  XSPF<span className="ml-2 text-[11px] text-ink-faint">保留元数据</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>

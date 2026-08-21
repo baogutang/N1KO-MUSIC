@@ -5,7 +5,7 @@
  * 多色 accent 预设与歌词高亮色选择器已随 v2 契约移除（统一朱红 accent）。
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Trash, CheckCircle, ArrowsClockwise,
@@ -35,6 +35,8 @@ import {
   hairInputClass,
 } from '@/components/settings/primitives'
 import { SyncSettings } from '@/components/settings/SyncSettings'
+import { readListeningEvents } from '@/services/listeningHistory'
+import { downloadTextFile, historyToCSV, historyToJSON } from '@/services/playlistFiles'
 import pkg from '../../package.json'
 import type { ReplayGainMode } from '@/utils/replayGain'
 import {
@@ -109,6 +111,72 @@ function EndpointRow({ label, value, onChange, placeholder, desc }: {
 }
 
 // ─── 主页面 ───────────────────────────────────────────────────────────────────
+
+/**
+ * 收听历史导出。
+ *
+ * 自托管的意义就是数据是你的。JSON 完整、可再导入；
+ * CSV 给表格和第三方打卡导入工具用。两种都在本机生成。
+ */
+function DataExportSection() {
+  const serverId = useServerStore(s => s.activeServerId)
+  const [count, setCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    setCount(serverId ? readListeningEvents(serverId).length : 0)
+  }, [serverId])
+
+  const handleExport = (format: 'json' | 'csv') => {
+    if (!serverId) return
+    const events = readListeningEvents(serverId)
+    if (!events.length) {
+      toast({ title: '还没有可导出的收听记录' })
+      return
+    }
+    const stamp = new Date().toISOString().slice(0, 10)
+    if (format === 'json') {
+      downloadTextFile(
+        `n1ko-music-history-${stamp}.json`,
+        historyToJSON(events, new Date().toISOString()),
+        'application/json'
+      )
+    } else {
+      downloadTextFile(`n1ko-music-history-${stamp}.csv`, historyToCSV(events), 'text/csv')
+    }
+    toast({ title: `已导出 ${events.length} 条收听记录` })
+  }
+
+  return (
+    <Section title="你的数据" tag="YOUR DATA">
+      <div className="flex items-center justify-between gap-6 py-5">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">导出收听历史</p>
+          <p className="mt-0.5 text-xs text-ink-faint">
+            {count == null
+              ? '正在统计…'
+              : `本机共 ${count} 条记录，在浏览器里直接生成，不经过任何服务器`}
+          </p>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-5">
+          <button
+            type="button"
+            onClick={() => handleExport('json')}
+            className="text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary"
+          >
+            JSON
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport('csv')}
+            className="text-sm text-ink-soft transition-colors hover:text-primary"
+          >
+            CSV
+          </button>
+        </div>
+      </div>
+    </Section>
+  )
+}
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -644,6 +712,9 @@ export default function Settings() {
 
         {/* 跨设备同步（可选自建后端） */}
         <SyncSettings />
+
+        {/* 你的数据：想拿走随时能拿走 */}
+        <DataExportSection />
 
         {/* 关于 */}
         <Section title="关于" tag="ABOUT">

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, MusicNote, DotsThree, Trash, Play, Shuffle } from '@phosphor-icons/react'
+import { Plus, MusicNote, DotsThree, Trash, Play, Shuffle, UploadSimple } from '@phosphor-icons/react'
 import { usePlaylists, useDeletePlaylist, queryKeys } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { useQueryClient } from '@tanstack/react-query'
@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { ImportPlaylistDialog } from '@/components/music/ImportPlaylistDialog'
 
 export default function Playlists() {
   const navigate = useNavigate()
@@ -23,6 +24,7 @@ export default function Playlists() {
   const { data: playlists, isLoading } = usePlaylists()
   const deletePlaylist = useDeletePlaylist()
   const [showCreate, setShowCreate] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
@@ -91,13 +93,22 @@ export default function Playlists() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex flex-shrink-0 items-center gap-2 text-sm font-semibold text-foreground underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          新建歌单
-        </button>
+        <div className="flex flex-shrink-0 items-center gap-6">
+          <button
+            onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 text-sm text-ink-soft transition-colors hover:text-primary active:scale-[0.97]"
+          >
+            <UploadSimple className="w-3.5 h-3.5" />
+            导入
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-foreground underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            新建歌单
+          </button>
+        </div>
       </header>
 
       {/* 歌单封面墙：去卡片盒，封面即内容（DESIGN v2 §3） */}
@@ -267,6 +278,8 @@ export default function Playlists() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ImportPlaylistDialog open={showImport} onOpenChange={setShowImport} />
     </div>
   )
 }
