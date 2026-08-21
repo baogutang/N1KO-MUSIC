@@ -607,8 +607,10 @@ export class SubsonicAdapter implements MusicServerAdapter {
     const indexes = (data.artists as Record<string, unknown> | undefined)?.index as Array<Record<string, unknown>> | undefined ?? []
     const artists: Artist[] = []
     for (const index of indexes) {
+      // 桶名就是服务端算好的索引字母，顺手带上，前端不必再猜一遍拼音
+      const letter = typeof index.name === 'string' ? index.name : undefined
       const list = (index.artist ?? []) as Record<string, unknown>[]
-      artists.push(...list.map(this.mapArtist.bind(this)))
+      artists.push(...list.map(item => ({ ...this.mapArtist(item), sortIndex: letter })))
     }
     return artists
   }

@@ -173,6 +173,12 @@ export interface Artist {
   artistImageUrl?: string
   starred?: boolean
   serverId?: string
+  /**
+   * 服务端给出的索引字母（A–Z / # / 拼音首字母）。
+   * 排序规则归服务端管——Navidrome 有 sortName、忽略冠词表，中文库还按拼音
+   * 归位；在前端另算一套只会和列表顺序打架，也永远追不上服务端的本地化。
+   */
+  sortIndex?: string
 }
 
 /** 歌手详情（含专辑列表）*/

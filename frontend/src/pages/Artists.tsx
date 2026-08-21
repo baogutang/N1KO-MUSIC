@@ -4,19 +4,58 @@
  * 顶部衬线标题 + mono 总数 + 发丝线下缘过滤输入框
  */
 
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MagnifyingGlass } from '@phosphor-icons/react'
 import { useArtists } from '@/hooks/useServerQueries'
+import { buildIndexBuckets, IndexRail } from '@/components/common/IndexRail'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 export default function ArtistsPage() {
   const navigate = useNavigate()
   const { data: artists, isLoading } = useArtists()
   const [filter, setFilter] = useState('')
 
-  const filtered = artists?.filter(a =>
-    a.name.toLowerCase().includes(filter.toLowerCase())
-  ) ?? []
+  const filtered = useMemo(
+    () => artists?.filter(a => a.name.toLowerCase().includes(filter.toLowerCase())) ?? [],
+    [artists, filter]
+  )
+
+  const buckets = useMemo(
+    () => buildIndexBuckets(filtered, a => a.sortIndex, a => a.name),
+    [filtered]
+  )
+
+  const [activeLetter, setActiveLetter] = useState<string | undefined>()
+  const headingRefs = useRef(new Map<string, HTMLElement>())
+
+  const handleJump = useCallback((letter: string) => {
+    const el = headingRefs.current.get(letter)
+    if (!el) return
+    el.scrollIntoView({ block: 'start', behavior: 'auto' })
+    setActiveLetter(letter)
+  }, [])
+
+  /**
+   * 当前字母跟随滚动。用 IntersectionObserver 盯住段头，
+   * 不在滚动事件里量位置——一千个段头逐个 getBoundingClientRect 会把滚动拖垮。
+   */
+  useEffect(() => {
+    const headings = Array.from(headingRefs.current.values())
+    if (!headings.length) return
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries
+          .filter(entry => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+        const letter = (visible?.target as HTMLElement | undefined)?.dataset.letterHead
+        if (letter) setActiveLetter(letter)
+      },
+      { rootMargin: '0px 0px -75% 0px', threshold: 0 }
+    )
+    for (const heading of headings) observer.observe(heading)
+    return () => observer.disconnect()
+  }, [buckets])
 
   return (
     <div className="pt-9 animate-fade-in">
@@ -55,23 +94,48 @@ export default function ArtistsPage() {
           <p className="text-sm text-ink-faint mt-1.5">换个关键词试试。</p>
         </div>
       ) : (
-        <div className="border-t border-hair divide-y divide-hair-soft">
-          {filtered.map(artist => (
-            <button
-              key={artist.id}
-              onClick={() => navigate(`/artists/${artist.id}`)}
-              className="group flex w-full items-baseline justify-between gap-4 px-2 py-3.5 text-left transition-all duration-200 hover:translate-x-1.5 hover:bg-paper-deep"
-            >
-              <span className="min-w-0 truncate font-serif text-lg font-semibold text-ink transition-colors duration-200 group-hover:text-primary md:text-xl">
-                {artist.name}
-              </span>
-              {artist.albumCount != null && (
-                <span className="num flex-shrink-0 text-xs text-ink-faint">
-                  收录 {artist.albumCount} 张
-                </span>
-              )}
-            </button>
-          ))}
+        <div className="flex gap-3">
+          <div className="min-w-0 flex-1 border-t border-hair">
+            {buckets.map(bucket => (
+              <section key={bucket.letter}>
+                <h2
+                  data-letter-head={bucket.letter}
+                  ref={el => {
+                    if (el) headingRefs.current.set(bucket.letter, el)
+                    else headingRefs.current.delete(bucket.letter)
+                  }}
+                  className="font-num sticky top-0 z-10 bg-paper/95 px-2 pb-1 pt-3 text-[11px] tracking-[0.24em] text-primary backdrop-blur-sm"
+                >
+                  {bucket.letter}
+                </h2>
+                <div className="divide-y divide-hair-soft border-t border-hair-soft">
+                  {bucket.items.map(artist => (
+                    <button
+                      key={artist.id}
+                      onClick={() => navigate(`/artists/${artist.id}`)}
+                      className="group flex w-full items-baseline justify-between gap-4 px-2 py-3.5 text-left transition-all duration-200 hover:translate-x-1.5 hover:bg-paper-deep"
+                    >
+                      <span className="min-w-0 truncate font-serif text-lg font-semibold text-ink transition-colors duration-200 group-hover:text-primary md:text-xl">
+                        {spaceCJK(artist.name)}
+                      </span>
+                      {artist.albumCount != null && (
+                        <span className="num flex-shrink-0 text-xs text-ink-faint">
+                          收录 {artist.albumCount} 张
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <IndexRail
+            letters={buckets.map(b => b.letter)}
+            activeLetter={activeLetter}
+            onJump={handleJump}
+            className="flex-none self-start"
+          />
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import { TopBar } from './TopBar'
 import { Masthead } from './Masthead'
@@ -18,6 +18,7 @@ import { useSleepTimer } from '@/hooks/useSleepTimer'
 import { useQueueSync } from '@/hooks/useQueueSync'
 import { useRadioRefill } from '@/hooks/useRadioRefill'
 import { useLongTrackBookmark } from '@/hooks/useLongTrackBookmark'
+import { useScrollMemory } from '@/hooks/useScrollMemory'
 import { useIsMobileLayout } from '@/lib/platform'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -50,6 +51,10 @@ export default function MainLayout() {
 }
 
 function DesktopLayout() {
+  const mainRef = useRef<HTMLElement>(null)
+  const getMain = useCallback(() => mainRef.current, [])
+  useScrollMemory(getMain)
+
   useEffect(() => {
     const warmup = () => {
       prefetchCommonAuthenticatedRoutes()
@@ -81,7 +86,7 @@ function DesktopLayout() {
         <TopNav />
 
         <div className="relative flex flex-1 min-h-0 overflow-hidden">
-          <main className="flex-1 overflow-y-auto min-w-0">
+          <main ref={mainRef} className="flex-1 overflow-y-auto min-w-0">
             <div className="max-w-[1180px] mx-auto px-10 pb-16 w-full">
               <Outlet />
             </div>

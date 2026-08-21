@@ -4,7 +4,7 @@
  * 全部页面/播放器组件与桌面共用，仅外壳不同
  */
 
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import { MobileHeader } from './MobileHeader'
 import { BottomNav } from './BottomNav'
@@ -13,6 +13,7 @@ import { QueueDrawer } from '@/components/player/QueueDrawer'
 import { FullscreenPlayerOverlay } from '@/components/player/FullscreenPlayerOverlay'
 import { useNativeMediaControls } from '@/services/nativeMediaControls'
 import { useNativeAppIntegration } from '@/hooks/useNativeAppIntegration'
+import { useScrollMemory } from '@/hooks/useScrollMemory'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionBanner } from './ConnectionBanner'
@@ -27,6 +28,10 @@ export function MobileLayout() {
   // 音频引擎与媒体会话已提升到 MainLayout，避免跨断点重挂导致当前曲重播
   useNativeMediaControls()
   useNativeAppIntegration()
+
+  const mainRef = useRef<HTMLElement>(null)
+  const getMain = useCallback(() => mainRef.current, [])
+  useScrollMemory(getMain)
 
   useEffect(() => {
     const warmup = () => {
@@ -46,7 +51,7 @@ export function MobileLayout() {
         <ResumeOffer />
 
         <div className="relative flex flex-1 min-h-0 overflow-hidden">
-          <main className="flex-1 overflow-y-auto min-w-0">
+          <main ref={mainRef} className="flex-1 overflow-y-auto min-w-0">
             <div className="mx-auto px-4 pb-6 w-full max-w-[1180px]">
               <Outlet />
             </div>
