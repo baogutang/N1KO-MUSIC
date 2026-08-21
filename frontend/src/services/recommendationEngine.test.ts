@@ -5,6 +5,7 @@ import {
   deriveRecommendationSeeds,
   pickFeaturedAlbum,
   recommendSongs,
+  skipSeverity,
 } from '@/services/recommendationEngine'
 import {
   deriveListeningOutcome,
@@ -72,8 +73,9 @@ describe('recommendation profile', () => {
 
     expect(profile.artistAffinity.get('artist a')).toBeGreaterThan(0)
     expect(profile.artistAffinity.get('artist b')).toBeLessThan(0)
-    // 跳过计数按 recency 衰减，刚发生的一次接近 1
-    expect(profile.skipCounts.get('server-a:skip')).toBeCloseTo(1, 1)
+    // 跳过计数 = recency × 跳过强度。刚发生（recency≈1）、听了 5 秒就切，
+    // 强度约 1.88，所以这里不是 1 而是接近 1.88。
+    expect(profile.skipCounts.get('server-a:skip')).toBeCloseTo(skipSeverity(5), 1)
   })
 
   it('跳过计数随时间衰减，陈年跳过不再永久压制曲目', () => {
@@ -345,5 +347,50 @@ describe('「换一批」的取样与排除', () => {
 
     const second = recommendSongs(pool, [], 10, 'seed:1', NOW, undefined, shownKeys)
     expect(second).toHaveLength(10)
+  })
+})
+
+describe('skip severity', () => {
+  it('秒跳是最强的拒绝信号', () => {
+    expect(skipSeverity(1)).toBe(2)
+    expect(skipSeverity(3)).toBe(2)
+  })
+
+  it('随收听时长单调回落', () => {
+    expect(skipSeverity(5)).toBeGreaterThan(skipSeverity(10))
+    expect(skipSeverity(10)).toBeGreaterThan(skipSeverity(18))
+  })
+
+  it('听够一段再切就回到普通权重，不再加码', () => {
+    expect(skipSeverity(20)).toBe(1)
+    expect(skipSeverity(120)).toBe(1)
+  })
+
+  it('秒跳的惩罚重于晚跳', () => {
+    const target = song('x', 'Artist X', 'rock')
+    const instant = buildRecommendationProfile(
+      [event(target, 'skipped', 1)], NOW
+    ).skipCounts.get('server-a:x')!
+    const late = buildRecommendationProfile(
+      [event(target, 'skipped', 19)], NOW
+    ).skipCounts.get('server-a:x')!
+    expect(instant).toBeGreaterThan(late)
+    expect(instant / late).toBeCloseTo(2 / skipSeverity(19), 5)
+  })
+
+  it('同一首秒跳两次，排名低于只晚跳两次的另一首', () => {
+    const hated = song('hated', 'Artist A', 'rock')
+    const meh = song('meh', 'Artist A', 'rock')
+    const events = [
+      event(hated, 'skipped', 1, 1),
+      event(hated, 'skipped', 2, 2),
+      event(meh, 'skipped', 19, 1),
+      event(meh, 'skipped', 19, 2),
+      // 补足画像，避免走冷启动分支
+      ...Array.from({ length: 6 }, (_, i) =>
+        event(song(`liked${i}`, 'Artist A', 'rock'), 'completed', 195, i + 1)),
+    ]
+    const ranked = recommendSongs([hated, meh], events, 2, 'seed', NOW)
+    expect(ranked[ranked.length - 1].id).toBe('hated')
   })
 })

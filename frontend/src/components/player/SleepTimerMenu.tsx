@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useT } from '@/i18n'
 
 const PRESETS = [15, 30, 45, 60, 90]
 
@@ -26,7 +27,24 @@ function formatRemaining(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
+/**
+ * 预设项的文案：把译文按 {minutes} 拆开，中间塞进等宽数字。
+ * 整句交给 t() 会让数字掉出 font-num，拼字符串又会把语序钉死在中文上——
+ * 拆模板两头都保住。
+ */
+function PresetLabel({ template, minutes }: { template: string; minutes: number }) {
+  const [before, after] = template.split('{minutes}')
+  return (
+    <>
+      {before}
+      <span className="font-num text-ink-faint">{minutes}</span>
+      {after}
+    </>
+  )
+}
+
 export function SleepTimerMenu({ className }: { className?: string }) {
+  const { t } = useT()
   const sleepTimerAt = usePlayerStore(s => s.sleepTimerAt)
   const sleepTimerMode = usePlayerStore(s => s.sleepTimerMode)
   const setSleepTimer = usePlayerStore(s => s.setSleepTimer)
@@ -50,7 +68,7 @@ export function SleepTimerMenu({ className }: { className?: string }) {
       <DropdownMenuTrigger asChild>
         <button
           className={cn(className, active && 'text-primary')}
-          aria-label="睡眠定时"
+          aria-label={t('player.sleepTimer')}
           aria-pressed={active}
         >
           {active && sleepTimerMode === 'duration' ? (
@@ -62,29 +80,28 @@ export function SleepTimerMenu({ className }: { className?: string }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48 glass">
         <div className="px-3 py-2 border-b border-hair-soft">
-          <p className="font-serif text-sm font-semibold">睡眠定时</p>
+          <p className="font-serif text-sm font-semibold">{t('player.sleepTimer')}</p>
           <p className="mt-0.5 text-[11px] text-ink-faint">
             {active
               ? sleepTimerMode === 'endOfTrack'
-                ? '这首放完后停止'
-                : `${formatRemaining(remaining)} 后停止`
-              : '到点前会先渐弱'}
+                ? t('player.sleepStopAfterTrack')
+                : t('player.sleepStopsIn', { time: formatRemaining(remaining) })
+              : t('player.sleepFadeHint')}
           </p>
         </div>
         {PRESETS.map(minutes => (
           <DropdownMenuItem key={minutes} onClick={() => setSleepTimer(minutes)}>
-            <span className="font-num mr-2 text-ink-faint">{minutes}</span>
-            分钟后
+            <PresetLabel template={t('player.sleepAfterMinutes')} minutes={minutes} />
           </DropdownMenuItem>
         ))}
         <DropdownMenuItem onClick={() => setSleepTimer(null, 'endOfTrack')}>
-          这首放完
+          {t('player.sleepEndOfTrack')}
         </DropdownMenuItem>
         {active && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setSleepTimer(null)} className="text-primary">
-              取消定时
+              {t('player.sleepCancel')}
             </DropdownMenuItem>
           </>
         )}

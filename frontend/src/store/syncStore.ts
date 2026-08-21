@@ -8,8 +8,9 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createPersistStorage } from '@/store/persistStorage'
+import { createSecurePersistStorage } from '@/store/securePersistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
+import { t } from '@/i18n'
 import {
   checkSyncService,
   describeSyncError,
@@ -18,6 +19,10 @@ import {
 } from '@/api/syncClient'
 
 export type SyncStatus = 'disabled' | 'unconfigured' | 'signed-out' | 'connected' | 'error'
+
+/** persist 实际写盘的那一份，storage 适配器按它的形状加解密 */
+type PersistedSyncState =
+  Pick<SyncState, 'enabled' | 'baseUrl' | 'token' | 'username' | 'lastSyncedAt'>
 
 interface SyncState {
   /** 用户是否开启同步 */
@@ -71,14 +76,14 @@ export const useSyncStore = create<SyncState>()(
       testConnection: async () => {
         const { baseUrl } = get()
         if (!baseUrl) {
-          set({ lastError: '请先填写同步服务地址' })
+          set({ lastError: t('sync.error.needAddress') })
           return false
         }
         set({ busy: true, lastError: null })
         const result = await checkSyncService(baseUrl)
         set({
           busy: false,
-          lastError: result.ok ? null : '无法连接到同步服务，请检查地址是否可访问',
+          lastError: result.ok ? null : t('sync.error.unreachableCheck'),
         })
         return result.ok
       },
@@ -86,7 +91,7 @@ export const useSyncStore = create<SyncState>()(
       signIn: async (username, password) => {
         const { baseUrl } = get()
         if (!baseUrl) {
-          set({ lastError: '请先填写同步服务地址' })
+          set({ lastError: t('sync.error.needAddress') })
           return false
         }
         set({ busy: true, lastError: null })
@@ -103,7 +108,7 @@ export const useSyncStore = create<SyncState>()(
       signUp: async (username, password) => {
         const { baseUrl } = get()
         if (!baseUrl) {
-          set({ lastError: '请先填写同步服务地址' })
+          set({ lastError: t('sync.error.needAddress') })
           return false
         }
         set({ busy: true, lastError: null })
@@ -122,13 +127,26 @@ export const useSyncStore = create<SyncState>()(
       invalidateToken: () => set({
         token: null,
         username: null,
-        lastError: '同步登录已过期，请重新登录',
+        lastError: t('sync.error.expired'),
       }),
     }),
     {
       name: STORAGE_KEYS.syncStore,
-      // 含令牌，进程被杀不能丢，同步写入
-      storage: createPersistStorage({ debounceMs: 0 }),
+      /**
+       * 同步后端的 JWT 同样加密落盘。
+       *
+       * 它是一枚有效期 30 天的令牌，能读写你全部的收听历史、收藏和边注——
+       * 和音乐服务器的凭据是同一个量级的东西。只加密后者、把它留在明文里，
+       * deviceKey.ts 里「配置目录被拷走 / localStorage 被 dump 就不成立了」
+       * 那句话就是假的。
+       */
+      storage: createSecurePersistStorage<PersistedSyncState>({
+        collect: state => (state.token ? [['token', state.token]] : []),
+        apply: (state, values) => {
+          const token = values.get('token')
+          return token === undefined ? state : { ...state, token }
+        },
+      }) as never,
       partialize: (state) => ({
         enabled: state.enabled,
         baseUrl: state.baseUrl,

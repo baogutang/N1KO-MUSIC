@@ -1,19 +1,39 @@
 use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem, MenuItemBuilder};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // 已有实例运行时，聚焦主窗口
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.set_focus();
             }
+            // Windows 与 Linux 上，n1ko:// 是以命令行参数的形式送到**新**进程的，
+            // 由 single-instance 转发到这里；不在这儿捞一把，深链接在这两个平台上
+            // 就只会让窗口闪一下焦点，什么也不会发生。
+            let links: Vec<String> = args
+                .iter()
+                .filter(|arg| arg.starts_with("n1ko://"))
+                .cloned()
+                .collect();
+            if !links.is_empty() {
+                let _ = app.emit("deep-link://new-url", links);
+            }
         }))
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             // 构建中文菜单
             build_menu(app)?;
+
+            // 开发时进程不是从安装包起的，协议注册要在运行时补一次；
+            // 打包安装的版本由安装器写注册表 / desktop 文件，这里是 no-op。
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let _ = app.deep_link().register_all();
+            }
 
             Ok(())
         })

@@ -5,17 +5,33 @@
  */
 
 import { Fragment, useState, useCallback, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { SongList } from '@/components/music/SongList'
 import { useSearch } from '@/hooks/useServerQueries'
+import { spaceCJK } from '@/utils/cjkTypography'
+import { EmptyState } from '@/components/common/EmptyState'
+import { useT } from '@/i18n'
 
 export default function SearchPage() {
+  const { t } = useT()
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
+  /**
+   * `?q=` 是这一页的入口参数：命令面板、深链接（n1ko://search?q=…）、
+   * 以及用户直接分享出去的一条搜索链接，都从这里进来。
+   * 只作为**初值**读一次——之后输入框自己说了算，不然每敲一个字都要改地址栏。
+   */
+  const [params] = useSearchParams()
+  const [query, setQuery] = useState(() => params.get('q') ?? '')
+  const [debouncedQuery, setDebouncedQuery] = useState(() => params.get('q') ?? '')
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
+
+  // 带着新的 q 再次进入本页（组件没卸载，比如从深链接跳过来）时同步一次
+  const urlQuery = params.get('q') ?? ''
+  useEffect(() => {
+    if (urlQuery) setQuery(urlQuery)
+  }, [urlQuery])
 
   // 300ms debounce：减少打字过程中的无效请求
   useEffect(() => {
@@ -42,8 +58,8 @@ export default function SearchPage() {
       {/* ============ 大搜索框 ============ */}
       <div className="pt-12 pb-12 border-b border-hair">
         <h1 className="font-serif text-[34px] font-bold tracking-[-0.01em] text-foreground">
-          搜索
-          <span className="ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
+          {t('nav.search')}
+          <span className="latin-tag ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
             SEARCH
           </span>
         </h1>
@@ -55,9 +71,9 @@ export default function SearchPage() {
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="搜索歌曲、专辑、歌手…"
+            placeholder={t('search.placeholder')}
             autoFocus
-            aria-label="搜索"
+            aria-label={t('nav.search')}
             className="w-full h-16 bg-transparent pl-9 pr-10 font-serif text-[22px] text-foreground placeholder:italic placeholder:text-ink-faint/70 border-b border-hair focus:outline-none transition-colors duration-200"
           />
           {/* focus 时下缘 accent 2px（DESIGN §4.4，group-focus-within 监听外层容器） */}
@@ -69,7 +85,7 @@ export default function SearchPage() {
             <button
               onClick={handleClear}
               className="absolute right-0 top-1/2 -translate-y-1/2 w-8 h-8 grid place-items-center rounded-full text-ink-faint hover:text-primary transition-colors active:scale-[0.94]"
-              aria-label="清空搜索"
+              aria-label={t('search.clear')}
             >
               <X size={15} />
             </button>
@@ -79,10 +95,10 @@ export default function SearchPage() {
 
       {/* 空态：衬线一句 + ink-faint 说明（DESIGN §4.5） */}
       {!query && (
-        <div className="py-24 text-center">
-          <p className="font-serif text-[22px] font-semibold text-foreground">想找什么，直接输入。</p>
-          <p className="mt-3 text-[13px] text-ink-faint">支持歌曲名、专辑名、歌手名，输入即搜。</p>
-        </div>
+        <EmptyState
+          title={t('empty.search.title')}
+          description={t('empty.search.description')}
+        />
       )}
 
       {/* 加载骨架（hair-soft 行闪烁，不用 spinner） */}
@@ -90,12 +106,10 @@ export default function SearchPage() {
 
       {/* 无结果（等待防抖或请求进行中时不提前展示） */}
       {showResults && !isLoading && !isFetching && !hasResults && (
-        <div className="py-24 text-center">
-          <p className="font-serif text-[22px] font-semibold text-foreground">
-            没有找到与「{query}」相关的内容。
-          </p>
-          <p className="mt-3 text-[13px] text-ink-faint">换个关键词，或检查拼写后再试。</p>
-        </div>
+        <EmptyState
+          title={t('empty.searchNoResult.title', { query })}
+          description={t('empty.searchNoResult.description')}
+        />
       )}
 
       {/* ============ 歌手 · 文字索引 ============ */}
@@ -103,10 +117,10 @@ export default function SearchPage() {
         <section aria-labelledby="search-artists">
           <div className="section-head">
             <h2 id="search-artists">
-              歌手<small>ARTISTS</small>
+              {t('nav.artists')}<small>ARTISTS</small>
             </h2>
             <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-              {results.artists.length} 位
+              {t('search.artistCount', { count: results.artists.length })}
             </span>
           </div>
           <p className="font-serif text-[19px] lg:text-[22px] font-semibold leading-[2.1]">
@@ -121,7 +135,7 @@ export default function SearchPage() {
                   onClick={() => navigate(`/artists/${artist.id}`)}
                   className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                 >
-                  {artist.name}
+                  {spaceCJK(artist.name)}
                   {artist.albumCount !== undefined && (
                     <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
                       {artist.albumCount}
@@ -139,10 +153,10 @@ export default function SearchPage() {
         <section aria-labelledby="search-albums">
           <div className="section-head">
             <h2 id="search-albums">
-              专辑<small>ALBUMS</small>
+              {t('section.albums')}<small>ALBUMS</small>
             </h2>
             <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-              {results.albums.length} 张
+              {t('search.albumCount', { count: results.albums.length })}
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7 [&>*]:min-w-0">
@@ -158,10 +172,10 @@ export default function SearchPage() {
         <section aria-labelledby="search-songs">
           <div className="section-head">
             <h2 id="search-songs">
-              歌曲<small>SONGS</small>
+              {t('section.songs')}<small>SONGS</small>
             </h2>
             <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-              {results.songs.length} 首
+              {t('song.trackCount', { count: results.songs.length })}
             </span>
           </div>
           <SongList songs={results.songs} showCover showAlbum showIndex />

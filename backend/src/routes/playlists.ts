@@ -3,7 +3,9 @@ import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import db from '../db/database'
 import { authMiddleware } from '../middleware/auth'
-import { boundedId, parseRequest, safeJsonObject, serverIdSchema } from '../validation'
+import {
+  boundedId, parseBoundedInteger, parseRequest, safeJsonObject, serverIdSchema,
+} from '../validation'
 
 const router = Router()
 router.use(authMiddleware)
@@ -62,22 +64,45 @@ router.get('/', (req: Request, res: Response) => {
   return res.json(playlists)
 })
 
+/**
+ * 歌单详情。
+ *
+ * 曲目分页。此前是无上限地把整张表塞进一个响应——五千首的歌单一次几十兆 JSON，
+ * 服务端要全序列化、客户端要全解析，中途断线还得从头再来。
+ * 缺省一页 500 首，够绝大多数歌单一次拿完，同时给出 songTotal 让调用方知道要不要续拉。
+ */
+const DEFAULT_SONG_PAGE = 500
+const MAX_SONG_PAGE = 1000
+
 router.get('/:id', (req: Request, res: Response) => {
   const id = pathId(req, res)
   if (!id) return
   const playlist = findOwnedPlaylist(id, req.user!.userId)
   if (!playlist) return res.status(404).json({ error: 'Playlist not found' })
 
+  const limit = parseBoundedInteger(req.query.limit, DEFAULT_SONG_PAGE, 1, MAX_SONG_PAGE)
+  const offset = parseBoundedInteger(req.query.offset, 0, 0, 1_000_000)
+  if (limit === null || offset === null) {
+    return res.status(400).json({
+      error: `limit must be 1–${MAX_SONG_PAGE} and offset must be 0–1000000`,
+    })
+  }
+
   const rows = db.prepare(`
     SELECT song_data, server_id FROM playlist_songs
     WHERE playlist_id = ? ORDER BY position ASC, added_at ASC
-  `).all(id) as Array<{ song_data: string; server_id: string }>
+    LIMIT ? OFFSET ?
+  `).all(id, limit, offset) as Array<{ song_data: string; server_id: string }>
+
+  const songTotal = (db.prepare(
+    'SELECT COUNT(*) AS count FROM playlist_songs WHERE playlist_id = ?',
+  ).get(id) as { count: number }).count
 
   const songs = rows.flatMap(row => {
     const song = safeJsonObject(row.song_data)
     return song ? [{ ...song, serverId: row.server_id }] : []
   })
-  return res.json({ ...playlist, songs })
+  return res.json({ ...playlist, songs, songTotal, offset, limit })
 })
 
 router.post('/', (req: Request, res: Response) => {

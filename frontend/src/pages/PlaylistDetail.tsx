@@ -1,12 +1,21 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Play, Shuffle, MusicNote } from '@phosphor-icons/react'
+import { ArrowLeft, Play, Shuffle, MusicNote, DownloadSimple } from '@phosphor-icons/react'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { downloadTextFile, safeFileName, toM3U, toXSPF } from '@/services/playlistFiles'
+import { toast } from '@/components/ui/use-toast'
 import { usePlaylistDetail } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { spaceCJK } from '@/utils/cjkTypography'
+import { EmptyState } from '@/components/common/EmptyState'
+import { useT } from '@/i18n'
 
 export default function PlaylistDetail() {
+  const { t } = useT()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: playlist, isLoading, error } = usePlaylistDetail(id!)
@@ -21,6 +30,18 @@ export default function PlaylistDetail() {
     playAllShuffled(playlist.songs, 0)
   }
 
+  /** 导出：整段在浏览器里完成，文件不经过任何服务器 */
+  function handleExport(format: 'm3u' | 'xspf') {
+    if (!playlist?.songs.length) return
+    const base = safeFileName(playlist.name)
+    if (format === 'm3u') {
+      downloadTextFile(`${base}.m3u8`, toM3U(playlist.songs, playlist.name), 'audio/x-mpegurl')
+    } else {
+      downloadTextFile(`${base}.xspf`, toXSPF(playlist.songs, playlist.name), 'application/xspf+xml')
+    }
+    toast({ title: t('playlist.exported', { count: playlist.songs.length }) })
+  }
+
   const totalDuration = playlist?.songs.reduce((sum: number, s) => sum + (s.duration ?? 0), 0) ?? 0
 
   const backLink = (
@@ -29,7 +50,7 @@ export default function PlaylistDetail() {
       className="inline-flex items-center gap-1.5 text-xs tracking-[0.14em] text-ink-soft transition-all duration-200 hover:text-primary hover:-translate-x-0.5 active:scale-[0.97]"
     >
       <ArrowLeft className="w-3.5 h-3.5" />
-      返回
+      {t('action.back')}
     </button>
   )
 
@@ -62,10 +83,7 @@ export default function PlaylistDetail() {
     return (
       <div className="pt-6 animate-fade-in">
         {backLink}
-        <div className="py-24 text-center">
-          <p className="font-serif text-xl font-semibold">加载失败。</p>
-          <p className="mt-2 text-sm text-ink-faint">请检查网络连接后重试。</p>
-        </div>
+        <EmptyState title={t('empty.loadFailed.title')} description={t('empty.loadFailed.description')} />
       </div>
     )
   }
@@ -92,17 +110,22 @@ export default function PlaylistDetail() {
 
         <div className="min-w-0 flex-1 pb-1">
           <p className="mb-4 flex items-center gap-3 text-[11px] tracking-[0.3em] text-primary">
-            歌单 · PLAYLIST
+            {t('playlist.kicker')}
             <span className="h-px w-10 bg-primary" aria-hidden="true" />
           </p>
           <h1 className="font-serif text-4xl md:text-5xl font-black leading-[1.1] tracking-[-0.01em] text-balance">
-            {playlist.name}
+            {spaceCJK(playlist.name)}
           </h1>
           {playlist.comment && (
             <p className="mt-3 max-w-[52ch] text-sm text-ink-soft line-clamp-2">{playlist.comment}</p>
           )}
           <p className="mt-4 font-num text-xs tracking-[0.06em] text-ink-faint">
-            {playlist.songs.length} 首{totalDuration > 0 && ` · ${formatDuration(totalDuration)}`}
+            {totalDuration > 0
+              ? t('playlist.countWithDuration', {
+                  count: playlist.songs.length,
+                  duration: formatDuration(totalDuration),
+                })
+              : t('song.count', { count: playlist.songs.length })}
           </p>
 
           {/* 文字级操作行：主操作下划线，hover 变 accent（DESIGN v2 §4.1） */}
@@ -113,7 +136,7 @@ export default function PlaylistDetail() {
               className="inline-flex items-center gap-2.5 border-b border-ink pb-1.5 text-sm font-semibold tracking-[0.12em] transition-colors hover:border-primary hover:text-primary active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
             >
               <Play className="w-3.5 h-3.5" weight="fill" />
-              播放全部
+              {t('player.playAll')}
             </button>
             <button
               onClick={handleShuffle}
@@ -121,8 +144,26 @@ export default function PlaylistDetail() {
               className="inline-flex items-center gap-2 text-sm tracking-[0.12em] text-ink-soft transition-colors hover:text-primary active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
             >
               <Shuffle className="w-4 h-4" />
-              随机播放
+              {t('player.shuffle')}
             </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={!playlist.songs.length}
+                className="inline-flex items-center gap-2 text-sm tracking-[0.12em] text-ink-soft transition-colors hover:text-primary active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+              >
+                <DownloadSimple className="w-4 h-4" />
+                {t('action.export')}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => handleExport('m3u')}>
+                  M3U8<span className="ml-2 text-[11px] text-ink-faint">{t('playlist.exportM3uHint')}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('xspf')}>
+                  XSPF<span className="ml-2 text-[11px] text-ink-faint">{t('playlist.exportXspfHint')}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -131,10 +172,11 @@ export default function PlaylistDetail() {
       {playlist.songs.length > 0 ? (
         <SongList songs={playlist.songs} showAlbum />
       ) : (
-        <div className="border-t border-hair py-20 text-center">
-          <p className="font-serif text-xl font-semibold">歌单还是空的。</p>
-          <p className="mt-2 text-sm text-ink-faint">在歌曲菜单里选择「添加到歌单」。</p>
-        </div>
+        <EmptyState
+          ruled
+          title={t('empty.playlistDetail.title')}
+          description={t('empty.playlistDetail.description')}
+        />
       )}
     </div>
   )

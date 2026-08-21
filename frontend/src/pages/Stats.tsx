@@ -16,6 +16,20 @@ import {
   type RankedEntry,
   type StatsRange,
 } from '@/services/listeningStats'
+import { TasteProfile } from '@/components/music/TasteProfile'
+import { useT } from '@/i18n'
+
+/**
+ * 把带占位符的句子从占位符处切成两半。
+ *
+ * 「你最常在 X 听歌」里的 X 要单独上色，整句又必须留在同一个 key 里给译者，
+ * 所以在渲染时按占位符切开，而不是把句子拆成两条译文。
+ */
+function splitAtPlaceholder(template: string, token: string): [string, string] {
+  const at = template.indexOf(token)
+  if (at < 0) return [template, '']
+  return [template.slice(0, at), template.slice(at + token.length)]
+}
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
@@ -24,18 +38,19 @@ function SectionHead({ title, tag }: { title: string; tag: string }) {
   return (
     <div className="flex items-baseline justify-between border-b border-hair pb-3">
       <h2 className="font-serif text-[22px] font-semibold">{title}</h2>
-      <span className="text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
+      <span className="latin-tag text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
     </div>
   )
 }
 
 /** 编号榜单：mono 序号 + 衬线名 + mono 次数，行间 hair-soft */
 function RankedList({ title, tag, items }: { title: string; tag: string; items: RankedEntry[] }) {
+  const { t } = useT()
   return (
     <div>
       <div className="flex items-baseline justify-between border-b border-hair pb-2.5">
         <h3 className="font-serif text-lg font-semibold">{title}</h3>
-        <span className="text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
+        <span className="latin-tag text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
       </div>
       <ol className="divide-y divide-hair-soft">
         {items.map((item, i) => (
@@ -49,7 +64,9 @@ function RankedList({ title, tag, items }: { title: string; tag: string; items: 
                 <p className="mt-0.5 truncate text-xs text-ink-faint">{item.subtitle}</p>
               )}
             </div>
-            <span className="num flex-shrink-0 text-xs text-ink-soft">{item.count} 次</span>
+            <span className="num flex-shrink-0 text-xs text-ink-soft">
+              {t('stats.playCount', { count: item.count })}
+            </span>
           </li>
         ))}
       </ol>
@@ -83,15 +100,16 @@ function StatCell({
   )
 }
 
-const RANGE_OPTIONS: Array<{ value: StatsRange; label: string }> = [
-  { value: 7, label: '7 天' },
-  { value: 30, label: '30 天' },
-  { value: 'all', label: '全部' },
+const RANGE_OPTIONS: Array<{ value: StatsRange; labelKey: string }> = [
+  { value: 7, labelKey: 'stats.range7' },
+  { value: 30, labelKey: 'stats.range30' },
+  { value: 'all', labelKey: 'stats.rangeAll' },
 ]
 
 // ─── 主页面 ───────────────────────────────────────────────────────────────────
 
 export default function Stats() {
+  const { t } = useT()
   const activeServerId = useServerStore(s => s.activeServerId)
   // 使用 state 存储历史，进入页面时刷新，并监听实时更新事件
   const [historyData, setHistoryData] = useState<ListeningEvent[]>(() =>
@@ -113,17 +131,20 @@ export default function Stats() {
   const stats = useMemo(() => computeListeningStats(historyData, range), [historyData, range])
   const maxDailyPlays = stats ? Math.max(...stats.daily.map(day => day.plays), 1) : 1
   const maxHourlyPlays = stats ? Math.max(...stats.hourly, 1) : 1
+  const [peakHourBefore, peakHourAfter] = splitAtPlaceholder(t('stats.peakHour'), '{hour}')
 
   return (
     <div className="min-h-full pt-9 pb-8 animate-fade-in">
       {/* 报头 + 时间范围切换 */}
       <header className="flex items-end justify-between gap-6">
         <div>
-          <p className="text-[11px] tracking-[0.3em] text-ink-faint mb-2">LISTENING REPORT</p>
-          <h1 className="font-serif text-4xl font-bold tracking-tight text-balance">听歌统计</h1>
-          <p className="text-sm text-ink-soft mt-2">你的音乐数据报告</p>
+          <p className="latin-tag text-[11px] tracking-[0.3em] text-ink-faint mb-2">LISTENING REPORT</p>
+          <h1 className="font-serif text-4xl font-bold tracking-tight text-balance">
+            {t('stats.title')}
+          </h1>
+          <p className="text-sm text-ink-soft mt-2">{t('stats.subtitle')}</p>
         </div>
-        <div className="flex flex-shrink-0 items-baseline gap-5" role="group" aria-label="统计范围">
+        <div className="flex flex-shrink-0 items-baseline gap-5" role="group" aria-label={t('stats.rangeLabel')}>
           {RANGE_OPTIONS.map(option => (
             <button
               key={String(option.value)}
@@ -137,7 +158,7 @@ export default function Stats() {
                   : 'text-ink-faint border-b border-transparent hover:text-ink-soft'
               )}
             >
-              {option.label}
+              {t(option.labelKey)}
             </button>
           ))}
         </div>
@@ -145,52 +166,54 @@ export default function Stats() {
 
       {!stats ? (
         <div className="py-24">
-          <p className="font-serif text-2xl font-semibold">这段时间还没有数据。</p>
-          <p className="text-sm text-ink-faint mt-3">
-            多听一些音乐，或者把范围切到「全部」看看更早的记录。
-          </p>
+          <p className="font-serif text-2xl font-semibold">{t('empty.stats.title')}</p>
+          <p className="text-sm text-ink-faint mt-3">{t('empty.stats.description')}</p>
         </div>
       ) : (
         <>
           {/* 规模数据行 */}
           <div className="grid grid-cols-2 md:grid-cols-4 border-y border-hair mt-10">
-            <StatCell value={stats.plays} label="有效播放" className="pl-0" />
+            <StatCell value={stats.plays} label={t('stats.plays')} className="pl-0" />
             <StatCell
               value={formatDurationNatural(stats.listenedSeconds)}
-              label="收听时长"
+              label={t('stats.listenedTime')}
               className="border-l border-hair-soft"
             />
             <StatCell
               value={stats.uniqueArtists}
-              unit="位"
-              label="不同歌手"
+              unit={t('stats.unitArtists')}
+              label={t('stats.uniqueArtists')}
               className="pl-0 md:pl-6 border-t border-hair-soft md:border-t-0 md:border-l"
             />
             <StatCell
               value={stats.uniqueAlbums}
-              unit="张"
-              label="不同专辑"
+              unit={t('stats.unitAlbums')}
+              label={t('stats.uniqueAlbums')}
               className="border-t border-l border-hair-soft md:border-t-0"
             />
           </div>
 
           {/* 行为数据行：历史窗口变长后才有统计意义的口味指标 */}
           <div className="grid grid-cols-2 md:grid-cols-4 border-b border-hair">
-            <StatCell value={formatRate(stats.completionRate)} label="完整听完" className="pl-0" />
+            <StatCell
+              value={formatRate(stats.completionRate)}
+              label={t('stats.completionRate')}
+              className="pl-0"
+            />
             <StatCell
               value={formatRate(stats.skipRate)}
-              label="开头跳过"
+              label={t('stats.skipRate')}
               className="border-l border-hair-soft"
             />
             <StatCell
               value={formatRate(stats.repeatRate)}
-              label="重复收听"
+              label={t('stats.repeatRate')}
               className="pl-0 md:pl-6 border-t border-hair-soft md:border-t-0 md:border-l"
             />
             <StatCell
               value={formatDurationNatural(stats.dailyAverageSeconds)}
-              label="活跃日均"
-              hint={`共 ${stats.activeDays} 个活跃日`}
+              label={t('stats.dailyAverage')}
+              hint={t('stats.activeDaysHint', { count: stats.activeDays })}
               className="border-t border-l border-hair-soft md:border-t-0"
             />
           </div>
@@ -198,7 +221,7 @@ export default function Stats() {
           {/* 日历图：细柱，ink-faint 基底 + 峰值日 accent，hover 出 mono 数值 */}
           <section className="mt-14">
             <SectionHead
-              title={range === 'all' ? '最近 30 天' : `最近 ${range} 天`}
+              title={t('stats.recentDays', { count: range === 'all' ? 30 : range })}
               tag={range === 'all' ? 'RECENT DAYS' : `LAST ${range} DAYS`}
             />
             <div className="flex items-end gap-1.5 pt-8 sm:gap-2">
@@ -222,7 +245,7 @@ export default function Stats() {
                           isPeak ? 'bg-primary' : 'bg-ink-faint/50'
                         )}
                         style={{ height: `${(day.plays / maxDailyPlays) * 100}%` }}
-                        title={`${day.label} · ${day.plays} 次`}
+                        title={t('stats.barTooltip', { label: day.label, count: day.plays })}
                       />
                     </div>
                     {/* 30 天时逐日标签会挤在一起，只标每 5 天 */}
@@ -239,10 +262,12 @@ export default function Stats() {
 
           {/* 收听时段：24 小时分布，回答「你什么时候听歌」 */}
           <section className="mt-14">
-            <SectionHead title="收听时段" tag="BY HOUR" />
+            <SectionHead title={t('stats.byHour')} tag="BY HOUR" />
             {stats.peakHour !== null && (
               <p className="pt-4 text-sm text-ink-soft">
-                你最常在 <span className="num text-primary">{formatHourRange(stats.peakHour)}</span> 听歌。
+                {peakHourBefore}
+                <span className="num text-primary">{formatHourRange(stats.peakHour)}</span>
+                {peakHourAfter}
               </p>
             )}
             <div className="flex items-end gap-1 pt-6">
@@ -257,7 +282,7 @@ export default function Stats() {
                           isPeak ? 'bg-primary' : 'bg-ink-faint/50'
                         )}
                         style={{ height: `${(plays / maxHourlyPlays) * 100}%` }}
-                        title={`${formatHourRange(hour)} · ${plays} 次`}
+                        title={t('stats.barTooltip', { label: formatHourRange(hour), count: plays })}
                       />
                     </div>
                     {/* 每 6 小时标一次，避免 24 个标签挤在一起 */}
@@ -272,10 +297,14 @@ export default function Stats() {
 
           {/* Top-5 三栏榜单 */}
           <section className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-12 border-t border-hair pt-10">
-            <RankedList title="最爱歌曲" tag="TOP SONGS" items={stats.topSongs} />
-            <RankedList title="最爱歌手" tag="TOP ARTISTS" items={stats.topArtists} />
-            <RankedList title="最爱专辑" tag="TOP ALBUMS" items={stats.topAlbums} />
+            <RankedList title={t('stats.topSongs')} tag="TOP SONGS" items={stats.topSongs} />
+            <RankedList title={t('stats.topArtists')} tag="TOP ARTISTS" items={stats.topArtists} />
+            <RankedList title={t('stats.topAlbums')} tag="TOP ALBUMS" items={stats.topAlbums} />
           </section>
+
+          {/* 画像：上面几栏是「你听了什么」，这一栏是「引擎因此认为你是谁」，
+              而且可以当场改 */}
+          <TasteProfile />
         </>
       )}
     </div>

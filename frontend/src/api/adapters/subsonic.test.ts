@@ -3,7 +3,7 @@
  * 都不该让整个 mapSong 抛错——那会连带把整页曲目的渲染打断。
  */
 import { describe, expect, it } from 'vitest'
-import { mapSongExtras } from '@/api/adapters/subsonic'
+import { mapSongExtras, SubsonicAdapter } from '@/api/adapters/subsonic'
 
 describe('mapSongExtras 的健壮性', () => {
   it('contributors 里混入 null / 标量时不抛错，只跳过坏元素', () => {
@@ -51,4 +51,56 @@ describe('mapSongExtras 的健壮性', () => {
     expect(ext?.samplingRate).toBe(44100)
     expect(ext?.channelCount).toBeUndefined()
   })
+})
+
+/**
+ * 取消信号必须一路透到 axios 的请求配置里。
+ *
+ * 此前只有搜索接得住取消：翻页、切歌手、弱网下来回切页时，在途请求全都还在跑，
+ * 既占着浏览器那 6 条同源连接，又让 cancelQueries 形同虚设。
+ * 这里不测「取消发生了什么」，只钉住「signal 有没有被传下去」——
+ * 断链就是从某个方法忘记转发开始的。
+ */
+describe('取消信号的透传', () => {
+  function makeAdapter() {
+    const calls: Array<{ url: string; config: { signal?: AbortSignal } }> = []
+    const adapter = new SubsonicAdapter({
+      url: 'https://example.test', username: 'u', token: 't', salt: 's',
+    })
+    // 替掉真实的 axios 实例，只记录调用
+    ;(adapter as unknown as { client: unknown }).client = {
+      get: async (url: string, config: { signal?: AbortSignal }) => {
+        calls.push({ url, config })
+        return { data: { 'subsonic-response': { status: 'ok' } } }
+      },
+    }
+    return { adapter, calls }
+  }
+
+  const cases: Array<[string, (a: SubsonicAdapter, s: AbortSignal) => Promise<unknown>]> = [
+    ['getSongs', (a, s) => a.getSongs({ signal: s })],
+    ['getAlbums', (a, s) => a.getAlbums({ signal: s })],
+    ['getAlbumDetail', (a, s) => a.getAlbumDetail('x', s)],
+    ['getRecentAlbums', (a, s) => a.getRecentAlbums(10, s)],
+    ['getRandomSongs', (a, s) => a.getRandomSongs(10, undefined, s)],
+    ['getArtists', (a, s) => a.getArtists(undefined, s)],
+    ['getArtistDetail', (a, s) => a.getArtistDetail('x', s)],
+    ['getPlaylists', (a, s) => a.getPlaylists(s)],
+    ['getPlaylistDetail', (a, s) => a.getPlaylistDetail('x', s)],
+    ['getStarred', (a, s) => a.getStarred(s)],
+    ['getGenres', (a, s) => a.getGenres(s)],
+    ['searchAll', (a, s) => a.searchAll('q', s)],
+  ]
+
+  for (const [name, invoke] of cases) {
+    it(`${name} 把 signal 交给 axios`, async () => {
+      const { adapter, calls } = makeAdapter()
+      const controller = new AbortController()
+      await invoke(adapter, controller.signal)
+      expect(calls.length).toBeGreaterThan(0)
+      for (const call of calls) {
+        expect(call.config.signal, `${name} 的 ${call.url} 漏了 signal`).toBe(controller.signal)
+      }
+    })
+  }
 })

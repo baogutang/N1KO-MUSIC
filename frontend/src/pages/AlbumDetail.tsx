@@ -15,8 +15,13 @@ import { getAdapter, hasAdapter } from '@/api'
 import { formatDurationNatural } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
+import { spaceCJK } from '@/utils/cjkTypography'
+import { EmptyState } from '@/components/common/EmptyState'
+import { MarginNote } from '@/components/music/MarginNote'
+import { useT } from '@/i18n'
 
 export default function AlbumDetailPage() {
+  const { t } = useT()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: album, isLoading } = useAlbumDetail(id ?? '')
@@ -50,13 +55,24 @@ export default function AlbumDetailPage() {
 
   if (!album) {
     return (
-      <div className="pt-24 text-center">
-        <p className="font-serif text-xl text-ink-soft">专辑不存在或加载失败。</p>
-      </div>
+      <EmptyState
+        title={t('empty.album.title')}
+        description={t('empty.album.description')}
+      />
     )
   }
 
   const totalDuration = album.songs.reduce((s, r) => s + r.duration, 0)
+
+  // 年份 / 流派 / 曲目数·时长：缺哪段就少哪段，分隔点不留空
+  const meta = [
+    album.year ? t('album.metaYear', { year: album.year }) : '',
+    album.genre ?? '',
+    t('song.trackCountDuration', {
+      count: album.songs.length,
+      duration: formatDurationNatural(totalDuration),
+    }),
+  ].filter(Boolean).join(' · ')
 
   return (
     <div className="pt-10 animate-fade-in">
@@ -76,9 +92,9 @@ export default function AlbumDetailPage() {
 
         {/* 右：元信息 */}
         <div className="min-w-0">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">专辑 · ALBUM</p>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">{t('album.eyebrow')}</p>
           <h1 className="mt-3 font-serif text-[40px] font-black leading-[1.1] tracking-[-0.01em] text-ink text-balance lg:text-[52px]">
-            {album.name}
+            {spaceCJK(album.name)}
           </h1>
           <p className="mt-3 text-sm tracking-[0.06em] text-ink-soft">
             {album.artistId ? (
@@ -86,17 +102,13 @@ export default function AlbumDetailPage() {
                 onClick={() => navigate(`/artists/${album.artistId}`)}
                 className="border-b border-hair pb-0.5 transition-colors duration-200 hover:border-primary hover:text-primary"
               >
-                {album.artist}
+                {spaceCJK(album.artist)}
               </button>
             ) : (
               album.artist
             )}
           </p>
-          <p className="num mt-3 text-xs text-ink-faint">
-            {album.year && <>{album.year} 年 · </>}
-            {album.genre && <>{album.genre} · </>}
-            {album.songs.length} 首 · {formatDurationNatural(totalDuration)}
-          </p>
+          <p className="num mt-3 text-xs text-ink-faint">{meta}</p>
 
           {/* 操作行：文字级主操作 + 细线次操作 + 心形图标键（DESIGN §4.1） */}
           <div className="mt-7 flex items-center gap-6">
@@ -105,14 +117,14 @@ export default function AlbumDetailPage() {
               className="inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
             >
               <Play size={13} weight="fill" />
-              播放全部
+              {t('player.playAll')}
             </button>
             <button
               onClick={() => playAllShuffled(album.songs)}
               className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
             >
               <Shuffle size={14} />
-              随机播放
+              {t('player.shuffle')}
             </button>
             <button
               onClick={() => {
@@ -130,7 +142,7 @@ export default function AlbumDetailPage() {
                   ? 'border-primary text-primary'
                   : 'border-hair text-ink-soft hover:border-primary hover:text-primary'
               )}
-              aria-label={starred ? '取消收藏专辑' : '收藏专辑'}
+              aria-label={starred ? t('album.unfavorite') : t('album.favorite')}
             >
               <Heart size={17} weight={starred ? 'fill' : 'regular'} />
             </button>
@@ -142,8 +154,8 @@ export default function AlbumDetailPage() {
       <div className="mt-12">
         <div className="mb-5 flex items-center gap-8 border-b border-hair">
           {([
-            { id: 'tracks' as const, label: '曲目', tag: 'TRACKS' },
-            { id: 'notes' as const, label: '唱片说明', tag: 'LINER NOTES' },
+            { id: 'tracks' as const, label: t('album.tabTracks'), tag: 'TRACKS' },
+            { id: 'notes' as const, label: t('album.tabNotes'), tag: 'LINER NOTES' },
           ]).map(tab => (
             <button
               key={tab.id}
@@ -176,6 +188,9 @@ export default function AlbumDetailPage() {
           <LinerNotes album={album} />
         )}
       </div>
+
+      {/* 边注：内页说明是唱片公司写的，这一条是你写的 */}
+      <MarginNote target="album" targetId={album.id} className="mt-12 max-w-[38em]" />
     </div>
   )
 }

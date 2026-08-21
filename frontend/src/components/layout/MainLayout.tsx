@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import { TopBar } from './TopBar'
 import { Masthead } from './Masthead'
@@ -6,6 +6,7 @@ import { TopNav } from './TopNav'
 import { PlayerBar } from './PlayerBar'
 import { ConnectionBanner } from './ConnectionBanner'
 import { UpdatePrompt } from './UpdatePrompt'
+import { Colophon, RunningHead } from './Colophon'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ResumeOffer } from '@/components/player/ResumeOffer'
 import { MobileLayout } from './MobileLayout'
@@ -17,6 +18,12 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useSleepTimer } from '@/hooks/useSleepTimer'
 import { useQueueSync } from '@/hooks/useQueueSync'
 import { useRadioRefill } from '@/hooks/useRadioRefill'
+import { useLongTrackBookmark } from '@/hooks/useLongTrackBookmark'
+import { useDirectScrobble } from '@/hooks/useDirectScrobble'
+import { useAudioInterruptions } from '@/hooks/useAudioInterruptions'
+import { useDeepLinks } from '@/hooks/useDeepLinks'
+import { useOfflineLibraryCache } from '@/hooks/useOfflineLibraryCache'
+import { useScrollMemory } from '@/hooks/useScrollMemory'
 import { useIsMobileLayout } from '@/lib/platform'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -37,6 +44,11 @@ export default function MainLayout() {
   useSleepTimer()
   useQueueSync()
   useRadioRefill()
+  useLongTrackBookmark()
+  useDirectScrobble()
+  useAudioInterruptions()
+  useDeepLinks()
+  useOfflineLibraryCache()
 
   return (
     <>
@@ -48,6 +60,10 @@ export default function MainLayout() {
 }
 
 function DesktopLayout() {
+  const mainRef = useRef<HTMLElement>(null)
+  const getMain = useCallback(() => mainRef.current, [])
+  useScrollMemory(getMain)
+
   useEffect(() => {
     const warmup = () => {
       prefetchCommonAuthenticatedRoutes()
@@ -79,9 +95,11 @@ function DesktopLayout() {
         <TopNav />
 
         <div className="relative flex flex-1 min-h-0 overflow-hidden">
-          <main className="flex-1 overflow-y-auto min-w-0">
+          <main ref={mainRef} className="flex-1 overflow-y-auto min-w-0">
             <div className="max-w-[1180px] mx-auto px-10 pb-16 w-full">
+              <RunningHead />
               <Outlet />
+              <Colophon />
             </div>
           </main>
           <QueueDrawer />

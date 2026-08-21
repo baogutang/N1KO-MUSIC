@@ -33,6 +33,7 @@ import {
 import { resetHistoryDbForTests } from '@/services/historyDb'
 import { useSyncStore } from '@/store/syncStore'
 import { useServerStore } from '@/store/serverStore'
+import { t } from '@/i18n'
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>()
@@ -166,7 +167,8 @@ describe('上报出队', () => {
     await flushOutbox()
     expect(pendingScrobbleCount()).toBe(0)
     expect(useSyncStore.getState().token).toBeNull()
-    expect(useSyncStore.getState().lastError).toContain('过期')
+    // 文案已经进 i18n，断言比对 key 对应的译文而不是某一种语言的字面量
+    expect(useSyncStore.getState().lastError).toBe(t('sync.error.expired'))
   })
 
   it('网络故障时保留出队等待重试,不丢记录', async () => {

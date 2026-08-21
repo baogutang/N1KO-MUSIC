@@ -10,8 +10,10 @@
 import { X } from '@phosphor-icons/react'
 import { useRemoteQueueOffer } from '@/hooks/useQueueSync'
 import { formatDuration } from '@/utils/formatters'
+import { useT } from '@/i18n'
 
 export function ResumeOffer() {
+  const { t } = useT()
   const { offer, accept, dismiss } = useRemoteQueueOffer()
   if (!offer) return null
 
@@ -26,9 +28,9 @@ export function ResumeOffer() {
       className="flex items-center justify-center gap-3 border-b border-hair bg-paper-deep px-4 py-2 text-[12.5px]"
     >
       <span className="text-ink-soft">
-        在
-        <span className="text-ink-faint">{offer.changedBy ? `「${offer.changedBy}」` : '另一台设备'}</span>
-        上听到
+        {t('resume.prefix')}
+        <span className="text-ink-faint">{offer.changedBy ? `「${offer.changedBy}」` : t('resume.otherDevice')}</span>
+        {t('resume.suffix')}
         <span className="mx-1 font-serif font-semibold text-ink">{current.title}</span>
         <span className="font-num text-ink-faint">{formatDuration(offer.positionMs / 1000)}</span>
       </span>
@@ -36,12 +38,12 @@ export function ResumeOffer() {
         onClick={accept}
         className="border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary"
       >
-        继续播放
+        {t('resume.continue')}
       </button>
       <button
         onClick={dismiss}
         className="grid h-6 w-6 place-items-center rounded-full text-ink-faint transition-colors duration-200 hover:text-ink"
-        aria-label="忽略这条续播提示"
+        aria-label={t('resume.dismiss')}
       >
         <X size={12} />
       </button>

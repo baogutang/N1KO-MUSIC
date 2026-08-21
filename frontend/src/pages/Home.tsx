@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { SongList } from '@/components/music/SongList'
 import { AlbumShelf } from '@/components/music/AlbumShelf'
+import { RediscoveryShelf } from '@/components/music/RediscoveryShelf'
+import { NowPlayingOnServer } from '@/components/music/NowPlayingOnServer'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { useRecentAlbums, useArtists, queryKeys } from '@/hooks/useServerQueries'
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
@@ -18,8 +20,11 @@ import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled, playListFrom } from '@/utils/playActions'
 import type { Album, Song } from '@/api/types'
+import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 export default function HomePage() {
+  const { t } = useT()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -42,23 +47,10 @@ export default function HomePage() {
     ? getAdapter().getCoverUrl(heroAlbum.coverArt, 600)
     : undefined
 
-  // 头条说明：全部由真实数据拼成（曲目数/总时长/年份/流派），不虚构编辑文案
-  const heroLede = useMemo(() => {
-    if (!heroAlbum) return ''
-    const sentences: string[] = []
-    if (heroAlbum.songCount) {
-      sentences.push(
-        `共收录 ${heroAlbum.songCount} 首曲目` +
-          (heroAlbum.duration ? `，总时长 ${formatDuration(heroAlbum.duration)}` : '') +
-          '。'
-      )
-    }
-    const issue: string[] = []
-    if (heroAlbum.year) issue.push(`${heroAlbum.year} 年发行`)
-    if (heroAlbum.genre) issue.push(`流派 ${heroAlbum.genre}`)
-    if (issue.length) sentences.push(issue.join('，') + '。')
-    return sentences.join('')
-  }, [heroAlbum])
+  // 不 memo：几句字符串拼接本来就不值一个 memo，每次渲染直接算更简单。
+  // （useT 返回的 t 引用其实是随语言变的，放进依赖数组是有效的——
+  //  只是这里根本用不着 memo。）
+  const heroLede = buildHeroLede(heroAlbum, t)
 
   // 播放整张专辑（先查缓存再拉详情，与 AlbumCard 同一策略）
   const playAlbum = useCallback(
@@ -97,7 +89,7 @@ export default function HomePage() {
         <article className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] items-center gap-10 lg:gap-14 pt-10 pb-12 border-b border-hair">
           <div className="min-w-0">
             <p className="flex items-center gap-3.5 mb-5 text-[11px] tracking-[0.34em] text-primary">
-              本期封面 · FEATURED ALBUM
+              {t('home.featuredAlbum')}
               <span aria-hidden className="h-px w-14 bg-primary" />
             </p>
             <h1
@@ -121,12 +113,16 @@ export default function HomePage() {
                 className="inline-flex items-center gap-2.5 pb-1.5 text-[13.5px] font-semibold tracking-[0.12em] text-foreground border-b border-foreground hover:text-primary hover:border-primary transition-colors duration-200 active:scale-[0.97]"
               >
                 <span aria-hidden>▶</span>
-                播放整张专辑
+                {t('home.playWholeAlbum')}
               </button>
               {heroAlbum.songCount ? (
                 <span className="num text-[11.5px] tracking-[0.14em] text-ink-faint">
-                  {heroAlbum.songCount} 首
-                  {heroAlbum.duration ? ` · ${formatDuration(heroAlbum.duration)}` : ''}
+                  {heroAlbum.duration
+                    ? t('song.trackCountDuration', {
+                        count: heroAlbum.songCount,
+                        duration: formatDuration(heroAlbum.duration),
+                      })
+                    : t('song.trackCount', { count: heroAlbum.songCount })}
                 </span>
               ) : null}
             </div>
@@ -135,7 +131,7 @@ export default function HomePage() {
           <figure className="group w-full max-w-[300px] lg:justify-self-end">
             <button
               onClick={() => navigate(`/albums/${heroAlbum.id}`)}
-              aria-label={`查看专辑《${heroAlbum.name}》`}
+              aria-label={t('album.viewLabel', { name: heroAlbum.name })}
               className="block w-full aspect-square rounded-md overflow-hidden ring-1 ring-hair-soft shadow-float rotate-[1.5deg] transition-all duration-300 group-hover:rotate-0 group-hover:-translate-y-1.5"
             >
               <ImageWithFallback
@@ -147,8 +143,13 @@ export default function HomePage() {
               />
             </button>
             <figcaption className="mt-4 text-right text-[11px] tracking-[0.16em] text-ink-faint">
-              《{heroAlbum.name}》 · {heroAlbum.artist}
-              {heroAlbum.year ? ` · ${heroAlbum.year}` : ''}
+              {heroAlbum.year
+                ? t('album.captionWithYear', {
+                    name: heroAlbum.name,
+                    artist: heroAlbum.artist,
+                    year: heroAlbum.year,
+                  })
+                : t('album.caption', { name: heroAlbum.name, artist: heroAlbum.artist })}
             </figcaption>
           </figure>
         </article>
@@ -158,10 +159,10 @@ export default function HomePage() {
       <section aria-labelledby="home-recent">
         <div className="section-head">
           <h2 id="home-recent">
-            最近添加<small>RECENTLY ADDED</small>
+            {t('section.recentlyAdded')}<small>RECENTLY ADDED</small>
           </h2>
           <button className="more" onClick={() => navigate('/albums')}>
-            全部专辑 →
+            {t('home.allAlbums')} →
           </button>
         </div>
         {albumsLoading ? (
@@ -186,10 +187,10 @@ export default function HomePage() {
         <section aria-labelledby="home-artists">
           <div className="section-head">
             <h2 id="home-artists">
-              热门歌手<small>ARTISTS A–Z</small>
+              {t('section.topArtists')}<small>ARTISTS A–Z</small>
             </h2>
             <button className="more" onClick={() => navigate('/artists')}>
-              全部歌手 →
+              {t('home.allArtists')} →
             </button>
           </div>
           <p className="font-serif text-[20px] lg:text-[26px] font-semibold leading-[2.1]">
@@ -204,7 +205,7 @@ export default function HomePage() {
                   onClick={() => navigate(`/artists/${artist.id}`)}
                   className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                 >
-                  {artist.name}
+                  {spaceCJK(artist.name)}
                   {artist.albumCount !== undefined && (
                     <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
                       {artist.albumCount}
@@ -217,9 +218,16 @@ export default function HomePage() {
         </section>
       )}
 
+      {/* ============ 此刻 · 服务器上（多用户服务器才出现）============ */}
+      <NowPlayingOnServer />
+
       {/* ============ 服务端已算好的书架：最常播放 / 最近播放 ============ */}
-      <AlbumShelf type="frequent" label="最常播放" tag="MOST PLAYED" limit={6} />
-      <AlbumShelf type="recent" label="最近播放" tag="RECENTLY PLAYED" limit={6} />
+      {/* 重听：从自己的历史里翻出来的，放在「最常播放」之前——
+          最常播放是你已经知道的，这一栏才是你忘了的 */}
+      <RediscoveryShelf />
+
+      <AlbumShelf type="frequent" label={t('section.mostPlayed')} tag="MOST PLAYED" limit={6} />
+      <AlbumShelf type="recent" label={t('nav.history')} tag="RECENTLY PLAYED" limit={6} />
 
       {/*
         ============ 为你推荐 · 编号列表 ============
@@ -230,26 +238,28 @@ export default function HomePage() {
         <section aria-labelledby="home-for-you">
           <div className="section-head">
             <h2 id="home-for-you">
-              为你推荐<small>FOR YOU</small>
+              {t('section.forYou')}<small>FOR YOU</small>
             </h2>
             <div className="flex items-baseline gap-7">
               <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-                {randomSongs.length} 首 ·{' '}
-                {formatDuration(randomSongs.reduce((s, r) => s + r.duration, 0))}
+                {t('song.trackCountDuration', {
+                  count: randomSongs.length,
+                  duration: formatDuration(randomSongs.reduce((s, r) => s + r.duration, 0)),
+                })}
               </span>
               <button
                 className="more inline-flex items-center gap-1.5"
                 onClick={() => playAllInOrder(randomSongs, 0)}
               >
                 <Play size={12} />
-                播放全部
+                {t('player.playAll')}
               </button>
               <button
                 className="more inline-flex items-center gap-1.5"
                 onClick={() => playAllShuffled(randomSongs, 0)}
               >
                 <Shuffle size={12} />
-                随机播放
+                {t('player.shuffle')}
               </button>
               <button
                 className="more inline-flex items-center gap-1.5"
@@ -257,7 +267,7 @@ export default function HomePage() {
                 disabled={songsFetching}
               >
                 <ArrowsClockwise size={12} className={songsFetching ? 'animate-spin' : undefined} />
-                换一批
+                {t('action.newBatch')}
               </button>
             </div>
           </div>
@@ -266,6 +276,39 @@ export default function HomePage() {
       )}
     </div>
   )
+}
+
+/**
+ * 头条说明：全部由真实数据拼成（曲目数/总时长/年份/流派），不虚构编辑文案。
+ * 两句之间怎么接由 home.heroLedePair 决定——中文句号自带右侧留白，英文要一个空格。
+ */
+function buildHeroLede(
+  album: Album | null,
+  t: (key: string, vars?: Record<string, string | number>) => string
+): string {
+  if (!album) return ''
+  const sentences: string[] = []
+  if (album.songCount) {
+    sentences.push(
+      album.duration
+        ? t('home.heroTracksDuration', {
+            count: album.songCount,
+            duration: formatDuration(album.duration),
+          })
+        : t('home.heroTracks', { count: album.songCount })
+    )
+  }
+  if (album.year && album.genre) {
+    sentences.push(t('home.heroYearGenre', { year: album.year, genre: album.genre }))
+  } else if (album.year) {
+    sentences.push(t('home.heroYear', { year: album.year }))
+  } else if (album.genre) {
+    sentences.push(t('home.heroGenre', { genre: album.genre }))
+  }
+  if (sentences.length === 2) {
+    return t('home.heroLedePair', { first: sentences[0], second: sentences[1] })
+  }
+  return sentences[0] ?? ''
 }
 
 /** 最近添加编号行：mono 序号｜小封面｜衬线专辑名｜歌手｜mono 元数据｜hover 细线圆播放键 */
@@ -280,12 +323,13 @@ function RecentAlbumRow({
   onOpen: () => void
   onPlay: () => void
 }) {
+  const { t } = useT()
   const coverUrl = album.coverArt && hasAdapter()
     ? getAdapter().getCoverUrl(album.coverArt, 64)
     : undefined
 
   const meta = [
-    album.songCount ? `${album.songCount} 首` : '',
+    album.songCount ? t('song.trackCount', { count: album.songCount }) : '',
     album.year ? String(album.year) : '',
   ]
     .filter(Boolean)
@@ -318,10 +362,10 @@ function RecentAlbumRow({
           />
         </span>
         <span className="flex-1 min-w-0 font-serif text-[16px] font-semibold truncate transition-colors group-hover:text-primary">
-          {album.name}
+          {spaceCJK(album.name)}
         </span>
         <span className="hidden md:block flex-1 min-w-0 text-[13px] text-ink-soft truncate">
-          {album.artist}
+          {spaceCJK(album.artist)}
         </span>
         <span className="num flex-shrink-0 text-right text-[11.5px] text-ink-faint">{meta}</span>
         <button
@@ -329,7 +373,7 @@ function RecentAlbumRow({
             e.stopPropagation()
             onPlay()
           }}
-          aria-label={`播放专辑《${album.name}》`}
+          aria-label={t('album.playLabel', { name: album.name })}
           className="w-[30px] h-[30px] flex-shrink-0 grid place-items-center rounded-full border border-hair text-ink-soft opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary hover:border-primary hover:text-paper active:scale-[0.94]"
         >
           <Play size={11} weight="fill" />

@@ -5,6 +5,8 @@
 /**
  * 格式化时长（秒 -> mm:ss 或 h:mm:ss）
  */
+import { t } from '@/i18n'
+
 export function formatDuration(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00'
   const h = Math.floor(seconds / 3600)
@@ -40,7 +42,7 @@ export function formatDurationNatural(totalSeconds: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60)
 
   if (hours > 0) {
-    return `${hours} 小时 ${minutes} 分钟`
+    return t('duration.hoursMinutes', { hours, minutes })
   }
-  return `${minutes} 分钟`
+  return t('duration.minutes', { minutes })
 }

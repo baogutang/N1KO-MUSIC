@@ -17,6 +17,8 @@ const loaders = {
   favorites: () => import('../pages/Favorites'),
   history: () => import('../pages/History'),
   stats: () => import('../pages/Stats'),
+  issue: () => import('../pages/Issue'),
+  openLink: () => import('../pages/OpenLink'),
   settings: () => import('../pages/Settings'),
   recommendations: () => import('../pages/Recommendations'),
   songDetail: () => import('../pages/SongDetail'),
@@ -37,6 +39,8 @@ export const PlaylistDetailPage = lazy(loaders.playlistDetail)
 export const FavoritesPage = lazy(loaders.favorites)
 export const HistoryPage = lazy(loaders.history)
 export const StatsPage = lazy(loaders.stats)
+export const IssuePage = lazy(loaders.issue)
+export const OpenLinkPage = lazy(loaders.openLink)
 export const SettingsPage = lazy(loaders.settings)
 export const RecommendationsPage = lazy(loaders.recommendations)
 export const SongDetailPage = lazy(loaders.songDetail)
@@ -57,6 +61,7 @@ const routeMatchers: Array<{ test: (path: string) => boolean; key: string; loade
   { test: p => p === '/', key: 'route:home', loader: loaders.home },
   { test: p => p === '/search', key: 'route:search', loader: loaders.search },
   { test: p => p === '/library', key: 'route:library', loader: loaders.library },
+  { test: p => p === '/issue', key: 'route:issue', loader: loaders.issue },
   { test: p => p === '/recommendations', key: 'route:recommendations', loader: loaders.recommendations },
   { test: p => p === '/albums', key: 'route:albums', loader: loaders.albums },
   { test: p => /^\/albums\/[^/]+$/.test(p), key: 'route:album-detail', loader: loaders.albumDetail },

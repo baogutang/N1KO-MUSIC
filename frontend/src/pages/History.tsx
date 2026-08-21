@@ -19,6 +19,8 @@ import {
   readListeningEvents,
   type ListeningEvent,
 } from '@/services/listeningHistory'
+import { EmptyState } from '@/components/common/EmptyState'
+import { useT } from '@/i18n'
 
 /** 格式化时刻为 HH:mm（mono 展示用） */
 function formatTimeOfDay(timestamp: number): string {
@@ -33,6 +35,7 @@ function formatTimeOfDay(timestamp: number): string {
 const PAGE_SIZE = 150
 
 export default function History() {
+  const { t } = useT()
   const activeServerId = useServerStore(s => s.activeServerId)
   const [history, setHistory] = useState<ListeningEvent[]>(() =>
     activeServerId ? readListeningEvents(activeServerId) : []
@@ -96,9 +99,9 @@ export default function History() {
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
 
-    if (date.toDateString() === today.toDateString()) return '今天'
-    if (date.toDateString() === yesterday.toDateString()) return '昨天'
-    return `${m}月${d}日`
+    if (date.toDateString() === today.toDateString()) return t('history.today')
+    if (date.toDateString() === yesterday.toDateString()) return t('history.yesterday')
+    return t('history.monthDay', { month: m, day: d })
   }
 
   return (
@@ -107,16 +110,16 @@ export default function History() {
       <header className="flex items-end justify-between gap-6 border-b border-hair pb-6">
         <div>
           <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
-            最近播放
-            <span className="ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
+            {t('nav.history')}
+            <span className="latin-tag ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
               HISTORY
             </span>
           </h1>
           {history.length > 0 && (
             <p className="mt-1.5 text-sm text-ink-faint">
-              <span className="font-num">{history.length}</span> 条记录
+              {t('history.recordCount', { count: history.length })}
               {visible.length < history.length && (
-                <span> · 已显示 <span className="font-num">{visible.length}</span></span>
+                <span> · {t('history.shownCount', { count: visible.length })}</span>
               )}
             </p>
           )}
@@ -127,16 +130,16 @@ export default function History() {
             className="inline-flex flex-shrink-0 items-center gap-1.5 text-sm text-ink-soft transition-colors hover:text-destructive active:scale-[0.97]"
           >
             <Trash className="w-3.5 h-3.5" />
-            清空记录
+            {t('history.clear')}
           </button>
         )}
       </header>
 
       {history.length === 0 ? (
-        <div className="py-24 text-center">
-          <p className="font-serif text-xl font-semibold">还没有播放记录。</p>
-          <p className="mt-2 text-sm text-ink-faint">播放音乐后，最近听过的歌会记在这里。</p>
-        </div>
+        <EmptyState
+          title={t('empty.history.title')}
+          description={t('empty.history.description')}
+        />
       ) : (
         <div>
           {Object.entries(grouped).map(([dateKey, entries]) => (
@@ -202,7 +205,7 @@ export default function History() {
 
                       {/* 收听结果：只标注跳过，正常收听不加视觉噪音 */}
                       <span className="w-8 flex-shrink-0 text-right text-[11px] text-ink-faint">
-                        {entry.outcome === 'skipped' ? '跳过' : ''}
+                        {entry.outcome === 'skipped' ? t('history.skipped') : ''}
                       </span>
 
                       {/* mono 播放时间 HH:mm */}
@@ -223,7 +226,7 @@ export default function History() {
                 onClick={() => setVisibleCount(count => count + PAGE_SIZE)}
                 className="text-sm text-ink-soft underline decoration-hair underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary"
               >
-                加载更早的记录
+                {t('history.loadMore')}
               </button>
             </div>
           )}
@@ -233,12 +236,12 @@ export default function History() {
       <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>清除播放历史？</DialogTitle>
-            <DialogDescription>此操作不可撤销，当前服务器的本地播放记录将被全部删除。</DialogDescription>
+            <DialogTitle>{t('history.clearConfirmTitle')}</DialogTitle>
+            <DialogDescription>{t('history.clearConfirmDescription')}</DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setConfirmClear(false)}>取消</Button>
-            <Button variant="destructive" onClick={handleClear}>清除</Button>
+            <Button variant="outline" onClick={() => setConfirmClear(false)}>{t('action.cancel')}</Button>
+            <Button variant="destructive" onClick={handleClear}>{t('action.clear')}</Button>
           </div>
         </DialogContent>
       </Dialog>

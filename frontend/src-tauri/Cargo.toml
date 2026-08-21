@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "1.7.0"
+version = "1.8.0"
 description = "N1KO MUSIC - Modern Music Streaming Desktop App"
 authors = ["N1KO"]
 license = "MIT"
@@ -20,3 +20,5 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-single-instance = "2"
+# n1ko:// 深链接：Windows/Linux 由 single-instance 转发进来，macOS 走系统事件
+tauri-plugin-deep-link = "2"

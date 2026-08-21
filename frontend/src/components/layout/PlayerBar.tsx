@@ -28,6 +28,8 @@ import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
+import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 /** docked 外壳：上缘 1px 发丝线 + 纸面底（DESIGN §4.2） */
 const barShell = 'flex-shrink-0 border-t border-hair bg-paper'
@@ -43,6 +45,7 @@ const iconBtn =
  * 双层进度条：浅色层=缓冲进度，朱红层=播放进度
  */
 const ProgressBar = memo(function ProgressBar() {
+  const { t } = useT()
   const currentTime = usePlayerStore(s => s.currentTime)
   const duration = usePlayerStore(s => s.duration)
   const buffered = usePlayerStore(s => s.buffered)
@@ -144,7 +147,7 @@ const ProgressBar = memo(function ProgressBar() {
         onKeyDown={handleKeyDown}
         role="slider"
         tabIndex={0}
-        aria-label="播放进度"
+        aria-label={t('player.progress')}
         aria-valuemin={0}
         aria-valuemax={Math.round(safeDuration)}
         aria-valuenow={Math.round(displayTime)}
@@ -176,6 +179,7 @@ const ProgressBar = memo(function ProgressBar() {
 })
 
 export function PlayerBar() {
+  const { t } = useT()
   // 细粒度 selector：只订阅不含 currentTime/duration 的字段
   const currentSong   = usePlayerStore(s => s.currentSong)
   const isPlaying     = usePlayerStore(s => s.isPlaying)
@@ -230,10 +234,14 @@ export function PlayerBar() {
 
   const VolumeIcon = muted || volume === 0 ? SpeakerX : volume < 0.5 ? SpeakerLow : SpeakerHigh
 
+  const repeatLabel = repeatMode === 'one'
+    ? t('player.repeatOne')
+    : repeatMode === 'all' ? t('player.repeatAll') : t('player.repeatOff')
+
   if (!currentSong) {
     return (
       <div className={cn(barShell, 'h-[76px] flex items-center justify-center')}>
-        <p className="font-serif text-[15px] text-ink-faint">选择一首歌曲开始播放</p>
+        <p className="font-serif text-[15px] text-ink-faint">{t('player.selectToStart')}</p>
       </div>
     )
   }
@@ -246,7 +254,7 @@ export function PlayerBar() {
           <button
             onClick={toggleFullscreen}
             className="w-[52px] h-[52px] rounded-sm overflow-hidden ring-1 ring-border flex-shrink-0 hover:opacity-80 transition-opacity active:scale-[0.97]"
-            aria-label="打开正在播放"
+            aria-label={t('player.openNowPlaying')}
           >
             <ImageWithFallback
               src={coverUrl}
@@ -259,13 +267,22 @@ export function PlayerBar() {
             />
           </button>
 
-          <div className="min-w-0">
+          {/*
+            切歌翻页：key 换掉就重新播一次动画，新的曲目信息像纸页被翻过来。
+            transform-origin 落在左缘、perspective 给得很浅——这是一次翻页，
+            不是一个特效；幅度大了会变成 PPT 转场。
+          */}
+          <div
+            key={currentSong.id}
+            className="min-w-0 animate-page-turn motion-reduce:animate-none"
+            style={{ transformOrigin: 'left center', perspective: '640px' }}
+          >
             <p className="font-serif text-[14.5px] font-semibold text-foreground truncate hover:text-primary cursor-pointer transition-colors duration-200"
               onClick={toggleFullscreen}>
-              {currentSong.title}
+              {spaceCJK(currentSong.title)}
             </p>
             <p className="text-[11.5px] text-ink-soft truncate mt-0.5">
-              {currentSong.artist}{currentSong.album ? ` · ${currentSong.album}` : ''}
+              {spaceCJK(currentSong.artist)}{currentSong.album ? ` · ${spaceCJK(currentSong.album)}` : ''}
             </p>
           </div>
 
@@ -275,12 +292,12 @@ export function PlayerBar() {
                 onClick={handleToggleStar}
                 disabled={toggleStar.isPending}
                 className={cn(iconBtn, 'flex-shrink-0', currentSong.starred && 'text-primary')}
-                aria-label={currentSong.starred ? '取消喜欢' : '加入喜欢'}
+                aria-label={t(currentSong.starred ? 'player.unfavorite' : 'player.favorite')}
               >
                 <Heart size={17} weight={currentSong.starred ? 'fill' : 'regular'} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>{currentSong.starred ? '取消喜欢' : '加入喜欢'}</TooltipContent>
+            <TooltipContent>{t(currentSong.starred ? 'player.unfavorite' : 'player.favorite')}</TooltipContent>
           </Tooltip>
         </div>
 
@@ -292,16 +309,16 @@ export function PlayerBar() {
                 <button
                   onClick={toggleShuffle}
                   className={cn(iconBtn, shuffle && 'text-primary')}
-                  aria-label="随机播放"
+                  aria-label={t('player.shuffle')}
                   aria-pressed={shuffle}
                 >
                   <Shuffle size={16} />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>{shuffle ? '关闭随机' : '随机播放'}</TooltipContent>
+              <TooltipContent>{t(shuffle ? 'player.shuffleOff' : 'player.shuffle')}</TooltipContent>
             </Tooltip>
 
-            <button onClick={handlePrev} className={iconBtn} aria-label="上一首">
+            <button onClick={handlePrev} className={iconBtn} aria-label={t('player.previous')}>
               <SkipBack size={19} weight="fill" />
             </button>
 
@@ -309,7 +326,7 @@ export function PlayerBar() {
             <button
               onClick={togglePlay}
               className="w-10 h-10 mx-1 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:brightness-110 active:scale-95 transition-[transform,filter] duration-200"
-              aria-label={isPlaying ? '暂停' : '播放'}
+              aria-label={t(isPlaying ? 'player.pause' : 'player.play')}
             >
               {isPlaying ? (
                 <Pause size={18} weight="fill" />
@@ -318,7 +335,7 @@ export function PlayerBar() {
               )}
             </button>
 
-            <button onClick={next} className={iconBtn} aria-label="下一首">
+            <button onClick={next} className={iconBtn} aria-label={t('player.next')}>
               <SkipForward size={19} weight="fill" />
             </button>
 
@@ -327,11 +344,7 @@ export function PlayerBar() {
                 <button
                   onClick={cycleRepeatMode}
                   className={cn(iconBtn, repeatMode !== 'none' && 'text-primary')}
-                  aria-label={
-                    repeatMode === 'none' ? '循环：关闭'
-                    : repeatMode === 'all' ? '循环：列表循环'
-                    : '循环：单曲循环'
-                  }
+                  aria-label={repeatLabel}
                   aria-pressed={repeatMode !== 'none'}
                 >
                   {repeatMode === 'one' ? (
@@ -341,9 +354,7 @@ export function PlayerBar() {
                   )}
                 </button>
               </TooltipTrigger>
-              <TooltipContent>
-                {repeatMode === 'none' ? '循环关闭' : repeatMode === 'all' ? '列表循环' : '单曲循环'}
-              </TooltipContent>
+              <TooltipContent>{repeatLabel}</TooltipContent>
             </Tooltip>
           </div>
 
@@ -354,11 +365,11 @@ export function PlayerBar() {
         <div className="flex items-center justify-end gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <button onClick={toggleFullscreen} className={iconBtn} aria-label="歌词">
+              <button onClick={toggleFullscreen} className={iconBtn} aria-label={t('player.lyrics')}>
                 <MicrophoneStage size={17} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>歌词</TooltipContent>
+            <TooltipContent>{t('player.lyrics')}</TooltipContent>
           </Tooltip>
 
           <SleepTimerMenu className={iconBtn} />
@@ -368,19 +379,19 @@ export function PlayerBar() {
               <button
                 onClick={() => setQueueOpen(!isQueueOpen)}
                 className={cn(iconBtn, isQueueOpen && 'text-primary')}
-                aria-label="播放队列"
+                aria-label={t('player.queue')}
               >
                 <Queue size={17} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>播放队列</TooltipContent>
+            <TooltipContent>{t('player.queue')}</TooltipContent>
           </Tooltip>
 
           <div className="flex items-center gap-1 w-28 mx-1">
             <button
               onClick={toggleMute}
               className={cn(iconBtn, 'flex-shrink-0')}
-              aria-label="静音"
+              aria-label={t('player.mute')}
               aria-pressed={muted}
             >
               <VolumeIcon size={16} />
@@ -391,17 +402,17 @@ export function PlayerBar() {
               step={0.01}
               onValueChange={handleVolumeChange}
               className="flex-1"
-              aria-label="音量"
+              aria-label={t('player.volume')}
             />
           </div>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <button onClick={toggleFullscreen} className={iconBtn} aria-label="全屏播放">
+              <button onClick={toggleFullscreen} className={iconBtn} aria-label={t('player.fullscreen')}>
                 <ArrowsOutSimple size={16} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>全屏播放</TooltipContent>
+            <TooltipContent>{t('player.fullscreen')}</TooltipContent>
           </Tooltip>
         </div>
       </div>

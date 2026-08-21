@@ -6,6 +6,7 @@
  */
 
 import { isQualifiedListeningEvent, type ListeningEvent } from '@/services/listeningHistory'
+import { t } from '@/i18n'
 
 /** 统计时间范围：最近 N 天，或全部历史 */
 export type StatsRange = 7 | 30 | 'all'
@@ -99,7 +100,7 @@ export function computeListeningStats(
     if (song) song.count++
     else songs.set(songKey, { count: 1, value: event.song })
 
-    const artistName = event.song.artist || '未知歌手'
+    const artistName = event.song.artist || t('artist.unknown')
     const artist = artists.get(artistName)
     if (artist) artist.count++
     else artists.set(artistName, { count: 1, value: artistName })

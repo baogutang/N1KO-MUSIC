@@ -8,10 +8,12 @@
 
 import { useEffect, useState } from 'react'
 import { ArrowsClockwise, X } from '@phosphor-icons/react'
+import { useT } from '@/i18n'
 
 type UpdateFn = (reload?: boolean) => Promise<void>
 
 export function UpdatePrompt() {
+  const { t } = useT()
   const [needRefresh, setNeedRefresh] = useState(false)
   const [updateFn, setUpdateFn] = useState<UpdateFn | null>(null)
   const [updating, setUpdating] = useState(false)
@@ -43,8 +45,8 @@ export function UpdatePrompt() {
       className="flex items-center justify-center gap-3 border-b border-hair bg-paper-deep px-4 py-1.5 text-[12px] text-ink-soft"
     >
       <span>
-        有新版本可用
-        <span className="text-ink-faint">，更新后会重新载入页面</span>
+        {t('update.available')}
+        <span className="text-ink-faint">{t('update.hint')}</span>
       </span>
       <button
         onClick={() => { setUpdating(true); void updateFn?.(true) }}
@@ -52,12 +54,12 @@ export function UpdatePrompt() {
         className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary disabled:opacity-50"
       >
         <ArrowsClockwise size={11} className={updating ? 'animate-spin' : undefined} aria-hidden="true" />
-        立即更新
+        {t('update.now')}
       </button>
       <button
         onClick={() => setNeedRefresh(false)}
         className="grid h-6 w-6 place-items-center rounded-full text-ink-faint transition-colors duration-200 hover:text-ink"
-        aria-label="稍后再更新"
+        aria-label={t('update.later')}
       >
         <X size={12} />
       </button>

@@ -54,5 +54,23 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!--
+		n1ko:// 深链接。Android 那边加了 intent-filter，iOS 少了这一段，
+		系统就永远不会把 n1ko:// 交给这个 app，Capacitor 的 appUrlOpen 也就不会触发。
+		解析规则见 src/services/deepLink.ts。
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>cn.baogutang.musicstreampro</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>n1ko</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

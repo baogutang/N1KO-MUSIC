@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { prefetchRoute } from '@/routes/lazyRoutes'
+import { useT } from '@/i18n'
 
 const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
 
@@ -40,9 +41,11 @@ const iconBtn =
   'hover:text-primary transition-colors duration-200 active:scale-95'
 
 export function TopBar() {
+  const { t } = useT()
   const navigate = useNavigate()
   const { resolvedTheme, toggleTheme } = useThemeStore()
   const { username, disconnect } = useServerStore()
+  const themeLabel = resolvedTheme === 'dark' ? t('settings.theme.toLight') : t('settings.theme.toDark')
 
   return (
     <header className="h-11 flex-shrink-0 select-none" {...dragRegionProps}>
@@ -54,10 +57,10 @@ export function TopBar() {
         {...dragRegionProps}
       >
         {/* 返回 / 前进 */}
-        <button onClick={() => navigate(-1)} className={iconBtn} aria-label="返回">
+        <button onClick={() => navigate(-1)} className={iconBtn} aria-label={t('action.back')}>
           <CaretLeft size={17} />
         </button>
-        <button onClick={() => navigate(1)} className={iconBtn} aria-label="前进">
+        <button onClick={() => navigate(1)} className={iconBtn} aria-label={t('action.forward')}>
           <CaretRight size={17} />
         </button>
 
@@ -69,10 +72,10 @@ export function TopBar() {
           onMouseEnter={() => prefetchRoute('/search')}
           onFocus={() => prefetchRoute('/search')}
           className="flex items-center gap-2 h-7 px-3 mr-1 rounded-sm border border-hair text-[12px] tracking-[0.08em] text-ink-soft hover:text-foreground hover:border-ink-faint transition-colors duration-200 active:scale-[0.97]"
-          aria-label="搜索"
+          aria-label={t('nav.search')}
         >
           <MagnifyingGlass size={14} />
-          <span className="hidden md:inline">搜索</span>
+          <span className="hidden md:inline">{t('nav.search')}</span>
           <kbd className="hidden md:inline font-num text-[10px] text-ink-faint">⌘K</kbd>
         </button>
 
@@ -80,8 +83,8 @@ export function TopBar() {
         <button
           onClick={toggleTheme}
           className={iconBtn}
-          title={resolvedTheme === 'dark' ? '切换浅色模式' : '切换深色模式'}
-          aria-label={resolvedTheme === 'dark' ? '切换浅色模式' : '切换深色模式'}
+          title={themeLabel}
+          aria-label={themeLabel}
         >
           {resolvedTheme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
         </button>
@@ -91,7 +94,7 @@ export function TopBar() {
           <DropdownMenuTrigger asChild>
             <button
               className="w-7 h-7 ml-1 rounded-full border border-hair flex items-center justify-center text-ink-soft hover:text-foreground hover:border-ink-faint transition-colors duration-200 active:scale-95"
-              aria-label="用户菜单"
+              aria-label={t('nav.userMenu')}
             >
               <User size={14} />
             </button>
@@ -111,7 +114,7 @@ export function TopBar() {
               onClick={() => navigate('/settings')}
             >
               <GearSix size={16} className="mr-2" />
-              设置
+              {t('nav.settings')}
             </DropdownMenuItem>
             <DropdownMenuItem
               onMouseEnter={() => prefetchRoute('/history')}
@@ -119,12 +122,12 @@ export function TopBar() {
               onClick={() => navigate('/history')}
             >
               <ClockCounterClockwise size={16} className="mr-2" />
-              最近播放
+              {t('nav.history')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={disconnect}>
               <SignOut size={16} className="mr-2" />
-              断开连接
+              {t('settings.disconnect.action')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

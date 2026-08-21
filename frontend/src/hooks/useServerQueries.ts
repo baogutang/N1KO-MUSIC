@@ -17,10 +17,12 @@ import {
 import { getAdapter } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
+import { useLibraryScopeStore } from '@/store/libraryScopeStore'
 import { useLyricCacheStore } from '@/store/lyricCacheStore'
 import { parseLrc } from '@/hooks/useLyrics'
 import { mirrorFavorite } from '@/services/historySync'
 import type { ListParams, Lyrics, Song } from '@/api/types'
+import { t } from '@/i18n'
 
 // ===================================================
 // Query Keys - 统一管理缓存键
@@ -30,7 +32,16 @@ import type { ListParams, Lyrics, Song } from '@/api/types'
  * 所有服务器数据的缓存键均以当前激活服务器 id 作为前缀，
  * 避免切换服务器后命中上一个服务器的缓存（不同服务器的同名键/同 id 会互相污染）。
  */
-const serverKey = () => useServerStore.getState().activeServerId ?? 'no-server'
+const serverKey = () => {
+  const id = useServerStore.getState().activeServerId ?? 'no-server'
+  // 库范围参与缓存键：切库等于换一整套缓存，不会串到另一个库的内容
+  const scope = useLibraryScopeStore.getState().getScope(useServerStore.getState().activeServerId)
+  return scope ? `${id}@${scope}` : id
+}
+
+/** 当前选定的音乐库，未选时为 undefined（表示全部库） */
+const currentFolderId = () =>
+  useLibraryScopeStore.getState().getScope(useServerStore.getState().activeServerId)
 
 export const queryKeys = {
   songs: (params?: ListParams) => [serverKey(), 'songs', params] as const,
@@ -76,7 +87,7 @@ function bindCustomCoverRevokeOnQueryRemoved(queryClient: QueryClient) {
 export function useRandomSongs(size = 50) {
   return useQuery({
     queryKey: queryKeys.randomSongs(size),
-    queryFn: () => getAdapter().getRandomSongs(size),
+    queryFn: ({ signal }) => getAdapter().getRandomSongs(size, currentFolderId(), signal),
     staleTime: 5 * 60 * 1000, // 5 分钟
   })
 }
@@ -85,7 +96,7 @@ export function useRandomSongs(size = 50) {
 export function useSongs(params: ListParams = {}) {
   return useQuery({
     queryKey: [serverKey(), 'songs', 'all', params] as const,
-    queryFn: () => getAdapter().getSongs(params),
+    queryFn: ({ signal }) => getAdapter().getSongs({ musicFolderId: currentFolderId(), ...params, signal }),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -94,8 +105,8 @@ export function useSongs(params: ListParams = {}) {
 export function useSongsInfinite(size = 100) {
   return useInfiniteQuery({
     queryKey: [serverKey(), 'songs', 'infinite', size] as const,
-    queryFn: ({ pageParam = 0 }) =>
-      getAdapter().getSongs({ size, offset: pageParam as number }),
+    queryFn: ({ pageParam = 0, signal }) =>
+      getAdapter().getSongs({ size, offset: pageParam as number, musicFolderId: currentFolderId(), signal }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -339,7 +350,7 @@ export function useCustomCoverUrl(params: CustomCoverParams | null) {
 export function useAlbums(params: ListParams = {}) {
   return useQuery({
     queryKey: queryKeys.albums(params),
-    queryFn: () => getAdapter().getAlbums(params),
+    queryFn: ({ signal }) => getAdapter().getAlbums({ ...params, signal }),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -349,8 +360,8 @@ export function useAlbumsInfinite(size = 50, type = 'newest') {
   return useInfiniteQuery({
     // key 必须含 size：同一 type 不同 size 的两个书架否则会串缓存
     queryKey: [serverKey(), 'albums', 'infinite', type, size],
-    queryFn: ({ pageParam = 0 }) =>
-      getAdapter().getAlbums({ size, offset: pageParam as number, type }),
+    queryFn: ({ pageParam = 0, signal }) =>
+      getAdapter().getAlbums({ size, offset: pageParam as number, type, musicFolderId: currentFolderId(), signal }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -367,7 +378,7 @@ export function useAlbumsInfinite(size = 50, type = 'newest') {
 export function useAlbumShelf(type: AlbumShelfType, size = 12) {
   return useQuery({
     queryKey: [serverKey(), 'albums', 'shelf', type, size] as const,
-    queryFn: () => getAdapter().getAlbums({ type, size }),
+    queryFn: ({ signal }) => getAdapter().getAlbums({ type, size, musicFolderId: currentFolderId(), signal }),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -378,7 +389,7 @@ export function useLibraryScan() {
   return useMutation({
     mutationFn: async () => {
       const adapter = getAdapter()
-      if (!adapter.startScan) throw new Error('该服务器不支持从客户端触发扫描')
+      if (!adapter.startScan) throw new Error(t('error.scanUnsupported'))
       await adapter.startScan()
       // 轮询到扫描结束，最多等 5 分钟
       const deadline = Date.now() + 5 * 60_000
@@ -405,7 +416,7 @@ export function useSetRating() {
       id: string; rating: number; type?: 'song' | 'album'
     }) => {
       const adapter = getAdapter()
-      if (!adapter.setRating) throw new Error('该服务器不支持评分')
+      if (!adapter.setRating) throw new Error(t('error.ratingUnsupported'))
       await adapter.setRating(id, rating, type)
     },
     onSuccess: (_data, variables) => {
@@ -421,7 +432,7 @@ export function useSetRating() {
 export function useAlbumDetail(albumId: string) {
   return useQuery({
     queryKey: queryKeys.albumDetail(albumId),
-    queryFn: () => getAdapter().getAlbumDetail(albumId),
+    queryFn: ({ signal }) => getAdapter().getAlbumDetail(albumId, signal),
     enabled: !!albumId,
     staleTime: 10 * 60 * 1000,
   })
@@ -431,7 +442,7 @@ export function useAlbumDetail(albumId: string) {
 export function useRecentAlbums(size = 20) {
   return useQuery({
     queryKey: queryKeys.recentAlbums(size),
-    queryFn: () => getAdapter().getRecentAlbums(size),
+    queryFn: ({ signal }) => getAdapter().getRecentAlbums(size, signal),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -444,7 +455,7 @@ export function useRecentAlbums(size = 20) {
 export function useArtists() {
   return useQuery({
     queryKey: queryKeys.artists(),
-    queryFn: () => getAdapter().getArtists(),
+    queryFn: ({ signal }) => getAdapter().getArtists(currentFolderId(), signal),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -453,7 +464,7 @@ export function useArtists() {
 export function useArtistDetail(artistId: string) {
   return useQuery({
     queryKey: queryKeys.artistDetail(artistId),
-    queryFn: () => getAdapter().getArtistDetail(artistId),
+    queryFn: ({ signal }) => getAdapter().getArtistDetail(artistId, signal),
     enabled: !!artistId,
     staleTime: 10 * 60 * 1000,
   })
@@ -467,7 +478,7 @@ export function useArtistDetail(artistId: string) {
 export function usePlaylists() {
   return useQuery({
     queryKey: queryKeys.playlists(),
-    queryFn: () => getAdapter().getPlaylists(),
+    queryFn: ({ signal }) => getAdapter().getPlaylists(signal),
     staleTime: 3 * 60 * 1000,
   })
 }
@@ -476,7 +487,7 @@ export function usePlaylists() {
 export function usePlaylistDetail(playlistId: string) {
   return useQuery({
     queryKey: queryKeys.playlistDetail(playlistId),
-    queryFn: () => getAdapter().getPlaylistDetail(playlistId),
+    queryFn: ({ signal }) => getAdapter().getPlaylistDetail(playlistId, signal),
     enabled: !!playlistId,
     staleTime: 3 * 60 * 1000,
   })
@@ -525,7 +536,7 @@ export function useAddToPlaylist() {
 export function useStarred() {
   return useQuery({
     queryKey: queryKeys.starred(),
-    queryFn: () => getAdapter().getStarred(),
+    queryFn: ({ signal }) => getAdapter().getStarred(signal),
     staleTime: 3 * 60 * 1000,
   })
 }
@@ -608,12 +619,6 @@ export type AlbumShelfType =
   | 'newest' | 'recent' | 'frequent' | 'highest' | 'starred'
   | 'random' | 'byYear' | 'alphabeticalByName' | 'alphabeticalByArtist'
 
-export const ALBUM_SHELVES: Array<{ type: AlbumShelfType; label: string; tag: string }> = [
-  { type: 'frequent', label: '最常播放', tag: 'MOST PLAYED' },
-  { type: 'recent', label: '最近播放', tag: 'RECENTLY PLAYED' },
-  { type: 'highest', label: '评分最高', tag: 'TOP RATED' },
-  { type: 'starred', label: '已收藏', tag: 'STARRED' },
-]
 
 /**
  * 就地把所有缓存里该 id 的 starred 标记改掉。
@@ -659,7 +664,7 @@ function patchStarredInCache(
 export function useGenres() {
   return useQuery({
     queryKey: queryKeys.genres(),
-    queryFn: () => getAdapter().getGenres(),
+    queryFn: ({ signal }) => getAdapter().getGenres(signal),
     staleTime: 30 * 60 * 1000,
   })
 }

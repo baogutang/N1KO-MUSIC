@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, MusicNote, DotsThree, Trash, Play, Shuffle } from '@phosphor-icons/react'
+import { Plus, MusicNote, DotsThree, Trash, Play, Shuffle, UploadSimple } from '@phosphor-icons/react'
 import { usePlaylists, useDeletePlaylist, queryKeys } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { useQueryClient } from '@tanstack/react-query'
@@ -15,13 +15,19 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { spaceCJK } from '@/utils/cjkTypography'
+import { ImportPlaylistDialog } from '@/components/music/ImportPlaylistDialog'
+import { EmptyState } from '@/components/common/EmptyState'
+import { useT } from '@/i18n'
 
 export default function Playlists() {
+  const { t } = useT()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: playlists, isLoading } = usePlaylists()
   const deletePlaylist = useDeletePlaylist()
   const [showCreate, setShowCreate] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
@@ -33,11 +39,11 @@ export default function Playlists() {
       const adapter = getAdapter()
       await adapter.createPlaylist(newName.trim())
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
-      toast({ title: `歌单"${newName}"已创建` })
+      toast({ title: t('playlist.created', { name: newName }) })
       setShowCreate(false)
       setNewName('')
     } catch {
-      toast({ title: '创建失败', variant: 'destructive' })
+      toast({ title: t('playlist.createFailed'), variant: 'destructive' })
     } finally {
       setCreating(false)
     }
@@ -48,7 +54,7 @@ export default function Playlists() {
     try {
       const detail = await getAdapter().getPlaylistDetail(playlistId)
       if (!detail?.songs?.length) {
-        toast({ title: '歌单为空' })
+        toast({ title: t('playlist.emptyToast') })
         return
       }
       if (randomPlay) {
@@ -57,7 +63,7 @@ export default function Playlists() {
         playAllInOrder(detail.songs, 0)
       }
     } catch {
-      toast({ title: '加载歌单失败', variant: 'destructive' })
+      toast({ title: t('playlist.loadFailed'), variant: 'destructive' })
     }
   }
 
@@ -65,9 +71,9 @@ export default function Playlists() {
     if (!deleteTarget) return
     try {
       await deletePlaylist.mutateAsync(deleteTarget.id)
-      toast({ title: `歌单"${deleteTarget.name}"已删除` })
+      toast({ title: t('playlist.deleted', { name: deleteTarget.name }) })
     } catch {
-      toast({ title: '删除失败', variant: 'destructive' })
+      toast({ title: t('playlist.deleteFailed'), variant: 'destructive' })
     } finally {
       setDeleteTarget(null)
     }
@@ -79,24 +85,33 @@ export default function Playlists() {
       <header className="flex items-end justify-between gap-6 border-b border-hair pb-6">
         <div>
           <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
-            歌单
-            <span className="ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
+            {t('nav.playlists')}
+            <span className="latin-tag ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
               PLAYLISTS
             </span>
           </h1>
           {!isLoading && (
-            <p className="mt-1.5 text-sm text-ink-faint">
-              <span className="font-num">{playlists?.length ?? 0}</span> 个歌单
+            <p className="mt-1.5 font-num text-sm text-ink-faint">
+              {t('playlist.count', { count: playlists?.length ?? 0 })}
             </p>
           )}
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex flex-shrink-0 items-center gap-2 text-sm font-semibold text-foreground underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          新建歌单
-        </button>
+        <div className="flex flex-shrink-0 items-center gap-6">
+          <button
+            onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 text-sm text-ink-soft transition-colors hover:text-primary active:scale-[0.97]"
+          >
+            <UploadSimple className="w-3.5 h-3.5" />
+            {t('action.import')}
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-foreground underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {t('empty.playlists.action')}
+          </button>
+        </div>
       </header>
 
       {/* 歌单封面墙：去卡片盒，封面即内容（DESIGN v2 §3） */}
@@ -111,17 +126,11 @@ export default function Playlists() {
           ))}
         </div>
       ) : !playlists?.length ? (
-        <div className="py-24 text-center">
-          <p className="font-serif text-xl font-semibold">这一页还空着。</p>
-          <p className="mt-2 text-sm text-ink-faint">创建第一个歌单，把喜欢的歌收进来。</p>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="mt-6 inline-flex items-center gap-2 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            新建歌单
-          </button>
-        </div>
+        <EmptyState
+          title={t('empty.playlists.title')}
+          description={t('empty.playlists.description')}
+          action={{ label: t('empty.playlists.action'), onClick: () => setShowCreate(true) }}
+        />
       ) : (
         <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
           {playlists.map(pl => (
@@ -149,16 +158,16 @@ export default function Playlists() {
                 <div className="absolute right-2.5 bottom-2.5 flex items-center gap-2 opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
                   <button
                     onClick={(e) => handlePlayPlaylist(pl.id, true, e)}
-                    title="随机播放"
-                    aria-label="随机播放"
+                    title={t('player.shuffle')}
+                    aria-label={t('player.shuffle')}
                     className="w-8 h-8 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
                   >
                     <Shuffle className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={(e) => handlePlayPlaylist(pl.id, false, e)}
-                    title="播放全部"
-                    aria-label="播放全部"
+                    title={t('player.playAll')}
+                    aria-label={t('player.playAll')}
                     className="w-9 h-9 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
                   >
                     <Play className="w-3.5 h-3.5 ml-px" weight="fill" />
@@ -172,20 +181,31 @@ export default function Playlists() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        aria-label="更多操作"
+                        aria-label={t('action.more')}
                         className="w-7 h-7 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
                       >
                         <DotsThree className="w-4 h-4" weight="bold" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="text-destructive gap-2"
-                        onClick={() => setDeleteTarget({ id: pl.id, name: pl.name })}
-                      >
-                        <Trash className="w-4 h-4" />
-                        删除歌单
-                      </DropdownMenuItem>
+                      {pl.readonly ? (
+                        // 智能歌单由服务器按规则生成，删除/编辑在它上面是无效操作，
+                        // 与其让用户点了没反应，不如说明它是什么
+                        <div className="px-3 py-2 max-w-[13rem]">
+                          <p className="font-serif text-sm font-semibold">{t('playlist.smart')}</p>
+                          <p className="mt-1 text-xs text-ink-faint">
+                            {t('playlist.smartHint')}
+                          </p>
+                        </div>
+                      ) : (
+                        <DropdownMenuItem
+                          className="text-destructive gap-2"
+                          onClick={() => setDeleteTarget({ id: pl.id, name: pl.name })}
+                        >
+                          <Trash className="w-4 h-4" />
+                          {t('playlist.delete')}
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -194,13 +214,16 @@ export default function Playlists() {
               {/* 图注：衬线歌单名 + mono 小字曲目数 */}
               <div className="min-w-0 px-0.5">
                 <p className="font-serif font-semibold text-[15px] leading-snug truncate transition-colors group-hover:text-primary">
-                  {pl.name}
+                  {spaceCJK(pl.name)}
                 </p>
-                {pl.songCount !== undefined && (
-                  <p className="mt-0.5 text-xs text-ink-faint">
-                    <span className="font-num">{pl.songCount}</span> 首
-                  </p>
-                )}
+                <p className="mt-0.5 flex items-baseline gap-2 text-xs text-ink-faint">
+                  {pl.songCount !== undefined && (
+                    <span className="font-num">{t('song.count', { count: pl.songCount })}</span>
+                  )}
+                  {pl.readonly && (
+                    <span className="text-[10.5px] tracking-[0.14em] text-primary">{t('playlist.smartBadge')}</span>
+                  )}
+                </p>
               </div>
             </div>
           ))}
@@ -211,20 +234,20 @@ export default function Playlists() {
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>新建歌单</DialogTitle>
+            <DialogTitle>{t('empty.playlists.action')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <Input
-              placeholder="歌单名称"
+              placeholder={t('playlist.namePlaceholder')}
               value={newName}
               onChange={e => setNewName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreate()}
               autoFocus
             />
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
+              <Button variant="outline" onClick={() => setShowCreate(false)}>{t('action.cancel')}</Button>
               <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
-                {creating ? '创建中...' : '创建'}
+                {creating ? t('action.creating') : t('action.create')}
               </Button>
             </div>
           </div>
@@ -235,23 +258,25 @@ export default function Playlists() {
       <Dialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null) }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>删除歌单？</DialogTitle>
+            <DialogTitle>{t('playlist.deleteConfirmTitle')}</DialogTitle>
             <DialogDescription>
-              歌单"{deleteTarget?.name}"将被删除，此操作无法撤销。
+              {t('playlist.deleteConfirmDesc', { name: deleteTarget?.name ?? '' })}
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>取消</Button>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>{t('action.cancel')}</Button>
             <Button
               variant="destructive"
               onClick={handleDelete}
               disabled={deletePlaylist.isPending}
             >
-              {deletePlaylist.isPending ? '删除中...' : '删除'}
+              {deletePlaylist.isPending ? t('action.deleting') : t('action.delete')}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <ImportPlaylistDialog open={showImport} onOpenChange={setShowImport} />
     </div>
   )
 }

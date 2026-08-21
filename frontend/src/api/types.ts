@@ -173,6 +173,12 @@ export interface Artist {
   artistImageUrl?: string
   starred?: boolean
   serverId?: string
+  /**
+   * 服务端给出的索引字母（A–Z / # / 拼音首字母）。
+   * 排序规则归服务端管——Navidrome 有 sortName、忽略冠词表，中文库还按拼音
+   * 归位；在前端另算一套只会和列表顺序打架，也永远追不上服务端的本地化。
+   */
+  sortIndex?: string
 }
 
 /** 歌手详情（含专辑列表）*/
@@ -206,6 +212,13 @@ export interface Playlist {
   created?: string
   changed?: string
   serverId?: string
+  /**
+   * Navidrome 的智能歌单会带 readonly:true 一起返回，长得和普通歌单一模一样。
+   * 不标出来的话，用户对它做的编辑操作会静默失效。
+   */
+  readonly?: boolean
+  /** 智能歌单的缓存有效期 */
+  validUntil?: string
 }
 
 /** 歌单详情（含歌曲列表）*/
@@ -279,6 +292,16 @@ export interface ListParams {
   genre?: string
   fromYear?: number
   toYear?: number
+  /** 限定到某个音乐库（多库服务器）。缺省表示全部库。 */
+  musicFolderId?: string
+  /**
+   * 取消信号，由 React Query 的 queryFn 提供。
+   *
+   * 此前只有搜索接得住它，别处一律接不住：翻两页专辑、连点几个歌手、
+   * 在弱网下切走再切回来，在途请求全都还在跑，既占着连接又可能让
+   * 后到的旧响应盖掉新结果。
+   */
+  signal?: AbortSignal
 }
 
 export interface PageResult<T> {
@@ -330,17 +353,17 @@ export interface MusicServerAdapter {
 
   // --- 专辑 ---
   getAlbums(params?: ListParams): Promise<PageResult<Album>>
-  getAlbumDetail(albumId: string): Promise<AlbumDetail>
-  getRecentAlbums(size?: number): Promise<Album[]>
-  getRandomSongs(size?: number): Promise<Song[]>
+  getAlbumDetail(albumId: string, signal?: AbortSignal): Promise<AlbumDetail>
+  getRecentAlbums(size?: number, signal?: AbortSignal): Promise<Album[]>
+  getRandomSongs(size?: number, musicFolderId?: string, signal?: AbortSignal): Promise<Song[]>
 
   // --- 歌手 ---
-  getArtists(): Promise<Artist[]>
-  getArtistDetail(artistId: string): Promise<ArtistDetail>
+  getArtists(musicFolderId?: string, signal?: AbortSignal): Promise<Artist[]>
+  getArtistDetail(artistId: string, signal?: AbortSignal): Promise<ArtistDetail>
 
   // --- 歌单 ---
-  getPlaylists(): Promise<Playlist[]>
-  getPlaylistDetail(playlistId: string): Promise<PlaylistDetail>
+  getPlaylists(signal?: AbortSignal): Promise<Playlist[]>
+  getPlaylistDetail(playlistId: string, signal?: AbortSignal): Promise<PlaylistDetail>
   createPlaylist(name: string, songIds?: string[]): Promise<Playlist>
   updatePlaylist(playlistId: string, name?: string, comment?: string): Promise<void>
   deletePlaylist(playlistId: string): Promise<void>
@@ -348,7 +371,7 @@ export interface MusicServerAdapter {
   removeSongsFromPlaylist(playlistId: string, songIndexes: number[]): Promise<void>
 
   // --- 收藏 ---
-  getStarred(): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }>
+  getStarred(signal?: AbortSignal): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }>
   star(id: string, type: 'song' | 'album' | 'artist'): Promise<void>
   unstar(id: string, type: 'song' | 'album' | 'artist'): Promise<void>
 
@@ -360,7 +383,7 @@ export interface MusicServerAdapter {
   getCoverUrl(id: string, size?: number): string
 
   // --- 流派 ---
-  getGenres(): Promise<Array<{ name: string; songCount: number; albumCount: number }>>
+  getGenres(signal?: AbortSignal): Promise<Array<{ name: string; songCount: number; albumCount: number }>>
 
   // --- 定向候选（个性化推荐用）---
   // 这三项用于按用户画像拉取候选曲目，而不是只对随机曲目重排序。
@@ -393,7 +416,7 @@ export interface MusicServerAdapter {
   setRating?(id: string, rating: number, type?: 'song' | 'album'): Promise<void>
 
   /** 专辑说明 / 乐评 */
-  getAlbumInfo?(albumId: string): Promise<{ notes?: string; musicBrainzId?: string; externalUrl?: string } | null>
+  getAlbumInfo?(albumId: string, signal?: AbortSignal): Promise<{ notes?: string; musicBrainzId?: string; externalUrl?: string } | null>
 
   /** 多音乐库：把整个 App 限定到某一个库 */
   getMusicFolders?(): Promise<Array<{ id: string; name: string }>>

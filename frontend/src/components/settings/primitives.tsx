@@ -19,7 +19,7 @@ export function Section({
     <section className="pt-12 first:pt-8">
       <div className="flex items-baseline justify-between border-b border-hair pb-3">
         <h2 className="font-serif text-[22px] font-semibold">{title}</h2>
-        {tag && <span className="text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>}
+        {tag && <span className="latin-tag text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>}
       </div>
       <div>{children}</div>
     </section>

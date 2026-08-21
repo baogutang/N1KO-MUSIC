@@ -5,10 +5,13 @@ import { useStarred } from '@/hooks/useServerQueries'
 import { playAllInOrder } from '@/utils/playActions'
 import { SongList } from '@/components/music/SongList'
 import { AlbumCard } from '@/components/music/AlbumCard'
+import { EmptyState } from '@/components/common/EmptyState'
+import { useT } from '@/i18n'
 
 type FavTab = 'songs' | 'albums'
 
 export default function Favorites() {
+  const { t } = useT()
   const [tab, setTab] = useState<FavTab>('songs')
   const { data: starred, isLoading } = useStarred()
   const songs = starred?.songs ?? []
@@ -43,15 +46,13 @@ export default function Favorites() {
       <header className="flex items-end justify-between gap-6 border-b border-hair pb-6">
         <div>
           <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
-            我喜欢的音乐
-            <span className="ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
+            {t('library.favoritesTitle')}
+            <span className="latin-tag ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
               FAVORITES
             </span>
           </h1>
-          <p className="mt-1.5 text-sm text-ink-faint">
-            <span className="font-num">{songs.length}</span> 首歌
-            <span className="mx-1.5 text-ink-faint/60">·</span>
-            <span className="font-num">{albums.length}</span> 张专辑
+          <p className="mt-1.5 font-num text-sm text-ink-faint">
+            {t('library.favoritesCounts', { songs: songs.length, albums: albums.length })}
           </p>
         </div>
         {songs.length > 0 && (
@@ -60,7 +61,7 @@ export default function Favorites() {
             className="inline-flex flex-shrink-0 items-center gap-2 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
           >
             <Play className="w-3.5 h-3.5" weight="fill" />
-            播放全部
+            {t('player.playAll')}
           </button>
         )}
       </header>
@@ -76,7 +77,7 @@ export default function Favorites() {
               : 'text-ink-soft hover:text-foreground'
           )}
         >
-          歌曲
+          {t('library.songs')}
           <span className="ml-1.5 font-num text-xs text-ink-faint">{songs.length}</span>
         </button>
         <button
@@ -88,17 +89,18 @@ export default function Favorites() {
               : 'text-ink-soft hover:text-foreground'
           )}
         >
-          专辑
+          {t('library.albums')}
           <span className="ml-1.5 font-num text-xs text-ink-faint">{albums.length}</span>
         </button>
       </div>
 
       {tab === 'songs' && (
         songs.length === 0 ? (
-          <div className="border-t border-hair py-20 text-center">
-            <p className="font-serif text-xl font-semibold">还没有收藏的歌曲。</p>
-            <p className="mt-2 text-sm text-ink-faint">在歌曲行点击心形图标，把喜欢的歌收进来。</p>
-          </div>
+          <EmptyState
+            ruled
+            title={t('empty.favoriteSongs.title')}
+            description={t('empty.favoriteSongs.description')}
+          />
         ) : (
           <SongList songs={songs} showAlbum />
         )
@@ -106,10 +108,11 @@ export default function Favorites() {
 
       {tab === 'albums' && (
         albums.length === 0 ? (
-          <div className="border-t border-hair py-20 text-center">
-            <p className="font-serif text-xl font-semibold">还没有收藏的专辑。</p>
-            <p className="mt-2 text-sm text-ink-faint">在专辑页点击心形图标，收藏整张专辑。</p>
-          </div>
+          <EmptyState
+            ruled
+            title={t('empty.favoriteAlbums.title')}
+            description={t('empty.favoriteAlbums.description')}
+          />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
             {albums.map(album => (

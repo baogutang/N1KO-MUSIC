@@ -333,6 +333,17 @@ body {
     letter-spacing: 0.02em;
   }
 
+  /*
+    拉丁小标签是**中文界面**的双语报头排印：中文大标题旁边一串拉丁字，
+    是这套设计的语汇之一。但在英文界面下它会变成「Top songs TOP SONGS」——
+    同一句话说两遍，既不是排印也不是信息。
+    因此非中文语种下整体隐藏，由 <html lang> 决定。
+  */
+  html:not([lang^='zh']) .section-head h2 small,
+  html:not([lang^='zh']) .latin-tag {
+    display: none;
+  }
+
   .section-head h2 small {
     font-family: var(--font-sans);
     font-weight: 400;

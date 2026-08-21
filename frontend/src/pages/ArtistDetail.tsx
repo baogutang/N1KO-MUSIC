@@ -4,15 +4,21 @@
  * 分区：热门歌曲 Top5 / 全部歌曲（默认 20，可展开）/ 专辑封面墙 / 相似歌手文字索引行
  */
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Play, Shuffle, CaretDown, CaretUp, MicrophoneStage } from '@phosphor-icons/react'
-import { AlbumCard } from '@/components/music/AlbumCard'
+import { DiscographyRail, type ArtistMarginalia } from '@/components/music/DiscographyRail'
+import { MarginNote } from '@/components/music/MarginNote'
+import { ArtistDossier } from '@/components/music/ArtistDossier'
 import { SongList } from '@/components/music/SongList'
 import { useArtistDetail } from '@/hooks/useServerQueries'
 import { getAdapter, hasAdapter } from '@/api'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { useServerStore } from '@/store/serverStore'
+import { isQualifiedListeningEvent, readListeningEvents } from '@/services/listeningHistory'
 import { cn } from '@/lib/utils'
+import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 /** 全部歌曲默认展示数量 */
 const SONGS_INITIAL_SHOW = 20
@@ -20,6 +26,7 @@ const SONGS_INITIAL_SHOW = 20
 const TOP_SONGS_SHOW = 5
 
 export default function ArtistDetailPage() {
+  const { t } = useT()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: artist, isLoading } = useArtistDetail(id ?? '')
@@ -31,6 +38,46 @@ export default function ArtistDetailPage() {
   useEffect(() => {
     setImgError(false)
   }, [artist?.id])
+
+  /**
+   * 页边注：你自己与这位歌手的关系。
+   * 全部来自本地收听历史，不需要任何额外请求。
+   */
+  const serverId = useServerStore(st => st.activeServerId)
+  const marginalia: ArtistMarginalia | undefined = useMemo(() => {
+    if (!artist?.name || !serverId) return undefined
+    const key = artist.name.trim().toLocaleLowerCase()
+    const events = readListeningEvents(serverId)
+      .filter(e => (e.song.artist ?? '').trim().toLocaleLowerCase() === key)
+    if (!events.length) return undefined
+
+    const qualified = events.filter(isQualifiedListeningEvent)
+    const albumCounts = new Map<string, number>()
+    for (const e of qualified) {
+      if (!e.song.album) continue
+      albumCounts.set(e.song.album, (albumCounts.get(e.song.album) ?? 0) + 1)
+    }
+    const favourite = Array.from(albumCounts.entries()).sort((a, b) => b[1] - a[1])[0]
+    const playedAlbums = new Set(qualified.map(e => e.song.albumId ?? e.song.album))
+
+    return {
+      firstHeardAt: Math.min(...events.map(e => e.endedAt)),
+      lastHeardAt: Math.max(...events.map(e => e.endedAt)),
+      plays: qualified.length,
+      favouriteAlbum: favourite?.[0],
+      neverPlayedAlbums: (artist.albums ?? [])
+        .filter(a => !playedAlbums.has(a.id) && !playedAlbums.has(a.name)).length,
+    }
+  }, [artist?.name, artist?.albums, serverId])
+
+  const handlePlayAlbum = useCallback(async (album: { id: string }) => {
+    try {
+      const detail = await getAdapter().getAlbumDetail(album.id)
+      if (detail.songs.length) playAllInOrder(detail.songs)
+    } catch {
+      // 拉取失败时不做任何事；用户可以点进专辑页再播
+    }
+  }, [])
 
   const serverImageUrl = artist?.artistImageUrl ||
     (artist?.coverArt && hasAdapter() ? getAdapter().getCoverUrl(artist.coverArt, 300) : undefined)
@@ -85,9 +132,9 @@ export default function ArtistDetailPage() {
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">歌手 · ARTIST</p>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">{t('artist.eyebrow')}</p>
           <h1 className="mt-3 font-serif text-4xl font-black tracking-[-0.01em] text-ink text-balance lg:text-5xl">
-            {artist.name}
+            {spaceCJK(artist.name)}
           </h1>
           {artist.biography && (
             <div className="mt-4 max-w-[34em]">
@@ -98,7 +145,7 @@ export default function ArtistDetailPage() {
                 onClick={() => setBioExpanded(v => !v)}
                 className="mt-2 text-xs tracking-[0.14em] text-ink-faint transition-colors duration-200 hover:text-primary"
               >
-                {bioExpanded ? '收起 ↑' : '展开 ↓'}
+                {bioExpanded ? `${t('action.collapse')} ↑` : `${t('action.expand')} ↓`}
               </button>
             </div>
           )}
@@ -109,7 +156,7 @@ export default function ArtistDetailPage() {
                 className="inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
               >
                 <Play size={13} weight="fill" />
-                播放全部
+                {t('player.playAll')}
               </button>
             )}
             {playableSongs.length > 0 && (
@@ -118,7 +165,7 @@ export default function ArtistDetailPage() {
                 className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
               >
                 <Shuffle size={14} />
-                随机播放
+                {t('player.shuffle')}
               </button>
             )}
           </div>
@@ -129,7 +176,7 @@ export default function ArtistDetailPage() {
       {topSongs.length > 0 && (
         <section>
           <div className="section-head">
-            <h2>热门歌曲<small>TOP SONGS</small></h2>
+            <h2>{t('section.topSongs')}<small>TOP SONGS</small></h2>
           </div>
           <SongList songs={topSongs.slice(0, TOP_SONGS_SHOW)} showCover showAlbum showIndex />
         </section>
@@ -139,8 +186,8 @@ export default function ArtistDetailPage() {
       {allSongs.length > 0 && (
         <section>
           <div className="section-head">
-            <h2>全部歌曲<small>ALL SONGS</small></h2>
-            <span className="more num">共 {allSongs.length} 首</span>
+            <h2>{t('section.allSongs')}<small>ALL SONGS</small></h2>
+            <span className="more num">{t('song.trackTotal', { count: allSongs.length })}</span>
           </div>
           <SongList songs={displayedSongs} showCover showAlbum showIndex />
           {hasMoreSongs && (
@@ -150,9 +197,9 @@ export default function ArtistDetailPage() {
                 className="inline-flex items-center gap-2 rounded border border-hair px-4 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
               >
                 {showAllSongs ? (
-                  <>收起 <CaretUp size={13} /></>
+                  <>{t('action.collapse')} <CaretUp size={13} /></>
                 ) : (
-                  <>查看全部 <span className="num">{allSongs.length}</span> 首 <CaretDown size={13} /></>
+                  <>{t('artist.showAllSongs', { count: allSongs.length })} <CaretDown size={13} /></>
                 )}
               </button>
             </div>
@@ -160,31 +207,34 @@ export default function ArtistDetailPage() {
         </section>
       )}
 
-      {/* 专辑封面墙 */}
-      {artist.albums.length > 0 && (
-        <section>
-          <div className="section-head">
-            <h2>专辑<small>ALBUMS</small></h2>
-            <span className="more num">共 {artist.albums.length} 张</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-5 gap-y-7 [&>*]:min-w-0">
-            {artist.albums.map(album => (
-              <AlbumCard key={album.id} album={album} />
-            ))}
-          </div>
-        </section>
-      )}
+      {/*
+        唱片目录：年份轨 + 你自己的历史作页边注。
+        此前这里是一片 xl:grid-cols-6 的封面墙——恰恰是设计契约想避免的东西
+        （卡片堆叠 + 大面积重复色块），却留在最该体现「生涯」的那一页上。
+      */}
+      <DiscographyRail
+        albums={artist.albums}
+        marginalia={marginalia}
+        onPlayAlbum={handlePlayAlbum}
+      />
+
+      {/* 档案：曲库标签里没有的那部分。默认关闭，见设置「歌手档案」 */}
+      <ArtistDossier musicBrainzId={artist.musicBrainzId} className="mt-12" />
+
+      {/* 你自己写的那一条，和上面「你与这位歌手」的自动统计并置：
+          一边是行为算出来的，一边是你亲手写的 */}
+      <MarginNote target="artist" targetId={artist.id} className="mt-10 max-w-[38em]" />
 
       {/* 相似歌手：文字索引行（逗号分隔链接） */}
       {artist.similarArtists && artist.similarArtists.length > 0 && (
         <section className="pb-4">
           <div className="section-head">
-            <h2>相似歌手<small>SIMILAR ARTISTS</small></h2>
+            <h2>{t('section.similarArtists')}<small>SIMILAR ARTISTS</small></h2>
           </div>
           <p className="font-serif text-lg leading-[2.2] md:text-xl">
             {artist.similarArtists.map((similar, i) => (
               <Fragment key={similar.id}>
-                {i > 0 && <span className="text-ink-faint">，</span>}
+                {i > 0 && <span className="text-ink-faint">{t('artist.listSeparator')}</span>}
                 <button
                   onClick={() => navigate(`/artists/${similar.id}`)}
                   className="border-b border-transparent transition-colors duration-200 hover:border-primary hover:text-primary"

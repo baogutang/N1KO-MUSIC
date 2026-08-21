@@ -8,7 +8,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   House, Books, UsersThree, Playlist, DotsThree,
-  Sparkle, Heart, ChartBar, ClockCounterClockwise,
+  Sparkle, Heart, ChartBar, ClockCounterClockwise, Newspaper, SteeringWheel,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import {
@@ -18,32 +18,37 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { prefetchRoute } from '@/routes/lazyRoutes'
+import { usePlayerStore } from '@/store/playerStore'
+import { useT } from '@/i18n'
 
 const tabs = [
-  { to: '/', label: '首页', icon: House },
-  { to: '/library', label: '音乐库', icon: Books },
-  { to: '/artists', label: '歌手', icon: UsersThree },
-  { to: '/playlists', label: '歌单', icon: Playlist },
+  { to: '/', labelKey: 'nav.home', icon: House },
+  { to: '/library', labelKey: 'nav.library', icon: Books },
+  { to: '/artists', labelKey: 'nav.artists', icon: UsersThree },
+  { to: '/playlists', labelKey: 'nav.playlists', icon: Playlist },
 ]
 
 const moreItems = [
-  { to: '/recommendations', label: '推荐', icon: Sparkle },
-  { to: '/favorites', label: '收藏', icon: Heart },
-  { to: '/stats', label: '统计', icon: ChartBar },
-  { to: '/history', label: '最近播放', icon: ClockCounterClockwise },
+  { to: '/recommendations', labelKey: 'nav.recommendations', icon: Sparkle },
+  { to: '/issue', labelKey: 'nav.issue', icon: Newspaper },
+  { to: '/favorites', labelKey: 'nav.favorites', icon: Heart },
+  { to: '/stats', labelKey: 'nav.stats', icon: ChartBar },
+  { to: '/history', labelKey: 'nav.history', icon: ClockCounterClockwise },
 ]
 
 export function BottomNav() {
+  const { t } = useT()
   const navigate = useNavigate()
+  const setCarMode = usePlayerStore(s => s.setCarMode)
 
   return (
     <nav
       className="flex-shrink-0 border-t border-hair bg-paper select-none"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      aria-label="主导航"
+      aria-label={t('nav.main')}
     >
       <ul className="flex items-stretch">
-        {tabs.map(({ to, label, icon: Icon }) => (
+        {tabs.map(({ to, labelKey, icon: Icon }) => (
           <li key={to} className="flex-1">
             <NavLink
               to={to}
@@ -57,7 +62,7 @@ export function BottomNav() {
               }
             >
               <Icon size={22} />
-              <span className="text-[10px] font-medium tracking-[0.04em]">{label}</span>
+              <span className="text-[10px] font-medium tracking-[0.04em]">{t(labelKey)}</span>
             </NavLink>
           </li>
         ))}
@@ -66,23 +71,31 @@ export function BottomNav() {
             <DropdownMenuTrigger asChild>
               <button
                 className="w-full flex flex-col items-center justify-center gap-0.5 py-1.5 text-ink-soft active:text-primary transition-colors duration-200"
-                aria-label="更多"
+                aria-label={t('nav.more')}
               >
                 <DotsThree size={22} weight="bold" />
-                <span className="text-[10px] font-medium tracking-[0.04em]">更多</span>
+                <span className="text-[10px] font-medium tracking-[0.04em]">{t('nav.more')}</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="w-44 mb-2">
-              {moreItems.map(({ to, label, icon: Icon }) => (
+              {moreItems.map(({ to, labelKey, icon: Icon }) => (
                 <DropdownMenuItem
                   key={to}
                   onTouchStart={() => prefetchRoute(to)}
                   onClick={() => navigate(to)}
                 >
                   <Icon size={16} className="mr-2" />
-                  {label}
+                  {t(labelKey)}
                 </DropdownMenuItem>
               ))}
+              {/*
+                车载模式放在这里而不是只藏在全屏播放器的 ⋯ 里：
+                真要开车的人不会为了进它连点四层。
+              */}
+              <DropdownMenuItem onClick={() => setCarMode(true)}>
+                <SteeringWheel size={16} className="mr-2" />
+                {t('player.carMode')}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </li>

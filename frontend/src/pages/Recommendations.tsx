@@ -13,8 +13,11 @@ import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommend
 import { rankArtistsByAffinity } from '@/services/recommendationEngine'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { spaceCJK } from '@/utils/cjkTypography'
+import { useT } from '@/i18n'
 
 export default function RecommendationsPage() {
+  const { t } = useT()
   const navigate = useNavigate()
 
   const { data: recentAlbums, isLoading: albumsLoading } = useRecentAlbums(12)
@@ -46,20 +49,22 @@ export default function RecommendationsPage() {
       <section aria-labelledby="rec-today">
         <div className="section-head">
           <h2 id="rec-today">
-            今日推荐<small>DAILY PICKS</small>
+            {t('section.dailyPicks')}<small>DAILY PICKS</small>
           </h2>
           <div className="flex items-baseline gap-7">
             {randomSongs && randomSongs.length > 0 && (
               <>
                 <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-                  {randomSongs.length} 首 ·{' '}
-                  {formatDuration(randomSongs.reduce((s, r) => s + r.duration, 0))}
+                  {t('song.trackCountDuration', {
+                    count: randomSongs.length,
+                    duration: formatDuration(randomSongs.reduce((s, r) => s + r.duration, 0)),
+                  })}
                 </span>
                 <button className="more" onClick={handlePlayAll}>
-                  播放全部
+                  {t('player.playAll')}
                 </button>
                 <button className="more" onClick={handleShuffle}>
-                  随机播放
+                  {t('player.shuffle')}
                 </button>
               </>
             )}
@@ -69,12 +74,12 @@ export default function RecommendationsPage() {
               disabled={songsFetching}
             >
               <ArrowsClockwise size={12} className={songsFetching ? 'animate-spin' : undefined} />
-              换一批
+              {t('action.newBatch')}
             </button>
           </div>
         </div>
         <p className="-mt-2 mb-6 max-w-[52ch] text-[13px] text-ink-faint">
-          根据你的收听、收藏与跳过行为动态推荐
+          {t('recommendations.lede')}
         </p>
         {songsFetching && !randomSongs?.length ? (
           <SongRowsSkeleton rows={8} />
@@ -89,10 +94,10 @@ export default function RecommendationsPage() {
       <section aria-labelledby="rec-recent">
         <div className="section-head">
           <h2 id="rec-recent">
-            最近添加<small>RECENTLY ADDED</small>
+            {t('section.recentlyAdded')}<small>RECENTLY ADDED</small>
           </h2>
           <button className="more" onClick={() => navigate('/library')}>
-            查看全部 →
+            {t('action.viewAll')} →
           </button>
         </div>
         {albumsLoading ? (
@@ -119,10 +124,10 @@ export default function RecommendationsPage() {
         <section aria-labelledby="rec-artists">
           <div className="section-head">
             <h2 id="rec-artists">
-              热门歌手<small>ARTISTS A–Z</small>
+              {t('section.topArtists')}<small>ARTISTS A–Z</small>
             </h2>
             <button className="more" onClick={() => navigate('/library')}>
-              查看全部 →
+              {t('action.viewAll')} →
             </button>
           </div>
           <p className="font-serif text-[20px] lg:text-[24px] font-semibold leading-[2.1]">
@@ -137,7 +142,7 @@ export default function RecommendationsPage() {
                   onClick={() => navigate(`/artists/${artist.id}`)}
                   className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                 >
-                  {artist.name}
+                  {spaceCJK(artist.name)}
                   {artist.albumCount !== undefined && (
                     <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
                       {artist.albumCount}

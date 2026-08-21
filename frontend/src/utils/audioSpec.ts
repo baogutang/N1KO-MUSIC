@@ -9,6 +9,7 @@
 import type { Song } from '@/api/types'
 import type { AudioQuality } from '@/store/settingsStore'
 import { QUALITY_MAX_BITRATE } from '@/store/settingsStore'
+import { t } from '@/i18n'
 
 /** 从 MIME 或后缀推断展示用的编码名 */
 export function formatCodec(song: Song | null): string | null {
@@ -30,7 +31,7 @@ export function formatSampleRate(hz?: number): string | null {
 
 export function formatChannels(count?: number): string | null {
   if (!count || count <= 0) return null
-  if (count === 1) return '单声道'
+  if (count === 1) return t('audio.mono')
   if (count === 2) return '2ch'
   return `${count}ch`
 }

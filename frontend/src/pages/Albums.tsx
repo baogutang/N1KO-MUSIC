@@ -5,10 +5,12 @@
 
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { useAlbumsInfinite } from '@/hooks/useServerQueries'
+import { useT } from '@/i18n'
 
 const GRID_CLASS = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7'
 
 export default function AlbumsPage() {
+  const { t } = useT()
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useAlbumsInfinite(50)
 
   const albums = data?.pages.flatMap(p => p.items) ?? []
@@ -20,10 +22,10 @@ export default function AlbumsPage() {
   return (
     <div className="pt-9 animate-fade-in">
       <div className="mb-8">
-        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">专辑</h1>
+        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('section.albums')}</h1>
         {!isLoading && (
           <p className="text-sm text-ink-soft mt-1.5">
-            共 <span className="num">{countText}</span> 张
+            {t('album.total', { count: countText })}
           </p>
         )}
       </div>
@@ -54,7 +56,7 @@ export default function AlbumsPage() {
                 onClick={() => fetchNextPage()}
                 className="inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
               >
-                加载更多
+                {t('action.loadMore')}
               </button>
             </div>
           )}

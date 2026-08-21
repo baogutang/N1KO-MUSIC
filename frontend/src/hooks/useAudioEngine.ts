@@ -34,6 +34,7 @@ import { toast } from '@/components/ui/use-toast'
 import type { Song } from '@/api/types'
 import { computeReplayGainScalar } from '@/utils/replayGain'
 import { isMeteredConnection, onConnectionChange } from '@/lib/network'
+import { t } from '@/i18n'
 import {
   createListeningEventId,
   deriveListeningOutcome,
@@ -339,6 +340,53 @@ export function useAudioEngine() {
   useEffect(() => () => {
     if (rampRef.current !== null) cancelAnimationFrame(rampRef.current)
   }, [])
+
+  /**
+   * 长音轨起播时跳到服务端记下的断点。
+   *
+   * 只对 20 分钟以上的曲目生效，且必须等到音频可以定位之后再 seek——
+   * 转码流的 seekable 随缓冲增长，起播那一刻定位多半落不到位。
+   */
+  /**
+   * 这一轮播放里已经应用过书签的曲目。
+   *
+   * 之前只记一个 id，于是「听长音轨 → 去听别的歌 → 回到长音轨」时，
+   * 第二次进来 ref 里还是那首歌的 id，续听被自己挡掉、从头开始。
+   * 改成集合：每首歌在一个会话里只续一次，互不干扰。
+   */
+  const bookmarkAppliedRef = useRef(new Set<string>())
+  useEffect(() => {
+    const song = currentSongRef.current
+    if (!song || !currentSongId) return
+    if (bookmarkAppliedRef.current.has(currentSongId)) return
+    const position = song.ext?.bookmarkPosition
+    if (!position || (song.duration ?? 0) < 20 * 60) return
+    // 距离结尾太近就不必续了
+    if (song.duration - position / 1000 < 30) return
+    bookmarkAppliedRef.current.add(currentSongId)
+
+    let attempts = 0
+    const seconds = position / 1000
+    /**
+     * 重试链里每一次 setTimeout 都要记下来。
+     *
+     * 只清第一发是不够的：第二发之后的定时器由 trySeek 自己排队，
+     * effect 清理时它们还在队列里，换歌之后仍会醒来并调 seekHowl。
+     * 曲目 id 的检查能挡住大部分，但那是靠运气而不是靠结构。
+     */
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const trySeek = () => {
+      timer = null
+      if (usePlayerStore.getState().currentSong?.id !== currentSongId) return
+      attempts += 1
+      seekHowl(seconds)
+      if (Math.abs(audioEl.currentTime - seconds) > 2 && attempts < 12) {
+        timer = setTimeout(trySeek, 250)
+      }
+    }
+    timer = setTimeout(trySeek, 500)
+    return () => { if (timer) clearTimeout(timer) }
+  }, [currentSongId])
 
   /**
    * 下一首预热（弱无缝）。
@@ -889,15 +937,20 @@ export function useAudioEngine() {
         }
 
         const errMsg = {
-          1: '播放已中止',
-          2: '网络错误',
-          3: '解码失败（格式不支持）',
-          4: '音频源不可用',
-        }[code] ?? '未知错误'
+          1: t('player.error.aborted'),
+          2: t('player.error.network'),
+          3: t('player.error.decode'),
+          4: t('player.error.unsupported'),
+        }[code] ?? t('error.unknown')
         console.error('[AudioEngine] audio error:', rawCode, err?.message, '| URL:', streamUrl)
         toast({
-          title: `播放失败: ${errMsg}`,
-          description: `错误码=${rawCode} ${err?.message || ''}\nURL: ${streamUrl.substring(0, 120)}...`,
+          title: t('player.error.title', { message: errMsg }),
+          // 标题抽了 i18n、说明句留着中文模板，等于给英文用户一条半中半英的报错。
+          // URL 不进译文：它是诊断信息，不该被翻译，也不该被断句规则改动。
+          description: t('player.error.detail', {
+            code: rawCode,
+            message: err?.message ? ` ${err.message}` : '',
+          }) + `\n${streamUrl.substring(0, 120)}...`,
           variant: 'destructive',
         })
         usePlayerStore.getState().setStreamBuffering(false)
