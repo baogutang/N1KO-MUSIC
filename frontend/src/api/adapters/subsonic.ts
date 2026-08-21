@@ -541,11 +541,14 @@ export class SubsonicAdapter implements MusicServerAdapter {
   }
 
   async getAlbumDetail(albumId: string): Promise<AlbumDetail> {
-    const data = await this.request<{ album?: Record<string, unknown> }>('/getAlbum', { id: albumId })
+    // 两个请求并行：唱片说明是附加信息，不该让曲目列表多等一个往返。
+    // getAlbumInfo 内部已吞掉错误，失败只是拿不到说明。
+    const [data, info] = await Promise.all([
+      this.request<{ album?: Record<string, unknown> }>('/getAlbum', { id: albumId }),
+      this.getAlbumInfo(albumId),
+    ])
     const album = (data.album ?? {}) as Record<string, unknown>
     const songs = ((album.song ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
-    // 唱片说明与 MusicBrainz ID 走单独一个接口，失败不影响专辑本体
-    const info = await this.getAlbumInfo(albumId)
     return { ...this.mapAlbum(album), songs, ...(info ?? {}) }
   }
 

@@ -57,15 +57,33 @@ export function CommandPalette() {
     if (!open) { setQuery(''); setActive(0) }
   }, [open])
 
-  // 只有输入了内容才搜索，避免一打开就打服务器
   const trimmed = query.trim()
-  const { data: results } = useSearch(trimmed.length >= 1 ? trimmed : '')
+
+  /**
+   * 输入防抖。每敲一个键就发一次 search3，输入「beatles」等于七次请求，
+   * 对家里的 NAS 是没必要的压力。
+   */
+  const [debounced, setDebounced] = useState('')
+  useEffect(() => {
+    if (!trimmed) { setDebounced(''); return }
+    const timer = setTimeout(() => setDebounced(trimmed), 180)
+    return () => clearTimeout(timer)
+  }, [trimmed])
+
+  const { data: rawResults } = useSearch(debounced)
+  /**
+   * useSearch 带 keepPreviousData，而查询在空串时是 disabled 的——
+   * 清空输入框后它会继续把上一次的结果端出来。这里显式在无查询时丢弃。
+   */
+  const results = debounced ? rawResults : undefined
 
   const close = useCallback(() => setOpen(false), [])
 
+  // 播放状态要实时订阅：放进 useMemo 里读一次会把标签冻在打开面板那一刻
+  const isPlaying = usePlayerStore(s => s.isPlaying)
+
   /** 静态命令：导航 + 播放控制 */
   const staticCommands = useMemo<Command[]>(() => {
-    const store = usePlayerStore.getState()
     return [
       { id: 'nav-home', label: '首页', keywords: 'home shouye', icon: <House size={15} />, run: () => navigate('/') },
       { id: 'nav-library', label: '音乐库', keywords: 'library yinyueku', icon: <MusicNote size={15} />, run: () => navigate('/library') },
@@ -76,7 +94,7 @@ export function CommandPalette() {
       { id: 'nav-stats', label: '统计', keywords: 'stats tongji', icon: <Disc size={15} />, run: () => navigate('/stats') },
       { id: 'nav-settings', label: '设置', keywords: 'settings shezhi preferences', icon: <Gear size={15} />, run: () => navigate('/settings') },
       {
-        id: 'act-play', label: store.isPlaying ? '暂停' : '播放',
+        id: 'act-play', label: isPlaying ? '暂停' : '播放',
         keywords: 'play pause bofang zanting', icon: <Play size={15} />,
         run: () => usePlayerStore.getState().togglePlay(),
       },
@@ -101,7 +119,7 @@ export function CommandPalette() {
         icon: <Moon size={15} />, run: () => usePlayerStore.getState().setSleepTimer(30),
       },
     ]
-  }, [navigate])
+  }, [navigate, isPlaying])
 
   const filteredCommands = useMemo(() => {
     if (!trimmed) return staticCommands.slice(0, 8)

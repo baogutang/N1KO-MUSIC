@@ -35,6 +35,9 @@ export function SleepTimerMenu({ className }: { className?: string }) {
   // 只在定时开启时走秒级刷新，避免常驻一个空转的 interval
   useEffect(() => {
     if (sleepTimerAt === null || sleepTimerMode === 'endOfTrack') return
+    // 立刻同步一次：now 是挂载时的时间戳，等第一个 tick 才更新的话
+    // 刚设上定时的那一秒会显示一个明显不对的倒计时
+    setNow(Date.now())
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [sleepTimerAt, sleepTimerMode])

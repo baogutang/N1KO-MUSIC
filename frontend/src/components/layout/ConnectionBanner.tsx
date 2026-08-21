@@ -45,8 +45,20 @@ export function ConnectionBanner() {
         if (!cancelled) setServerUnreachable(true)
       }
     }
-    const timer = setInterval(probe, PROBE_INTERVAL_MS)
-    return () => { cancelled = true; clearInterval(timer) }
+    // 挂载时先探一次：否则断网后最长要等 20 秒才有任何提示
+    void probe()
+    const timer = setInterval(() => {
+      // 标签页在后台时不必轮询，回到前台会立刻补一次
+      if (document.visibilityState === 'hidden') return
+      void probe()
+    }, PROBE_INTERVAL_MS)
+    const onVisible = () => { if (document.visibilityState === 'visible') void probe() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [activeServerId])
 
   const retry = useCallback(async () => {

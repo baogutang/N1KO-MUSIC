@@ -79,14 +79,26 @@ Navidrome / Subsonic / Jellyfin / Emby，即连即用。
 **播放体验**
 
 - 杂志式全屏播放器：封面取色晕染、衬线歌词流、点击歌词跳转
-- 无损直通（FLAC / WAV / ALAC）与 320 / 192 / 128kbps 转码档位
+- 无损直通（FLAC / WAV / ALAC）与 320 / 192 / 128kbps 转码档位；
+  **Wi-Fi 与蜂窝各设一档并自动切换**，出门不再从家里的上行拉原始文件
+- **ReplayGain 音量归一化**：读取服务器已算好的增益，不同年代的母带响度一致
+- **真·全库随机**：向服务器取随机样本，而不是对当前页洗牌；
+  队列面板按**播放顺序**呈现，看得见接下来会放什么
+- **队列播完自动续接**相似曲目，也可从任意一首「开台」
+- 下一首预加载（弱无缝）、暂停渐弱、倍速播放（0.5–3×，带变调补偿）
+- **睡眠定时**（定时长度 / 本曲末，收尾自动渐弱）
+- **跨设备续播**：桌面听到一半，手机打开接着放（走服务器自带的播放队列同步）
 - 完整播放队列：随机、循环、单曲循环、拖拽排序、下一首插队
-- 全局键盘快捷键与系统媒体键（MediaSession）
+- 全局键盘快捷键、**⌘K 命令面板**、系统媒体键（MediaSession）
 
 **音乐库与发现**
 
-- 歌曲、专辑、歌手、歌单一体化浏览，无限滚动
-- 跨全库即时搜索；「为你推荐」按收听、收藏与跳过行为动态生成
+- 歌曲、专辑、歌手、歌单一体化浏览，长列表**虚拟滚动**（万首曲库不卡）
+- 跨全库即时搜索；「为你推荐」按收听、收藏与跳过行为动态生成，
+  「换一批」真的换一批（游标跨页面跨会话保持）
+- **唱片说明**：制作人员名录、专辑札记、ISRC / MusicBrainz 版本记录
+- **规格铭牌**：位深 / 采样率 / 编码 / 声道 / 实际码率
+- 服务端已算好的书架：最常播放、最近播放
 - 本地播放历史与杂志数据版式的听歌统计
 - 播放行为按真实收听时长上报服务器（兼容 Last.fm Scrobble）
 
@@ -94,6 +106,13 @@ Navidrome / Subsonic / Jellyfin / Emby，即连即用。
 
 - 自定义封面与歌词 API，支持 `{artist}` / `{album}` / `{title}` 占位符
 - 服务器数据与自定义接口优先级可控，歌词可手动搜索并缓存
+- 可从客户端直接触发服务器重新扫描曲库
+
+**细节**
+
+- 中西文混排自动插入细空格，标点悬挂、等宽数字斜杠零
+- 离线与服务器不可达有常驻提示与重试入口，不是一闪而过的 toast
+- 播放器控件暴露 `aria-pressed`，读屏可知随机 / 循环是开是关；文本对比度达 WCAG AA
 
 **桌面应用**
 
@@ -216,7 +235,39 @@ docker run -d --name n1ko-music-backend \
 ```
 
 可用环境变量：`PORT`、`DATA_DIR`、`JWT_SECRET`、`FRONTEND_URLS`（逗号分隔）、
-`TRUST_PROXY_HOPS`、`RATE_LIMIT_MAX`、`AUTH_RATE_LIMIT_MAX`。数据库升级前会在数据目录自动创建一致性备份。
+`TRUST_PROXY_HOPS`、`RATE_LIMIT_MAX`、`AUTH_RATE_LIMIT_MAX`、
+`ALLOW_REGISTRATION`、`LOGIN_ATTEMPT_MAX`、`LOGIN_ATTEMPT_WINDOW_MS`。
+数据库升级前会在数据目录自动创建一致性备份。
+
+> **注册策略（v1.7.0 起有变化）**：`ALLOW_REGISTRATION` 默认 `first-user` ——
+> 库里还没有用户时允许注册一次，之后自动关闭。自建服务暴露到公网时这很重要。
+> **已有部署若需要再加家庭成员，请临时设为 `open` 注册完再改回来**，
+> 或直接设为 `open` / `closed`。
+>
+> **JWT 密钥**：不设 `JWT_SECRET` 时服务会自动生成 48 字节随机密钥并以 0600 持久化，
+> 这比人工设置更安全。若显式设置，长度必须 ≥ 32 字符，否则拒绝启动。
+
+### Web 客户端 Docker 部署
+
+不想装桌面 / 移动应用时，可以直接跑一个 Web 版：
+
+```bash
+docker build -t n1ko-music-web frontend
+docker run -d --name n1ko-music-web -p 8080:80 \
+  -e DEFAULT_SERVER_URL=https://music.example.com \
+  -e DEFAULT_SERVER_TYPE=navidrome \
+  n1ko-music-web
+```
+
+<br/>
+
+## 参与贡献
+
+欢迎 PR。动手前请读一遍 **[CONTRIBUTING.md](CONTRIBUTING.md)** —— 尤其是设计契约那一节：
+这个项目在视觉上有明确取向（单一强调色、不做卡片堆叠、图标只用 Phosphor），
+颜色一律走 `frontend/src/index.css` 的 token。
+
+没有自己的服务器也能开发：直接连 `https://demo.navidrome.org`，用户名密码都是 `demo`。
 
 <br/>
 

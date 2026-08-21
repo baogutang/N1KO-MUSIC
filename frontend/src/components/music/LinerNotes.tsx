@@ -49,7 +49,8 @@ function collectContributors(songs: Song[]): Array<{ role: string; names: string
         byRole.set(key, entry)
       }
       entry.names.add(c.name)
-      if (!entry.ids.has(c.name)) entry.ids.set(c.name, c.artistId)
+      // 同名人员可能只在部分曲目上带 artistId，取第一个真正有 id 的
+      if (!entry.ids.get(c.name)) entry.ids.set(c.name, c.artistId)
     }
   }
   return Array.from(byRole.entries())

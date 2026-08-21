@@ -175,16 +175,50 @@ function VirtualSongRows({
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
+  /**
+   * 滚动容器尺寸的版本号。
+   *
+   * 虚拟化在 outerSize 为 0 时算出的可视区间是空的，一行都不渲染。
+   * 容器在挂载那一刻高度为 0 是会发生的——后台标签页、尚未完成布局、
+   * 或窗口本身没有尺寸。此时若不再触发一次渲染，虚拟化就永远停在空列表上。
+   * 这里在容器「从无尺寸变为有尺寸」时推进版本号，逼出一次重渲染。
+   */
+  const [sizeEpoch, setSizeEpoch] = useState(0)
 
   useLayoutEffect(() => {
     const parent = findScrollParent(containerRef.current)
     setScrollEl(parent)
-    if (parent && containerRef.current) {
-      // 列表在滚动容器里的偏移量，虚拟化据此换算可视区间
-      const top = containerRef.current.getBoundingClientRect().top
+    if (!parent || !containerRef.current) return
+
+    /** 列表在滚动容器里的偏移量，虚拟化据此换算可视区间 */
+    const measure = () => {
+      const el = containerRef.current
+      if (!el) return
+      const top = el.getBoundingClientRect().top
         - parent.getBoundingClientRect().top
         + parent.scrollTop
-      setScrollMargin(top)
+      setScrollMargin(prev => (Math.abs(prev - top) > 1 ? top : prev))
+    }
+    measure()
+
+    // 偏移量会因为列表之外的原因变化：离线横幅 / 续播提示 / 更新提示出现或消失、
+    // 头部封面加载完成、窗口缩放。只按 songs.length 测一次的话，
+    // 这些情况下行的定位会整体错位。
+    let hadSize = parent.clientHeight > 0
+    const onResize = () => {
+      measure()
+      const hasSize = parent.clientHeight > 0
+      if (hasSize && !hadSize) setSizeEpoch(v => v + 1)
+      hadSize = hasSize
+    }
+
+    const observer = new ResizeObserver(onResize)
+    observer.observe(parent)
+    if (containerRef.current.parentElement) observer.observe(containerRef.current.parentElement)
+    window.addEventListener('resize', onResize)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', onResize)
     }
   }, [songs.length])
 
@@ -198,9 +232,24 @@ function VirtualSongRows({
 
   const items = virtualizer.getVirtualItems()
 
+  // 兜底：容器还没有尺寸时虚拟化算不出可视区间。与其给用户一个空列表，
+  // 不如先实挂开头的一屏，等尺寸就绪后 sizeEpoch 推进再切回虚拟化。
+  if (!items.length && songs.length) {
+    return (
+      <div
+        ref={containerRef}
+        data-size-epoch={sizeEpoch}
+        className={cn('border-t border-hair divide-y divide-hair-soft', className)}
+      >
+        {songs.slice(0, VIRTUALIZE_THRESHOLD).map(renderRow)}
+      </div>
+    )
+  }
+
   return (
     <div
       ref={containerRef}
+      data-size-epoch={sizeEpoch}
       className={cn('border-t border-hair', className)}
       style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
     >

@@ -136,13 +136,21 @@ export const LyricDisplay = memo(function LyricDisplay({
     scrollToActive()
   }, [scrollToActive])
 
-  // 点击歌词行跳转到对应时间（毫秒 → 秒）
-  function handleLineClick(line: LyricLine) {
-    if (!isSynced || line.time < 0) return
+  /**
+   * 点击歌词行跳转到对应时间（毫秒 → 秒）。
+   *
+   * 必须是稳定引用：LyricRow 是 memo 的，onSelect 每次渲染都换新函数的话
+   * memo 永远不会 bail out，「只重渲染两行」的优化等于没做。
+   * isSynced 通过 ref 读取，保持依赖为空。
+   */
+  const isSyncedRef = useRef(isSynced)
+  isSyncedRef.current = isSynced
+  const handleLineClick = useCallback((line: LyricLine) => {
+    if (!isSyncedRef.current || line.time < 0) return
     seekHowl(line.time / 1000)
     // 点击跳转后立刻取消手动滚动锁，允许自动滚动跟随
     lastManualScrollRef.current = 0
-  }
+  }, [])
 
   if (!hasLyrics) {
     return (

@@ -79,14 +79,30 @@ Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
 **Playback**
 
 - Magazine-style fullscreen player: cover-derived ambience, serif lyric stream, tap-to-seek
-- Lossless passthrough (FLAC / WAV / ALAC) plus 320 / 192 / 128kbps transcoding tiers
+- Lossless passthrough (FLAC / WAV / ALAC) plus 320 / 192 / 128kbps transcoding tiers,
+  with **separate Wi-Fi and cellular tiers** switched automatically — no more pulling
+  original files over your home uplink while you are out
+- **ReplayGain normalisation** using the gain your server already computed, so masters
+  from different eras stop jumping in loudness
+- **Real whole-library shuffle**: a random sample drawn from the server rather than a
+  reshuffle of the loaded page, and a queue panel that shows the **actual play order**
+- **The queue keeps going** — similar tracks are appended when it runs dry, and any
+  song, artist or genre can seed a radio
+- Next-track preloading, fade on pause, playback speed 0.5–3x with pitch correction
+- **Sleep timer** (duration or end-of-track) that fades out instead of cutting
+- **Cross-device resume**: start on the desktop, pick it up on your phone
 - Full queue control: shuffle, repeat, repeat-one, drag reorder, play-next insertion
-- Global keyboard shortcuts and system media keys (MediaSession)
+- Global keyboard shortcuts, a **⌘K command palette**, and system media keys (MediaSession)
 
 **Library and discovery**
 
-- Songs, albums, artists and playlists in one place, with infinite scrolling
-- Instant library-wide search; For-You picks shaped by listening, favorites and skips
+- Songs, albums, artists and playlists in one place, with **virtualised** long lists
+  that stay smooth on a ten-thousand-track library
+- Instant library-wide search; For-You picks shaped by listening, favorites and skips —
+  and a refresh button that genuinely returns a new batch
+- **Liner notes**: personnel credits, album notes, ISRC and MusicBrainz pressing details
+- **Spec plate**: bit depth, sample rate, codec, channels, real bitrate
+- Shelves your server already computes: most played, recently played
 - Local listening history and statistics set in editorial data layouts
 - Scrobbling based on real listening time (Last.fm compatible via your server)
 
@@ -94,6 +110,16 @@ Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
 
 - Custom cover and lyrics APIs with `{artist}` / `{album}` / `{title}` placeholders
 - Configurable priority between server data and custom sources; manual lyric search with local cache
+- Trigger a server-side library rescan straight from the client
+
+**Details**
+
+- Thin spaces inserted automatically between CJK and Latin runs; hanging punctuation;
+  slashed-zero tabular numerals
+- A persistent banner with a retry action when the device or the server goes offline —
+  not a toast that vanishes
+- Player toggles expose `aria-pressed` so screen readers can tell whether shuffle is on;
+  text contrast meets WCAG AA
 
 **Desktop app**
 
@@ -219,13 +245,39 @@ Supported environment variables include `PORT`, `DATA_DIR`, `JWT_SECRET`, comma-
 `LOGIN_ATTEMPT_MAX`, and `LOGIN_ATTEMPT_WINDOW_MS`. A consistent backup is created in the
 data directory before database migrations.
 
-> **Registration policy**: `ALLOW_REGISTRATION` defaults to `first-user` — registration is
-> open until the first account exists, then closes automatically. This matters as soon as
-> you expose the sync service to the internet. `open` and `closed` are also accepted.
+> **Registration policy (changed in v1.7.0)**: `ALLOW_REGISTRATION` defaults to
+> `first-user` — registration is open until the first account exists, then closes
+> automatically. This matters as soon as you expose the sync service to the internet.
+> **Existing deployments that need to add a household member should set it to `open`
+> temporarily**, or use `closed` to lock it down entirely.
 >
 > **JWT secret**: leave `JWT_SECRET` unset and the service generates a 48-byte random key
 > and persists it with mode 0600 — safer than picking one by hand. If you do set it, it
 > must be at least 32 characters or the service refuses to start.
+
+### Web client via Docker
+
+If you would rather not install a desktop or mobile app:
+
+```bash
+docker build -t n1ko-music-web frontend
+docker run -d --name n1ko-music-web -p 8080:80 \
+  -e DEFAULT_SERVER_URL=https://music.example.com \
+  -e DEFAULT_SERVER_TYPE=navidrome \
+  n1ko-music-web
+```
+
+<br/>
+
+## Contributing
+
+Pull requests are welcome. Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first —
+especially the design-contract section. This project has a deliberate visual stance
+(one accent colour, no card stacking, Phosphor icons only), and colours always come from
+the tokens in `frontend/src/index.css`.
+
+You do not need your own server to develop against: point the app at
+`https://demo.navidrome.org` with username and password `demo`.
 
 <br/>
 
