@@ -10,6 +10,7 @@ import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>()
@@ -113,7 +114,7 @@ export default function PlaylistDetail() {
             <span className="h-px w-10 bg-primary" aria-hidden="true" />
           </p>
           <h1 className="font-serif text-4xl md:text-5xl font-black leading-[1.1] tracking-[-0.01em] text-balance">
-            {playlist.name}
+            {spaceCJK(playlist.name)}
           </h1>
           {playlist.comment && (
             <p className="mt-3 max-w-[52ch] text-sm text-ink-soft line-clamp-2">{playlist.comment}</p>

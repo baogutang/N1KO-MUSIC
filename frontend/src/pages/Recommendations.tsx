@@ -13,6 +13,7 @@ import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommend
 import { rankArtistsByAffinity } from '@/services/recommendationEngine'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 export default function RecommendationsPage() {
   const navigate = useNavigate()
@@ -137,7 +138,7 @@ export default function RecommendationsPage() {
                   onClick={() => navigate(`/artists/${artist.id}`)}
                   className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                 >
-                  {artist.name}
+                  {spaceCJK(artist.name)}
                   {artist.albumCount !== undefined && (
                     <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
                       {artist.albumCount}

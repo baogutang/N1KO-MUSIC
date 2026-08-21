@@ -15,6 +15,7 @@ import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { useServerStore } from '@/store/serverStore'
 import { isQualifiedListeningEvent, readListeningEvents } from '@/services/listeningHistory'
 import { cn } from '@/lib/utils'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 /** 全部歌曲默认展示数量 */
 const SONGS_INITIAL_SHOW = 20
@@ -129,7 +130,7 @@ export default function ArtistDetailPage() {
         <div className="min-w-0 flex-1">
           <p className="text-[11px] uppercase tracking-[0.3em] text-primary">歌手 · ARTIST</p>
           <h1 className="mt-3 font-serif text-4xl font-black tracking-[-0.01em] text-ink text-balance lg:text-5xl">
-            {artist.name}
+            {spaceCJK(artist.name)}
           </h1>
           {artist.biography && (
             <div className="mt-4 max-w-[34em]">

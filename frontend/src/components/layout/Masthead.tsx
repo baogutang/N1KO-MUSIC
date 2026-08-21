@@ -19,6 +19,7 @@ import {
 import { prefetchRoute } from '@/routes/lazyRoutes'
 import { toast } from '@/components/ui/use-toast'
 import { LibraryScopeMenu } from './LibraryScopeMenu'
+import { issueNumber } from '@/services/issueNumber'
 
 export function Masthead() {
   const navigate = useNavigate()
@@ -32,6 +33,8 @@ export function Masthead() {
     day: 'numeric',
   }).format(now)
   const weekLabel = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(now)
+  // 刊号按 ISO 周推算，同一天在任何一台设备上都是同一期
+  const issue = issueNumber(now.getTime())
 
   return (
     <div
@@ -106,9 +109,11 @@ export function Masthead() {
         {/* 音乐库切换：服务器暴露多于一个库时才出现 */}
         <LibraryScopeMenu className="hidden sm:inline-flex" />
 
-        {/* 日期（数字等宽 tabular） */}
-        <p className="num text-[12px] tracking-[0.14em] text-ink-soft flex-shrink-0">
-          {dateLabel} {weekLabel}
+        {/* 刊号 + 日期（数字等宽 tabular）。刊号在前：它是这本刊物的编号，
+            日期只是这一期的落款。 */}
+        <p className="num flex flex-shrink-0 items-baseline gap-3 text-[12px] tracking-[0.14em] text-ink-soft">
+          <span className="text-primary">{issue.label}</span>
+          <span className="hidden sm:inline">{dateLabel} {weekLabel}</span>
         </p>
       </div>
     </div>

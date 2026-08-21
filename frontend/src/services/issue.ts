@@ -129,8 +129,8 @@ function rank(map: Map<string, { count: number; song: Song }>, limit: number): I
     }))
 }
 
-/** 成刊的最低数据量：太少的话「本期」只会显得寒酸 */
-const MIN_PLAYS_FOR_ISSUE = 12
+/** 成刊的最低数据量：太少的话「本期」只会显得寒酸。第零期也要用它来给进度。 */
+export const MIN_PLAYS_FOR_ISSUE = 12
 
 export function buildIssue(
   allEvents: ListeningEvent[],

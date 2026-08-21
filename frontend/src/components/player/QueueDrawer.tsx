@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 export function QueueDrawer() {
   const queue           = usePlayerStore(s => s.queue)
@@ -202,10 +203,10 @@ export function QueueDrawer() {
                           isCurrent ? 'text-primary' : 'text-foreground'
                         )}
                       >
-                        {song.title}
+                        {spaceCJK(song.title)}
                       </span>
                       <span className="block text-[11px] text-ink-faint truncate mt-0.5">
-                        {song.artist}
+                        {spaceCJK(song.artist)}
                       </span>
                     </span>
 

@@ -6,6 +6,7 @@ import { TopNav } from './TopNav'
 import { PlayerBar } from './PlayerBar'
 import { ConnectionBanner } from './ConnectionBanner'
 import { UpdatePrompt } from './UpdatePrompt'
+import { Colophon, RunningHead } from './Colophon'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ResumeOffer } from '@/components/player/ResumeOffer'
 import { MobileLayout } from './MobileLayout'
@@ -94,7 +95,9 @@ function DesktopLayout() {
         <div className="relative flex flex-1 min-h-0 overflow-hidden">
           <main ref={mainRef} className="flex-1 overflow-y-auto min-w-0">
             <div className="max-w-[1180px] mx-auto px-10 pb-16 w-full">
+              <RunningHead />
               <Outlet />
+              <Colophon />
             </div>
           </main>
           <QueueDrawer />

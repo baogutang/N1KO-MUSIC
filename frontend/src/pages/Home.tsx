@@ -20,6 +20,7 @@ import { getAdapter, hasAdapter } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled, playListFrom } from '@/utils/playActions'
 import type { Album, Song } from '@/api/types'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 export default function HomePage() {
   const navigate = useNavigate()
@@ -206,7 +207,7 @@ export default function HomePage() {
                   onClick={() => navigate(`/artists/${artist.id}`)}
                   className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                 >
-                  {artist.name}
+                  {spaceCJK(artist.name)}
                   {artist.albumCount !== undefined && (
                     <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
                       {artist.albumCount}
@@ -327,10 +328,10 @@ function RecentAlbumRow({
           />
         </span>
         <span className="flex-1 min-w-0 font-serif text-[16px] font-semibold truncate transition-colors group-hover:text-primary">
-          {album.name}
+          {spaceCJK(album.name)}
         </span>
         <span className="hidden md:block flex-1 min-w-0 text-[13px] text-ink-soft truncate">
-          {album.artist}
+          {spaceCJK(album.artist)}
         </span>
         <span className="num flex-shrink-0 text-right text-[11.5px] text-ink-faint">{meta}</span>
         <button

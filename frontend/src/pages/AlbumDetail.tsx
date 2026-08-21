@@ -15,6 +15,7 @@ import { getAdapter, hasAdapter } from '@/api'
 import { formatDurationNatural } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 export default function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -78,7 +79,7 @@ export default function AlbumDetailPage() {
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.3em] text-primary">专辑 · ALBUM</p>
           <h1 className="mt-3 font-serif text-[40px] font-black leading-[1.1] tracking-[-0.01em] text-ink text-balance lg:text-[52px]">
-            {album.name}
+            {spaceCJK(album.name)}
           </h1>
           <p className="mt-3 text-sm tracking-[0.06em] text-ink-soft">
             {album.artistId ? (
@@ -86,7 +87,7 @@ export default function AlbumDetailPage() {
                 onClick={() => navigate(`/artists/${album.artistId}`)}
                 className="border-b border-hair pb-0.5 transition-colors duration-200 hover:border-primary hover:text-primary"
               >
-                {album.artist}
+                {spaceCJK(album.artist)}
               </button>
             ) : (
               album.artist

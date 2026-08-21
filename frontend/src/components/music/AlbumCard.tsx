@@ -13,6 +13,7 @@ import type { Album, Song } from '@/api/types'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/hooks/useServerQueries'
 import { playListFrom } from '@/utils/playActions'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 interface AlbumCardProps {
   album: Album
@@ -86,10 +87,10 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
       {/* 图注：衬线专辑名 + 小字歌手 */}
       <div className="min-w-0 px-0.5">
         <p className="font-serif font-semibold text-[15px] leading-snug text-foreground truncate group-hover:text-primary transition-colors">
-          {album.name}
+          {spaceCJK(album.name)}
         </p>
         <p className="text-xs text-ink-soft mt-0.5 truncate">
-          {album.artist}
+          {spaceCJK(album.artist)}
           {album.year && (
             <span className="ml-1 font-num text-ink-faint">· {album.year}</span>
           )}

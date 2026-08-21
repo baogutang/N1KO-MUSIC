@@ -9,6 +9,7 @@ import { SongList } from '@/components/music/SongList'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { getAdapter, hasAdapter } from '@/api'
 import { playAllInOrder, shuffleWholeLibrary } from '@/utils/playActions'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 type LibraryTab = 'songs' | 'albums' | 'artists' | 'playlists'
 type ViewMode = 'grid' | 'list'
@@ -221,8 +222,8 @@ export default function Library() {
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-serif text-[15px] font-semibold truncate transition-colors group-hover:text-primary">{album.name}</p>
-                      <p className="text-xs text-ink-soft truncate mt-0.5">{album.artist}</p>
+                      <p className="font-serif text-[15px] font-semibold truncate transition-colors group-hover:text-primary">{spaceCJK(album.name)}</p>
+                      <p className="text-xs text-ink-soft truncate mt-0.5">{spaceCJK(album.artist)}</p>
                     </div>
                     <div className="num flex-shrink-0 text-xs text-ink-faint">
                       {album.year && <span>{album.year}</span>}
@@ -286,7 +287,7 @@ export default function Library() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-serif text-[15px] font-semibold truncate transition-colors group-hover:text-primary">{artist.name}</p>
+                    <p className="font-serif text-[15px] font-semibold truncate transition-colors group-hover:text-primary">{spaceCJK(artist.name)}</p>
                     {artist.albumCount != null && (
                       <p className="text-xs text-ink-soft mt-0.5"><span className="num">{artist.albumCount}</span> 张专辑</p>
                     )}

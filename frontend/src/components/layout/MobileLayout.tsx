@@ -18,6 +18,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionBanner } from './ConnectionBanner'
 import { UpdatePrompt } from './UpdatePrompt'
+import { Colophon, RunningHead } from './Colophon'
 import { ResumeOffer } from '@/components/player/ResumeOffer'
 import {
   prefetchCommonAuthenticatedRoutes,
@@ -53,7 +54,9 @@ export function MobileLayout() {
         <div className="relative flex flex-1 min-h-0 overflow-hidden">
           <main ref={mainRef} className="flex-1 overflow-y-auto min-w-0">
             <div className="mx-auto px-4 pb-6 w-full max-w-[1180px]">
+              <RunningHead />
               <Outlet />
+              <Colophon />
             </div>
           </main>
           <QueueDrawer />

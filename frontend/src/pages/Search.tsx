@@ -10,6 +10,7 @@ import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { SongList } from '@/components/music/SongList'
 import { useSearch } from '@/hooks/useServerQueries'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 export default function SearchPage() {
   const navigate = useNavigate()
@@ -133,7 +134,7 @@ export default function SearchPage() {
                   onClick={() => navigate(`/artists/${artist.id}`)}
                   className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                 >
-                  {artist.name}
+                  {spaceCJK(artist.name)}
                   {artist.albumCount !== undefined && (
                     <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
                       {artist.albumCount}

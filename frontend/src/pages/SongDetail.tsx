@@ -29,6 +29,7 @@ import { getAdapter, hasAdapter } from '@/api'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { formatDuration, formatFileSize } from '@/utils/formatters'
 import type { Song } from '@/api/types'
+import { spaceCJK } from '@/utils/cjkTypography'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
@@ -721,9 +722,9 @@ export default function SongDetailPage() {
           </div>
           <div className="min-w-0 pt-1">
             <p className="text-[11px] tracking-[0.3em] text-ink-faint mb-2.5">歌曲 · TRACK</p>
-            <h1 className="font-serif text-4xl font-black tracking-tight leading-tight text-balance">{song.title}</h1>
+            <h1 className="font-serif text-4xl font-black tracking-tight leading-tight text-balance">{spaceCJK(song.title)}</h1>
             <p className="text-sm text-ink-soft mt-3 truncate">
-              {song.artist}
+              {spaceCJK(song.artist)}
               {song.album && ` · ${song.album}`}
             </p>
           </div>

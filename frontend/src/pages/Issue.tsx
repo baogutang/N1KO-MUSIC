@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { useServerStore } from '@/store/serverStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import {
-  buildIssue, monthPeriod, shiftPeriod, yearPeriod,
+  buildIssue, monthPeriod, shiftPeriod, yearPeriod, MIN_PLAYS_FOR_ISSUE,
   type IssueEntry, type IssuePeriod,
 } from '@/services/issue'
 import { spaceCJK } from '@/utils/cjkTypography'
@@ -98,14 +98,7 @@ export default function IssuePage() {
       </header>
 
       {!issue.hasEnough ? (
-        <p className="py-20 text-center font-serif text-[15px] text-ink-faint">
-          这一期还没有攒够内容
-          <span className="mt-2 block text-[13px]">
-            {issue.plays > 0
-              ? `目前只有 ${issue.plays} 次有效收听，多听一些就会自动成刊`
-              : '这段时间还没有收听记录'}
-          </span>
-        </p>
+        <IssueZero plays={issue.plays} onStart={() => navigate('/library')} />
       ) : (
         <>
           {/* ============ 编者按 + 封面故事 ============ */}
@@ -249,6 +242,94 @@ export default function IssuePage() {
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * 第零期。
+ *
+ * 数据不够时给一句「还没攒够」是最省事的做法，也是最不负责的做法——
+ * 新用户第一次点进《本期》看到的就是一句拒绝。第零期把这一屏当成真正的创刊号来做：
+ * 说清楚这本刊物是什么、数据在哪、你能改什么，然后给出下一步。
+ *
+ * 每一句都是关于这个软件如何运作的事实，没有一句是修辞。
+ */
+function IssueZero({ plays, onStart }: { plays: number; onStart: () => void }) {
+  return (
+    <article className="py-12">
+      <p className="mb-5 flex items-center gap-3.5 text-[11px] tracking-[0.34em] text-primary">
+        第零期 · ISSUE ZERO
+        <span aria-hidden className="h-px w-14 bg-primary" />
+      </p>
+
+      <h2 className="max-w-[16em] font-serif text-[clamp(1.75rem,4vw,2.75rem)] font-bold leading-[1.25]">
+        {spaceCJK('这本刊物会从你听过的东西里长出来。')}
+      </h2>
+
+      <div className="mt-9 grid grid-cols-1 gap-x-14 gap-y-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
+        <div className="min-w-0 max-w-[34em] space-y-4 font-serif text-[15.5px] leading-[1.95] text-ink">
+          <p>
+            {spaceCJK(
+              '每个月月初，上个月听过的东西会自动成为一期：封面故事、排行、本期之最、' +
+              '第一次听到的人。它不是年底才发一次的营销活动，也不需要你做任何事。'
+            )}
+          </p>
+          <p>
+            {spaceCJK(
+              '编者按只由真实数据拼成的模板句组成，一个字都不虚构；数据不足以支撑某一句，' +
+              '那一句就不会出现。'
+            )}
+          </p>
+          <p>
+            {spaceCJK(
+              '收听记录只存在这台设备上。想拿走随时可以导出成 JSON 或 CSV；' +
+              '推荐依据的口味画像也是摊开给你看的，任何一条都能当场关掉。'
+            )}
+          </p>
+        </div>
+
+        <aside className="min-w-0 border-t border-hair pt-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+          <p className="mb-4 text-[10.5px] uppercase tracking-[0.24em] text-primary">
+            从这里开始
+          </p>
+          <ol className="space-y-4">
+            {[
+              ['听满 ' + MIN_PLAYS_FOR_ISSUE + ' 首', '这一期就会自动成刊'],
+              ['去音乐库随便放一张', '排行和画像都从这里开始长'],
+              ['不喜欢的随手关掉', '统计页的口味画像里可以改'],
+            ].map(([title, desc], index) => (
+              <li key={title} className="flex gap-3.5">
+                <span className="font-num flex-none text-[11px] text-ink-faint">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-serif text-[15px] font-semibold">
+                    {spaceCJK(title)}
+                  </span>
+                  <span className="mt-0.5 block text-[12px] text-ink-faint">
+                    {spaceCJK(desc)}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          <button
+            onClick={onStart}
+            className="mt-7 inline-flex items-center gap-2 border-b border-ink pb-1.5 text-sm font-semibold tracking-[0.12em] transition-colors hover:border-primary hover:text-primary"
+          >
+            <Play size={12} weight="fill" />
+            去音乐库
+          </button>
+
+          {plays > 0 && (
+            <p className="font-num mt-5 text-[11px] text-ink-faint">
+              本期已有 {plays} / {MIN_PLAYS_FOR_ISSUE} 次有效收听
+            </p>
+          )}
+        </aside>
+      </div>
+    </article>
   )
 }
 
