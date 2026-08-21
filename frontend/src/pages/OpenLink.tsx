@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { parseDeepLink, runDeepLinkCommand, DEEP_LINK_SCHEME } from '@/services/deepLink'
+import { EmptyState, LoadingState } from '@/components/common/EmptyState'
 
 export default function OpenLinkPage() {
   const [params] = useSearchParams()
@@ -34,20 +35,15 @@ export default function OpenLinkPage() {
 
   if (!failed) {
     return (
-      <p className="py-24 text-center font-serif text-[15px] text-ink-faint">正在打开…</p>
+      <LoadingState label="正在打开…" />
     )
   }
 
   return (
-    <div className="py-24 text-center">
-      <p className="font-serif text-xl font-semibold">这条链接看不懂。</p>
-      <p className="mt-2 break-all text-sm text-ink-faint">{failed}</p>
-      <button
-        onClick={() => navigate('/', { replace: true })}
-        className="mt-6 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary"
-      >
-        回到首页
-      </button>
-    </div>
+    <EmptyState
+      title="这条链接看不懂。"
+      description={failed}
+      action={{ label: '回到首页', onClick: () => navigate('/', { replace: true }) }}
+    />
   )
 }

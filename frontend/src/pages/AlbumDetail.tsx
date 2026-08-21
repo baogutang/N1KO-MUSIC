@@ -16,6 +16,7 @@ import { formatDurationNatural } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { EmptyState } from '@/components/common/EmptyState'
 
 export default function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -51,9 +52,10 @@ export default function AlbumDetailPage() {
 
   if (!album) {
     return (
-      <div className="pt-24 text-center">
-        <p className="font-serif text-xl text-ink-soft">专辑不存在或加载失败。</p>
-      </div>
+      <EmptyState
+        title="这张专辑不在了。"
+        description="它可能已从曲库中移除，也可能只是这次没请求到。"
+      />
     )
   }
 

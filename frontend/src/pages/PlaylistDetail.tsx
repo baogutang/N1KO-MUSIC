@@ -11,6 +11,7 @@ import { SongList } from '@/components/music/SongList'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { EmptyState } from '@/components/common/EmptyState'
 
 export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>()
@@ -80,10 +81,7 @@ export default function PlaylistDetail() {
     return (
       <div className="pt-6 animate-fade-in">
         {backLink}
-        <div className="py-24 text-center">
-          <p className="font-serif text-xl font-semibold">加载失败。</p>
-          <p className="mt-2 text-sm text-ink-faint">请检查网络连接后重试。</p>
-        </div>
+        <EmptyState title="加载失败。" description="请检查网络连接后重试。" />
       </div>
     )
   }
@@ -167,10 +165,11 @@ export default function PlaylistDetail() {
       {playlist.songs.length > 0 ? (
         <SongList songs={playlist.songs} showAlbum />
       ) : (
-        <div className="border-t border-hair py-20 text-center">
-          <p className="font-serif text-xl font-semibold">歌单还是空的。</p>
-          <p className="mt-2 text-sm text-ink-faint">在歌曲菜单里选择「添加到歌单」。</p>
-        </div>
+        <EmptyState
+          ruled
+          title="歌单还是空的。"
+          description="在歌曲菜单里选择「添加到歌单」。"
+        />
       )}
     </div>
   )

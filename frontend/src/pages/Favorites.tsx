@@ -5,6 +5,7 @@ import { useStarred } from '@/hooks/useServerQueries'
 import { playAllInOrder } from '@/utils/playActions'
 import { SongList } from '@/components/music/SongList'
 import { AlbumCard } from '@/components/music/AlbumCard'
+import { EmptyState } from '@/components/common/EmptyState'
 
 type FavTab = 'songs' | 'albums'
 
@@ -95,10 +96,11 @@ export default function Favorites() {
 
       {tab === 'songs' && (
         songs.length === 0 ? (
-          <div className="border-t border-hair py-20 text-center">
-            <p className="font-serif text-xl font-semibold">还没有收藏的歌曲。</p>
-            <p className="mt-2 text-sm text-ink-faint">在歌曲行点击心形图标，把喜欢的歌收进来。</p>
-          </div>
+          <EmptyState
+            ruled
+            title="还没有收藏的歌曲。"
+            description="在歌曲行点击心形图标，把喜欢的歌收进来。"
+          />
         ) : (
           <SongList songs={songs} showAlbum />
         )
@@ -106,10 +108,11 @@ export default function Favorites() {
 
       {tab === 'albums' && (
         albums.length === 0 ? (
-          <div className="border-t border-hair py-20 text-center">
-            <p className="font-serif text-xl font-semibold">还没有收藏的专辑。</p>
-            <p className="mt-2 text-sm text-ink-faint">在专辑页点击心形图标，收藏整张专辑。</p>
-          </div>
+          <EmptyState
+            ruled
+            title="还没有收藏的专辑。"
+            description="在专辑页点击心形图标，收藏整张专辑。"
+          />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
             {albums.map(album => (

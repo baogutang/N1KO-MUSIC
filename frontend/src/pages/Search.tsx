@@ -11,6 +11,7 @@ import { AlbumCard } from '@/components/music/AlbumCard'
 import { SongList } from '@/components/music/SongList'
 import { useSearch } from '@/hooks/useServerQueries'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { EmptyState } from '@/components/common/EmptyState'
 
 export default function SearchPage() {
   const navigate = useNavigate()
@@ -92,10 +93,10 @@ export default function SearchPage() {
 
       {/* 空态：衬线一句 + ink-faint 说明（DESIGN §4.5） */}
       {!query && (
-        <div className="py-24 text-center">
-          <p className="font-serif text-[22px] font-semibold text-foreground">想找什么，直接输入。</p>
-          <p className="mt-3 text-[13px] text-ink-faint">支持歌曲名、专辑名、歌手名，输入即搜。</p>
-        </div>
+        <EmptyState
+          title="想找什么，直接输入。"
+          description="支持歌曲名、专辑名、歌手名，输入即搜。"
+        />
       )}
 
       {/* 加载骨架（hair-soft 行闪烁，不用 spinner） */}
@@ -103,12 +104,10 @@ export default function SearchPage() {
 
       {/* 无结果（等待防抖或请求进行中时不提前展示） */}
       {showResults && !isLoading && !isFetching && !hasResults && (
-        <div className="py-24 text-center">
-          <p className="font-serif text-[22px] font-semibold text-foreground">
-            没有找到与「{query}」相关的内容。
-          </p>
-          <p className="mt-3 text-[13px] text-ink-faint">换个关键词，或检查拼写后再试。</p>
-        </div>
+        <EmptyState
+          title={`没有找到与「${query}」相关的内容。`}
+          description="换个关键词，或检查拼写后再试。"
+        />
       )}
 
       {/* ============ 歌手 · 文字索引 ============ */}

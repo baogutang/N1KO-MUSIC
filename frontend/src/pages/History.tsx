@@ -19,6 +19,7 @@ import {
   readListeningEvents,
   type ListeningEvent,
 } from '@/services/listeningHistory'
+import { EmptyState } from '@/components/common/EmptyState'
 
 /** 格式化时刻为 HH:mm（mono 展示用） */
 function formatTimeOfDay(timestamp: number): string {
@@ -133,10 +134,10 @@ export default function History() {
       </header>
 
       {history.length === 0 ? (
-        <div className="py-24 text-center">
-          <p className="font-serif text-xl font-semibold">还没有播放记录。</p>
-          <p className="mt-2 text-sm text-ink-faint">播放音乐后，最近听过的歌会记在这里。</p>
-        </div>
+        <EmptyState
+          title="还没有播放记录。"
+          description="播放音乐后，最近听过的歌会记在这里。"
+        />
       ) : (
         <div>
           {Object.entries(grouped).map(([dateKey, entries]) => (

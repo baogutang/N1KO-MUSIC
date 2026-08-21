@@ -10,6 +10,7 @@ import { MagnifyingGlass } from '@phosphor-icons/react'
 import { useArtists } from '@/hooks/useServerQueries'
 import { buildIndexBuckets, IndexRail } from '@/components/common/IndexRail'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { EmptyState } from '@/components/common/EmptyState'
 
 export default function ArtistsPage() {
   const navigate = useNavigate()
@@ -89,10 +90,7 @@ export default function ArtistsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="border-t border-hair pt-10">
-          <p className="font-serif text-lg text-ink-soft">没有名字相符的歌手。</p>
-          <p className="text-sm text-ink-faint mt-1.5">换个关键词试试。</p>
-        </div>
+        <EmptyState ruled title="没有名字相符的歌手。" description="换个关键词试试。" />
       ) : (
         <div className="flex gap-3">
           <div className="min-w-0 flex-1 border-t border-hair">

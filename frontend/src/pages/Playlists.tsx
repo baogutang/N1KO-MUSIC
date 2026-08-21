@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { ImportPlaylistDialog } from '@/components/music/ImportPlaylistDialog'
+import { EmptyState } from '@/components/common/EmptyState'
 
 export default function Playlists() {
   const navigate = useNavigate()
@@ -123,17 +124,11 @@ export default function Playlists() {
           ))}
         </div>
       ) : !playlists?.length ? (
-        <div className="py-24 text-center">
-          <p className="font-serif text-xl font-semibold">这一页还空着。</p>
-          <p className="mt-2 text-sm text-ink-faint">创建第一个歌单，把喜欢的歌收进来。</p>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="mt-6 inline-flex items-center gap-2 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            新建歌单
-          </button>
-        </div>
+        <EmptyState
+          title="这一页还空着。"
+          description="创建第一个歌单，把喜欢的歌收进来。"
+          action={{ label: '新建歌单', onClick: () => setShowCreate(true) }}
+        />
       ) : (
         <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
           {playlists.map(pl => (
