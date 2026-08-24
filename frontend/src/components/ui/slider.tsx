@@ -44,10 +44,15 @@ const Slider = React.forwardRef<
         <Slider> 上会落到 Root，读屏根本读不到。音量条因此一直念的是
         「0.8」这样的裸小数。这里显式转发到 Thumb。
       */}
+      {/*
+        手柄在触屏上不能靠 hover 显形：一直 scale-0 的话，拖动时手指底下
+        什么都看不见，不知道自己拖到了哪儿。有悬停能力的设备保持「浮现」
+        的克制，触屏一律常显。
+      */}
       <SliderPrimitive.Thumb
         aria-label={ariaLabel}
         aria-valuetext={ariaValueText}
-        className="block h-3 w-3 rounded-full bg-foreground transition-transform duration-150 scale-0 group-hover:scale-100 focus-visible:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:pointer-events-none disabled:opacity-50" />
+        className="block h-3 w-3 rounded-full bg-foreground transition-transform duration-150 [@media(hover:hover)]:scale-0 [@media(hover:hover)]:group-hover:scale-100 focus-visible:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:pointer-events-none disabled:opacity-50" />
     </SliderPrimitive.Root>
   )
 })

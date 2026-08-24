@@ -74,7 +74,13 @@ export const LyricDisplay = memo(function LyricDisplay({
   const activeLineRef = useRef<HTMLParagraphElement>(null)
   // 手动滚动锁定：记录最后一次手动滚动时间
   const lastManualScrollRef = useRef<number>(0)
-  const AUTO_SCROLL_RESUME_DELAY = 3000 // 3 秒后恢复自动滚动
+  /**
+   * 手动滚开后多久恢复自动跟随。
+   *
+   * 3 秒太短：想往回看几句歌词，还没读完就被拽回当前行，只能一遍遍地滚。
+   * 8 秒够读完一小段，又不至于让人以为自动跟随坏了。
+   */
+  const AUTO_SCROLL_RESUME_DELAY = 8000
   // 程序化滚动标志：scrollToActive 的平滑滚动同样会触发 scroll 事件，
   // 必须与用户手动滚动区分，否则每次自动滚动都会把自己锁定 3 秒
   const isProgrammaticScrollRef = useRef(false)
