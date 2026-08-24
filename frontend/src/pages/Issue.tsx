@@ -30,7 +30,7 @@ function formatHours(seconds: number, t: Translate): string {
 }
 
 export default function IssuePage() {
-  const { t } = useT()
+  const { t, locale } = useT()
   const navigate = useNavigate()
   const serverId = useServerStore(s => s.activeServerId)
   const [kind, setKind] = useState<'month' | 'year'>('month')
@@ -58,7 +58,11 @@ export default function IssuePage() {
         <div className="flex flex-wrap items-baseline justify-between gap-4 border-b-2 border-ink pb-3">
           <div className="flex items-baseline gap-4">
             <h1 className="font-serif text-3xl font-black tracking-tight">{t('nav.issue')}</h1>
-            <span className="font-num text-[11px] tracking-[0.28em] text-ink-faint">ISSUE</span>
+            {/* 这个拉丁小标是给中文标题作注的排版装饰；英文界面下标题本身
+                就是 "This Issue"，再跟一个 ISSUE 只是重复。 */}
+            {locale === 'zh-CN' && (
+              <span className="font-num text-[11px] tracking-[0.28em] text-ink-faint">ISSUE</span>
+            )}
           </div>
           <div className="flex items-center gap-5">
             <div role="radiogroup" aria-label={t('issue.periodKind')} className="flex items-baseline gap-4">

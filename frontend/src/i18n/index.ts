@@ -78,10 +78,30 @@ export function setLocale(locale: Locale): void {
  * 界面上出现一个 {count} 是明确的 bug 信号，出现 "undefined" 只会让人困惑。
  */
 export function t(key: string, vars?: Record<string, string | number>): string {
-  const template = translate(key, currentLocale)
+  const template = translate(pluralKey(key, vars), currentLocale)
   if (!vars) return template
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
     name in vars ? String(vars[name]) : match)
+}
+
+/**
+ * 单复数。
+ *
+ * 中文没有复数形态，所以这套词表一直是单一形式，英文于是读成
+ * 「1 tracks」「1 albums」「1 stars」——八处，全在计数最常出现的地方。
+ *
+ * 约定：给需要区分的键补一条 `<key>_one`，`count === 1` 时优先用它。
+ * 没有 `_one` 的键行为完全不变，所以中文词表一个字都不用改，
+ * 也不必为此引入 Intl.PluralRules 或任何运行时依赖。
+ *
+ * 只处理 1 与非 1：英文只有这一条界线。真要支持俄语那种多档形态时，
+ * 再换成 Intl.PluralRules，而那时这个函数就是唯一要改的地方。
+ */
+function pluralKey(key: string, vars?: Record<string, string | number>): string {
+  if (!vars || vars.count === undefined) return key
+  if (Number(vars.count) !== 1) return key
+  const singular = `${key}_one`
+  return singular in CATALOGS[currentLocale] ? singular : key
 }
 
 /**

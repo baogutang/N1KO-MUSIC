@@ -29,8 +29,14 @@ export function parseLrc(text: string): LyricLine[] {
   const offsetPattern = /^\[offset:\s*([+-]?\d+)\s*\]$/i
   let lrcOffset = 0
 
-  // 匹配标准时间标签 [mm:ss.xx] 或 [mm:ss.xxx]
-  const timePattern = /\[(\d{1,2}):(\d{2})\.(\d{2,3})\]/g
+  /**
+   * 匹配 [mm:ss.xx] / [mm:ss.xxx]，以及**没有小数部分的 [mm:ss]**。
+   *
+   * 小数位此前是必需的，于是整秒精度的 LRC（不少手写歌词和一些下载源就是
+   * 这种）一行都匹配不上，整首歌词静默退化成「无同步文本」——看得见字，
+   * 但不会跟着走。
+   */
+  const timePattern = /\[(\d{1,2}):(\d{2})(?:\.(\d{2,3}))?\]/g
 
   const rows = text.split('\n')
 
@@ -53,7 +59,11 @@ export function parseLrc(text: string): LyricLine[] {
     while ((match = timePattern.exec(trimmed)) !== null) {
       const min = parseInt(match[1])
       const sec = parseInt(match[2])
-      const ms = match[3].length === 2 ? parseInt(match[3]) * 10 : parseInt(match[3])
+      // 没有小数部分时 match[3] 是 undefined——整秒时间戳走这一支
+      const frac = match[3]
+      const ms = frac === undefined ? 0
+        : frac.length === 2 ? parseInt(frac) * 10
+        : parseInt(frac)
       times.push(min * 60000 + sec * 1000 + ms)
     }
 

@@ -80,14 +80,69 @@ describe('目录完整性', () => {
     walk('src')
     const source = files.map(f => fs.readFileSync(f, 'utf8')).join('\n')
     const unused = Object.keys(zhCN)
+      // `<key>_one` 是单数形态，由 t() 在 count === 1 时**拼出来**，
+      // 源码里不会出现字面量。它的调用方就是同名的基础键。
+      .filter(key => !key.endsWith('_one'))
       .filter(key => !source.includes(`'${key}'`) && !source.includes(`"${key}"`))
     expect(unused, `这些词条没有任何调用方，删掉或接上：\n${unused.join('\n')}`).toEqual([])
   })
 
   it('key 一律是「区域.主题」形式，Weblate 里才能按前缀分组', () => {
     for (const key of Object.keys(zhCN)) {
-      expect(key, `${key} 不符合命名约定`).toMatch(/^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+$/)
+      // 允许结尾的 `_one`：这是单数形态的约定后缀，见 i18n/index.ts 的 pluralKey
+      expect(key, `${key} 不符合命名约定`).toMatch(/^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+(_one)?$/)
     }
+  })
+
+  /**
+   * 单数形态必须成对：只有英文加了 `_one` 而中文没有（或反之），
+   * 键集对等那条测试会先红，但错误信息指不到这里。显式钉一遍。
+   */
+  it('每个 _one 都有对应的基础键', () => {
+    for (const key of Object.keys(zhCN)) {
+      if (!key.endsWith('_one')) continue
+      const base = key.slice(0, -'_one'.length)
+      expect(base in zhCN, `${key} 没有对应的基础键 ${base}`).toBe(true)
+    }
+  })
+})
+
+describe('单复数', () => {
+  /**
+   * 中文没有复数形态，词表一直是单一形式，于是英文界面读成
+   * 「1 tracks」「1 albums」——八处，全在计数最常出现的地方。
+   */
+  it('count 为 1 时用单数形态', () => {
+    setLocale('en-US')
+    expect(t('song.count', { count: 1 })).toBe('1 track')
+    expect(t('album.count', { count: 1 })).toBe('1 album')
+  })
+
+  it('count 不为 1 时用复数形态', () => {
+    setLocale('en-US')
+    expect(t('song.count', { count: 2 })).toBe('2 tracks')
+    expect(t('song.count', { count: 0 })).toBe('0 tracks')
+  })
+
+  it('中文不受影响——它本来就没有复数形态', () => {
+    setLocale('zh-CN')
+    const one = t('song.count', { count: 1 })
+    const many = t('song.count', { count: 5 })
+    expect(one).toContain('1')
+    expect(many).toContain('5')
+    // 量词一致，只有数字不同
+    expect(one.replace('1', '')).toBe(many.replace('5', ''))
+  })
+
+  it('没有 _one 变体的键行为完全不变', () => {
+    setLocale('en-US')
+    // 这类键不该因为传了 count 就找不到译文
+    expect(t('song.year', { year: 2014 })).not.toBe('song.year')
+  })
+
+  it('没传 count 时不走单复数分支', () => {
+    setLocale('en-US')
+    expect(t('nav.library')).not.toContain('_one')
   })
 })
 
