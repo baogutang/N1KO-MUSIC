@@ -64,8 +64,8 @@ export function AddToPlaylistDialog({ open, onOpenChange, songs }: AddToPlaylist
             // loading：hair-soft 骨架行闪烁（不用 spinner，DESIGN §4.5）
             Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-2 py-3">
-                <span className="w-6 h-3 rounded-sm bg-hair-soft animate-pulse" />
-                <span className="h-3.5 flex-1 rounded-sm bg-hair-soft animate-pulse" style={{ animationDelay: `${i * 0.1}s` }} />
+                <span className="w-6 h-3 rounded-sm bg-skeleton animate-pulse" />
+                <span className="h-3.5 flex-1 rounded-sm bg-skeleton animate-pulse" style={{ animationDelay: `${i * 0.1}s` }} />
               </div>
             ))
           ) : playlists?.length ? (

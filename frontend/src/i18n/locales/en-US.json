@@ -45,6 +45,8 @@
   "action.backHome": "Back to home",
   "action.chooseFile": "Choose a file",
   "selection.count": "{count} of {total} selected",
+  "error.load.title": "This could not be loaded.",
+  "error.load.description": "The server did not answer properly. It may be restarting, or this request went wrong.",
   "empty.playlists.title": "This page is still blank.",
   "empty.playlists.description": "Make your first playlist and start collecting.",
   "empty.playlists.action": "New playlist",

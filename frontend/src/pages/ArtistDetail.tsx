@@ -96,11 +96,11 @@ export default function ArtistDetailPage() {
     return (
       <div className="pt-10 animate-fade-in">
         <div className="flex items-center gap-7">
-          <div className="h-28 w-28 flex-shrink-0 rounded-full bg-hair-soft animate-pulse" />
+          <div className="h-28 w-28 flex-shrink-0 rounded-full bg-skeleton animate-pulse" />
           <div className="flex-1 space-y-4">
-            <div className="h-3 w-28 rounded-sm bg-hair-soft animate-pulse" />
-            <div className="h-10 w-1/3 rounded-sm bg-hair-soft animate-pulse" />
-            <div className="h-3 w-2/3 rounded-sm bg-hair-soft animate-pulse" />
+            <div className="h-3 w-28 rounded-sm bg-skeleton animate-pulse" />
+            <div className="h-10 w-1/3 rounded-sm bg-skeleton animate-pulse" />
+            <div className="h-3 w-2/3 rounded-sm bg-skeleton animate-pulse" />
           </div>
         </div>
       </div>

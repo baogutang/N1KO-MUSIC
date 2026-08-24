@@ -86,8 +86,8 @@ export default function ArtistsPage() {
         <div className="border-t border-hair divide-y divide-hair-soft">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="flex items-baseline justify-between gap-4 px-2 py-4">
-              <div className="h-4 w-48 rounded-sm bg-hair-soft animate-pulse" />
-              <div className="h-3 w-14 rounded-sm bg-hair-soft animate-pulse" />
+              <div className="h-4 w-48 rounded-sm bg-skeleton animate-pulse" />
+              <div className="h-3 w-14 rounded-sm bg-skeleton animate-pulse" />
             </div>
           ))}
         </div>

@@ -5,13 +5,14 @@
 
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { useAlbumsInfinite } from '@/hooks/useServerQueries'
+import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
 
 const GRID_CLASS = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7'
 
 export default function AlbumsPage() {
   const { t } = useT()
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useAlbumsInfinite(50)
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useAlbumsInfinite(50)
 
   const albums = data?.pages.flatMap(p => p.items) ?? []
 
@@ -30,10 +31,17 @@ export default function AlbumsPage() {
         )}
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <EmptyState
+          ruled
+          title={t('error.load.title')}
+          description={t('error.load.description')}
+          action={{ label: t('action.retry'), onClick: () => { void refetch() } }}
+        />
+      ) : isLoading ? (
         <div className={GRID_CLASS}>
           {Array.from({ length: 15 }).map((_, i) => (
-            <div key={i} className="aspect-square rounded-md bg-hair-soft animate-pulse" />
+            <div key={i} className="aspect-square rounded-md bg-skeleton animate-pulse" />
           ))}
         </div>
       ) : (
@@ -46,7 +54,7 @@ export default function AlbumsPage() {
           {isFetchingNextPage && (
             <div className={`${GRID_CLASS} mt-7`}>
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-md bg-hair-soft animate-pulse" />
+                <div key={i} className="aspect-square rounded-md bg-skeleton animate-pulse" />
               ))}
             </div>
           )}

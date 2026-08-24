@@ -41,12 +41,12 @@ export default function AlbumDetailPage() {
     return (
       <div className="pt-10 animate-fade-in">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-[280px_minmax(0,1fr)] lg:gap-14">
-          <div className="aspect-square w-60 max-w-[320px] rounded-md bg-hair-soft animate-pulse md:w-full" />
+          <div className="aspect-square w-60 max-w-[320px] rounded-md bg-skeleton animate-pulse md:w-full" />
           <div className="space-y-4 pt-2">
-            <div className="h-3 w-28 rounded-sm bg-hair-soft animate-pulse" />
-            <div className="h-12 w-2/3 rounded-sm bg-hair-soft animate-pulse" />
-            <div className="h-3 w-40 rounded-sm bg-hair-soft animate-pulse" />
-            <div className="h-3 w-56 rounded-sm bg-hair-soft animate-pulse" />
+            <div className="h-3 w-28 rounded-sm bg-skeleton animate-pulse" />
+            <div className="h-12 w-2/3 rounded-sm bg-skeleton animate-pulse" />
+            <div className="h-3 w-40 rounded-sm bg-skeleton animate-pulse" />
+            <div className="h-3 w-56 rounded-sm bg-skeleton animate-pulse" />
           </div>
         </div>
       </div>

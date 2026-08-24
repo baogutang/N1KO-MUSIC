@@ -45,6 +45,8 @@
   "action.backHome": "回到首页",
   "action.chooseFile": "选择文件",
   "selection.count": "已选 {count} / {total}",
+  "error.load.title": "没能读到这些内容。",
+  "error.load.description": "服务器没有正常应答。它可能正在重启，或者这次请求出了岔子。",
   "empty.playlists.title": "这一页还空着。",
   "empty.playlists.description": "创建第一个歌单，把喜欢的歌收进来。",
   "empty.playlists.action": "新建歌单",
