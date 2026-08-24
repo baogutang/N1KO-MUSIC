@@ -251,7 +251,10 @@ export function QueueDrawer() {
                 )}
               </li>
             )
-  }, [queue, queueIndex, isPlaying, isMobile, order.length, dragIndex, overIndex, handleDragStart, handleDragOver, handleDrop, jumpToIndex, moveByPosition, removeFromQueue, t])
+    // 依赖必须是 order 本身而不是 order.length：拖拽重排后长度不变、内容变了，
+    // 只盯长度的话 renderRow 不会重建，行上的操作会作用在**旧顺序**上——
+    // 于是「上移」挪的是另一首歌。order 是 useMemo 出来的，引用稳定，不会多余重建。
+  }, [queue, queueIndex, isPlaying, isMobile, order, dragIndex, overIndex, handleDragStart, handleDragOver, handleDrop, jumpToIndex, moveByPosition, removeFromQueue, t])
 
   if (!isQueueOpen) return null
 
