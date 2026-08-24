@@ -235,6 +235,7 @@ export function useAudioEngine() {
   const cellularAudioQuality = useSettingsStore(s => s.cellularAudioQuality)
   const adaptiveQuality = useSettingsStore(s => s.adaptiveQuality)
   const playVersion  = usePlayerStore(s => s.playVersion)
+  const repeatSeekToken = usePlayerStore(s => s.repeatSeekToken)
 
   // 网络类型变化时重新求值（插拔 Wi-Fi、开关省流量模式）
   const [metered, setMetered] = useState(() => isMeteredConnection())
@@ -1231,6 +1232,25 @@ export function useAudioEngine() {
       })
     }
   }, [isPlaying, rampVolume, cancelRamp, targetVolume])
+
+  /**
+   * 单曲循环的倒带。
+   *
+   * 不走 playVersion —— 那会让 loadedKey 变化、src 重设、整首重新拉流。
+   * 同一首歌循环一夜就是把它下载几百遍（服务器开了转码还要重转几百遍）。
+   * 音频已经在内存里，倒回开头即可。
+   *
+   * 跳过首帧：初始值 0 不代表发生过一次循环。
+   */
+  const lastRepeatTokenRef = useRef(repeatSeekToken)
+  useEffect(() => {
+    if (repeatSeekToken === lastRepeatTokenRef.current) return
+    lastRepeatTokenRef.current = repeatSeekToken
+    audioEl.currentTime = 0
+    if (usePlayerStore.getState().isPlaying) {
+      void audioEl.play().catch(() => {})
+    }
+  }, [repeatSeekToken])
 
   // --- 音量（含 ReplayGain 归一化与睡眠渐弱）---
   const sleepFadeScalar = usePlayerStore(s => s.sleepFadeScalar)

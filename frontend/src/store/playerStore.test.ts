@@ -324,16 +324,20 @@ describe('随机游标（shuffleCursor）', () => {
 })
 
 describe('advanceOnEnded', () => {
-  it('单曲循环时重播当前曲并递增 playVersion，而不是前进', () => {
-    seedQueue(3, 1, { repeatMode: 'one', playVersion: 5, currentTime: 199 })
+  it('单曲循环时原地重播，而不是前进到下一首', () => {
+    seedQueue(3, 1, { repeatMode: 'one' })
     passSwitchDebounce()
+    const before = state().playVersion
 
     state().advanceOnEnded()
 
     expect(state().queueIndex).toBe(1)
     expect(currentId()).toBe('s1')
-    expect(state().playVersion).toBe(6)
+    expect(state().isPlaying).toBe(true)
     expect(state().currentTime).toBe(0)
+    // playVersion 刻意**不**递增：它参与 loadedKey，bump 一次就等于换了一首，
+    // 整首会重新拉流。倒带用 repeatSeekToken，音频不必重下。
+    expect(state().playVersion).toBe(before)
   })
 
   it('非单曲循环时交给 next 处理', () => {
@@ -762,5 +766,45 @@ describe('无播放时的「下一首播放」', () => {
 
     expect(currentId()).toBe(before)
     expect(state().queue[2].id).toBe('inserted')
+  })
+})
+
+describe('单曲循环', () => {
+  /**
+   * playVersion 参与 useAudioEngine 的 loadedKey，bump 一次就等于「换了一首」：
+   * src 重设、重新拉流。对着家里的 NAS 循环一整晚，等于把同一首歌下载几百遍，
+   * 服务器开了转码还要重转几百遍。音频还在内存里，倒回开头就够了。
+   */
+  it('不 bump playVersion —— 那会让整首重新加载', () => {
+    seedQueue(3, 1, { repeatMode: 'one' })
+    passSwitchDebounce()
+    const before = state().playVersion
+
+    state().advanceOnEnded()
+
+    expect(state().playVersion).toBe(before)
+  })
+
+  it('发出倒带信号并保持播放', () => {
+    seedQueue(3, 1, { repeatMode: 'one' })
+    passSwitchDebounce()
+    const token = state().repeatSeekToken
+
+    state().advanceOnEnded()
+
+    expect(state().repeatSeekToken).toBe(token + 1)
+    expect(state().isPlaying).toBe(true)
+    expect(state().currentTime).toBe(0)
+  })
+
+  it('仍然停在同一首上，不前进', () => {
+    seedQueue(3, 1, { repeatMode: 'one' })
+    passSwitchDebounce()
+    const id = currentId()
+
+    state().advanceOnEnded()
+
+    expect(currentId()).toBe(id)
+    expect(state().queueIndex).toBe(1)
   })
 })

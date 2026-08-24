@@ -114,6 +114,13 @@ interface PlayerState {
   duration: number
   buffered: number
   playVersion: number
+  /**
+   * 单曲循环的「倒带」信号。
+   *
+   * 和 playVersion 的区别是关键：playVersion 表示「换了一首，去重新加载」，
+   * 而这个只表示「同一首，回到开头」——音频不必重下。
+   */
+  repeatSeekToken: number
 
   queue: Song[]
   queueIndex: number
@@ -205,6 +212,7 @@ export const usePlayerStore = create<PlayerState>()(
       duration: 0,
       buffered: 0,
       playVersion: 0,
+      repeatSeekToken: 0,
       queue: [],
       queueIndex: -1,
       history: [],
@@ -347,11 +355,20 @@ export const usePlayerStore = create<PlayerState>()(
           return
         }
         if (!canSwitch() || !state.currentSong) return
+        /**
+         * 单曲循环不该重新加载。
+         *
+         * playVersion 参与 useAudioEngine 的 loadedKey，bump 一次就等于换了一首歌：
+         * src 重设、重新拉流。对着家里的 NAS 单曲循环一整晚，等于把同一首歌
+         * 下载几百遍；服务器开了转码的话，还要重新转码几百遍。
+         *
+         * 音频还在，倒回开头就够了。seekHowl 由音频引擎在 currentTime 归零时
+         * 处理——这里只声明「回到 0 并继续播」，不声明「换了一首」。
+         */
         set({
-          currentSong: state.currentSong,
           isPlaying: true,
           currentTime: 0,
-          playVersion: state.playVersion + 1,
+          repeatSeekToken: (state.repeatSeekToken ?? 0) + 1,
         })
       },
 
