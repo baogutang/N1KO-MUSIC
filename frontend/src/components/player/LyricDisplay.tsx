@@ -15,6 +15,7 @@
 
 import { useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import { cn } from '@/lib/utils'
+import { spaceCJK } from '@/utils/cjkTypography'
 import { useLyrics } from '@/hooks/useLyrics'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useSettingsStore } from '@/store/settingsStore'
@@ -254,7 +255,10 @@ const LyricRow = memo(function LyricRow({
         className="flex-none w-[18px] h-[2px] mr-3 rounded-full bg-primary transition-opacity duration-300"
         style={{ opacity: isActive ? 1 : 0 }}
       />
-      <span className="min-w-0">{text}</span>
+      {/* 歌词是全站最大的一块中文文字面，CJK 与拉丁混排（歌名、Cover、feat.、
+          英文副歌）在这里最显眼。设计契约要求两种文字之间加细空格，
+          此前唯独这里漏了。 */}
+      <span className="min-w-0">{spaceCJK(text)}</span>
     </p>
   )
 })
