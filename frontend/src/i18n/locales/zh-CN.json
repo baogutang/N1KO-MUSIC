@@ -187,6 +187,7 @@
   "queue.shuffledOrderNote": "（随机顺序）",
   "queue.saveAsPlaylist": "存为歌单",
   "queue.saveDesc": "把当前播放顺序的 {count} 首歌保存成一个歌单。",
+  "queue.saveDesc_one": "把当前这一首歌保存成一个歌单。",
   "queue.savePlaceholder": "给这个歌单起个名字",
   "queue.saving": "保存中…",
   "queue.saved": "已保存「{name}」",

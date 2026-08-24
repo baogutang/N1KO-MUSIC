@@ -210,9 +210,13 @@ export default function Library() {
                 </div>
               </div>
             )}
-            {songsError ? (
+            {songsError && songs.length === 0 ? (
               /* 查询失败时若直接渲染空列表，「服务器出错」和「曲库是空的」
-                 长得一模一样，用户既得不到解释也没有重试入口。 */
+                 长得一模一样，用户既得不到解释也没有重试入口。
+
+                 但只在**一条都没有**时才整页换成错误态：否则「加载更多」
+                 失败会把已经看到的几百首整个抹掉，代价远大于那条错误信息
+                 的价值。已有内容时保留列表，让底部的分页按钮自己表达失败。 */
               <EmptyState
                 ruled
                 title={t('error.load.title')}
@@ -240,7 +244,7 @@ export default function Library() {
           </div>
         )}
 
-        {activeTab === 'albums' && (albumsError ? (
+        {activeTab === 'albums' && (albumsError && albums.length === 0 ? (
           <EmptyState
             ruled
             title={t('error.load.title')}
@@ -308,7 +312,7 @@ export default function Library() {
           </>
         ))}
 
-        {activeTab === 'artists' && (artistsError ? (
+        {activeTab === 'artists' && (artistsError && (artists ?? []).length === 0 ? (
           <EmptyState
             ruled
             title={t('error.load.title')}

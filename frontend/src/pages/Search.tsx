@@ -54,6 +54,17 @@ export default function SearchPage() {
     const current = params.get('q') ?? ''
     const next = debouncedQuery.trim()
     if (next === current) return
+    /**
+     * 打字打到一半时不要回写。
+     *
+     * 输入「the beatles」，打完 `the ` 那一刻 debounce 触发，trim 后写进
+     * URL 的是 `the`；上面那个 urlQuery→setQuery 的同步随即把输入框也改成
+     * `the`——**光标后面那个空格被吞掉了**，用户接着打就成了 `thebeatles`。
+     *
+     * 只在 trim 不改变内容时回写；正在输入尾随空格的那一瞬间跳过，
+     * 等下一次 debounce（用户打完下一个字）再写。
+     */
+    if (next !== debouncedQuery) return
     const updated = new URLSearchParams(params)
     if (next) updated.set('q', next)
     else updated.delete('q')

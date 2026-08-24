@@ -78,7 +78,23 @@ export function setLocale(locale: Locale): void {
  * 界面上出现一个 {count} 是明确的 bug 信号，出现 "undefined" 只会让人困惑。
  */
 export function t(key: string, vars?: Record<string, string | number>): string {
-  const template = translate(pluralKey(key, vars), currentLocale)
+  return format(key, vars, currentLocale)
+}
+
+/**
+ * 取词 + 单复数 + 插值，**唯一**的一份实现。
+ *
+ * 此前模块级的 t 和 useT() 返回的 bound 各写了一遍同样的逻辑。
+ * 给 t 加单复数时只改了一处，而组件用的全是 useT()——机制加了、
+ * 测试也绿了（测的是模块级 t），界面上却一个字没变。
+ * 重复的实现迟早会分叉；合并成一份，就不可能只修一半。
+ */
+function format(
+  key: string,
+  vars: Record<string, string | number> | undefined,
+  locale: Locale
+): string {
+  const template = translate(pluralKey(key, vars, locale), locale)
   if (!vars) return template
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
     name in vars ? String(vars[name]) : match)
@@ -97,11 +113,16 @@ export function t(key: string, vars?: Record<string, string | number>): string {
  * 只处理 1 与非 1：英文只有这一条界线。真要支持俄语那种多档形态时，
  * 再换成 Intl.PluralRules，而那时这个函数就是唯一要改的地方。
  */
-function pluralKey(key: string, vars?: Record<string, string | number>): string {
+function pluralKey(
+  key: string,
+  vars: Record<string, string | number> | undefined,
+  locale: Locale
+): string {
   if (!vars || vars.count === undefined) return key
+  // 只有恰好为 1 才用单数。字符串 '1' 也算；NaN、小数、负数都走复数。
   if (Number(vars.count) !== 1) return key
   const singular = `${key}_one`
-  return singular in CATALOGS[currentLocale] ? singular : key
+  return singular in CATALOGS[locale] ? singular : key
 }
 
 /**
@@ -135,15 +156,13 @@ const boundCache = new Map<Locale, typeof t>()
 function boundT(locale: Locale): typeof t {
   const cached = boundCache.get(locale)
   if (cached) return cached
-  const bound: typeof t = (key, vars) => {
-    const template = translate(key, locale)
-    if (!vars) return template
-    return template.replace(/\{(\w+)\}/g, (match, name: string) =>
-      name in vars ? String(vars[name]) : match)
-  }
+  const bound: typeof t = (key, vars) => format(key, vars, locale)
   boundCache.set(locale, bound)
   return bound
 }
+
+/** 仅供测试：拿到某个语言的 bound t，用来验证组件走的那条路径 */
+export const boundTForTest = boundT
 
 export function useT(): { t: typeof t; locale: Locale } {
   const locale = useSyncExternalStore(subscribe, getLocale, () => SOURCE_LOCALE)

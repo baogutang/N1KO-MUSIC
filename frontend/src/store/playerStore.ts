@@ -492,7 +492,13 @@ export const usePlayerStore = create<PlayerState>()(
                 isPlaying: true,
                 currentTime: 0,
                 playVersion: state.playVersion + 1,
-                shuffledIndexes: songs.map((_, i) => i),
+                // 开着随机时必须真的洗牌。此前无条件用恒等序列，于是
+                // 随机图标亮着、队列面板写着「随机顺序」，实际却按专辑原序播——
+                // 界面在说谎。其余几个建队列的入口（playSong / playQueue /
+                // toggleShuffle / 重新水合）都调 generateShuffledIndexes。
+                shuffledIndexes: state.shuffle
+                  ? generateShuffledIndexes(songs.length, 0)
+                  : songs.map((_, i) => i),
                 shuffleCursor: state.shuffle ? 0 : -1,
               }
             }

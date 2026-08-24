@@ -140,6 +140,18 @@ describe('单复数', () => {
     expect(t('song.year', { year: 2014 })).not.toBe('song.year')
   })
 
+  /**
+   * 组件用的是 useT() 返回的 bound t，不是模块级的 t。
+   * 单复数第一次加上时只改了模块级那份——测试全绿，界面一个字没变。
+   * 这条钉的就是那个盲区。
+   */
+  it('useT() 返回的 t 同样走单复数（组件走的是这条路）', async () => {
+    const { boundTForTest } = await import('./index')
+    const en = boundTForTest('en-US')
+    expect(en('song.count', { count: 1 })).toBe('1 track')
+    expect(en('song.count', { count: 3 })).toBe('3 tracks')
+  })
+
   it('没传 count 时不走单复数分支', () => {
     setLocale('en-US')
     expect(t('nav.library')).not.toContain('_one')

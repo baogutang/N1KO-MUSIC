@@ -244,7 +244,15 @@ export function FullscreenPlayer() {
   const capabilities = useServerCapabilities()
   const isMobile = useIsMobileLayout()
   // 移动端封面 / 歌词 视图切换（桌面双列布局歌词常显，无需切换）
-  const [mobileView, setMobileView] = useState<'cover' | 'lyrics'>('cover')
+  /**
+   * 封面 / 歌词的选择要留住。
+   *
+   * 这个 state 随 FullscreenPlayer 卸载而消失（浮层关闭 350ms 后就卸载），
+   * 于是每次重新打开都回到封面。偏爱看歌词的人每首歌都要多点一次——
+   * 一天几十次。放进 settings store 里持久化。
+   */
+  const mobileView = useSettingsStore(s => s.playerMobileView)
+  const setMobileView = useSettingsStore(s => s.setPlayerMobileView)
 
   const resolvedTheme = useThemeStore(s => s.resolvedTheme)
   const isLight = resolvedTheme === 'light'

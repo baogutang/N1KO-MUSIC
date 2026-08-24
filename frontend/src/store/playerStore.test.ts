@@ -808,3 +808,21 @@ describe('单曲循环', () => {
     expect(state().queueIndex).toBe(1)
   })
 })
+
+describe('空队列 + 随机开着', () => {
+  it('「下一首播放」要真的洗牌，而不是恒等序列', () => {
+    // 换服务器会清空队列但保留 shuffle 开关——此时界面写着「随机顺序」，
+    // 若播放顺序是 0,1,2… 就是在说谎
+    usePlayerStore.setState({ shuffle: true, queue: [], queueIndex: -1 })
+    const songs = makeSongs(12)
+
+    state().addToQueue(songs, 'next')
+
+    expect(state().shuffle).toBe(true)
+    expect(state().shuffledIndexes).toHaveLength(12)
+    // 仍是一个完整排列
+    expect([...state().shuffledIndexes].sort((a, b) => a - b)).toEqual(songs.map((_, i) => i))
+    // 但不该是恒等序列
+    expect(state().shuffledIndexes).not.toEqual(songs.map((_, i) => i))
+  })
+})

@@ -187,6 +187,7 @@
   "queue.shuffledOrderNote": "(shuffled)",
   "queue.saveAsPlaylist": "Save as playlist",
   "queue.saveDesc": "Save these {count} tracks, in the order you are hearing them, as a playlist.",
+  "queue.saveDesc_one": "Save this one track, in the order you are hearing it, as a playlist.",
   "queue.savePlaceholder": "Name this playlist",
   "queue.saving": "Saving…",
   "queue.saved": "Saved “{name}”",

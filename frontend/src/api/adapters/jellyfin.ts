@@ -701,12 +701,42 @@ export class JellyfinAdapter implements MusicServerAdapter {
     })
   }
 
+  /**
+   * 从歌单移除。
+   *
+   * 调用方传的是**下标**（Subsonic 的 updatePlaylist 就是按下标删的，
+   * 这个接口沿用了那套语义）。但 Jellyfin/Emby 的 EntryIds 要的是
+   * **PlaylistItemId**——歌单条目自己的 GUID，既不是序号，也不是歌曲 id。
+   *
+   * 此前直接把下标当 GUID 发过去：匹配不到任何条目，服务端原样保存并
+   * 返回 204，于是界面提示「已移除」而那首歌一直都在，用户反复删也删不掉。
+   *
+   * 所以这里先查一次条目列表，把下标翻译成真正的 PlaylistItemId。
+   * 一次多余的请求换一个真能删掉的删除。
+   *
+   * 下标从大到小删：一次删多首时，先删小下标会让后面的下标全部前移。
+   */
   async removeSongsFromPlaylist(playlistId: string, songIndexes: number[]): Promise<void> {
-    for (const index of songIndexes) {
-      await this.client.delete(`/Playlists/${playlistId}/Items`, {
-        params: { EntryIds: String(index) },
-      })
+    if (!songIndexes.length) return
+    const resp = await this.client.get(`/Playlists/${playlistId}/Items`, {
+      params: { UserId: this.userId, MediaType: 'Audio' },
+    })
+    const items = (resp.data.Items ?? []) as Record<string, unknown>[]
+
+    const entryIds = [...songIndexes]
+      .sort((a, b) => b - a)
+      .map(index => items[index]?.PlaylistItemId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+
+    if (!entryIds.length) {
+      // 下标全部越界说明调用方看到的列表和服务器已经不一致了。
+      // 静默返回会让界面提示「已移除」而实际什么都没发生——这正是要修的那种谎。
+      throw new Error('No matching playlist entries to remove')
     }
+
+    await this.client.delete(`/Playlists/${playlistId}/Items`, {
+      params: { EntryIds: entryIds.join(',') },
+    })
   }
 
   async getStarred(): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }> {

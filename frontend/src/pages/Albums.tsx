@@ -31,7 +31,7 @@ export default function AlbumsPage() {
         )}
       </div>
 
-      {isError ? (
+      {isError && albums.length === 0 ? (
         <EmptyState
           ruled
           title={t('error.load.title')}
