@@ -320,6 +320,7 @@ export function QueueDrawer() {
               order={order}
               renderRow={renderRow}
               viewportRef={viewportRef}
+              scrollToPosition={position}
             />
           )}
         </ScrollArea>
@@ -408,10 +409,13 @@ function QueueList({
   order,
   renderRow,
   viewportRef,
+  scrollToPosition,
 }: {
   order: number[]
   renderRow: (qi: number, pos: number) => React.ReactNode
   viewportRef: React.RefObject<HTMLDivElement | null>
+  /** 打开时要滚到的播放位置；-1 表示不滚 */
+  scrollToPosition: number
 }) {
   /**
    * 滚动容器要放进 state，不能只读 ref。
@@ -432,6 +436,30 @@ function QueueList({
     estimateSize: () => QUEUE_ROW_HEIGHT,
     overscan: 16,
   })
+
+  /**
+   * 打开时滚到正在播放的那一首。
+   *
+   * 「全库随机」之后队列有几百首，当前曲通常在中间某处——不滚的话
+   * 每次打开都得自己翻找，而这个面板最常见的用途恰恰是「看看接下来是什么」。
+   *
+   * 只在拿到滚动容器后做一次：scrollEl 就绪即为「面板已打开」，
+   * 面板关闭时整棵子树会卸载，下次打开是全新的一轮。
+   */
+  const didScrollRef = useRef(false)
+  useEffect(() => {
+    if (didScrollRef.current || !scrollEl || scrollToPosition < 0) return
+    didScrollRef.current = true
+    if (order.length > QUEUE_VIRTUALIZE_THRESHOLD) {
+      virtualizer.scrollToIndex(scrollToPosition, { align: 'center' })
+    } else {
+      // 未虚拟化时直接找那一行；rAF 等布局稳定后再滚
+      requestAnimationFrame(() => {
+        scrollEl.querySelectorAll('li')[scrollToPosition]
+          ?.scrollIntoView({ block: 'center' })
+      })
+    }
+  }, [scrollEl, scrollToPosition, order.length, virtualizer])
 
   if (order.length <= QUEUE_VIRTUALIZE_THRESHOLD) {
     return <ol>{order.map((qi, pos) => renderRow(qi, pos))}</ol>

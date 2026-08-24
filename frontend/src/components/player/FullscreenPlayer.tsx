@@ -18,7 +18,7 @@ import {
   Play, Pause, SkipBack, SkipForward, Heart,
   Repeat, RepeatOnce, Shuffle, ArrowsDownUp,
   SpeakerHigh, SpeakerX, SpeakerLow,
-  CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork,
+  CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork, Moon,
   Queue, FileText
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
@@ -46,6 +46,10 @@ import { formatDuration } from '@/utils/formatters'
 import { useSettingsStore } from '@/store/settingsStore'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { ShareDialog } from '@/components/music/ShareDialog'
+import { PRESETS } from '@/components/player/SleepTimerMenu'
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 
 /** macOS 检测：FullscreenPlayer 是 fixed 覆盖层，需要独立处理 traffic-light 区域 */
@@ -241,6 +245,9 @@ export function FullscreenPlayer() {
   // 那时按 currentSong 生成的会是下一首的链接，而且悄无声息。
   const [playlistSong, setPlaylistSong] = useState<Song | null>(null)
   const [shareSong, setShareSong] = useState<Song | null>(null)
+  const [sleepOpen, setSleepOpen] = useState(false)
+  const sleepTimerAt = usePlayerStore(s => s.sleepTimerAt)
+  const setSleepTimer = usePlayerStore(s => s.setSleepTimer)
   const capabilities = useServerCapabilities()
   const isMobile = useIsMobileLayout()
   // 移动端封面 / 歌词 视图切换（桌面双列布局歌词常显，无需切换）
@@ -431,6 +438,18 @@ export function FullscreenPlayer() {
                 {t('share.link')}
               </DropdownMenuItem>
             )}
+            {/*
+              睡眠定时此前只在桌面播放条上有入口，而它最常用的场景恰恰是
+              「躺着用手机听着睡」——那台设备上完全够不着。手机端的传输键
+              一排已经很挤（注释里写着为此省掉了音量键），所以放进这个菜单。
+            */}
+            <DropdownMenuItem
+              onSelect={e => { e.preventDefault(); setSleepOpen(true) }}
+              className="gap-2 cursor-pointer"
+            >
+              <Moon size={16} />
+              {t('player.sleepTimer')}
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => { toggleFullscreen(); setCarMode(true) }}
               className="gap-2 cursor-pointer"
@@ -858,6 +877,42 @@ export function FullscreenPlayer() {
         </div>
       </div>
       )}
+
+      {/* 睡眠定时的选择面板。桌面播放条上那个是 DropdownMenu，
+          嵌进另一个菜单会打架，所以这里用对话框。 */}
+      <Dialog open={sleepOpen} onOpenChange={setSleepOpen}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>{t('player.sleepTimer')}</DialogTitle>
+            <DialogDescription>{t('player.sleepFadeHint')}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col">
+            {PRESETS.map(minutes => (
+              <button
+                key={minutes}
+                onClick={() => { setSleepTimer(minutes); setSleepOpen(false) }}
+                className="border-b border-hair-soft py-3 text-left text-[15px] transition-colors hover:text-primary"
+              >
+                {t('player.sleepAfterMinutes', { minutes })}
+              </button>
+            ))}
+            <button
+              onClick={() => { setSleepTimer(null, 'endOfTrack'); setSleepOpen(false) }}
+              className="border-b border-hair-soft py-3 text-left text-[15px] transition-colors hover:text-primary"
+            >
+              {t('player.sleepEndOfTrack')}
+            </button>
+            {sleepTimerAt !== null && (
+              <button
+                onClick={() => { setSleepTimer(null); setSleepOpen(false) }}
+                className="py-3 text-left text-[15px] text-primary"
+              >
+                {t('player.sleepCancel')}
+              </button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ShareDialog
         open={shareSong !== null}

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useT } from '@/i18n'
 
-const PRESETS = [15, 30, 45, 60, 90]
+export const PRESETS = [15, 30, 45, 60, 90]
 
 function formatRemaining(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000))
