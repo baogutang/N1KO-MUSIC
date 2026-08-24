@@ -505,6 +505,26 @@ export function useCreatePlaylist() {
   })
 }
 
+/**
+ * 从歌单里移除曲目。
+ *
+ * Subsonic 的 updatePlaylist 用的是**下标**而不是歌曲 id——同一首歌在歌单里
+ * 可以出现多次，用 id 删会分不清删哪一条。所以调用方必须传下标。
+ *
+ * 删除后要同时失效歌单详情与歌单列表：列表上显示着曲目数。
+ */
+export function useRemoveSongsFromPlaylist() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ playlistId, songIndexes }: { playlistId: string; songIndexes: number[] }) =>
+      getAdapter().removeSongsFromPlaylist(playlistId, songIndexes),
+    onSuccess: (_data, { playlistId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.playlistDetail(playlistId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
+    },
+  })
+}
+
 /** 删除歌单 */
 export function useDeletePlaylist() {
   const queryClient = useQueryClient()

@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { SongList } from '@/components/music/SongList'
 import { AlbumShelf } from '@/components/music/AlbumShelf'
 import { RediscoveryShelf } from '@/components/music/RediscoveryShelf'
+import { ContinueShelf } from '@/components/music/ContinueShelf'
 import { NowPlayingOnServer } from '@/components/music/NowPlayingOnServer'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { useRecentAlbums, useArtists, queryKeys } from '@/hooks/useServerQueries'
@@ -224,6 +225,8 @@ export default function HomePage() {
       {/* ============ 服务端已算好的书架：最常播放 / 最近播放 ============ */}
       {/* 重听：从自己的历史里翻出来的，放在「最常播放」之前——
           最常播放是你已经知道的，这一栏才是你忘了的 */}
+      <ContinueShelf />
+
       <RediscoveryShelf />
 
       <AlbumShelf type="frequent" label={t('section.mostPlayed')} tag="MOST PLAYED" limit={6} />

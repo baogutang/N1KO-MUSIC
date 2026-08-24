@@ -24,6 +24,7 @@ import {
   FileText,
   ShareNetwork,
   Broadcast as BroadcastIcon,
+  Trash,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
@@ -61,6 +62,12 @@ function songIdentity(song: Song, index: number): string {
 }
 
 interface SongListProps {
+  /**
+   * 从当前上下文移除这首歌（目前只有歌单详情用到）。
+   * 传下标而不是 song：同一首歌在歌单里可以出现多次，
+   * 用 id 会分不清删的是哪一条——Subsonic 的接口也是按下标删的。
+   */
+  onRemove?: (index: number) => void
   songs: Song[]
   /** 是否显示专辑封面列 */
   showCover?: boolean
@@ -81,6 +88,7 @@ export function SongList({
   showIndex = true,
   className,
   onPlaylistAdd,
+  onRemove,
   selectable = true,
 }: SongListProps) {
   const { t } = useT()
@@ -227,6 +235,7 @@ export function SongList({
       onPlaylistAdd={handlePlaylistAdd}
       onToggleStar={handleToggleStar}
       onShare={caps.shares ? handleShare : undefined}
+      onRemove={onRemove ? () => onRemove(index) : undefined}
       onRadio={caps.radio ? handleRadio : undefined}
       canRate={caps.rating}
       selected={isSelected(songIdentity(song, index))}
@@ -237,7 +246,7 @@ export function SongList({
   ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, handlePlayIndex,
       handlePlaylistAdd, handleToggleStar, caps.shares, caps.radio, caps.rating,
       handleShare, handleRadio, isSelected, selectionActive, selectable,
-      handleRowClick, handleRowLongPress])
+      handleRowClick, handleRowLongPress, onRemove])
 
   return (
     <>
@@ -432,6 +441,7 @@ interface SongRowProps {
   onToggleStar: (song: Song, nextStarred: boolean) => void
   /** 服务器不支持时为 undefined，对应菜单项直接不出现 */
   onShare?: (song: Song) => void
+  onRemove?: () => void
   onRadio?: (song: Song) => void
   canRate?: boolean
   selected?: boolean
@@ -454,6 +464,7 @@ const SongRow = React.memo(function SongRow({
   onPlaylistAdd,
   onToggleStar,
   onShare,
+  onRemove,
   onRadio,
   canRate,
   selected,
@@ -767,7 +778,7 @@ const SongRow = React.memo(function SongRow({
             {t('song.viewDetail')}
           </DropdownMenuItem>
 
-          {(onPlaylistAdd || onShare) && (
+          {(onPlaylistAdd || onShare || onRemove) && (
             <>
               <DropdownMenuSeparator />
               {onPlaylistAdd && (
@@ -783,6 +794,15 @@ const SongRow = React.memo(function SongRow({
                 >
                   <ShareNetwork className="w-4 h-4" />
                   {t('share.link')}
+                </DropdownMenuItem>
+              )}
+              {onRemove && (
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onRemove() }}
+                  className="gap-2 text-destructive focus:text-destructive"
+                >
+                  <Trash className="w-4 h-4" />
+                  {t('playlist.removeSong')}
                 </DropdownMenuItem>
               )}
             </>

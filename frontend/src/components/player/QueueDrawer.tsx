@@ -7,10 +7,13 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { X, DotsSixVertical, Play, CaretUp, CaretDown, Shuffle } from '@phosphor-icons/react'
+import { X, DotsSixVertical, Play, CaretUp, CaretDown, Shuffle, BookmarkSimple } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
+import { useCreatePlaylist } from '@/hooks/useServerQueries'
+import { toast } from '@/components/ui/use-toast'
+import { Input } from '@/components/ui/input'
 import { useIsMobileLayout } from '@/lib/platform'
 import { formatDuration } from '@/utils/formatters'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -46,6 +49,19 @@ export function QueueDrawer() {
    * 超过阈值才虚拟化：短队列实挂更简单，也没有测量带来的首帧抖动。
    */
   const viewportRef = useRef<HTMLDivElement | null>(null)
+
+  /**
+   * 「存为歌单」。
+   *
+   * 随机播放撞出一段好听的序列，或者手动排了半天队列——关掉播放器就没了。
+   * createPlaylist 早就实现好了，缺的只是一个入口。
+   *
+   * 存的是 order（当前播放顺序）而不是 queue（数组存储顺序）：
+   * 开着随机时，用户想留住的正是他刚听到的那个顺序。
+   */
+  const createPlaylist = useCreatePlaylist()
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saveName, setSaveName] = useState('')
 
   const [confirmClear, setConfirmClear] = useState(false)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -105,6 +121,24 @@ export function QueueDrawer() {
     setDragIndex(null)
     setOverIndex(null)
   }, [dragIndex, moveByPosition])
+
+  const handleSaveAsPlaylist = useCallback(async () => {
+    const name = saveName.trim()
+    if (!name) return
+    try {
+      // 按 order 取，而不是 queue：随机时用户想留住的是他刚听到的顺序
+      const songIds = order.map(qi => queue[qi]?.id).filter((id): id is string => !!id)
+      await createPlaylist.mutateAsync({ name, songIds })
+      setSaveOpen(false)
+      toast({ title: t('queue.saved', { name }) })
+    } catch (err) {
+      toast({
+        title: t('queue.saveFailed'),
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      })
+    }
+  }, [saveName, order, queue, createPlaylist, t])
 
   const renderRow = useCallback((qi: number, pos: number) => {
             const song = queue[qi]
@@ -250,6 +284,13 @@ export function QueueDrawer() {
           </h3>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => { setSaveName(''); setSaveOpen(true) }}
+              className="inline-flex items-center gap-1 text-[12px] tracking-[0.14em] text-ink-soft hover:text-primary transition-colors duration-200"
+            >
+              <BookmarkSimple size={12} aria-hidden="true" />
+              {t('queue.saveAsPlaylist')}
+            </button>
+            <button
               onClick={() => setConfirmClear(true)}
               className="text-[12px] tracking-[0.14em] text-ink-soft hover:text-primary transition-colors duration-200"
             >
@@ -293,6 +334,34 @@ export function QueueDrawer() {
           </div>
         )}
       </div>
+
+      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('queue.saveAsPlaylist')}</DialogTitle>
+            <DialogDescription>
+              {t('queue.saveDesc', { count: order.length })}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            autoFocus
+            value={saveName}
+            onChange={e => setSaveName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') void handleSaveAsPlaylist() }}
+            placeholder={t('queue.savePlaceholder')}
+            aria-label={t('playlist.name')}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setSaveOpen(false)}>{t('action.cancel')}</Button>
+            <Button
+              onClick={() => { void handleSaveAsPlaylist() }}
+              disabled={!saveName.trim() || createPlaylist.isPending}
+            >
+              {createPlaylist.isPending ? t('queue.saving') : t('action.save')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
         <DialogContent className="sm:max-w-sm">

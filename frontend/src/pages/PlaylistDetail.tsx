@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Play, Shuffle, MusicNote, DownloadSimple } from '@phosphor-icons/react'
 import {
@@ -5,7 +6,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { downloadTextFile, safeFileName, toM3U, toXSPF } from '@/services/playlistFiles'
 import { toast } from '@/components/ui/use-toast'
-import { usePlaylistDetail } from '@/hooks/useServerQueries'
+import { usePlaylistDetail, useRemoveSongsFromPlaylist } from '@/hooks/useServerQueries'
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { getAdapter, hasAdapter } from '@/api'
 import { SongList } from '@/components/music/SongList'
 import { formatDuration } from '@/utils/formatters'
@@ -16,6 +21,13 @@ import { useT } from '@/i18n'
 
 export default function PlaylistDetail() {
   const { t } = useT()
+  /**
+   * 从歌单移除曲目。删除不可逆，因此走二次确认。
+   * 记的是下标而不是 song：同一首歌可以在歌单里出现多次，
+   * Subsonic 的接口也是按下标删的。
+   */
+  const removeSongs = useRemoveSongsFromPlaylist()
+  const [pendingRemove, setPendingRemove] = useState<number | null>(null)
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: playlist, isLoading, error } = usePlaylistDetail(id!)
@@ -170,7 +182,7 @@ export default function PlaylistDetail() {
 
       {/* 曲目列表：SongList 自带 border-t border-hair，不再加容器边框 */}
       {playlist.songs.length > 0 ? (
-        <SongList songs={playlist.songs} showAlbum />
+        <SongList songs={playlist.songs} showAlbum onRemove={setPendingRemove} />
       ) : (
         <EmptyState
           ruled
@@ -178,6 +190,45 @@ export default function PlaylistDetail() {
           description={t('empty.playlistDetail.description')}
         />
       )}
+
+      <Dialog open={pendingRemove !== null} onOpenChange={open => { if (!open) setPendingRemove(null) }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('playlist.removeSong')}</DialogTitle>
+            <DialogDescription>
+              {pendingRemove !== null && playlist?.songs[pendingRemove]
+                ? t('playlist.removeSongConfirm', { title: playlist.songs[pendingRemove].title })
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setPendingRemove(null)}>
+              {t('action.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={removeSongs.isPending}
+              onClick={async () => {
+                if (pendingRemove === null || !id) return
+                try {
+                  await removeSongs.mutateAsync({ playlistId: id, songIndexes: [pendingRemove] })
+                  toast({ title: t('playlist.removedSong') })
+                } catch (err) {
+                  toast({
+                    title: t('playlist.removeSongFailed'),
+                    description: err instanceof Error ? err.message : undefined,
+                    variant: 'destructive',
+                  })
+                } finally {
+                  setPendingRemove(null)
+                }
+              }}
+            >
+              {removeSongs.isPending ? t('queue.saving') : t('action.remove')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
