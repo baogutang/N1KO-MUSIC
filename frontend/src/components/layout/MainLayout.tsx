@@ -15,6 +15,7 @@ import { FullscreenPlayerOverlay } from '@/components/player/FullscreenPlayerOve
 import { useAudioEngine } from '@/hooks/useAudioEngine'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useSleepTimer } from '@/hooks/useSleepTimer'
 import { useQueueSync } from '@/hooks/useQueueSync'
 import { useRadioRefill } from '@/hooks/useRadioRefill'
@@ -41,6 +42,7 @@ export default function MainLayout() {
   useAudioEngine()
   useMediaSession()
   useKeyboardShortcuts()
+  useDocumentTitle()
   useSleepTimer()
   useQueueSync()
   useRadioRefill()
