@@ -389,11 +389,11 @@ function AlbumRowsSkeleton({ rows }: { rows: number }) {
     <ol className="border-t border-hair">
       {Array.from({ length: rows }).map((_, i) => (
         <li key={i} className="flex items-center gap-5 px-2 py-2.5 border-b border-hair-soft">
-          <span className="w-8 h-3 rounded-sm bg-hair-soft/70 animate-pulse" />
-          <span className="w-[52px] h-[52px] rounded-sm bg-hair-soft/70 animate-pulse" />
-          <span className="flex-1 h-4 rounded-sm bg-hair-soft/70 animate-pulse" />
-          <span className="hidden md:block flex-1 h-3.5 rounded-sm bg-hair-soft/70 animate-pulse" />
-          <span className="w-16 h-3.5 rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="w-8 h-3 rounded-sm bg-skeleton animate-pulse" />
+          <span className="w-[52px] h-[52px] rounded-sm bg-skeleton animate-pulse" />
+          <span className="flex-1 h-4 rounded-sm bg-skeleton animate-pulse" />
+          <span className="hidden md:block flex-1 h-3.5 rounded-sm bg-skeleton animate-pulse" />
+          <span className="w-16 h-3.5 rounded-sm bg-skeleton animate-pulse" />
         </li>
       ))}
     </ol>

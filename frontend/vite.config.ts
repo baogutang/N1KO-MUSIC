@@ -40,16 +40,33 @@ export default defineConfig(({ mode }) => ({
               protocol_handlers: [
                 { protocol: 'web+niko', url: './open?url=%s' },
               ],
+              /**
+               * 这两个 png 必须真实存在于 public/ 下。
+               * 此前 manifest 指着两个从未构建出来的文件，Android Chrome 的
+               * 可安装性检查要求至少一个 ≥192px 且可拉取的图标，于是
+               * beforeinstallprompt 永远不触发——「安装」入口整个不出现。
+               *
+               * maskable 那一条是给 Android 自适应图标用的：缺了它，
+               * 系统会把方形图标套进白色圆底，边缘一圈突兀的白。
+               */
               icons: [
                 {
                   src: 'pwa-192x192.png',
                   sizes: '192x192',
                   type: 'image/png',
+                  purpose: 'any',
                 },
                 {
                   src: 'pwa-512x512.png',
                   sizes: '512x512',
                   type: 'image/png',
+                  purpose: 'any',
+                },
+                {
+                  src: 'pwa-512x512.png',
+                  sizes: '512x512',
+                  type: 'image/png',
+                  purpose: 'maskable',
                 },
               ],
             },

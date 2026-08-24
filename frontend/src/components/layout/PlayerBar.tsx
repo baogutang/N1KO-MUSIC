@@ -335,7 +335,7 @@ export function PlayerBar() {
               )}
             </button>
 
-            <button onClick={next} className={iconBtn} aria-label={t('player.next')}>
+            <button onClick={() => next()} className={iconBtn} aria-label={t('player.next')}>
               <SkipForward size={19} weight="fill" />
             </button>
 

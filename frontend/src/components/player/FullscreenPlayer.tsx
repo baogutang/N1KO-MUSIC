@@ -585,7 +585,7 @@ export function FullscreenPlayer() {
                   : <Play size={22} weight="fill" className="ml-0.5" />
                 }
               </button>
-              <button onClick={next} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.next')}>
+              <button onClick={() => next()} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.next')}>
                 <SkipForward size={20} />
               </button>
               <button
@@ -728,7 +728,7 @@ export function FullscreenPlayer() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button onClick={next} className={cn(lineCircleBtn, 'w-10 h-10')}>
+                <button onClick={() => next()} className={cn(lineCircleBtn, 'w-10 h-10')}>
                   <SkipForward size={20} />
                 </button>
               </TooltipTrigger>

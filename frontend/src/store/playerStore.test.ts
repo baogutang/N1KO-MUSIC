@@ -163,13 +163,28 @@ describe('顺序播放的 next', () => {
     expect(state().currentTime).toBe(0)
   })
 
-  it('播到队尾且不循环时停止播放，而不是回到开头', () => {
+  it('自然播完队尾且不循环时停止播放，而不是回到开头', () => {
+    seedQueue(3, 2)
+    passSwitchDebounce()
+
+    state().next({ auto: true })
+
+    expect(state().isPlaying).toBe(false)
+    expect(state().queueIndex).toBe(2)
+    expect(currentId()).toBe('s2')
+  })
+
+  /**
+   * 手动按「下一首」到了队尾，用户要的是「还有吗」，答案是没有。
+   * 把正在放的音乐停掉不是答案——这会让人以为播放器崩了。
+   */
+  it('手动按下一首到队尾时保持播放，不把音乐停掉', () => {
     seedQueue(3, 2)
     passSwitchDebounce()
 
     state().next()
 
-    expect(state().isPlaying).toBe(false)
+    expect(state().isPlaying).toBe(true)
     expect(state().queueIndex).toBe(2)
     expect(currentId()).toBe('s2')
   })
@@ -199,14 +214,24 @@ describe('随机播放的 next', () => {
     expect(state().queueIndex).toBe(3)
   })
 
-  it('随机顺序走完且不循环时停止播放', () => {
+  it('随机顺序自然走完且不循环时停止播放', () => {
     // 队列还有 4 首没播完的错觉：s1 是随机序列的最后一位
+    seedQueue(4, 1, { shuffle: true, shuffledIndexes: [2, 0, 3, 1] })
+    passSwitchDebounce()
+
+    state().next({ auto: true })
+
+    expect(state().isPlaying).toBe(false)
+    expect(state().queueIndex).toBe(1)
+  })
+
+  it('随机序列走完时手动按下一首，同样不该把音乐停掉', () => {
     seedQueue(4, 1, { shuffle: true, shuffledIndexes: [2, 0, 3, 1] })
     passSwitchDebounce()
 
     state().next()
 
-    expect(state().isPlaying).toBe(false)
+    expect(state().isPlaying).toBe(true)
     expect(state().queueIndex).toBe(1)
   })
 

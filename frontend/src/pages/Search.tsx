@@ -22,7 +22,7 @@ export default function SearchPage() {
    * 以及用户直接分享出去的一条搜索链接，都从这里进来。
    * 只作为**初值**读一次——之后输入框自己说了算，不然每敲一个字都要改地址栏。
    */
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState(() => params.get('q') ?? '')
   const [debouncedQuery, setDebouncedQuery] = useState(() => params.get('q') ?? '')
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
@@ -38,6 +38,29 @@ export default function SearchPage() {
     timerRef.current = setTimeout(() => setDebouncedQuery(query), 300)
     return () => clearTimeout(timerRef.current)
   }, [query])
+
+  /**
+   * 把定稿的查询写回地址栏，否则点进一条结果再返回，搜索框是空的、
+   * 结果也没了——而「搜到一首歌，点进去看看，退回来再看下一首」正是
+   * 搜索页最主要的用法，每次都要重打一遍。
+   *
+   * 三个细节：
+   * - 写的是 debouncedQuery 而不是 query：每敲一个字推一条历史，
+   *   返回键就得按十几次才能离开这一页。
+   * - `replace: true`：搜索词的变化是**修正当前位置**，不是新去处。
+   * - 只在真的不同时才写：否则和上面那个 urlQuery→setQuery 的同步互相触发。
+   */
+  useEffect(() => {
+    const current = params.get('q') ?? ''
+    const next = debouncedQuery.trim()
+    if (next === current) return
+    const updated = new URLSearchParams(params)
+    if (next) updated.set('q', next)
+    else updated.delete('q')
+    setParams(updated, { replace: true })
+    // params 变化由本 effect 自己引起，不应作为依赖重新进入
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQuery])
 
   const { data: results, isLoading, isFetching } = useSearch(debouncedQuery)
 
@@ -191,11 +214,11 @@ function SongRowsSkeleton({ rows }: { rows: number }) {
     <div className="border-t border-hair">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex items-center gap-4 px-3 py-3 border-b border-hair-soft">
-          <span className="w-8 h-3 rounded-sm bg-hair-soft/70 animate-pulse" />
-          <span className="w-10 h-10 rounded-sm bg-hair-soft/70 animate-pulse" />
-          <span className="flex-1 h-4 rounded-sm bg-hair-soft/70 animate-pulse" />
-          <span className="hidden lg:block flex-1 h-3.5 rounded-sm bg-hair-soft/70 animate-pulse" />
-          <span className="w-12 h-3.5 rounded-sm bg-hair-soft/70 animate-pulse" />
+          <span className="w-8 h-3 rounded-sm bg-skeleton animate-pulse" />
+          <span className="w-10 h-10 rounded-sm bg-skeleton animate-pulse" />
+          <span className="flex-1 h-4 rounded-sm bg-skeleton animate-pulse" />
+          <span className="hidden lg:block flex-1 h-3.5 rounded-sm bg-skeleton animate-pulse" />
+          <span className="w-12 h-3.5 rounded-sm bg-skeleton animate-pulse" />
         </div>
       ))}
     </div>

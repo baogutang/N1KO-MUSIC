@@ -158,7 +158,14 @@ interface PlayerState {
   togglePlay: () => void
   pause: () => void
   resume: () => void
-  next: () => void
+  /**
+   * 切下一首。
+   *
+   * `auto` 区分意图：曲子自然播完时到队尾应当停下（那是「放完了」）；
+   * 用户主动按「下一首」到队尾则应当**原地不动**——把音乐停掉不是他要的，
+   * 他要的是「还有吗」，答案是没有，那就继续放着当前这首。
+   */
+  next: (options?: { auto?: boolean }) => void
   /** 自然播放结束时前进；单曲循环只在此路径生效 */
   advanceOnEnded: () => void
   prev: () => void
@@ -268,7 +275,7 @@ export const usePlayerStore = create<PlayerState>()(
       pause: () => set({ isPlaying: false }),
       resume: () => set({ isPlaying: true }),
 
-      next: () => {
+      next: (options?: { auto?: boolean }) => {
         if (!canSwitch()) return
         const state = get()
         const { queue, queueIndex, repeatMode, shuffle, shuffledIndexes, currentSong } = state
@@ -297,7 +304,8 @@ export const usePlayerStore = create<PlayerState>()(
               nextCursor = 0
               nextIndex = reshuffled[0]
             } else {
-              set({ isPlaying: false })
+              // 随机序列走完：自然播完就停，手动按到底则维持现状
+              if (options?.auto) set({ isPlaying: false })
               return
             }
           } else {
@@ -309,7 +317,8 @@ export const usePlayerStore = create<PlayerState>()(
         } else if (repeatMode === 'all') {
           nextIndex = 0
         } else {
-          set({ isPlaying: false })
+          // 队尾：同上。用户按「下一首」不该让音乐停掉。
+          if (options?.auto) set({ isPlaying: false })
           return
         }
 
@@ -334,7 +343,7 @@ export const usePlayerStore = create<PlayerState>()(
           return
         }
         if (state.repeatMode !== 'one') {
-          state.next()
+          state.next({ auto: true })
           return
         }
         if (!canSwitch() || !state.currentSong) return

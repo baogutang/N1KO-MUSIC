@@ -71,6 +71,7 @@ export default {
           DEFAULT: 'rgb(var(--hair))',
           soft: 'rgb(var(--hair-soft))',
         },
+        skeleton: 'rgb(var(--skeleton) / <alpha-value>)',
         surface: {
           DEFAULT: 'hsl(var(--surface))',
           hover: 'hsl(var(--surface-hover))',
