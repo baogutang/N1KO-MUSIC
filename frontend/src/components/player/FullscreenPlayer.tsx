@@ -783,7 +783,9 @@ export function FullscreenPlayer() {
                       orientation="vertical"
                       value={[muted ? 0 : volume]}
                       max={1}
-                      step={0.01}
+                      /* 与全局快捷键 ⌘↑/⌘↓ 的 5% 对齐：同一个动作不该有两套手感。
+                         0.01 意味着焦点落在滑轨上时要按 100 下才能从静音到满格。 */
+                      step={0.05}
                       onValueChange={([v]) => {
                         // setVolume 内部已将 muted 置为 false，这里不能再 toggleMute（会重新静音）
                         setVolume(v)

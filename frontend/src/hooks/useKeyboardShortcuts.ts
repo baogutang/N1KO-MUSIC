@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
+import { computeSeekTarget, SEEK_STEP_SEC } from '@/utils/seekMath'
 import { isNativePlatform } from '@/lib/platform'
 
 /** 不应被快捷键抢走按键的文本录入类型 */
@@ -42,6 +43,21 @@ function isDialogOpen(): boolean {
   return !!document.querySelector('[role="dialog"], [role="alertdialog"]')
 }
 
+/**
+ * 焦点落在这些控件上时，方向键属于它们自己。
+ *
+ * 滑轨用左右键调值、菜单用上下键移动高亮、单选组用方向键切换——
+ * 全局快捷键若无条件截走，这些控件就全废了。
+ * 比空格那条更宽：按钮和链接不消费方向键，所以不必让位。
+ */
+function arrowsBelongToFocusedControl(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return !!target.closest(
+    '[role="slider"], [role="menu"], [role="menuitem"], [role="listbox"], [role="option"], [role="radiogroup"], [role="tablist"], [contenteditable]'
+  )
+}
+
+
 export function useKeyboardShortcuts() {
 
   useEffect(() => {
@@ -81,6 +97,26 @@ export function useKeyboardShortcuts() {
       if (e.key.toLowerCase() === 'c' && e.shiftKey && !meta) {
         e.preventDefault()
         store.setCarMode(true)
+        return
+      }
+
+      /**
+       * 裸 ←/→：曲内快退快进 10 秒。
+       *
+       * 此前只有 ⌘←/⌘→（上/下一首），曲内定位完全没有键盘入口——
+       * 想跳过一段前奏或回听一句，只能用鼠标拖进度条。10 秒是播客与
+       * 长音轨的通用步长，也不至于让短曲一按就过头。
+       *
+       * 放在带 meta 的分支之前会误伤 ⌘ 组合，所以先判 meta 那两条，
+       * 这里只接没有任何修饰键的情况。
+       */
+      if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !meta && !e.shiftKey && !e.altKey) {
+        if (arrowsBelongToFocusedControl(e.target)) return
+        if (!store.currentSong) return
+        e.preventDefault()
+        const delta = e.key === 'ArrowRight' ? SEEK_STEP_SEC : -SEEK_STEP_SEC
+        const duration = store.duration || store.currentSong.duration || 0
+        seekHowl(computeSeekTarget(store.currentTime, delta, duration))
         return
       }
 

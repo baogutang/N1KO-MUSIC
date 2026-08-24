@@ -407,7 +407,7 @@ export function PlayerBar() {
             <Slider
               value={[muted ? 0 : volume]}
               max={1}
-              step={0.01}
+              step={0.05}
               onValueChange={handleVolumeChange}
               className="flex-1"
               aria-label={t('player.volume')}
