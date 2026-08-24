@@ -76,6 +76,18 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
+  /** Jellyfin/Emby 走标准 HTTP 语义：401/403 就是凭据失效 */
+  async diagnose(): Promise<'ok' | 'unauthorized' | 'unreachable'> {
+    try {
+      await this.client.get('/System/Ping')
+      return 'ok'
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 401 || status === 403) return 'unauthorized'
+      return 'unreachable'
+    }
+  }
+
   async ping(): Promise<boolean> {
     try {
       await this.client.get('/System/Ping')

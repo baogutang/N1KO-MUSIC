@@ -214,6 +214,7 @@ export function FullscreenPlayer() {
   // 细粒度 selector：不订阅 currentTime / duration（由子组件处理）
   const currentSong     = usePlayerStore(s => s.currentSong)
   const isPlaying       = usePlayerStore(s => s.isPlaying)
+  const streamBuffering = usePlayerStore(s => s.streamBuffering)
   const volume          = usePlayerStore(s => s.volume)
   const muted           = usePlayerStore(s => s.muted)
   const repeatMode      = usePlayerStore(s => s.repeatMode)
@@ -577,8 +578,15 @@ export function FullscreenPlayer() {
               </button>
               <button
                 onClick={togglePlay}
-                className="w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform duration-200"
-                aria-label={isPlaying ? t('player.pause') : t('player.play')}
+                className={cn(
+                  'w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform duration-200',
+                  isPlaying && streamBuffering && 'animate-buffering'
+                )}
+                aria-label={
+                  isPlaying && streamBuffering ? t('player.buffering')
+                    : isPlaying ? t('player.pause') : t('player.play')
+                }
+                aria-busy={isPlaying && streamBuffering}
               >
                 {isPlaying
                   ? <Pause size={22} weight="fill" />

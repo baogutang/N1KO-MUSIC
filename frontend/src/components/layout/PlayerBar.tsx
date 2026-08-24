@@ -183,6 +183,7 @@ export function PlayerBar() {
   // 细粒度 selector：只订阅不含 currentTime/duration 的字段
   const currentSong   = usePlayerStore(s => s.currentSong)
   const isPlaying     = usePlayerStore(s => s.isPlaying)
+  const streamBuffering = usePlayerStore(s => s.streamBuffering)
   const volume        = usePlayerStore(s => s.volume)
   const muted         = usePlayerStore(s => s.muted)
   const repeatMode    = usePlayerStore(s => s.repeatMode)
@@ -325,8 +326,15 @@ export function PlayerBar() {
             {/* 播放主键：全条唯一实心朱红圆（DESIGN §4.1 唯一例外） */}
             <button
               onClick={togglePlay}
-              className="w-10 h-10 mx-1 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:brightness-110 active:scale-95 transition-[transform,filter] duration-200"
-              aria-label={t(isPlaying ? 'player.pause' : 'player.play')}
+              className={cn(
+                'w-10 h-10 mx-1 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:brightness-110 active:scale-95 transition-[transform,filter] duration-200',
+                isPlaying && streamBuffering && 'animate-buffering'
+              )}
+              aria-label={t(
+                isPlaying && streamBuffering ? 'player.buffering'
+                  : isPlaying ? 'player.pause' : 'player.play'
+              )}
+              aria-busy={isPlaying && streamBuffering}
             >
               {isPlaying ? (
                 <Pause size={18} weight="fill" />

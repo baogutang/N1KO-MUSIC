@@ -193,3 +193,65 @@ describe('分享能力探测', () => {
     })
   })
 })
+
+/**
+ * 连不上时要能说清「是网络还是凭据」。
+ *
+ * ping() 把两者压成同一个 false，于是在别的设备上改过密码之后，
+ * 横幅会说「检查网络连接」，而那个重试按钮永远救不回来——
+ * 用户被指向一个根本不存在的问题。
+ *
+ * Subsonic 的坑在于：用户名密码错误是 HTTP 200 + error code 40，
+ * 不是 401。只看状态码会把它误判成「一切正常」。
+ */
+describe('连接诊断', () => {
+  function makeAdapter(respond: (url: string) => unknown) {
+    const adapter = new SubsonicAdapter({
+      url: 'https://example.test', username: 'u', token: 't', salt: 's',
+    })
+    ;(adapter as unknown as { client: unknown }).client = {
+      get: async (url: string) => {
+        const result = respond(url)
+        if (result instanceof Error) throw result
+        return result
+      },
+    }
+    return adapter
+  }
+  const body = (b: unknown) => ({ status: 200, data: { 'subsonic-response': b } })
+
+  it('一切正常时报 ok', async () => {
+    expect(await makeAdapter(() => body({ status: 'ok' })).diagnose()).toBe('ok')
+  })
+
+  it('密码改了（200 + code 40）报 unauthorized，而不是 ok', async () => {
+    const adapter = makeAdapter(() => body({
+      status: 'failed', error: { code: 40, message: 'Wrong username or password' },
+    }))
+    expect(await adapter.diagnose()).toBe('unauthorized')
+  })
+
+  it('令牌类错误（code 41-44）同样算 unauthorized', async () => {
+    for (const code of [41, 42, 43, 44]) {
+      const adapter = makeAdapter(() => body({ status: 'failed', error: { code } }))
+      expect(await adapter.diagnose()).toBe('unauthorized')
+    }
+  })
+
+  it('断网报 unreachable', async () => {
+    expect(await makeAdapter(() => new Error('Network Error')).diagnose()).toBe('unreachable')
+  })
+
+  it('网关错误报 unreachable，不误伤成凭据问题', async () => {
+    expect(await makeAdapter(() => ({ status: 502, data: '' })).diagnose()).toBe('unreachable')
+  })
+
+  it('HTTP 401 报 unauthorized', async () => {
+    expect(await makeAdapter(() => ({ status: 401, data: '' })).diagnose()).toBe('unauthorized')
+  })
+
+  it('其它 Subsonic 错误码不算凭据问题', async () => {
+    const adapter = makeAdapter(() => body({ status: 'failed', error: { code: 70 } }))
+    expect(await adapter.diagnose()).toBe('unreachable')
+  })
+})

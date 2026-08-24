@@ -30,9 +30,17 @@ export function useSleepTimer() {
     const tick = () => {
       const remaining = sleepTimerAt - Date.now()
       if (remaining <= 0) {
-        usePlayerStore.getState().pause()
-        // 复位渐弱系数，否则下次播放会是几乎听不见的音量
-        usePlayerStore.setState({ sleepTimerAt: null, sleepFadeScalar: 1 })
+        /**
+         * 暂停与复位必须在同一次 setState 里。
+         * 分成两次的话，`pause()` 先提交一帧 —— 此时 sleepFadeScalar 还是
+         * 接近 0 的渐弱值，但紧接着的复位把它跳回 1，音量在静音边缘
+         * 弹回满格再被切断，正好在「就要睡着了」那一刻爆一声。
+         */
+        usePlayerStore.setState({
+          isPlaying: false,
+          sleepTimerAt: null,
+          sleepFadeScalar: 1,
+        })
         return
       }
       if (!smooth) return
@@ -43,8 +51,17 @@ export function useSleepTimer() {
     }
 
     const timer = setInterval(tick, 250)
+    /**
+     * 后台标签页里 setInterval 会被节流到 ≥1s，设备休眠时更是整段停摆。
+     * tick 每次都用 `sleepTimerAt - Date.now()` 重算，所以节流只会推迟判定、
+     * 不会漏判；但「推迟」本身是可感知的——合盖睡着、早上掀开，音乐会再响
+     * 一下才停。回到前台立刻补判一次，把这个尾巴收掉。
+     */
+    const onVisible = () => { if (!document.hidden) tick() }
+    document.addEventListener('visibilitychange', onVisible)
     return () => {
       clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
       // 定时被取消或组件卸载时立刻还原，不留残余衰减
       if (usePlayerStore.getState().sleepFadeScalar !== 1) {
         usePlayerStore.setState({ sleepFadeScalar: 1 })

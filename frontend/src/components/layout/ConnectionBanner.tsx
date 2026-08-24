@@ -7,7 +7,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowsClockwise, WifiSlash } from '@phosphor-icons/react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowsClockwise, WifiSlash, Key } from '@phosphor-icons/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { getAdapter, hasAdapter } from '@/api'
 import { useServerStore } from '@/store/serverStore'
@@ -21,8 +22,17 @@ export function ConnectionBanner() {
   const activeServerId = useServerStore(s => s.activeServerId)
   const [browserOffline, setBrowserOffline] = useState(() => !navigator.onLine)
   const [serverUnreachable, setServerUnreachable] = useState(false)
+  /**
+   * 凭据失效要和网络不通分开。
+   *
+   * 在别的设备上改了密码之后，这里原本会说「检查网络连接」，而重试按钮
+   * 永远救不回来——用户被指向一个不存在的问题。这一态的正确出口是
+   * 重新登录，不是重试。
+   */
+  const [unauthorized, setUnauthorized] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   useEffect(() => {
     const online = () => setBrowserOffline(false)
@@ -41,10 +51,16 @@ export function ConnectionBanner() {
     let cancelled = false
     const probe = async () => {
       try {
-        const ok = await getAdapter().ping()
-        if (!cancelled) setServerUnreachable(!ok)
+        const adapter = getAdapter()
+        // diagnose 是可选方法；没有它的适配器退回 ping 的二值语义
+        const verdict = adapter.diagnose
+          ? await adapter.diagnose()
+          : (await adapter.ping()) ? 'ok' as const : 'unreachable' as const
+        if (cancelled) return
+        setUnauthorized(verdict === 'unauthorized')
+        setServerUnreachable(verdict === 'unreachable')
       } catch {
-        if (!cancelled) setServerUnreachable(true)
+        if (!cancelled) { setUnauthorized(false); setServerUnreachable(true) }
       }
     }
     // 挂载时先探一次：否则断网后最长要等 20 秒才有任何提示
@@ -67,9 +83,13 @@ export function ConnectionBanner() {
     setRetrying(true)
     try {
       if (hasAdapter()) {
-        const ok = await getAdapter().ping()
-        setServerUnreachable(!ok)
-        if (ok) await queryClient.refetchQueries({ type: 'active' })
+        const adapter = getAdapter()
+        const verdict = adapter.diagnose
+          ? await adapter.diagnose()
+          : (await adapter.ping()) ? 'ok' as const : 'unreachable' as const
+        setUnauthorized(verdict === 'unauthorized')
+        setServerUnreachable(verdict === 'unreachable')
+        if (verdict === 'ok') await queryClient.refetchQueries({ type: 'active' })
       }
       setBrowserOffline(!navigator.onLine)
     } finally {
@@ -77,8 +97,14 @@ export function ConnectionBanner() {
     }
   }, [queryClient])
 
-  const offline = browserOffline || serverUnreachable
+  const offline = browserOffline || serverUnreachable || unauthorized
   if (!offline) return null
+
+  // 凭据失效：重试没有意义，给一个真正能解决问题的出口
+  const message = unauthorized ? t('empty.offline.auth')
+    : browserOffline ? t('empty.offline.device') : t('empty.offline.server')
+  const hint = unauthorized ? t('empty.offline.authHint')
+    : browserOffline ? t('empty.offline.deviceHint') : t('empty.offline.serverHint')
 
   return (
     <div
@@ -86,21 +112,31 @@ export function ConnectionBanner() {
       aria-live="polite"
       className="flex items-center justify-center gap-3 border-b border-hair bg-paper-deep px-4 py-1.5 text-[12px] text-ink-soft"
     >
-      <WifiSlash size={13} aria-hidden="true" className="text-primary flex-shrink-0" />
+      {unauthorized
+        ? <Key size={13} aria-hidden="true" className="text-primary flex-shrink-0" />
+        : <WifiSlash size={13} aria-hidden="true" className="text-primary flex-shrink-0" />}
       <span>
-        {browserOffline ? t('empty.offline.device') : t('empty.offline.server')}
-        <span className="text-ink-faint">
-          {browserOffline ? t('empty.offline.deviceHint') : t('empty.offline.serverHint')}
-        </span>
+        {message}
+        <span className="text-ink-faint">{hint}</span>
       </span>
-      <button
-        onClick={retry}
-        disabled={retrying}
-        className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary disabled:opacity-50"
-      >
-        <ArrowsClockwise size={11} className={retrying ? 'animate-spin' : undefined} aria-hidden="true" />
-        {t('action.retry')}
-      </button>
+      {unauthorized ? (
+        <button
+          onClick={() => navigate('/login')}
+          className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary"
+        >
+          <Key size={11} aria-hidden="true" />
+          {t('empty.offline.reauth')}
+        </button>
+      ) : (
+        <button
+          onClick={retry}
+          disabled={retrying}
+          className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary disabled:opacity-50"
+        >
+          <ArrowsClockwise size={11} className={retrying ? 'animate-spin' : undefined} aria-hidden="true" />
+          {t('action.retry')}
+        </button>
+      )}
     </div>
   )
 }

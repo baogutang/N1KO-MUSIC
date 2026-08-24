@@ -426,6 +426,14 @@ export interface MusicServerAdapter {
 
   /** 公开分享链接 */
   createShare?(ids: string[], options?: { description?: string; expiresAt?: number }): Promise<{ id: string; url: string }>
+  /**
+   * 连不上时到底是「网络不通」还是「凭据失效」。
+   *
+   * ping() 把两者压成同一个 false，于是改了密码的用户会被告知
+   * 「检查网络连接」，而重试按钮永远救不回来。没有实现这个方法时，
+   * 调用方退回到 ping() 的二值语义。
+   */
+  diagnose?(): Promise<'ok' | 'unauthorized' | 'unreachable'>
   /** 真的问一次服务器分享有没有开；没有这个方法时退回「有 createShare 就算支持」 */
   probeShares?(): Promise<boolean>
   getShares?(): Promise<Array<{ id: string; url: string; description?: string; expiresAt?: number; visitCount?: number }>>

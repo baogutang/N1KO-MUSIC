@@ -243,6 +243,29 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
   }
 
+  /**
+   * Subsonic 把「用户名或密码错误」表达为 HTTP 200 + error code 40，
+   * 而不是 401，所以必须看响应体，不能只看状态码。
+   */
+  async diagnose(): Promise<'ok' | 'unauthorized' | 'unreachable'> {
+    try {
+      const response = await this.client.get<SubsonicResponse<unknown>>('/ping', {
+        params: this.buildParams({}),
+        validateStatus: () => true,
+      })
+      if (response.status === 401 || response.status === 403) return 'unauthorized'
+      if (response.status >= 400) return 'unreachable'
+      const data = response.data?.['subsonic-response']
+      if (data?.status === 'ok') return 'ok'
+      // 40 = wrong username or password，41/42/43/44 是各种令牌/API key 问题
+      const code = data?.error?.code
+      if (typeof code === 'number' && code >= 40 && code <= 44) return 'unauthorized'
+      return 'unreachable'
+    } catch {
+      return 'unreachable'
+    }
+  }
+
   async ping(): Promise<boolean> {
     try {
       await this.request('/ping')

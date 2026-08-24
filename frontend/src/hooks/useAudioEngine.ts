@@ -300,19 +300,36 @@ export function useAudioEngine() {
    */
   const preloadedIdRef = useRef<string | null>(null)
   const rampRef = useRef<number | null>(null)
+  /**
+   * 作废当前斜坡时要做的清理（含摘掉 visibilitychange 监听）。
+   * 两条取消路径——外部 cancelRamp 与新斜坡覆盖旧斜坡——共用同一套，
+   * 否则监听器会随每次暂停/播放累积。
+   */
+  const disposeRampRef = useRef<(() => void) | null>(null)
   /** 取消在途的音量斜坡，连同它挂着的 onDone 一起作废 */
   const cancelRamp = useCallback(() => {
+    disposeRampRef.current?.()
+    disposeRampRef.current = null
     if (rampRef.current !== null) {
       cancelAnimationFrame(rampRef.current)
       rampRef.current = null
     }
   }, [])
   const rampVolume = useCallback((to: number, ms: number, onDone?: () => void) => {
+    disposeRampRef.current?.()
+    disposeRampRef.current = null
     if (rampRef.current !== null) {
       cancelAnimationFrame(rampRef.current)
       rampRef.current = null
     }
-    if (!smoothRef.current || ms <= 0) {
+    /**
+     * 页面不可见时不能用 rAF 做渐变：浏览器会把 requestAnimationFrame 挂起，
+     * 回调永远不触发，于是挂在回调里的 `audioEl.pause()` 永远不执行——
+     * 锁屏、蓝牙耳机、系统媒体面板上按暂停，音乐照放不误。
+     *
+     * 淡出是锦上添花，暂停是硬承诺。不可见时直接落到目标值并立刻收尾。
+     */
+    if (!smoothRef.current || ms <= 0 || document.hidden) {
       audioEl.volume = to
       onDone?.()
       return
@@ -324,14 +341,38 @@ export function useAudioEngine() {
       return
     }
     const start = performance.now()
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      document.removeEventListener('visibilitychange', onHide)
+      disposeRampRef.current = null
+      if (rampRef.current !== null) {
+        cancelAnimationFrame(rampRef.current)
+        rampRef.current = null
+      }
+      audioEl.volume = to
+      onDone?.()
+    }
+    /**
+     * 切到后台的那一刻 rAF 就不再回调了，挂在 onDone 里的 pause() 会永远悬着。
+     * visibilitychange 比 rAF 更可靠，用它当场收尾。
+     */
+    function onHide() {
+      if (document.hidden) finish()
+    }
+    document.addEventListener('visibilitychange', onHide)
+    disposeRampRef.current = () => {
+      settled = true
+      document.removeEventListener('visibilitychange', onHide)
+    }
     const step = (now: number) => {
       const t = Math.min(1, (now - start) / ms)
       audioEl.volume = Math.max(0, Math.min(1, from + (to - from) * t))
       if (t < 1) {
         rampRef.current = requestAnimationFrame(step)
       } else {
-        rampRef.current = null
-        onDone?.()
+        finish()
       }
     }
     rampRef.current = requestAnimationFrame(step)
@@ -629,16 +670,37 @@ export function useAudioEngine() {
        * 达到播放阈值（Subsonic 约定：收听过半或满 4 分钟）后，
        * 提交 submission=true 的 scrobble 并写入本地历史，每次播放只做一次
        */
+      /**
+       * 失败重试要退避。
+       *
+       * 这个函数挂在 timeupdate 上（节流到 200ms），失败后把 playSubmitted
+       * 放回 false 就意味着**本曲剩下的每一秒都会重试 5 次**——服务器
+       * 500、反代抽风、Jellyfin 不支持这个端点，都会变成一场每秒 5 发的
+       * 请求风暴，打到一台本来就不舒服的服务器上。
+       *
+       * 指数退避（2s 起步，上限 60s），并限制次数：scrobble 是锦上添花，
+       * 不值得为它把服务器打垮，本地历史无论如何已经写下了。
+       */
+      let scrobbleRetryAt = 0
+      let scrobbleAttempts = 0
+      const MAX_SCROBBLE_ATTEMPTS = 5
       const maybeSubmitPlay = () => {
         if (playSubmitted || playStatKey !== capturedKey) return
+        if (scrobbleRetryAt > 0 && performance.now() < scrobbleRetryAt) return
+        if (scrobbleAttempts >= MAX_SCROBBLE_ATTEMPTS) return
         const st = usePlayerStore.getState()
         const dur = capturedSong.duration || st.duration || 0
         const threshold = getScrobbleThreshold(dur)
         if (listenedSec < threshold) return
         playSubmitted = true
+        scrobbleAttempts += 1
         void getAdapter().scrobble(capturedSongId, true).catch(error => {
           playSubmitted = false
-          console.warn('[AudioEngine] scrobble submission failed; will retry:', error)
+          const backoffMs = Math.min(60_000, 2_000 * 2 ** (scrobbleAttempts - 1))
+          scrobbleRetryAt = performance.now() + backoffMs
+          console.warn(
+            `[AudioEngine] scrobble submission failed (${scrobbleAttempts}/${MAX_SCROBBLE_ATTEMPTS});`,
+            `retrying in ${Math.round(backoffMs / 1000)}s:`, error)
         })
         persistListeningSession('qualified')
       }
