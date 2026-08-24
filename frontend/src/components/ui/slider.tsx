@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 const Slider = React.forwardRef<
   React.ElementRef<typeof SliderPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
->(({ className, orientation = 'horizontal', ...props }, ref) => {
+>(({ className, orientation = 'horizontal', 'aria-label': ariaLabel, 'aria-valuetext': ariaValueText, ...props }, ref) => {
   const vertical = orientation === 'vertical'
   return (
     <SliderPrimitive.Root
@@ -39,7 +39,15 @@ const Slider = React.forwardRef<
           className={cn('absolute bg-primary', vertical ? 'w-full' : 'h-full')}
         />
       </SliderPrimitive.Track>
-      <SliderPrimitive.Thumb className="block h-3 w-3 rounded-full bg-foreground transition-transform duration-150 scale-0 group-hover:scale-100 focus-visible:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:pointer-events-none disabled:opacity-50" />
+      {/*
+        role="slider" 在 Thumb 上，不在 Root 上——无障碍属性写在调用方的
+        <Slider> 上会落到 Root，读屏根本读不到。音量条因此一直念的是
+        「0.8」这样的裸小数。这里显式转发到 Thumb。
+      */}
+      <SliderPrimitive.Thumb
+        aria-label={ariaLabel}
+        aria-valuetext={ariaValueText}
+        className="block h-3 w-3 rounded-full bg-foreground transition-transform duration-150 scale-0 group-hover:scale-100 focus-visible:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:pointer-events-none disabled:opacity-50" />
     </SliderPrimitive.Root>
   )
 })

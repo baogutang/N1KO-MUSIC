@@ -157,6 +157,7 @@
   "scrobble.pending": "{count} waiting to be sent — they retry automatically once you're online",
   "scrobble.lastFailure": "Last failure: {message}",
   "player.progress": "Playback progress",
+  "player.progressAt": "{current} of {total}",
   "player.repeatOff": "Repeat off",
   "player.repeatAll": "Repeat all",
   "player.repeatOne": "Repeat one",

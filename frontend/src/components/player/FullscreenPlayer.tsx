@@ -180,6 +180,12 @@ const FSProgressBar = memo(function FSProgressBar() {
         aria-valuemin={0}
         aria-valuemax={Math.round(safeDuration)}
         aria-valuenow={Math.round(displayTime)}
+        // 没有 valuetext 时读屏念的是「142」这样的裸秒数——
+        // 数字本身不构成信息，用户要的是「2:22，共 3:11」
+        aria-valuetext={t('player.progressAt', {
+          current: formatDuration(Math.round(displayTime)),
+          total: formatDuration(Math.round(safeDuration)),
+        })}
         className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none touch-none"
       >
         <div className="relative w-full h-[2px] bg-hair-soft">
@@ -792,6 +798,8 @@ export function FullscreenPlayer() {
                       }}
                       className="h-32"
                       aria-label={t('player.volume')}
+                      // 不给 valuetext 的话读屏念的是「0.65」
+                      aria-valuetext={`${Math.round((muted ? 0 : volume) * 100)}%`}
                     />
                     <button
                       onClick={toggleMute}

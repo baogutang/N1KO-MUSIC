@@ -167,6 +167,12 @@ const ProgressBar = memo(function ProgressBar() {
         aria-valuemin={0}
         aria-valuemax={Math.round(safeDuration)}
         aria-valuenow={Math.round(displayTime)}
+        // 没有 valuetext 时读屏念的是「142」这样的裸秒数——
+        // 数字本身不构成信息，用户要的是「2:22，共 3:11」
+        aria-valuetext={t('player.progressAt', {
+          current: formatDuration(Math.round(displayTime)),
+          total: formatDuration(Math.round(safeDuration)),
+        })}
         className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none"
       >
         <div className="relative w-full h-[3px] rounded-full overflow-hidden bg-hair-soft">
@@ -427,6 +433,7 @@ export function PlayerBar() {
               onValueChange={handleVolumeChange}
               className="flex-1"
               aria-label={t('player.volume')}
+              aria-valuetext={`${Math.round((muted ? 0 : volume) * 100)}%`}
             />
           </div>
 

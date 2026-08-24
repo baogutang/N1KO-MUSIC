@@ -157,6 +157,7 @@
   "scrobble.pending": "有 {count} 条等待补交，联网后自动重试",
   "scrobble.lastFailure": "最近一次失败：{message}",
   "player.progress": "播放进度",
+  "player.progressAt": "{current}，共 {total}",
   "player.repeatOff": "不循环",
   "player.repeatAll": "列表循环",
   "player.repeatOne": "单曲循环",
