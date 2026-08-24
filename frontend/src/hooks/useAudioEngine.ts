@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePlayerStore } from '@/store/playerStore'
+import { redactUrl } from '@/utils/redactUrl'
 import { useServerStore } from '@/store/serverStore'
 import { useSettingsStore, QUALITY_MAX_BITRATE } from '@/store/settingsStore'
 import { getAdapter, hasAdapter } from '@/api'
@@ -1004,7 +1005,9 @@ export function useAudioEngine() {
           3: t('player.error.decode'),
           4: t('player.error.unsupported'),
         }[code] ?? t('error.unknown')
-        console.error('[AudioEngine] audio error:', rawCode, err?.message, '| URL:', streamUrl)
+        // 流地址带着 t= / s=（密码 MD5 与 salt），原样打进控制台等于把凭据
+        // 留在那里——用户复制日志求助时会一起带出去。
+        console.error('[AudioEngine] audio error:', rawCode, err?.message, '| URL:', redactUrl(streamUrl))
         toast({
           title: t('player.error.title', { message: errMsg }),
           // 标题抽了 i18n、说明句留着中文模板，等于给英文用户一条半中半英的报错。

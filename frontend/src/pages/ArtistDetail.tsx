@@ -107,7 +107,23 @@ export default function ArtistDetailPage() {
     )
   }
 
-  if (!artist) return null
+  if (!artist) {
+    // 整页空白既解释不了发生了什么，也没给出路——连返回都要靠浏览器的后退键
+    return (
+      <div className="pt-24 max-w-[720px] animate-fade-in">
+        <MicrophoneStage className="w-8 h-8 text-ink-faint mb-5" />
+        <p className="font-serif text-2xl font-semibold">{t('error.load.title')}</p>
+        <p className="mt-2 text-sm text-ink-faint">{t('error.load.description')}</p>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="mt-4 text-sm text-primary underline decoration-hair underline-offset-[6px] hover:decoration-primary transition-colors"
+        >
+          {t('action.back')}
+        </button>
+      </div>
+    )
+  }
 
   const displayedSongs = showAllSongs ? allSongs : allSongs.slice(0, SONGS_INITIAL_SHOW)
   const hasMoreSongs = allSongs.length > SONGS_INITIAL_SHOW

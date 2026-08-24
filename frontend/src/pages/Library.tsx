@@ -121,7 +121,12 @@ export default function Library() {
             })}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* 歌曲 tab 是行列表，没有网格形态——开关在那里点了没反应，
+            而它偏偏是默认 tab。不适用就不出现，别让人怀疑是不是坏了。 */}
+        <div className={cn(
+          'flex items-center gap-1.5 flex-shrink-0',
+          activeTab === 'songs' && 'hidden'
+        )}>
           <button
             onClick={() => setViewMode('grid')}
             className={cn(

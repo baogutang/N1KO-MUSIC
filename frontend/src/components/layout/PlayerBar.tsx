@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, memo, useRef, useState } from 'react'
-import type { KeyboardEvent, MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 import {
   Play, Pause, SkipBack, SkipForward, SpeakerHigh, SpeakerX,
   SpeakerLow, Heart, Queue, Repeat, RepeatOnce,
@@ -67,17 +67,19 @@ const ProgressBar = memo(function ProgressBar() {
 
   const progressRef = useRef<HTMLDivElement>(null)
   const safeDurationRef = useRef(safeDuration)
-  const dragMoveRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
-  const dragUpRef = useRef<((e: globalThis.MouseEvent) => void) | null>(null)
+  const dragMoveRef = useRef<((e: globalThis.PointerEvent) => void) | null>(null)
+  const dragUpRef = useRef<((e: globalThis.PointerEvent) => void) | null>(null)
   safeDurationRef.current = safeDuration
 
   const clearDragListeners = useCallback(() => {
     if (dragMoveRef.current) {
-      document.removeEventListener('mousemove', dragMoveRef.current)
+      document.removeEventListener('pointermove', dragMoveRef.current)
       dragMoveRef.current = null
     }
     if (dragUpRef.current) {
-      document.removeEventListener('mouseup', dragUpRef.current)
+      // pointerup 与 pointercancel 注册的是同一个函数，两处都要摘
+      document.removeEventListener('pointerup', dragUpRef.current)
+      document.removeEventListener('pointercancel', dragUpRef.current)
       dragUpRef.current = null
     }
   }, [])
@@ -94,18 +96,29 @@ const ProgressBar = memo(function ProgressBar() {
     }
   }, [clearDragListeners])
 
-  const handleMouseDown = useCallback((e: MouseEvent<HTMLDivElement>) => {
+  /**
+   * 进度条拖动。
+   *
+   * 用 Pointer Events 而不是 Mouse Events：后者在触屏上不触发，
+   * 手机端这条进度条曾经完全拖不动——只能点一下跳，想微调就没办法。
+   * 全屏播放器早就是 Pointer 的写法，这里对齐。
+   *
+   * setPointerCapture 让手指滑出进度条范围后事件仍然送达，
+   * 否则拖到屏幕边缘就断了。
+   */
+  const handlePointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     const rect = progressRef.current?.getBoundingClientRect()
     if (!rect) return
     const getR = (cx: number) => Math.max(0, Math.min(1, (cx - rect.left) / rect.width))
     // 按下时只更新本地拖动值，不 seek 音频，避免 timeupdate 与拖动位置互相覆盖
     setDragValue(getR(e.clientX) * safeDurationRef.current)
+    e.currentTarget.setPointerCapture?.(e.pointerId)
 
-    const onMove = (me: globalThis.MouseEvent) => {
+    const onMove = (me: globalThis.PointerEvent) => {
       setDragValue(getR(me.clientX) * safeDurationRef.current)
     }
-    const onUp = (me: globalThis.MouseEvent) => {
+    const onUp = (me: globalThis.PointerEvent) => {
       const target = getR(me.clientX) * safeDurationRef.current
       releaseGuardRef.current = { target, until: performance.now() + 500 }
       seekHowl(target)
@@ -115,8 +128,10 @@ const ProgressBar = memo(function ProgressBar() {
     clearDragListeners()
     dragMoveRef.current = onMove
     dragUpRef.current = onUp
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+    // 指针被系统取消（来电、手势冲突）时也要收尾，否则进度条会卡在拖动态
+    document.addEventListener('pointercancel', onUp)
   }, [clearDragListeners])
 
   // 键盘 seek：←/→ ±5s（全局快捷键的方向键绑定均需 meta 修饰，无冲突）
@@ -143,7 +158,8 @@ const ProgressBar = memo(function ProgressBar() {
       {/* 3px 细进度轨，hover 浮现圆点 */}
       <div
         ref={progressRef}
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
+        style={{ touchAction: 'none' }}
         onKeyDown={handleKeyDown}
         role="slider"
         tabIndex={0}
