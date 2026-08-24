@@ -19,6 +19,7 @@ import { useServerStore } from '@/store/serverStore'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { playListFrom } from '@/utils/playActions'
+import { usePlayerStore } from '@/store/playerStore'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
@@ -72,7 +73,12 @@ export function ContinueShelf() {
                   // 先把这首放进队列，再跳到断点：顺序反了会被新曲目的
                   // 加载复位掉（load() 会把 currentTime 归零）
                   playListFrom([entry.song], 0)
-                  window.setTimeout(() => seekHowl(positionSec), 120)
+                  // 这 120ms 里用户完全可能又点了别的歌。不校验身份的话，
+                  // 这一跳会把**新歌**甩到旧断点上——听起来像播放器抽风。
+                  window.setTimeout(() => {
+                    if (usePlayerStore.getState().currentSong?.id !== entry.song.id) return
+                    seekHowl(positionSec)
+                  }, 120)
                 }}
                 className="group flex w-full items-center gap-4 px-2 py-3 text-left transition-all duration-200 hover:translate-x-1 hover:bg-paper-deep"
               >

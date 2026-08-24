@@ -101,9 +101,15 @@ export function ConnectionBanner() {
   if (!offline) return null
 
   // 凭据失效：重试没有意义，给一个真正能解决问题的出口
-  const message = unauthorized ? t('empty.offline.auth')
+  /**
+   * 设备本身离线时，任何「服务器怎么说」的判定都不可信——那一刻我们
+   * 根本没问到服务器。所以 browserOffline 的优先级高于 unauthorized，
+   * 否则会出现「拔掉 Wi-Fi 之后被告知登录失效」这种把人引向错误方向的提示。
+   */
+  const showAuth = unauthorized && !browserOffline
+  const message = showAuth ? t('empty.offline.auth')
     : browserOffline ? t('empty.offline.device') : t('empty.offline.server')
-  const hint = unauthorized ? t('empty.offline.authHint')
+  const hint = showAuth ? t('empty.offline.authHint')
     : browserOffline ? t('empty.offline.deviceHint') : t('empty.offline.serverHint')
 
   return (
@@ -112,14 +118,14 @@ export function ConnectionBanner() {
       aria-live="polite"
       className="flex items-center justify-center gap-3 border-b border-hair bg-paper-deep px-4 py-1.5 text-[12px] text-ink-soft"
     >
-      {unauthorized
+      {showAuth
         ? <Key size={13} aria-hidden="true" className="text-primary flex-shrink-0" />
         : <WifiSlash size={13} aria-hidden="true" className="text-primary flex-shrink-0" />}
       <span>
         {message}
         <span className="text-ink-faint">{hint}</span>
       </span>
-      {unauthorized ? (
+      {showAuth ? (
         <button
           onClick={() => navigate('/login')}
           className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary"

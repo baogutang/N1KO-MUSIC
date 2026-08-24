@@ -35,6 +35,9 @@ interface NetworkInformationLike {
  */
 let nativeType: ConnectionType | null = null
 
+/** 原生网络状态变化的订阅者。声明在 initNativeNetwork 之前，免得读起来像 TDZ。 */
+const nativeListeners = new Set<() => void>()
+
 /** 在原生壳内启动网络监听。非原生环境下是空操作。 */
 export async function initNativeNetwork(): Promise<void> {
   if (!isNativePlatform) return
@@ -55,7 +58,6 @@ export async function initNativeNetwork(): Promise<void> {
   }
 }
 
-const nativeListeners = new Set<() => void>()
 
 function connection(): NetworkInformationLike | undefined {
   const nav = navigator as Navigator & {

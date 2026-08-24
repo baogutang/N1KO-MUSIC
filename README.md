@@ -116,13 +116,19 @@ Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
   and reshuffles cleanly on wrap instead of looping the same permutation forever.
 - **Lossless passthrough** (FLAC / WAV / ALAC) plus 320 / 192 / 128kbps tiers, with
   **separate Wi-Fi and cellular settings** switched automatically — no more pulling
-  original files over your home uplink while you are out.
+  original files over your home uplink while you are out. On iPhone this reads the
+  system network state directly, because Safari does not expose it to web pages at all.
 - **ReplayGain** applied from the gain your server already computed, so masters from
   different decades stop jumping in loudness.
 - **The queue keeps going** — similar tracks append when it runs dry, and any song,
   artist or genre can seed a radio.
+- **Continue listening** — long tracks you stopped halfway (a live set, a lecture, an
+  audiobook) come back on the home page with the position you left, restored from the
+  bookmark your server already holds. Anything you finished is not offered again.
 - **Sleep timer** by duration or end-of-track, fading rather than cutting.
 - **Cross-device resume** — start on the desktop, pick it up on the phone.
+- **It tells you when it is buffering.** A big FLAC over a phone connection takes a
+  moment; the play button breathes instead of claiming to be playing into silence.
 - Gapless-ish preloading, fade on pause, 0.5–3× speed with pitch correction, long-track
   bookmarks for audiobooks and lectures.
 
@@ -139,8 +145,12 @@ Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
 - **Car mode** — 112–128px targets, swipe to change track, screen kept awake, still
   paper and ink.
 - **`n1ko://` deep links** for Raycast, Alfred, Shortcuts, or a line in a note.
+- **Keyboard reaches the whole player** — space to play, ←/→ to seek ten seconds inside
+  a track, ⌘←/⌘→ for tracks, ⌘↑/⌘↓ for volume in the same 5% steps the slider uses.
+  Arrow keys stand down when a slider or menu has focus.
 - ⌘K command palette, global shortcuts, alphabet rail on long lists, and scroll memory
-  that restores where you were when you go back.
+  that restores where you were when you go back. Search and library tabs live in the URL,
+  so Back really does bring your results back.
 
 ### ☰ Library
 
@@ -152,8 +162,14 @@ Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
 - **Spec plate**: bit depth, sample rate, codec, channels, real bitrate.
 - **Discography rail** — an artist's records read as a career down a hairline year rail,
   not a wall of covers.
+- **Turn a queue into a playlist** — when shuffle stumbles onto a good run, keep it.
+  Saved in the order you were hearing it, not the order it happens to sit in an array.
+- **Edit playlists in place** — drag to reorder the queue, remove a track from a playlist
+  without leaving the page.
 - Multi-library servers, server-side rescan, star ratings, public share links, and
   "who else is listening" — all surfaced only when your server actually supports them.
+  *Supported* means the server was asked and said yes: a Navidrome with sharing switched
+  off simply has no share button, rather than one that fails when you press it.
 
 ### ✎ Yours
 
