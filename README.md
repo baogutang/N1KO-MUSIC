@@ -145,6 +145,8 @@ Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
 - **Car mode** — 112–128px targets, swipe to change track, screen kept awake, still
   paper and ink.
 - **`n1ko://` deep links** for Raycast, Alfred, Shortcuts, or a line in a note.
+- **The tab tells you where you are** — page title follows the route, with the current
+  track in front of it while something is playing.
 - **Keyboard reaches the whole player** — space to play, ←/→ to seek ten seconds inside
   a track, ⌘←/⌘→ for tracks, ⌘↑/⌘↓ for volume in the same 5% steps the slider uses.
   Arrow keys stand down when a slider or menu has focus.
