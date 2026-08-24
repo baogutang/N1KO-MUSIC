@@ -374,7 +374,7 @@ function RecentAlbumRow({
             onPlay()
           }}
           aria-label={t('album.playLabel', { name: album.name })}
-          className="w-[30px] h-[30px] flex-shrink-0 grid place-items-center rounded-full border border-hair text-ink-soft opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary hover:border-primary hover:text-paper active:scale-[0.94]"
+          className="w-[30px] h-[30px] flex-shrink-0 grid place-items-center rounded-full border border-hair text-ink-soft transition-all duration-200 hover:bg-primary hover:border-primary hover:text-paper active:scale-[0.94] [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
         >
           <Play size={11} weight="fill" />
         </button>

@@ -717,7 +717,9 @@ export function FullscreenPlayer() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button onClick={handlePrev} className={cn(lineCircleBtn, 'w-10 h-10')}>
+                {/* Tooltip 的文字对读屏不可见——它只在悬停时出现，
+                    所以每个按钮都要自带 aria-label，否则整排读作「button button button」 */}
+                <button onClick={handlePrev} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.previous')}>
                   <SkipBack size={20} />
                 </button>
               </TooltipTrigger>
@@ -726,7 +728,15 @@ export function FullscreenPlayer() {
 
             <button
               onClick={togglePlay}
-              className="w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-transform duration-200 ease-[var(--ease)] hover:scale-105 active:scale-95"
+              className={cn(
+                'w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-transform duration-200 ease-[var(--ease)] hover:scale-105 active:scale-95',
+                isPlaying && streamBuffering && 'animate-buffering'
+              )}
+              aria-label={
+                isPlaying && streamBuffering ? t('player.buffering')
+                  : isPlaying ? t('player.pause') : t('player.play')
+              }
+              aria-busy={isPlaying && streamBuffering}
             >
               {isPlaying
                 ? <Pause size={22} weight="fill" />
@@ -736,7 +746,7 @@ export function FullscreenPlayer() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button onClick={() => next()} className={cn(lineCircleBtn, 'w-10 h-10')}>
+                <button onClick={() => next()} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.next')}>
                   <SkipForward size={20} />
                 </button>
               </TooltipTrigger>
@@ -752,6 +762,7 @@ export function FullscreenPlayer() {
                     'w-9 h-9',
                     repeatMode !== 'none' && 'text-primary border-primary hover:text-primary'
                   )}
+                  aria-label={repeatLabel}
                 >
                   {repeatMode === 'one' ? <RepeatOnce size={17} /> : <Repeat size={17} />}
                 </button>

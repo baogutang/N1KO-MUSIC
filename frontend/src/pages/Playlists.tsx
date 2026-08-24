@@ -175,7 +175,7 @@ export default function Playlists() {
                 </div>
                 {/* 更多操作 */}
                 <div
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  className="absolute top-2 right-2 transition-opacity duration-200 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-within:opacity-100"
                   onClick={e => e.stopPropagation()}
                 >
                   <DropdownMenu>

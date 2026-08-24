@@ -270,10 +270,11 @@ export default function LoginPage() {
 
             {/* 服务器名称（可选）*/}
             <div>
-              <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
+              <label htmlFor="login-name" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
                 {t('login.serverName')}
               </label>
               <Input
+                id="login-name"
                 placeholder={t('login.serverNamePlaceholder')}
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -282,42 +283,67 @@ export default function LoginPage() {
 
             {/* 服务器地址 */}
             <div>
-              <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
+              <label htmlFor="login-url" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
                 {t('login.serverUrl')} <span className="text-destructive">*</span>
               </label>
               <Input
+                id="login-url"
                 placeholder="https://music.example.com"
                 value={form.url}
                 onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
                 type="url"
+                required
+                inputMode="url"
+                autoComplete="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
 
             {/* 用户名 */}
             <div>
-              <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
+              <label htmlFor="login-username" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
                 {t('login.username')} <span className="text-destructive">*</span>
               </label>
+              {/*
+                autoCapitalize="none" 不是可有可无：iOS 默认把每个字段的首字母
+                大写，用户输入 admin 会得到 Admin，而 Navidrome / Subsonic 的
+                用户名区分大小写——第一次连接就会失败，且看不出哪里错了。
+                autoComplete 让密码管理器认得出这是哪一组凭据。
+              */}
               <Input
+                id="login-username"
                 placeholder="admin"
                 value={form.username}
                 onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                required
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
 
             {/* 密码 */}
             <div>
-              <label className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
+              <label htmlFor="login-password" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
                 {t('login.password')} <span className="text-destructive">*</span>
               </label>
               <div className="relative">
                 <Input
+                  id="login-password"
                   placeholder="••••••••"
                   value={form.password}
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   type={showPassword ? 'text' : 'password'}
                   onKeyDown={e => e.key === 'Enter' && handleConnect()}
                   className="pr-10"
+                  required
+                  autoComplete="current-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
                 <button
                   type="button"

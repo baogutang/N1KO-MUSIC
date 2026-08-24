@@ -667,7 +667,9 @@ const SongRow = React.memo(function SongRow({
           'transition-all duration-200 p-1.5 active:scale-[0.94] flex-shrink-0',
           localStarred
             ? 'opacity-100 text-primary'
-            : 'opacity-0 group-hover:opacity-100 text-ink-faint hover:text-primary'
+            // 触屏没有 hover：这里若保持 opacity-0，未收藏的歌在手机上
+            // 根本没有收藏入口（已收藏的是实心常显，所以只有这一支有问题）
+            : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 text-ink-faint hover:text-primary'
         )}
         aria-label={localStarred ? t('player.unfavorite') : t('player.favorite')}
       >
@@ -687,7 +689,16 @@ const SongRow = React.memo(function SongRow({
         <DropdownMenuTrigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1.5 flex-shrink-0 text-ink-soft hover:text-ink"
+            /**
+             * 触屏上没有 hover，`opacity-0 group-hover:opacity-100` 意味着这个
+             * 按钮永远是透明的——手机上整行只有标题、歌手、时长，分享/加入歌单/
+             * 查看专辑全都够不着。用 `@media (hover: hover)` 精确区分：
+             * 有悬停能力的设备保持「浮现」的克制，触屏设备一律常显。
+             *
+             * focus-visible 那条是给键盘的：Tab 过来时按钮必须可见，
+             * 否则焦点会停在一个看不见的控件上。
+             */
+            className="transition-opacity duration-200 p-1.5 flex-shrink-0 text-ink-soft hover:text-ink [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
             aria-label={t('action.more')}
           >
             <DotsThree className="w-4 h-4" weight="bold" />
