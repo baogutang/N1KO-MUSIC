@@ -44,7 +44,12 @@ export function BottomNav() {
   return (
     <nav
       className="flex-shrink-0 border-t border-hair bg-paper select-none"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      /* 横屏时刘海/圆角在左右侧，只补上下的话导航项会被切掉一块 */
+      style={{
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
+      }}
       aria-label={t('nav.main')}
     >
       <ul className="flex items-stretch">

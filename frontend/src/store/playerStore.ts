@@ -460,7 +460,26 @@ export const usePlayerStore = create<PlayerState>()(
         set(state => {
           if (!songs.length) return state
           if (position === 'next') {
-            const insertAt = state.queueIndex >= 0 ? state.queueIndex + 1 : state.queue.length
+            /**
+             * 什么都没在放的时候按「下一首播放」，此前会把歌插到队尾——
+             * 而队列并不在走，于是这几首既没开始播、也没有任何入口能到达，
+             * 用户只会觉得这个按钮坏了。没有「当前」的时候，「下一首」
+             * 唯一合理的含义就是「现在就播」。
+             */
+            if (state.queueIndex < 0 || state.queue.length === 0) {
+              return {
+                ...state,
+                queue: songs,
+                queueIndex: 0,
+                currentSong: songs[0],
+                isPlaying: true,
+                currentTime: 0,
+                playVersion: state.playVersion + 1,
+                shuffledIndexes: songs.map((_, i) => i),
+                shuffleCursor: state.shuffle ? 0 : -1,
+              }
+            }
+            const insertAt = state.queueIndex + 1
             const newQueue = [
               ...state.queue.slice(0, insertAt),
               ...songs,

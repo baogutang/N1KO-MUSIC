@@ -34,7 +34,11 @@ export function MobileHeader() {
   return (
     <header
       className="flex-shrink-0 select-none border-b border-hair bg-paper"
-      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
+      }}
     >
       <div className="h-12 px-4 flex items-center gap-1">
         <button

@@ -735,3 +735,32 @@ describe('resetForServerChange', () => {
     expect(state().playVersion).toBe(10)
   })
 })
+
+describe('无播放时的「下一首播放」', () => {
+  /**
+   * 什么都没在放的时候按「下一首播放」，此前会把歌插到队尾——
+   * 而队列并不在走，这几首既没开始播、也没有任何入口能到达。
+   * 没有「当前」的时候，「下一首」唯一合理的含义就是「现在就播」。
+   */
+  it('队列为空时直接开播，而不是塞进一个到不了的位置', () => {
+    const songs = makeSongs(2)
+    state().addToQueue(songs, 'next')
+
+    expect(state().isPlaying).toBe(true)
+    expect(state().queueIndex).toBe(0)
+    expect(currentId()).toBe('s0')
+    expect(state().queue).toHaveLength(2)
+  })
+
+  it('已经在放时仍然是插到当前曲之后，不打断正在听的', () => {
+    seedQueue(3, 1)
+    passSwitchDebounce()
+    const before = currentId()
+
+    const extra = song('inserted')
+    state().addToQueue([extra], 'next')
+
+    expect(currentId()).toBe(before)
+    expect(state().queue[2].id).toBe('inserted')
+  })
+})

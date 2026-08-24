@@ -40,6 +40,16 @@ export function useNativeAppIntegration() {
   useEffect(() => {
     if (!isNativePlatform) return
     const handle = App.addListener('backButton', () => {
+      /**
+       * 车载模式盖在所有东西最上层（z-[100]，见 FullscreenPlayerOverlay），
+       * 所以它必须**最先**接住返回键。此前没管它：开车时按返回，
+       * 界面纹丝不动，或者更糟——退到上一页却仍被车载界面盖着。
+       */
+      const player0 = usePlayerStore.getState()
+      if (player0.isCarMode) {
+        player0.setCarMode(false)
+        return
+      }
       // 有对话框打开时返回键应当先关对话框，而不是直接退到上一页
       const dialog = document.querySelector('[role="dialog"], [role="alertdialog"]')
       if (dialog) {
