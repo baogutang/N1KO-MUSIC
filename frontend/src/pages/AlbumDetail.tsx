@@ -114,14 +114,14 @@ export default function AlbumDetailPage() {
           <div className="mt-7 flex items-center gap-6">
             <button
               onClick={() => playAllInOrder(album.songs)}
-              className="inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
+              className="act-primary inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
             >
               <Play size={13} weight="fill" />
               {t('player.playAll')}
             </button>
             <button
               onClick={() => playAllShuffled(album.songs)}
-              className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+              className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
             >
               <Shuffle size={14} />
               {t('player.shuffle')}
@@ -137,9 +137,9 @@ export default function AlbumDetailPage() {
                 )
               }}
               className={cn(
-                'grid h-9 w-9 place-items-center rounded-full border transition-colors duration-200 active:scale-[0.94]',
+                'act-icon grid h-9 w-9 place-items-center rounded-full border transition-colors duration-200 active:scale-[0.94]',
                 starred
-                  ? 'border-primary text-primary'
+                  ? 'is-on border-primary text-primary'
                   : 'border-hair text-ink-soft hover:border-primary hover:text-primary'
               )}
               aria-label={starred ? t('album.unfavorite') : t('album.favorite')}

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-skin="pop">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -7,10 +7,12 @@
     <!--
       两条 theme-color 按配色方案分流。只写一条固定值的话，暗色模式下
       浏览器地址栏 / 安卓状态栏仍是奶油色，和整块墨色版面接不上，
-      顶上会横着一条突兀的亮边。值取自 index.css 的 --background。
+      顶上会横着一条突兀的亮边。值取自默认皮肤（糖果·波普）的 --background。
+      皮肤可切换，所以 themeStore 会在运行时用一条按「皮肤 × 明暗」算出的
+      meta 覆盖掉这两条；这里只负责首屏那一瞬间。
     -->
-    <meta name="theme-color" content="#f4efe3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1b1813" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fbf1e3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101016" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="N1KO MUSIC - 现代化音乐流媒体客户端，支持 Navidrome/Subsonic/Jellyfin/Emby" />
     <title>N1KO MUSIC</title>
     <script src="./theme-preflash.js"></script>

@@ -1,8 +1,11 @@
 /**
- * 报头 masthead（杂志编辑风，DESIGN v2 §3，demo .masthead）
- * 左：N1KO MUSIC 品牌（sans 700 + wide tracking）+ 服务器连接状态点
+ * 报头 masthead
+ * 左：N1KO MUSIC 品牌（sans 700 + wide tracking）+ 服务器连接状态
  *    （下拉承载原侧边栏的服务器切换 / 添加 / 断开功能）
- * 右：当日日期；下缘 3px double 发丝线
+ * 右：刊号 + 当日日期
+ *
+ * 纸·墨·朱（DESIGN v2 §3）：下缘 3px double 发丝线，状态是一个小圆点。
+ * 糖果·波普（DESIGN v3 §3）：下缘 2px 实线；状态点变成薄荷绿胶囊，刊号变成葡萄紫贴纸。
  */
 
 import { useNavigate } from 'react-router-dom'
@@ -41,7 +44,7 @@ export function Masthead() {
 
   return (
     <div
-      className="flex-shrink-0 border-b-[3px] border-double border-hair select-none"
+      className="flex-shrink-0 border-b-[3px] border-double border-hair select-none pop:border-b-2 pop:border-solid"
       data-tauri-drag-region
     >
       <div
@@ -51,15 +54,18 @@ export function Masthead() {
         {/* 品牌 + 服务器状态下拉 */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="group flex items-baseline gap-3 text-left" aria-label={t('settings.server.menu')}>
-              <span className="font-sans font-bold text-[15px] tracking-[0.3em] text-foreground">
+            <button className="group flex items-baseline gap-3 text-left pop:items-center" aria-label={t('settings.server.menu')}>
+              <span className="font-sans font-bold text-[15px] tracking-[0.3em] text-foreground pop:font-extrabold pop:tracking-[0.22em] pop:text-[17px]">
                 N1KO MUSIC
               </span>
-              <span className="flex items-center gap-1.5 text-[11px] tracking-[0.18em] text-ink-soft group-hover:text-foreground transition-colors duration-200">
+              <span className="press-pop flex items-center gap-1.5 text-[11px] tracking-[0.18em] text-ink-soft group-hover:text-foreground transition-colors duration-200 pop:rounded-pill pop:border pop:border-hair pop:bg-candy-ok-soft pop:px-3 pop:py-1.5 pop:text-[12px] pop:tracking-normal pop:font-semibold pop:text-foreground pop:shadow-press">
+                {/* 「已连接」在波普里绑定薄荷绿（DESIGN v3 §1.3），不再借用主色 */}
                 <span
                   className={cn(
-                    'w-1.5 h-1.5 rounded-full flex-shrink-0',
-                    activeServer ? 'bg-primary' : 'bg-ink-faint'
+                    'w-1.5 h-1.5 rounded-full flex-shrink-0 pop:w-2.5 pop:h-2.5 pop:border pop:border-hair',
+                    activeServer
+                      ? 'bg-primary pop:bg-candy-ok-fill'
+                      : 'bg-ink-faint pop:bg-candy-danger-fill'
                   )}
                   aria-hidden="true"
                 />
@@ -114,8 +120,10 @@ export function Masthead() {
 
         {/* 刊号 + 日期（数字等宽 tabular）。刊号在前：它是这本刊物的编号，
             日期只是这一期的落款。 */}
-        <p className="num flex flex-shrink-0 items-baseline gap-3 text-[12px] tracking-[0.14em] text-ink-soft">
-          <span className="text-primary">{issue.label}</span>
+        <p className="num flex flex-shrink-0 items-baseline gap-3 text-[12px] tracking-[0.14em] text-ink-soft pop:items-center">
+          <span className="text-primary pop:rounded-sm pop:border pop:border-hair pop:bg-primary pop:px-2.5 pop:py-1 pop:text-primary-foreground pop:shadow-press pop:-rotate-2">
+            {issue.label}
+          </span>
           <span className="hidden sm:inline">{dateLabel} {weekLabel}</span>
         </p>
       </div>

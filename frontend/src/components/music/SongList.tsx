@@ -567,7 +567,7 @@ const SongRow = React.memo(function SongRow({
 
   return (
     <div
-      className={cn('song-row group relative', selected && 'bg-paper-deep')}
+      className={cn('song-row group relative', isCurrentSong && 'is-current', selected && 'bg-paper-deep')}
       onClick={handleRowClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -604,7 +604,7 @@ const SongRow = React.memo(function SongRow({
             className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
             aria-label={t('action.play')}
           >
-            <span className="w-[22px] h-[22px] rounded-full border border-hair flex items-center justify-center text-ink-soft hover:text-primary hover:border-primary active:scale-[0.94] transition-colors duration-200">
+            <span className="w-[22px] h-[22px] rounded-full border border-hair flex items-center justify-center text-ink-soft hover:text-primary hover:border-primary active:scale-[0.94] transition-colors duration-200 pop:bg-primary pop:text-primary-foreground pop:hover:text-primary-foreground pop:hover:border-hair">
               {isPlaying && isCurrentSong ? (
                 <span className="playing-bar" style={{ height: 10 }}>
                   <span /><span /><span />
@@ -617,9 +617,9 @@ const SongRow = React.memo(function SongRow({
         </div>
       )}
 
-      {/* 小封面：40px、发丝 ring */}
+      {/* 小封面：编辑风 40px 发丝 ring；波普换成 2px 墨描边 */}
       {showCover && (
-        <div className="w-10 h-10 rounded-sm overflow-hidden ring-1 ring-hair-soft flex-shrink-0">
+        <div className="w-10 h-10 rounded-sm overflow-hidden ring-1 ring-hair-soft flex-shrink-0 pop:ring-0 pop:border pop:border-hair">
           <ImageWithFallback
             src={coverUrl}
             alt={song.album}
@@ -634,7 +634,7 @@ const SongRow = React.memo(function SongRow({
       {/* 歌曲信息：衬线曲名 + 小字歌手 */}
       <div className="flex-1 min-w-0">
         <p className={cn(
-          'font-serif text-[15px] font-semibold leading-snug line-clamp-1 transition-colors',
+          'song-title font-serif text-[15px] font-semibold leading-snug line-clamp-1 transition-colors',
           isCurrentSong ? 'text-primary' : 'text-foreground'
         )}>
           {spaceCJK(song.title)}

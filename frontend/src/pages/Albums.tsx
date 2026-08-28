@@ -62,7 +62,7 @@ export default function AlbumsPage() {
             <div className="mt-10 flex justify-center">
               <button
                 onClick={() => fetchNextPage()}
-                className="inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
               >
                 {t('action.loadMore')}
               </button>

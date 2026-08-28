@@ -19,6 +19,8 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
         type={type}
         className={cn(
           'flex h-10 w-full rounded-md border border-border bg-transparent px-3 py-2 text-base sm:text-sm transition-colors duration-200 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50',
+          // 波普：描边胶囊 + 卡面底 + 按压投影（DESIGN v3 §4.4）
+          'pop:rounded-pill pop:bg-surface pop:px-4 pop:shadow-press',
           className
         )}
         ref={ref}

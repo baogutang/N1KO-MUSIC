@@ -85,7 +85,7 @@ export default function IssuePage() {
               <button
                 onClick={() => setOffset(o => o - 1)}
                 aria-label={t('issue.previous')}
-                className="grid h-7 w-7 place-items-center rounded-full border border-hair text-ink-soft transition-colors hover:border-ink hover:text-ink"
+                className="act-icon grid h-7 w-7 place-items-center rounded-full border border-hair text-ink-soft transition-colors hover:border-ink hover:text-ink"
               >
                 <CaretLeft size={12} />
               </button>
@@ -96,7 +96,7 @@ export default function IssuePage() {
                 onClick={() => setOffset(o => Math.min(0, o + 1))}
                 disabled={offset >= 0}
                 aria-label={t('issue.next')}
-                className="grid h-7 w-7 place-items-center rounded-full border border-hair text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:opacity-30"
+                className="act-icon grid h-7 w-7 place-items-center rounded-full border border-hair text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:opacity-30"
               >
                 <CaretRight size={12} />
               </button>
@@ -322,7 +322,7 @@ function IssueZero({ plays, onStart }: { plays: number; onStart: () => void }) {
 
           <button
             onClick={onStart}
-            className="mt-7 inline-flex items-center gap-2 border-b border-ink pb-1.5 text-sm font-semibold tracking-[0.12em] transition-colors hover:border-primary hover:text-primary"
+            className="act-primary mt-7 inline-flex items-center gap-2 border-b border-ink pb-1.5 text-sm font-semibold tracking-[0.12em] transition-colors hover:border-primary hover:text-primary"
           >
             <Play size={12} weight="fill" />
             {t('issue.zero.goToLibrary')}

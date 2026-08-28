@@ -145,7 +145,7 @@ export default function PlaylistDetail() {
             <button
               onClick={handlePlayAll}
               disabled={!playlist.songs.length}
-              className="inline-flex items-center gap-2.5 border-b border-ink pb-1.5 text-sm font-semibold tracking-[0.12em] transition-colors hover:border-primary hover:text-primary active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+              className="act-primary inline-flex items-center gap-2.5 border-b border-ink pb-1.5 text-sm font-semibold tracking-[0.12em] transition-colors hover:border-primary hover:text-primary active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
             >
               <Play className="w-3.5 h-3.5" weight="fill" />
               {t('player.playAll')}

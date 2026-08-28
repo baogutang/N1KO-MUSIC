@@ -6,19 +6,38 @@
 @tailwind utilities;
 
 /* ===================================================
-   全局设计 Token —— 杂志编辑风（Editorial）
-   米白纸面 + 墨色文字 + 朱红 accent，浅色为默认主题
-   规范见 docs/redesign/v2/DESIGN.md（旧「现代 Hi-Fi」契约作废）
+   全局设计 Token —— 双皮肤体系
    ---------------------------------------------------
-   两组变量：
-   1. 设计 token（RGB 通道，配 rgb() 使用；--hair 自带 alpha）
+   两张皮共用一套语义 token，组件只认 token、不认具体值：
+
+     糖果·波普工坊  html[data-skin='pop']        默认（DESIGN v3）
+     纸·墨·朱        html[data-skin='editorial']  变体（DESIGN v2）
+
+   × 两种明暗：深色为 <html> 上的 'dark' class（沿用原机制）。
+
+   ---------------------------------------------------
+   三组变量：
+   1. 颜色 token（RGB 通道，配 rgb() 使用；--hair 自带 alpha）
    2. shadcn 语义变量（HSL 通道，配 hsl() 使用，
       供 Tailwind 语义类与旧组件内联 hsl(var(--x)) 消费）
+   3. 形状 / 字体 / 动效 token（描边宽度、圆角、投影、字族、缓动）
+      —— v3 新增。没有这一层，换皮只能换掉颜色，形还留在编辑风。
+
+   ---------------------------------------------------
+   优先级说明：:root 与 .dark 都是 (0,1,0)，
+   若皮肤块也写成 [data-skin='pop'] 就会和 .dark 打平、按源码顺序赢，
+   把深色覆盖掉。所以皮肤块一律写成两个复合选择器
+   （:not(.dark) / .dark），特异性 (0,2,1)，互斥且稳赢。
+   =================================================== */
+
+/* ===================================================
+   基线 = 纸·墨·朱（浅）
+   data-skin 缺失时（JS 未执行）落到这一档，版面仍然可读。
    =================================================== */
 :root {
   --radius: 8px;
 
-  /* ----- 设计 token：浅色纸面（默认，DESIGN §1.1）----- */
+  /* ----- 颜色：浅色纸面（DESIGN v2 §1.1）----- */
   --paper: 244 239 227;        /* #f4efe3 */
   --paper-deep: 236 229 212;   /* #ece5d4 */
   --ink: 29 26 21;             /* #1d1a15 */
@@ -32,17 +51,38 @@
   --accent: 184 68 42;         /* #b8442a 朱红 */
   --accent-deep: 156 53 32;    /* #9c3520 */
 
-  /* ----- 字体栈（DESIGN §2.1，字体文件见 styles/fonts.css）----- */
+  /* ----- 字体栈（DESIGN v2 §2.1，字体文件见 styles/fonts.css）----- */
   --font-serif: 'Source Serif 4', 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
   --font-sans: 'Hanken Grotesk', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  /* 分区大标题 / 头条的字重与字距（皮肤各自决定） */
+  --display-weight: 700;
+  --display-tracking: 0.02em;
 
-  /* ----- 动效（DESIGN §5）----- */
+  /* ----- 形状（v3 新增）----- */
+  --stroke: 1px;               /* 全站描边/发丝线宽度，Tailwind borderWidth.DEFAULT */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-pill: 5px;               /* 编辑风没有胶囊：退化成小圆角 */
+  --focus-width: 2px;
+  --press: 0px;                /* 按压位移；编辑风只缩放不位移 */
+
+  /* 唯一允许的浮层投影（DESIGN v2 §1.3） */
+  --shadow-float: 0 1px 2px rgb(29 26 21 / 0.06), 0 8px 24px rgb(29 26 21 / 0.08);
+  --shadow-press: none;        /* 按压态投影；编辑风无投影 */
+
+  /* ----- 动效（DESIGN v2 §5）----- */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* 唯一允许的浮层投影（DESIGN §1.3） */
-  --shadow-float: 0 1px 2px rgb(29 26 21 / 0.06), 0 8px 24px rgb(29 26 21 / 0.08);
+  /* ----- 底纹：纸面噪点（demo 同款 feTurbulence data-URI）----- */
+  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.035 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  --texture-size: 140px 140px;
+  --selection-bg: rgb(var(--accent) / 0.18);
+  --selection-fg: inherit;
+  /* 正在播放页的封面取色晕染浓度（DESIGN v2 §1.3 允许的唯一渐变） */
+  --cover-bleed-opacity: 0.55;
 
   /* ----- shadcn 语义映射（HSL 通道，浅色）----- */
   --background: 43 36% 92%;    /* paper */
@@ -64,7 +104,7 @@
   --muted-foreground: 38 10% 33%;   /* ink-soft */
 
   /* shadcn 的 accent 是「hover 底面」语义（非品牌色），映射 paper-deep；
-     品牌朱红请用 --primary / rgb(var(--accent)) */
+     品牌色请用 --primary / rgb(var(--accent)) */
   --accent-surface: 41 32% 88%;
   --accent-surface-foreground: 36 14% 10%;
 
@@ -80,7 +120,7 @@
 }
 
 /* ===================================================
-   深色主题（同气质变体，非默认，class 切换，DESIGN §1.2）
+   纸·墨·朱（深）—— 同气质变体，非反色（DESIGN v2 §1.2）
    =================================================== */
 .dark {
   --paper: 26 23 18;           /* #1a1712 */
@@ -95,6 +135,10 @@
   --accent-deep: 184 68 42;    /* #b8442a */
 
   --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
+
+  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  --selection-bg: rgb(var(--accent) / 0.28);
+  --cover-bleed-opacity: 0.4;
 
   --background: 38 18% 9%;
   --foreground: 43 39% 88%;
@@ -142,6 +186,194 @@
 }
 
 /* ===================================================
+   糖果·波普工坊（浅）—— 默认皮肤（DESIGN v3）
+   奶油底 + 2px 墨描边 + 硬投影；糖果色全部绑定语义。
+   =================================================== */
+html[data-skin='pop']:not(.dark) {
+  /* ----- 颜色 ----- */
+  --paper: 251 241 227;        /* #fbf1e3 奶油底 */
+  --paper-deep: 241 228 206;   /* #f1e4ce 沉底 / hover */
+  --ink: 27 26 25;             /* #1b1a19 描边 + 主文字，15.6:1 */
+  --ink-soft: 86 81 74;        /* #56514a 7.9:1 */
+  --ink-faint: 110 103 94;     /* #6e675e 5.0:1 */
+  /* 波普的「发丝线」不是发丝，是 2px 实心墨描边：alpha 拉满。
+     注意 --hair 自带 alpha，消费方不能再叠 `/70` 这类修饰符。 */
+  --hair: 27 26 25 / 1;
+  --hair-soft: 27 26 25 / 0.18;
+  --skeleton: 236 224 205;
+  --accent: 79 70 229;         /* #4f46e5 葡萄紫：正在播放 / 当前项 / 主操作，5.6:1 */
+  --accent-deep: 62 54 200;    /* #3e36c8 按压态 */
+
+  /* 糖果色的语义绑定（DESIGN v3 §1.3）。
+     浅色档只做底、绝不做文字；深色档才是文字安全色。 */
+  --candy-ok: 20 113 63;       /* #14713f 已连接 / 成功 / 在线，5.4:1 */
+  --candy-ok-fill: 91 190 123; /* #5bbe7b */
+  --candy-ok-soft: 180 231 198;
+  --candy-warn-fill: 240 198 60;  /* #f0c63c 收藏 / 星标 / 当前歌词 —— 只做底 */
+  --candy-warn-soft: 251 231 168;
+  --candy-danger: 194 50 23;   /* #c23217 断开 / 删除 / 错误，5.0:1 */
+  --candy-danger-fill: 232 112 90;
+  --candy-danger-soft: 251 199 185;
+
+  /* ----- 字：标题换粗黑体（和纸·墨·朱的宋体正好相反，DESIGN v3 §2）
+     --font-serif 不改名、只改指向，全站 97 处 font-serif 随之翻面。
+     Hanken Grotesk 是 300–800 的可变字体，800 直接可用，无需新增字体文件。 ----- */
+  --font-serif: 'Hanken Grotesk', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  --display-weight: 800;
+  --display-tracking: -0.02em;
+
+  /* ----- 形 ----- */
+  --stroke: 2px;
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --focus-width: 3px;
+  --press: 2px;
+
+  /* 硬投影：零模糊，靠位移造实体感 */
+  --shadow-ink: 27 26 25;
+  --shadow-float: 4px 4px 0 rgb(var(--shadow-ink));
+  --shadow-press: 1px 1px 0 rgb(var(--shadow-ink));
+
+  --ease: cubic-bezier(0.2, 0.9, 0.28, 1.12);   /* 带一点点回弹 */
+
+  /* 底纹：22px 圆点网格，替掉纸面噪点 */
+  --texture: radial-gradient(circle at 50% 50%, rgb(27 26 25 / 0.10) 1.1px, transparent 1.3px);
+  --texture-size: 22px 22px;
+  --selection-bg: rgb(var(--accent));
+  --selection-fg: rgb(251 241 227);
+  /*
+   * 封面取色晕染在这张皮里直接关掉。
+   *
+   * 它是纸·墨·朱唯一允许的渐变——在纸面上是氛围。但波普是平涂体系：
+   * 一层模糊的暖色铺满奶油底，读起来不是氛围而是脏，还和 2px 硬边、
+   * 零模糊的投影正面打架。「这首歌是什么颜色」的信息已经由封面本身承担，
+   * 它在这张皮里被一圈墨描边框住，比一团晕染更清楚。
+   */
+  --cover-bleed-opacity: 0;
+
+  /* ----- shadcn 语义映射 ----- */
+  --background: 35 75% 94%;
+  --foreground: 30 4% 10%;
+
+  --card: 40 100% 98%;
+  --card-foreground: 30 4% 10%;
+
+  --popover: 40 100% 98%;
+  --popover-foreground: 30 4% 10%;
+
+  --primary: 243 75% 59%;
+  --primary-foreground: 40 100% 97%;
+
+  --secondary: 38 56% 88%;
+  --secondary-foreground: 30 4% 10%;
+
+  --muted: 38 56% 88%;
+  --muted-foreground: 35 8% 31%;
+
+  --accent-surface: 38 56% 88%;
+  --accent-surface-foreground: 30 4% 10%;
+
+  --destructive: 10 79% 43%;
+  --destructive-foreground: 40 100% 97%;
+
+  /* 描边就是墨色本身，不再是纸上的合成灰 */
+  --border: 30 4% 10%;
+  --input: 30 4% 10%;
+  --ring: 243 75% 59%;
+
+  --surface: 40 100% 98%;
+  --surface-hover: 38 56% 88%;
+}
+
+/* ===================================================
+   糖果·波普工坊（深）
+   =================================================== */
+html[data-skin='pop'].dark {
+  --paper: 16 16 22;           /* #101016 */
+  --paper-deep: 10 10 14;      /* #0a0a0e */
+  --ink: 244 236 223;          /* #f4ecdf */
+  --ink-soft: 180 173 161;     /* #b4ada1 */
+  --ink-faint: 145 138 126;    /* #918a7e */
+  --hair: 239 230 216 / 1;     /* #efe6d8 描边换成奶油 */
+  --hair-soft: 239 230 216 / 0.22;
+  --skeleton: 42 42 54;
+  --accent: 166 162 255;       /* #a6a2ff */
+  --accent-deep: 132 126 240;
+
+  --candy-ok: 111 220 160;
+  --candy-ok-fill: 63 156 104;
+  --candy-ok-soft: 30 79 54;
+  --candy-warn-fill: 240 198 60;
+  --candy-warn-soft: 78 67 34;
+  --candy-danger: 255 138 114;
+  --candy-danger-fill: 194 72 47;
+  --candy-danger-soft: 90 42 32;
+
+  --font-serif: 'Hanken Grotesk', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  --display-weight: 800;
+  --display-tracking: -0.02em;
+
+  --stroke: 2px;
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --focus-width: 3px;
+  --press: 2px;
+
+  /* 暗色下硬投影不能用纯黑：投影落在 #101016 的页面底上等于没有。
+     换成深葡萄紫——仍在糖果家族里，又能把「挤出来的实体」立住。 */
+  --shadow-ink: 59 54 132;     /* #3b3684 */
+  --shadow-float: 4px 4px 0 rgb(var(--shadow-ink));
+  --shadow-press: 1px 1px 0 rgb(var(--shadow-ink));
+
+  --ease: cubic-bezier(0.2, 0.9, 0.28, 1.12);
+
+  --texture: radial-gradient(circle at 50% 50%, rgb(244 236 223 / 0.08) 1.1px, transparent 1.3px);
+  --texture-size: 22px 22px;
+  --selection-bg: rgb(var(--accent));
+  --selection-fg: rgb(20 18 31);
+  --cover-bleed-opacity: 0;
+
+  --background: 240 16% 7%;
+  --foreground: 37 49% 92%;
+
+  --card: 240 14% 14%;
+  --card-foreground: 37 49% 92%;
+
+  --popover: 240 14% 14%;
+  --popover-foreground: 37 49% 92%;
+
+  --primary: 243 100% 82%;
+  --primary-foreground: 249 27% 10%;
+
+  --secondary: 240 14% 14%;
+  --secondary-foreground: 37 49% 92%;
+
+  --muted: 240 14% 14%;
+  --muted-foreground: 38 11% 67%;
+
+  --accent-surface: 240 14% 14%;
+  --accent-surface-foreground: 37 49% 92%;
+
+  /* 与浅色档同一条规矩：珊瑚红既做文字色又做实底，两种用法都要过 AA。
+     #ff8a72 压在 #101016 上约 9:1；反过来做底时前景换成深墨。 */
+  --destructive: 10 100% 72%;
+  --destructive-foreground: 249 27% 10%;
+
+  --border: 37 42% 89%;
+  --input: 37 42% 89%;
+  --ring: 243 100% 82%;
+
+  --surface: 240 14% 14%;
+  --surface-hover: 240 13% 19%;
+}
+
+/* ===================================================
    基础重置
    =================================================== */
 * {
@@ -154,6 +386,8 @@ html {
 
 body {
   background-color: hsl(var(--background));
+  background-image: var(--texture);
+  background-size: var(--texture-size);
   color: hsl(var(--foreground));
   font-family: var(--font-sans);
   font-size: 15px;
@@ -163,13 +397,6 @@ body {
   overflow: hidden;
   height: 100vh;
   height: 100dvh;
-  /* 纸面噪点纹理（demo 同款 feTurbulence data-URI，DESIGN §1.3） */
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.035 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
-}
-
-/* 深色模式：白色低透明度噪点 */
-.dark body {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
 }
 
 #root {
@@ -178,23 +405,20 @@ body {
   overflow: hidden;
 }
 
-/* 选中色（DESIGN §1.3） */
+/* 选中色 */
 ::selection {
-  background: rgb(var(--accent) / 0.18);
+  background: var(--selection-bg);
+  color: var(--selection-fg);
 }
 
-.dark ::selection {
-  background: rgb(var(--accent) / 0.28);
-}
-
-/* 键盘焦点（DESIGN §4.5） */
+/* 键盘焦点 */
 :focus-visible {
-  outline: 2px solid rgb(var(--accent));
+  outline: var(--focus-width) solid rgb(var(--accent));
   outline-offset: 3px;
 }
 
 /* ===================================================
-   滚动条样式：发丝色
+   滚动条
    =================================================== */
 ::-webkit-scrollbar {
   width: 8px;
@@ -214,8 +438,24 @@ body {
   background: rgb(var(--ink-faint));
 }
 
+/* 波普：滚动条也做成描边胶囊 */
+html[data-skin='pop'] ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+html[data-skin='pop'] ::-webkit-scrollbar-thumb {
+  background: rgb(var(--paper-deep));
+  border: var(--stroke) solid rgb(var(--hair));
+  border-radius: var(--r-pill);
+}
+
+html[data-skin='pop'] ::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--accent) / 0.35);
+}
+
 /* ===================================================
-   全局减动效（DESIGN §5）
+   全局减动效
    =================================================== */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -244,15 +484,53 @@ body {
     letter-spacing: 0.02em;
   }
 
-  /* 纸面浮层：90% 不透明纸面 + 发丝线（取代旧深色玻璃拟态） */
+  /* 浮层底面：编辑风是 90% 不透明纸面 + 发丝线；
+     波普下由皮肤覆盖成实心卡面 + 2px 描边 + 硬投影 */
   .glass {
     background: hsl(var(--popover) / 0.9);
-    border: 1px solid rgb(var(--hair));
+    border: var(--stroke) solid rgb(var(--hair));
   }
 
-  /* 浮层淡投影（DESIGN §1.3 唯一允许的投影） */
+  html[data-skin='pop'] .glass {
+    background: hsl(var(--popover));
+    box-shadow: var(--shadow-float);
+  }
+
+  /* 浮层投影（编辑风：极淡双层；波普：硬投影） */
   .shadow-float {
     box-shadow: var(--shadow-float);
+  }
+
+  /* 按压态投影，供播放键/胶囊按钮使用 */
+  .shadow-press {
+    box-shadow: var(--shadow-press);
+  }
+
+  /**
+   * 波普的签名手感：hover 抬起 1px、投影变长；按下压回去、投影缩到 1px。
+   * 编辑风下 --press 为 0、--shadow-* 为 none，同一个类不产生任何视觉效果，
+   * 因此可以无条件加在按钮上，不需要在 TSX 里分支。
+   */
+  /* 过渡写在皮肤块里而不是 .press-pop 上：调用方普遍带着
+     `transition-colors`，两个都是 (0,1,0) 的工具类，谁赢取决于
+     utilities 层的输出顺序——不可靠。挂到 (0,2,0) 的皮肤选择器上就稳了。 */
+  html[data-skin='pop'] .press-pop {
+    transition:
+      transform 0.16s var(--ease),
+      box-shadow 0.16s var(--ease),
+      background-color 0.16s var(--ease),
+      border-color 0.16s var(--ease),
+      color 0.16s var(--ease);
+  }
+
+  html[data-skin='pop'] .press-pop:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-float);
+  }
+
+  html[data-skin='pop'] .press-pop:active {
+    transform: translate(var(--press), var(--press));
+    box-shadow: var(--shadow-press);
   }
 
   /* 文字截断 */
@@ -354,20 +632,20 @@ body {
    组件层 - 通用样式
    =================================================== */
 @layer components {
-  /* 分区标题范式：衬线大标题 + 拉丁小标签 + 上缘发丝线（DESIGN §3，demo .section-head） */
+  /* 分区标题范式：大标题 + 拉丁小标签 + 上缘发丝线（DESIGN §3） */
   .section-head {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     padding: 52px 0 18px;
-    border-top: 1px solid rgb(var(--hair));
+    border-top: var(--stroke) solid rgb(var(--hair));
   }
 
   .section-head h2 {
     font-family: var(--font-serif);
-    font-weight: 700;
+    font-weight: var(--display-weight);
     font-size: 30px;
-    letter-spacing: 0.02em;
+    letter-spacing: var(--display-tracking);
   }
 
   /*
@@ -402,8 +680,223 @@ body {
     color: rgb(var(--accent));
   }
 
+  /**
+   * 波普的分区标题：上缘没有横线，改由「大标题 + 一枚糖果贴纸」承担分隔。
+   * 拉丁小标签直接变成贴纸本体——全站的 <small> 与 .latin-tag 一次性翻面，
+   * 不必去 40 多个页面逐个改结构。
+   */
+  html[data-skin='pop'] .section-head {
+    border-top: 0;
+    align-items: center;
+    padding: 48px 0 18px;
+  }
+
+  /**
+   * `.sticker` 是通用糖果贴纸，任何语言下都在。
+   * `.latin-tag` / `.section-head h2 small` 是**双语报头的拉丁半边**，
+   * 非中文界面下整体隐藏（见上），所以不能拿它当通用贴纸用——
+   * 那会让英文界面直接丢掉一整行标签。
+   */
+  html[data-skin='pop'] .section-head h2 small,
+  html[data-skin='pop'] .latin-tag,
+  html[data-skin='pop'] .sticker {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgb(var(--ink));
+    background: rgb(var(--accent) / 0.22);
+    border: var(--stroke) solid rgb(var(--hair));
+    border-radius: var(--r-sm);
+    padding: 5px 10px;
+    margin-left: 14px;
+    vertical-align: 3px;
+    box-shadow: var(--shadow-press);
+    transform: rotate(-1.8deg);
+  }
+
+  html[data-skin='pop'] .section-head .more {
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    color: rgb(var(--ink));
+    border: var(--stroke) solid rgb(var(--hair));
+    border-radius: var(--r-pill);
+    padding: 7px 14px;
+    box-shadow: var(--shadow-press);
+    transition:
+      transform 0.16s var(--ease),
+      box-shadow 0.16s var(--ease),
+      background-color 0.16s var(--ease);
+  }
+
+  html[data-skin='pop'] .section-head .more:hover {
+    color: rgb(var(--ink));
+    background: rgb(var(--paper-deep));
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-float);
+  }
+
+  /**
+   * 动作三级。
+   *
+   * 全站有十几处手写的「文字级主操作 / 细线次操作 / 图标圆键」——
+   * 它们是编辑风的按钮范式（DESIGN v2 §4.1），不走 <Button> 组件。
+   * 这三个类只在波普下产生声明，编辑风下是空规则，
+   * 所以可以直接追加到已有的 Tailwind 类串后面，不动原有外观。
+   *
+   * 特异性 (0,2,1) 高于工具类的 (0,1,0)/(0,2,0)，
+   * 因此能盖掉调用方的 border-b / px / hover:text-primary 等。
+   */
+  html[data-skin='pop'] .act-primary,
+  html[data-skin='pop'] .act-secondary {
+    border: var(--stroke) solid rgb(var(--hair));
+    border-radius: var(--r-pill);
+    letter-spacing: 0;
+    box-shadow: var(--shadow-press);
+    transition:
+      transform 0.16s var(--ease),
+      box-shadow 0.16s var(--ease),
+      background-color 0.16s var(--ease),
+      color 0.16s var(--ease);
+  }
+
+  html[data-skin='pop'] .act-primary {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    padding: 10px 20px;
+  }
+
+  html[data-skin='pop'] .act-primary:hover {
+    color: hsl(var(--primary-foreground));
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-float);
+  }
+
+  html[data-skin='pop'] .act-secondary {
+    background: hsl(var(--surface));
+    color: hsl(var(--foreground));
+    padding: 9px 16px;
+  }
+
+  html[data-skin='pop'] .act-secondary:hover {
+    background: hsl(var(--secondary));
+    color: hsl(var(--foreground));
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-float);
+  }
+
+  html[data-skin='pop'] .act-primary:active,
+  html[data-skin='pop'] .act-secondary:active,
+  html[data-skin='pop'] .act-icon:active {
+    transform: translate(var(--press), var(--press));
+    box-shadow: var(--shadow-press);
+  }
+
+  html[data-skin='pop'] .act-icon {
+    border: var(--stroke) solid rgb(var(--hair));
+    background: hsl(var(--surface));
+    color: hsl(var(--foreground));
+    box-shadow: var(--shadow-press);
+    transition:
+      transform 0.16s var(--ease),
+      box-shadow 0.16s var(--ease),
+      background-color 0.16s var(--ease);
+  }
+
+  html[data-skin='pop'] .act-icon:hover {
+    background: hsl(var(--secondary));
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-float);
+  }
+
+  /* 已激活的图标键（已收藏、已开启）：糖果色实底 */
+  html[data-skin='pop'] .act-icon.is-on {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  /**
+   * 封面砖。
+   *
+   * 编辑风：无边框，hover 微放大 + 唯一允许的淡投影。
+   * 波普：  2px 墨描边 + 硬投影的实体块，hover 往左上抬起、投影变长。
+   *
+   * 写成组件类而不是在调用方拼 `pop:group-hover:*`：hover 态要跟 Tailwind 的
+   * `group` 组合，变体叠变体的生成顺序不好把控，放在这里一目了然。
+   */
+  .cover-tile {
+    transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
+  }
+
+  html[data-skin='pop'] .cover-tile {
+    border: var(--stroke) solid rgb(var(--hair));
+    box-shadow: var(--shadow-press);
+  }
+
+  .group:hover .cover-tile {
+    transform: scale(1.03);
+    box-shadow: var(--shadow-float);
+  }
+
+  html[data-skin='pop'] .group:hover .cover-tile {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-float);
+  }
+
+  /**
+   * 分段控件（设置页的皮肤 / 主题 / 语言切换）当前项。
+   *
+   * 编辑风：下缘 2px 朱色短线，不是背景块。
+   * 波普：  主色实心胶囊（由调用方的 pop: 类给出）。
+   *
+   * 编辑风那条线原本写在 TSX 的内联 style 上，内联样式的优先级高于任何
+   * 皮肤规则，波普下会顶着一条朱线。挪到这里，两张皮才真正互斥。
+   * 用 :not([data-skin='pop']) 而不是 [data-skin='editorial']，
+   * 这样属性缺失（脚本没跑）时也能落到编辑风的默认外观上。
+   */
+  html:not([data-skin='pop']) .seg-option.is-on {
+    box-shadow: inset 0 -2px 0 0 rgb(var(--accent));
+  }
+
+  /**
+   * 当前歌词行。
+   *
+   * 编辑风：前导朱红短划线 + 墨色加粗（DESIGN v2 §4.3）。
+   * 波普：  柠檬黄荧光笔胶囊 + 2px 墨描边（DESIGN v3 §4.3）——
+   *         柠檬黄在这套体系里只做底、不做文字，正好是荧光笔的语义。
+   *
+   * <p> 本身是块级、撑满整行，所以要 width:fit-content 才收成胶囊。
+   */
+  html[data-skin='pop'] .lyric-line.is-active {
+    width: fit-content;
+    max-width: 100%;
+    padding: 5px 18px;
+    margin: 2px 0;
+    background: rgb(var(--candy-warn-fill));
+    color: rgb(var(--ink));
+    border: var(--stroke) solid rgb(var(--hair));
+    border-radius: var(--r-pill);
+    box-shadow: var(--shadow-press);
+  }
+
+  /**
+   * 大封面（专辑页 / 正在播放页）：不做 hover 反应，只承担分层。
+   */
+  html[data-skin='pop'] .cover-slab {
+    border: var(--stroke) solid rgb(var(--hair));
+    box-shadow: var(--shadow-float);
+  }
+
   /* 歌曲行：编号编辑列表（DESIGN §3「列表即网格」）
      hover：底色 paper-deep + 内容右移 4px，200ms var(--ease) */
+  /*
+   * 不要给这一行加圆角。
+   * 列表用的是 `divide-y`，分隔线画在每一行的上缘；行一旦有圆角，
+   * 这条线的两端就跟着翘起来，连续几行看上去像是每行被框了一个浅色圆角盒——
+   * 谁都没设计过那个盒子。
+   */
   .song-row {
     @apply flex items-center gap-4 px-3 py-2.5 cursor-pointer;
     transition: background 0.2s var(--ease), transform 0.2s var(--ease);
@@ -414,14 +907,32 @@ body {
     transform: translateX(4px);
   }
 
+  /**
+   * 正在播放的那一行。
+   *
+   * 编辑风：只有曲名与序号变朱红，行本身不着色（DESIGN v2 §3）。
+   * 波普：  整行铺浅葡萄紫糖底（DESIGN v3 §3）。
+   *
+   * 铺了糖底之后曲名不能再用主色——葡萄紫压在自己 20% 的糖底上只有 3.0:1，
+   * 够不到 AA。所以这里把曲名压回墨色（15:1），主色的身份由整行底色承担。
+   */
+  html[data-skin='pop'] .song-row.is-current {
+    background: rgb(var(--accent) / 0.2);
+  }
+
+  html[data-skin='pop'] .song-row.is-current:hover {
+    background: rgb(var(--accent) / 0.28);
+  }
+
+  html[data-skin='pop'] .song-row.is-current .song-title {
+    color: rgb(var(--ink));
+  }
+
   .song-row:active {
     transform: translateX(4px) scale(0.995);
   }
 }
 
-/* ===================================================
-   移动端（Capacitor 原生壳 / 窄视口）
-   =================================================== */
 /* ===================================================
    中西文混排的排版细节
    —— 细空格由 spaceCJK() 在渲染层插入，这里补 CSS 侧能做的部分
@@ -446,6 +957,9 @@ p, h1, h2, h3, h4, dd, dt, li, blockquote {
   font-variant-numeric: tabular-nums slashed-zero;
 }
 
+/* ===================================================
+   移动端（Capacitor 原生壳 / 窄视口）
+   =================================================== */
 @media (max-width: 767px) {
   /* 触控目标：去掉点按高亮与长按放大镜，滚动不回弹出 WebView 外 */
   * {
@@ -468,5 +982,15 @@ p, h1, h2, h3, h4, dd, dt, li, blockquote {
   .section-head h2 small {
     letter-spacing: 0.2em;
     margin-left: 10px;
+  }
+  html[data-skin='pop'] .section-head {
+    padding: 30px 0 12px;
+  }
+  html[data-skin='pop'] .section-head h2 small,
+  html[data-skin='pop'] .latin-tag,
+  html[data-skin='pop'] .sticker {
+    letter-spacing: 0.12em;
+    margin-left: 10px;
+    padding: 4px 8px;
   }
 }

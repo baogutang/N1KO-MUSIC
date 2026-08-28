@@ -169,7 +169,7 @@ export default function ArtistDetailPage() {
             {playableSongs.length > 0 && (
               <button
                 onClick={() => playAllInOrder(playableSongs)}
-                className="inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
+                className="act-primary inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
               >
                 <Play size={13} weight="fill" />
                 {t('player.playAll')}
@@ -178,7 +178,7 @@ export default function ArtistDetailPage() {
             {playableSongs.length > 0 && (
               <button
                 onClick={() => playAllShuffled(playableSongs)}
-                className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
               >
                 <Shuffle size={14} />
                 {t('player.shuffle')}
@@ -210,7 +210,7 @@ export default function ArtistDetailPage() {
             <div className="mt-6 flex justify-center">
               <button
                 onClick={() => setShowAllSongs(!showAllSongs)}
-                className="inline-flex items-center gap-2 rounded border border-hair px-4 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-4 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
               >
                 {showAllSongs ? (
                   <>{t('action.collapse')} <CaretUp size={13} /></>

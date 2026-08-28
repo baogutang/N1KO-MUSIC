@@ -34,12 +34,13 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border border-border bg-popover p-6 text-popover-foreground shadow-float duration-200 data-[state=open]:animate-fade-in-scale',
+        'pop:border-hair',
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1.5 text-muted-foreground transition-colors duration-150 hover:text-foreground hover:bg-accent active:scale-[0.94] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1.5 text-muted-foreground transition-colors duration-150 hover:text-foreground hover:bg-accent active:scale-[0.94] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none pop:rounded-pill pop:border pop:border-hair pop:bg-surface pop:text-foreground pop:shadow-press">
         <X className="h-4 w-4" />
         <span className="sr-only">{t('dialog.close')}</span>
       </DialogPrimitive.Close>

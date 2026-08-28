@@ -130,7 +130,7 @@ export default function Library() {
           <button
             onClick={() => setViewMode('grid')}
             className={cn(
-              'w-8 h-8 grid place-items-center rounded-full border transition-colors duration-200 active:scale-[0.94]',
+              'act-icon w-8 h-8 grid place-items-center rounded-full border transition-colors duration-200 active:scale-[0.94]',
               viewMode === 'grid'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-ink-soft hover:border-hair hover:text-ink'
@@ -142,7 +142,7 @@ export default function Library() {
           <button
             onClick={() => setViewMode('list')}
             className={cn(
-              'w-8 h-8 grid place-items-center rounded-full border transition-colors duration-200 active:scale-[0.94]',
+              'act-icon w-8 h-8 grid place-items-center rounded-full border transition-colors duration-200 active:scale-[0.94]',
               viewMode === 'list'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-ink-soft hover:border-hair hover:text-ink'
@@ -188,7 +188,7 @@ export default function Library() {
                   {/* 主操作：纯文字 ▶ + 发丝下划线，hover 变 accent（DESIGN §4.1） */}
                   <button
                     onClick={() => playAllInOrder(songs, 0)}
-                    className="inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
+                    className="act-primary inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
                   >
                     <Play size={13} weight="fill" />
                     {t('player.playAll')}
@@ -202,7 +202,7 @@ export default function Library() {
                   <button
                     onClick={handleShuffleAll}
                     disabled={shufflingAll}
-                    className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97] disabled:opacity-50"
+                    className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97] disabled:opacity-50"
                   >
                     <Shuffle size={14} className={shufflingAll ? 'animate-spin' : undefined} />
                     {shufflingAll ? t('library.shuffling') : t('player.shuffleAll')}
@@ -233,7 +233,7 @@ export default function Library() {
                   <div className="mt-8 flex justify-center">
                     <button
                       onClick={() => fetchNextPage()}
-                      className="inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                      className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
                     >
                       {t('library.loadMoreSongs')}
                     </button>
@@ -303,7 +303,7 @@ export default function Library() {
               <div className="mt-8 flex justify-center">
                 <button
                   onClick={() => fetchNextAlbums()}
-                  className="inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                  className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
                 >
                   {t('library.loadMoreAlbums')}
                 </button>

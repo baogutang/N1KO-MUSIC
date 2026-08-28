@@ -1,6 +1,7 @@
 /**
- * 专辑卡片组件 —— 封面墙单元（DESIGN v2 §3「封面即内容」）
- * 去卡片边框与阴影盒：纯封面 + 图注（衬线专辑名 + 小字歌手）
+ * 专辑卡片组件 —— 封面墙单元（「封面即内容」）
+ * 编辑风：纯封面 + 图注，无卡片边框与阴影盒。
+ * 波普：  封面是描边 + 硬投影的实体砖，图注不变。
  */
 
 import { Play } from '@phosphor-icons/react'
@@ -65,9 +66,9 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
         }
       }}
     >
-      {/* 封面：无卡片盒，hover 微放大 + 唯一允许的淡投影 */}
+      {/* 封面砖：编辑风 hover 微放大；波普是描边实体块，hover 往左上抬起（见 .cover-tile） */}
       <div className="relative mb-2.5">
-        <div className="aspect-square overflow-hidden rounded-md ring-1 ring-hair-soft transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:shadow-float">
+        <div className="cover-tile aspect-square overflow-hidden rounded-md ring-1 ring-hair-soft pop:ring-0">
           <ImageWithFallback
             src={coverUrl}
             alt={album.name}
@@ -80,7 +81,7 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
         <button
           onClick={handlePlay}
           aria-label={t('album.playWhole')}
-          className="absolute right-2.5 bottom-2.5 w-9 h-9 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 hover:bg-primary hover:border-primary active:scale-[0.94]"
+          className="absolute right-2.5 bottom-2.5 w-9 h-9 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 hover:bg-primary hover:border-primary active:scale-[0.94] pop:border-hair pop:bg-primary pop:text-primary-foreground pop:shadow-press"
         >
           <Play className="w-3.5 h-3.5 ml-px" weight="fill" />
         </button>

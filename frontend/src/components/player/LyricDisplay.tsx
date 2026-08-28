@@ -242,11 +242,11 @@ const LyricRow = memo(function LyricRow({
       ref={activeRef}
       onClick={() => onSelect(line)}
       className={cn(
-        'flex items-center font-serif leading-relaxed text-left origin-left',
+        'lyric-line flex items-center font-serif leading-relaxed text-left origin-left',
         'transition-[color,transform] duration-300 ease-[var(--ease)]',
         // 过去行 ink-faint / 当前行 ink 700 / 未来行 ink-soft；未同步整体 ink-soft
         isActive
-          ? 'text-ink font-bold translate-x-1'
+          ? 'is-active text-ink font-bold translate-x-1'
           : isPast
             ? 'text-ink-faint'
             : 'text-ink-soft',
@@ -258,7 +258,7 @@ const LyricRow = memo(function LyricRow({
       {/* 前导 accent 短红线（2px × 18px），仅当前行可见；占位固定避免行间错位 */}
       <span
         aria-hidden="true"
-        className="flex-none w-[18px] h-[2px] mr-3 rounded-full bg-primary transition-opacity duration-300"
+        className="flex-none w-[18px] h-[2px] mr-3 rounded-full bg-primary transition-opacity duration-300 pop:hidden"
         style={{ opacity: isActive ? 1 : 0 }}
       />
       {/* 歌词是全站最大的一块中文文字面，CJK 与拉丁混排（歌名、Cover、feat.、

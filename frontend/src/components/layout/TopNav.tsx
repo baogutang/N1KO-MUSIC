@@ -1,7 +1,9 @@
 /**
- * 主导航行（杂志编辑风，DESIGN v2 §3）
- * 纯文字链接：首页 / 音乐库 / 歌手 / 歌单 / 推荐 / 收藏 / 统计 / 本期
- * 当前项 accent 色 + 下方 2px accent 短划线（不是背景块）；hover 变 accent
+ * 主导航行：首页 / 音乐库 / 歌手 / 歌单 / 推荐 / 收藏 / 统计 / 本期
+ *
+ * 纸·墨·朱（DESIGN v2 §3）：纯文字链接，当前项 accent 色 + 下方 2px 短划线，不是背景块。
+ * 糖果·波普（DESIGN v3 §3）：胶囊，当前项是葡萄紫实底 + 墨描边。
+ *
  * /albums 并入音乐库页；/history 在用户菜单；/search 在顶部工具条
  */
 
@@ -31,7 +33,7 @@ export function TopNav() {
       data-tauri-drag-region
     >
       <ul
-        className="max-w-[1180px] mx-auto px-10 flex items-center gap-8"
+        className="max-w-[1180px] mx-auto px-10 flex items-center gap-8 pop:gap-1.5 pop:py-1.5"
         data-tauri-drag-region
       >
         {navItems.map(({ to, labelKey }) => (
@@ -45,9 +47,11 @@ export function TopNav() {
               className={({ isActive }) =>
                 cn(
                   'relative block py-2.5 text-[14px] font-medium tracking-[0.04em] transition-colors duration-200',
+                  'pop:px-4 pop:py-2 pop:rounded-pill pop:border pop:border-transparent pop:font-semibold',
                   isActive
-                    ? "text-primary after:absolute after:left-1/2 after:-translate-x-1/2 after:bottom-0 after:w-5 after:h-[2px] after:bg-primary after:content-['']"
-                    : 'text-ink-soft hover:text-primary'
+                    ? "text-primary after:absolute after:left-1/2 after:-translate-x-1/2 after:bottom-0 after:w-5 after:h-[2px] after:bg-primary after:content-[''] " +
+                      'pop:after:hidden pop:bg-primary pop:text-primary-foreground pop:border-hair pop:shadow-press'
+                    : 'text-ink-soft hover:text-primary pop:hover:bg-secondary pop:hover:text-foreground'
                 )
               }
             >

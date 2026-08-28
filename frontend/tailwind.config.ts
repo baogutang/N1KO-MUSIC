@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+import plugin from 'tailwindcss/plugin'
+
 export default {
   darkMode: ['class'],
   content: [
@@ -76,12 +78,41 @@ export default {
           DEFAULT: 'hsl(var(--surface))',
           hover: 'hsl(var(--surface-hover))',
         },
+        /**
+         * 糖果色（DESIGN v3 §1.3）。只在 pop 皮肤下有定义，
+         * 因此必须配 `pop:` 变体使用——`pop:bg-candy-ok-soft`。
+         * 直接裸用会在编辑风下解析成空值，边框/底色整条失效。
+         */
+        candy: {
+          ok: 'rgb(var(--candy-ok) / <alpha-value>)',
+          'ok-fill': 'rgb(var(--candy-ok-fill) / <alpha-value>)',
+          'ok-soft': 'rgb(var(--candy-ok-soft) / <alpha-value>)',
+          'warn-fill': 'rgb(var(--candy-warn-fill) / <alpha-value>)',
+          'warn-soft': 'rgb(var(--candy-warn-soft) / <alpha-value>)',
+          danger: 'rgb(var(--candy-danger) / <alpha-value>)',
+          'danger-fill': 'rgb(var(--candy-danger-fill) / <alpha-value>)',
+          'danger-soft': 'rgb(var(--candy-danger-soft) / <alpha-value>)',
+        },
       },
-      // 纸面杂志不需要大圆角（DESIGN §4）
+      /**
+       * 圆角与描边宽度都改成 token 驱动（DESIGN v3 §7）。
+       * 这是「换皮不只换颜色」的关键一步：全站 150+ 处 rounded-sm/md/lg
+       * 与 170+ 处 border 无需逐个改写，跟着皮肤自动变形。
+       *   编辑风 4/6/8px、1px 描边
+       *   波普   10/12/16px、2px 描边
+       */
       borderRadius: {
-        lg: '8px',
-        md: '6px',
-        sm: '4px',
+        lg: 'var(--r-lg)',
+        md: 'var(--r-md)',
+        sm: 'var(--r-sm)',
+        pill: 'var(--r-pill)',
+      },
+      borderWidth: {
+        DEFAULT: 'var(--stroke)',
+      },
+      boxShadow: {
+        float: 'var(--shadow-float)',
+        press: 'var(--shadow-press)',
       },
       keyframes: {
         'accordion-down': {
@@ -144,5 +175,16 @@ export default {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [
+    require('tailwindcss-animate'),
+    /**
+     * 皮肤变体。`pop:` / `editorial:` 让调用方在需要时按皮肤分支，
+     * 而不必在 TSX 里读 store 再拼 className——换皮是纯 CSS 的事，
+     * 组件不应该知道当前是哪张皮。
+     */
+    plugin(({ addVariant }: { addVariant: (name: string, def: string) => void }) => {
+      addVariant('pop', "html[data-skin='pop'] &")
+      addVariant('editorial', "html[data-skin='editorial'] &")
+    }),
+  ],
 }

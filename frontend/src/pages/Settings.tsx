@@ -61,7 +61,11 @@ function Segmented<T extends string>({ value, onChange, options, label }: {
   label: string
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-sm border border-hair overflow-hidden divide-x divide-hair-soft">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="inline-flex rounded-sm border border-hair overflow-hidden divide-x divide-hair-soft pop:rounded-pill pop:divide-x-0 pop:gap-1 pop:p-1 pop:bg-paper-deep pop:shadow-press"
+    >
       {options.map(opt => (
         <button
           key={opt.value}
@@ -69,10 +73,11 @@ function Segmented<T extends string>({ value, onChange, options, label }: {
           role="radio"
           aria-checked={value === opt.value}
           onClick={() => onChange(opt.value)}
-          style={value === opt.value ? { boxShadow: 'inset 0 -2px 0 0 rgb(var(--accent))' } : undefined}
           className={cn(
-            'px-3.5 h-8 text-[13px] transition-colors duration-200',
-            value === opt.value ? 'text-primary font-medium' : 'text-ink-soft hover:text-foreground'
+            'seg-option px-3.5 h-8 text-[13px] transition-colors duration-200 pop:rounded-pill pop:font-semibold',
+            value === opt.value
+              ? 'is-on text-primary font-medium pop:bg-primary pop:text-primary-foreground'
+              : 'text-ink-soft hover:text-foreground pop:hover:bg-surface pop:hover:text-foreground'
           )}
         >
           {opt.label}
@@ -272,7 +277,7 @@ function DataExportSection() {
 export default function Settings() {
   const navigate = useNavigate()
   const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
-  const { theme, setTheme } = useThemeStore()
+  const { theme, setTheme, skin, setSkin } = useThemeStore()
   const { t, locale } = useT()
   const volume    = usePlayerStore(s => s.volume)
   const setVolume = usePlayerStore(s => s.setVolume)
@@ -431,7 +436,7 @@ export default function Settings() {
                 <button
                   onClick={() => scan.mutate()}
                   disabled={scan.isPending}
-                  className="inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink disabled:opacity-50"
+                  className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink disabled:opacity-50"
                 >
                   <ArrowsClockwise size={13} className={scan.isPending ? 'animate-spin' : undefined} />
                   {scan.isPending ? t('settings.scan.busy') : t('settings.scan.start')}
@@ -468,6 +473,32 @@ export default function Settings() {
 
         {/* 外观 */}
         <Section title={t('settings.appearance')} tag={t('settings.appearance.tag')}>
+          {/*
+            皮肤排在明暗之上：它决定的是整套设计语言（形状、字体、动效），
+            明暗只是同一张皮的两个档位。
+          */}
+          <Row
+            name={t('settings.skin.name')}
+            desc={
+              <>
+                {t('settings.skin.desc')}
+                <br />
+                <span className="text-ink-soft">
+                  {skin === 'pop' ? t('settings.skin.popDesc') : t('settings.skin.editorialDesc')}
+                </span>
+              </>
+            }
+          >
+            <Segmented
+              label={t('settings.skin.name')}
+              value={skin}
+              onChange={setSkin}
+              options={[
+                { value: 'pop' as const, label: t('settings.skin.pop') },
+                { value: 'editorial' as const, label: t('settings.skin.editorial') },
+              ]}
+            />
+          </Row>
           <Row name={t('settings.theme.name')} desc={t('settings.theme.desc')}>
             <Segmented
               label={t('settings.theme.name')}

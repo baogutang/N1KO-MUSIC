@@ -1,5 +1,5 @@
 /**
- * 底部播放条（杂志编辑风，DESIGN v2 §4.2，demo .playerbar）
+ * 底部播放条（DESIGN v2 §4.2 / DESIGN v3 §4.2）
  * docked 在布局流内（非浮空）：上缘 1px 发丝线，纸面底
  * 三段：左 = 52px 封面 + 衬线曲名 + 歌手 + 收藏
  *       中 = 传输键组（播放键为唯一实心朱红圆）+ 细进度条（mono 时间码，可拖 seek）
@@ -31,13 +31,21 @@ import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
 
-/** docked 外壳：上缘 1px 发丝线 + 纸面底（DESIGN §4.2） */
-const barShell = 'flex-shrink-0 border-t border-hair bg-paper'
+/**
+ * docked 外壳：上缘 1px 发丝线 + 纸面底（DESIGN v2 §4.2）；
+ * 波普下描边加粗到 2px，底色换成卡面（DESIGN v3 §4.2）。
+ */
+const barShell = 'flex-shrink-0 border-t border-hair bg-paper pop:bg-surface'
 
-/** 图标键：纯图标，hover 变 accent（DESIGN §4.1） */
+/**
+ * 图标键。
+ * 编辑风：纯图标，hover 变 accent（DESIGN v2 §4.1）。
+ * 波普：  描边圆钮 + 硬投影，按下去压实（DESIGN v3 §4.1）。
+ */
 const iconBtn =
-  'w-8 h-8 rounded-full flex items-center justify-center text-ink-soft ' +
-  'hover:text-primary transition-colors duration-200 active:scale-95'
+  'press-pop w-8 h-8 rounded-full flex items-center justify-center text-ink-soft ' +
+  'hover:text-primary transition-colors duration-200 active:scale-95 ' +
+  'pop:border pop:border-hair pop:bg-paper pop:text-foreground pop:shadow-press pop:hover:bg-secondary pop:hover:text-foreground'
 
 /**
  * 进度行子组件 — 独立订阅 currentTime / duration / buffered
@@ -175,7 +183,8 @@ const ProgressBar = memo(function ProgressBar() {
         })}
         className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none"
       >
-        <div className="relative w-full h-[3px] rounded-full overflow-hidden bg-hair-soft">
+        {/* 轨道：编辑风 3px 细线；波普 10px 描边胶囊（DESIGN v3 §4.2） */}
+        <div className="relative w-full h-[3px] rounded-full overflow-hidden bg-hair-soft pop:h-[12px] pop:border pop:border-hair pop:bg-paper-deep">
           {/* 缓冲进度层（浅墨）*/}
           <div
             className="absolute left-0 top-0 h-full rounded-full bg-ink-faint/40 transition-[width] duration-500"
@@ -188,7 +197,7 @@ const ProgressBar = memo(function ProgressBar() {
           />
         </div>
         <div
-          className="absolute top-1/2 w-2.5 h-2.5 rounded-full bg-foreground -translate-x-1/2 -translate-y-1/2 scale-0 group-hover/track:scale-100 transition-transform duration-150 pointer-events-none"
+          className="absolute top-1/2 w-2.5 h-2.5 rounded-full bg-foreground -translate-x-1/2 -translate-y-1/2 scale-0 group-hover/track:scale-100 transition-transform duration-150 pointer-events-none pop:w-4 pop:h-4 pop:border pop:border-hair pop:bg-surface"
           style={{ left: `${playPercent}%` }}
         />
       </div>
@@ -264,7 +273,7 @@ export function PlayerBar() {
   if (!currentSong) {
     return (
       <div className={cn(barShell, 'h-[76px] flex items-center justify-center')}>
-        <p className="font-serif text-[15px] text-ink-faint">{t('player.selectToStart')}</p>
+        <p className="font-serif text-[15px] text-ink-faint pop:font-semibold">{t('player.selectToStart')}</p>
       </div>
     )
   }
@@ -276,7 +285,7 @@ export function PlayerBar() {
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={toggleFullscreen}
-            className="w-[52px] h-[52px] rounded-sm overflow-hidden ring-1 ring-border flex-shrink-0 hover:opacity-80 transition-opacity active:scale-[0.97]"
+            className="w-[52px] h-[52px] rounded-sm overflow-hidden ring-1 ring-border flex-shrink-0 hover:opacity-80 transition-opacity active:scale-[0.97] pop:ring-0 pop:border pop:border-hair pop:shadow-press"
             aria-label={t('player.openNowPlaying')}
           >
             <ImageWithFallback
@@ -349,7 +358,8 @@ export function PlayerBar() {
             <button
               onClick={togglePlay}
               className={cn(
-                'w-10 h-10 mx-1 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:brightness-110 active:scale-95 transition-[transform,filter] duration-200',
+                'press-pop w-10 h-10 mx-1 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:brightness-110 active:scale-95 transition-[transform,filter] duration-200',
+                'pop:w-11 pop:h-11 pop:border pop:border-hair pop:shadow-float',
                 isPlaying && streamBuffering && 'animate-buffering'
               )}
               aria-label={t(

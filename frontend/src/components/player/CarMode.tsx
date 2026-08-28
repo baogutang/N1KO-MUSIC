@@ -190,7 +190,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
 
         {/* 进度：一根发丝线加一段朱色，不做刻度也不做可拖拽——开车时不该去够它 */}
         <div className="mt-12 w-full max-w-3xl">
-          <div className="h-[3px] w-full bg-hair">
+          <div className="h-[3px] w-full bg-hair pop:h-[12px] pop:rounded-pill pop:overflow-hidden pop:border pop:border-hair pop:bg-paper-deep">
             <div
               className="h-full bg-primary transition-[width] duration-500"
               style={{ width: `${progress * 100}%` }}

@@ -72,12 +72,17 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { resolvedTheme } = useThemeStore()
+  const { resolvedTheme, skin } = useThemeStore()
 
   useEffect(() => {
     // 浅色为默认（无 class），深色为 'dark' class
     document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
   }, [resolvedTheme])
+
+  useEffect(() => {
+    // 皮肤走 data-skin 属性，与明暗正交（见 themeStore）
+    document.documentElement.dataset.skin = skin
+  }, [skin])
 
   return (
     <ErrorBoundary>

@@ -1,5 +1,5 @@
 /**
- * 首页 —— 杂志封面页（DESIGN v2 §3，demo 首页范式）
+ * 首页 —— 封面页（DESIGN v2 §3 / DESIGN v3 §3）
  * 首屏「本期封面」头条区（最新专辑）｜最近添加编号行｜热门歌手文字索引｜为你推荐编号列表
  */
 
@@ -87,11 +87,11 @@ export default function HomePage() {
     <div className="animate-fade-in">
       {/* ============ 本期封面 · 头条区 ============ */}
       {heroAlbum && (
-        <article className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] items-center gap-10 lg:gap-14 pt-10 pb-12 border-b border-hair">
+        <article className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] items-center gap-10 lg:gap-14 pt-10 pb-12 border-b border-hair pop:border-b-0 pop:pb-8">
           <div className="min-w-0">
-            <p className="flex items-center gap-3.5 mb-5 text-[11px] tracking-[0.34em] text-primary">
-              {t('home.featuredAlbum')}
-              <span aria-hidden className="h-px w-14 bg-primary" />
+            <p className="flex items-center gap-3.5 mb-5 text-[11px] tracking-[0.34em] text-primary pop:mb-6">
+              <span className="sticker">{t('home.featuredAlbum')}</span>
+              <span aria-hidden className="h-px w-14 bg-primary pop:hidden" />
             </p>
             <h1
               className="font-serif font-black text-[36px] lg:text-[48px] leading-[1.08] tracking-[-0.01em] text-balance cursor-pointer hover:text-primary transition-colors duration-200"
@@ -111,7 +111,7 @@ export default function HomePage() {
             <div className="mt-7 flex items-center gap-7">
               <button
                 onClick={handleHeroPlay}
-                className="inline-flex items-center gap-2.5 pb-1.5 text-[13.5px] font-semibold tracking-[0.12em] text-foreground border-b border-foreground hover:text-primary hover:border-primary transition-colors duration-200 active:scale-[0.97]"
+                className="press-pop inline-flex items-center gap-2.5 pb-1.5 text-[13.5px] font-semibold tracking-[0.12em] text-foreground border-b border-foreground hover:text-primary hover:border-primary transition-colors duration-200 active:scale-[0.97] pop:border pop:border-hair pop:rounded-pill pop:bg-primary pop:text-primary-foreground pop:px-5 pop:py-2.5 pop:pb-2.5 pop:tracking-normal pop:shadow-press pop:hover:text-primary-foreground"
               >
                 <span aria-hidden>▶</span>
                 {t('home.playWholeAlbum')}
@@ -133,7 +133,7 @@ export default function HomePage() {
             <button
               onClick={() => navigate(`/albums/${heroAlbum.id}`)}
               aria-label={t('album.viewLabel', { name: heroAlbum.name })}
-              className="block w-full aspect-square rounded-md overflow-hidden ring-1 ring-hair-soft shadow-float rotate-[1.5deg] transition-all duration-300 group-hover:rotate-0 group-hover:-translate-y-1.5"
+              className="block w-full aspect-square rounded-md overflow-hidden ring-1 ring-hair-soft shadow-float rotate-[1.5deg] transition-all duration-300 group-hover:rotate-0 group-hover:-translate-y-1.5 pop:ring-0 pop:border pop:border-hair"
             >
               <ImageWithFallback
                 src={heroCoverUrl}
@@ -377,7 +377,7 @@ function RecentAlbumRow({
             onPlay()
           }}
           aria-label={t('album.playLabel', { name: album.name })}
-          className="w-[30px] h-[30px] flex-shrink-0 grid place-items-center rounded-full border border-hair text-ink-soft transition-all duration-200 hover:bg-primary hover:border-primary hover:text-paper active:scale-[0.94] [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
+          className="w-[30px] h-[30px] flex-shrink-0 grid place-items-center rounded-full border border-hair text-ink-soft transition-all duration-200 hover:bg-primary hover:border-primary hover:text-paper pop:bg-primary pop:text-primary-foreground pop:hover:text-primary-foreground pop:shadow-press active:scale-[0.94] [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
         >
           <Play size={11} weight="fill" />
         </button>

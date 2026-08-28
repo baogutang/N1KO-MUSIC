@@ -175,7 +175,7 @@ function ProfileColumn({
               {/* 权重条：一根发丝线上的一段朱色，不引入图表也不引入新色 */}
               <div className="mt-1.5 h-[2px] w-full bg-hair-soft">
                 <div
-                  className={cn('h-full', isMuted ? 'bg-hair' : 'bg-primary')}
+                  className={cn('h-full', isMuted ? 'bg-hair pop:bg-ink-faint/30' : 'bg-primary')}
                   style={{ width: `${Math.max(2, Math.min(100, row.weight * 100))}%` }}
                 />
               </div>

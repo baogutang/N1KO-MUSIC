@@ -28,7 +28,7 @@ const ProgressLine = memo(function ProgressLine() {
   const safeDuration = isFinite(duration) && duration > 0 ? duration : 1
   const percent = Math.min(100, (currentTime / safeDuration) * 100)
   return (
-    <div className="absolute top-0 left-0 right-0 h-[2px] bg-hair-soft">
+    <div className="absolute top-0 left-0 right-0 h-[2px] bg-hair-soft pop:h-[4px]">
       <div
         className="h-full bg-primary transition-[width] duration-300"
         style={{ width: `${percent}%` }}
@@ -54,7 +54,7 @@ export function MiniPlayer() {
   if (!currentSong) return null
 
   return (
-    <div className="relative flex-shrink-0 border-t border-hair bg-paper">
+    <div className="relative flex-shrink-0 border-t border-hair bg-paper pop:bg-surface">
       <ProgressLine />
       <div className="flex items-center gap-3 px-3 h-[58px]">
         <button
@@ -62,7 +62,7 @@ export function MiniPlayer() {
           className="flex items-center gap-3 min-w-0 flex-1 text-left"
           aria-label={t('player.openNowPlaying')}
         >
-          <span className="w-10 h-10 rounded-sm overflow-hidden ring-1 ring-border flex-shrink-0">
+          <span className="w-10 h-10 rounded-sm overflow-hidden ring-1 ring-border flex-shrink-0 pop:ring-0 pop:border pop:border-hair">
             <ImageWithFallback
               src={coverUrl}
               alt={currentSong.album}
@@ -90,7 +90,7 @@ export function MiniPlayer() {
 
         <button
           onClick={() => { lightImpact(); togglePlay() }}
-          className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform duration-150 flex-shrink-0"
+          className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform duration-150 flex-shrink-0 pop:border pop:border-hair pop:shadow-press"
           aria-label={t(isPlaying ? 'player.pause' : 'player.play')}
         >
           {isPlaying ? (

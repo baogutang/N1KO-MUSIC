@@ -57,7 +57,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform
 
 /** 细线圆图标键（DESIGN §4.1 图标键）：1px hair 圆，hover 变 accent，:active scale(.95) */
 const lineCircleBtn = cn(
-  'rounded-full border border-hair text-ink-soft flex items-center justify-center',
+  'act-icon rounded-full border border-hair text-ink-soft flex items-center justify-center',
   'transition-[color,border-color,transform] duration-200 ease-[var(--ease)]',
   'hover:text-primary hover:border-primary active:scale-95'
 )
@@ -192,10 +192,13 @@ const FSProgressBar = memo(function FSProgressBar() {
         })}
         className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none touch-none"
       >
-        <div className="relative w-full h-[2px] bg-hair-soft">
+        {/* 轨道：编辑风 2px 细线；波普 10px 描边胶囊（DESIGN v3 §4.2） */}
+        <div className="relative w-full h-[2px] bg-hair-soft pop:h-[12px] pop:rounded-pill pop:overflow-hidden pop:border pop:border-hair pop:bg-paper-deep">
           {/* 缓冲进度层（发丝色）*/}
           <div
-            className="absolute left-0 top-0 h-full bg-hair transition-[width] duration-500"
+            /* --hair 在波普里是不透明墨色（2px 实心描边），缓冲层照抄会把整条轨道涂黑。
+               缓冲是「已经下到哪儿」的弱提示，给它一个浅一档的实色。 */
+            className="absolute left-0 top-0 h-full bg-hair transition-[width] duration-500 pop:bg-ink-faint/30"
             style={{ width: `${bufferPercent}%` }}
           />
           {/* 播放进度层（朱红 accent）*/}
@@ -205,7 +208,7 @@ const FSProgressBar = memo(function FSProgressBar() {
           />
         </div>
         <div
-          className="absolute top-1/2 w-2.5 h-2.5 rounded-full bg-primary -translate-x-1/2 -translate-y-1/2 scale-0 group-hover/track:scale-100 transition-transform duration-150 pointer-events-none"
+          className="absolute top-1/2 w-2.5 h-2.5 rounded-full bg-primary -translate-x-1/2 -translate-y-1/2 scale-0 group-hover/track:scale-100 transition-transform duration-150 pointer-events-none pop:w-4 pop:h-4 pop:border pop:border-hair pop:bg-surface"
           style={{ left: `${playPercent}%` }}
         />
       </div>
@@ -363,8 +366,13 @@ export function FullscreenPlayer() {
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
         style={{
-          // 色本身已经夹进安全带，这里的不透明度可以给得更实，晕染才看得见
-          opacity: bleedColors ? (isLight ? 0.55 : 0.4) : 0,
+          /*
+           * 晕染的浓度由皮肤决定，不在这里算：
+           * 纸·墨·朱靠它把纸面染出氛围；糖果·波普是平涂体系，
+           * 同样浓度会把奶油底糊成一片脏黄，所以那张皮把它压到很轻，
+           * 只留一点「这首歌是什么颜色」的暗示。见 index.css --cover-bleed-opacity。
+           */
+          opacity: bleedColors ? 'var(--cover-bleed-opacity)' : 0,
           background: bleedColors
             ? `radial-gradient(55% 60% at 20% 12%, ${bleedColors.primary} 0%, transparent 72%),` +
               ` radial-gradient(45% 50% at 86% 92%, ${bleedColors.secondary} 0%, transparent 75%)`
@@ -513,7 +521,7 @@ export function FullscreenPlayer() {
             <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-5">
               <div
                 className={cn(
-                  'relative aspect-square w-full max-w-[min(68vw,30vh)] overflow-hidden shadow-float',
+                  'cover-slab relative aspect-square w-full max-w-[min(68vw,30vh)] overflow-hidden shadow-float',
                   isCircle ? 'rounded-full animate-spin-vinyl' : 'rounded-md'
                 )}
                 style={isCircle ? { animationPlayState: isPlaying ? 'running' : 'paused' } : undefined}
@@ -648,7 +656,7 @@ export function FullscreenPlayer() {
           {/* 专辑封面：圆角 6px + 唯一允许的浮层淡投影（DESIGN §1.3 / §4.3） */}
           <div
             className={cn(
-              'relative aspect-square w-full overflow-hidden shadow-float',
+              'cover-slab relative aspect-square w-full overflow-hidden shadow-float',
               isCircle ? 'rounded-full animate-spin-vinyl' : 'rounded-md'
             )}
             style={isCircle ? {
