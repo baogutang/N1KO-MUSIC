@@ -107,7 +107,9 @@ export default defineConfig(({ mode }) => ({
     },
   },
   server: {
-    port: 5173,
+    // 默认仍是 5173（README、Tauri 的 devUrl、CI 都按这个端口写死）。
+    // 端口被别的项目占住时用 PORT=5180 npm run dev 换一个，不必改配置文件。
+    port: Number(process.env.PORT) || 5173,
     strictPort: true,
     proxy: {
       '/api': {

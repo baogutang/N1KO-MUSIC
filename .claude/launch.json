@@ -8,7 +8,17 @@
         "run",
         "dev"
       ],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "mock-subsonic",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/mock-subsonic.mjs"
+      ],
+      "port": 4533,
+      "autoPort": true
     },
     {
       "name": "n1ko-music-preview",
