@@ -11,8 +11,8 @@
 
 <br/>
 
-[![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
-[![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
+[![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
+[![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=flat-square&color=555)](LICENSE)
 [![Platform](https://img.shields.io/badge/平台-macOS%20·%20Windows%20·%20Linux%20·%20Android%20·%20iOS%20·%20Web-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 
@@ -54,10 +54,10 @@ N1KO MUSIC 是照这个思路做到底的：
 
 |  | |
 |---|---|
-| **排版即界面** | 不用卡片、不叠阴影、不用胶囊按钮。结构全部由字体、发丝线和留白承担。 |
-| **封面是唯一的颜色** | 专辑封面是版面上唯一的大色块，其余一律保持纸的克制。 |
-| **衬线的语气** | 自托管 Source Serif 4 / Hanken Grotesk / JetBrains Mono —— 音乐用衬线，数据用等宽。 |
-| **纸·墨·朱** | 暖纸 `#f4efe3`、墨色文字、一种朱色 `#b8442a`。深色模式是同一种语气的夜间版，不是简单反色。 |
+| **结构是一本刊物** | 报头、刊号、封面故事、书眉、版记。这套信息架构不随外观变——换皮换的是语气，不是骨架。 |
+| **封面是唯一的颜色** | 专辑封面是版面上唯一的大色块，其余交给皮肤的底色与描边。 |
+| **两张皮，一键切换** | **糖果·波普工坊**（默认）：奶油底 + 2px 墨描边 + 硬投影，全胶囊按钮，糖果色全部绑定语义（葡萄紫＝正在播放，薄荷绿＝已连接，柠檬黄＝收藏，珊瑚红＝错误）。**纸·墨·朱**：暖纸 `#f4efe3`、宋体标题、发丝线、一种朱色 `#b8442a`。两张皮共用同一套组件，切换只改 `<html>` 上的一个属性。 |
+| **自托管字体** | Source Serif 4 / Hanken Grotesk / JetBrains Mono —— 一切时长、序号、码率一律等宽。 |
 | **一个字都不编** | 应用里所有自动生成的句子——编者按、重听说明、口味权重——全部由真实数字拼成。数据撑不起某一句，那一句就不出现。 |
 
 音质没有为此让步：FLAC / WAV / ALAC 原码直通，带宽紧张时有 320 / 192 / 128kbps 三档，
@@ -71,29 +71,39 @@ ReplayGain 直接用服务器已经算好的增益。
 
 ### 正在播放
 
-从封面取色、夹进纸面安全带的氛围光，衬线歌词流，当前行有朱色标记——点任意一行即可跳转。
+大封面、歌词流，当前行是一支柠檬黄荧光笔——点任意一行即可跳转。
+（切到纸·墨·朱，当前行会换成朱色短划线，背景多一层从封面取色的氛围光。）
 
-![正在播放](docs/screenshots/v2/player.gif)
+![正在播放](docs/screenshots/v3/player.gif)
 
 ### 首页 · 封面页
 
 头条专辑、编号排列的最近添加、文字化的歌手索引，
 以及**重听**——三栏全部来自你自己的收听记录。
 
-![首页](docs/screenshots/v2/home.png)
+同一个首页，两张皮。顶部工具条的调色板图标一键切换，
+设置 · 外观里也能选；两者都各有浅色与深色。
+
+**糖果·波普工坊** · 默认
+
+![首页 · 糖果·波普工坊](docs/screenshots/v3/home.png)
+
+**纸·墨·朱**
+
+![首页 · 纸·墨·朱](docs/screenshots/v3/home-editorial.png)
 
 ### 专辑 · 档案页
 
-超大封面、档案式元数据、发丝线曲目表、内页说明，
+超大封面、档案式元数据、曲目表、内页说明，
 以及一块可以写你自己那句话的页边。
 
-![专辑详情](docs/screenshots/v2/album.png)
+![专辑详情](docs/screenshots/v3/album.png)
 
 ### 连接服务器
 
 Navidrome / Subsonic / Jellyfin / Emby，几秒钟连上。
 
-![连接](docs/screenshots/v2/login.png)
+![连接](docs/screenshots/v3/login.png)
 
 <br/>
 

@@ -11,8 +11,8 @@ like a beautifully typeset issue.
 
 <br/>
 
-[![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
-[![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=b8442a&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
+[![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
+[![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=flat-square&color=555)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux%20·%20Android%20·%20iOS%20·%20Web-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 
@@ -56,10 +56,10 @@ N1KO MUSIC is built that way, all the way down:
 
 |  | |
 |---|---|
-| **Typography is the interface** | No cards, no stacked shadows, no pill buttons. Typesetting, hairlines and whitespace do all the structural work. |
-| **Artwork is the only colour** | Album covers are the sole large colour fields. Everything else keeps the restraint of paper. |
-| **Serif voices** | Self-hosted Source Serif 4 / Hanken Grotesk / JetBrains Mono — serifs for music, monospace for data. |
-| **Paper, ink, vermilion** | Warm paper `#f4efe3`, ink text, one vermilion accent `#b8442a`. Dark mode is the same voice at night, not an inversion. |
+| **The structure is a magazine** | Masthead, issue number, cover story, running heads, colophon. That information architecture does not change with the looks — a skin changes the voice, not the skeleton. |
+| **Artwork is the only colour** | Album covers are the sole large colour fields. Everything else is left to the skin's ground and strokes. |
+| **Two skins, one click apart** | **Candy Pop Workshop** (default): cream ground, 2px ink strokes, hard shadows, everything a capsule, and every candy colour bound to a meaning (grape = now playing, mint = connected, lemon = starred, coral = error). **Paper & Ink**: warm paper `#f4efe3`, serif headlines, hairlines, one vermilion `#b8442a`. Both skins run the same components; switching flips a single attribute on `<html>`. |
+| **Self-hosted type** | Source Serif 4 / Hanken Grotesk / JetBrains Mono — every duration, index and bitrate set in monospace. |
 | **Nothing is invented** | Every generated sentence in the app — the editor's note, the rediscovery captions, the taste weights — is assembled from real numbers. When the data will not support a sentence, the sentence does not appear. |
 
 Sound is not sacrificed to any of it: FLAC / WAV / ALAC passthrough, with 320 / 192 /
@@ -74,30 +74,40 @@ Fully free, fully open source, no accounts, no telemetry, no upsell.
 
 ### Now playing
 
-Cover-derived ambience clamped into a paper-safe band, a serif lyric stream with a
-vermilion marker on the current line — tap any line to seek.
+An oversized cover and a lyric stream, with the current line under a lemon highlighter —
+tap any line to seek. (Switch to Paper & Ink and that line becomes a vermilion rule,
+over a wash of colour lifted from the artwork.)
 
-![Now playing](docs/screenshots/v2/player.gif)
+![Now playing](docs/screenshots/v3/player.gif)
 
 ### Home · the cover page
 
 A featured-album headline, a numbered recently-added list, a typographic artist index,
 and **Rediscover** — three columns pulled from your own history.
 
-![Home](docs/screenshots/v2/home.png)
+The same page in both skins. Flip between them with the palette button in the toolbar,
+or from Settings · Appearance; each one has its own light and dark.
+
+**Candy Pop Workshop** · default
+
+![Home · Candy Pop Workshop](docs/screenshots/v3/home.png)
+
+**Paper & Ink**
+
+![Home · Paper and Ink](docs/screenshots/v3/home-editorial.png)
 
 ### Album · the dossier page
 
-Oversized cover, archival metadata, a hairline tracklist, liner notes, and a margin
-where you can write your own.
+Oversized cover, archival metadata, a tracklist, liner notes, and a margin where you can
+write your own.
 
-![Album detail](docs/screenshots/v2/album.png)
+![Album detail](docs/screenshots/v3/album.png)
 
 ### Connect your server
 
 Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
 
-![Connect](docs/screenshots/v2/login.png)
+![Connect](docs/screenshots/v3/login.png)
 
 <br/>
 
