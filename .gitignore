@@ -33,3 +33,6 @@ frontend/public/__probe/
 # 插件沙箱运行时：由 npm run build:sandbox 从 src/plugins/sandbox/runtime.ts
 # 重建（predev / prebuild / pretest 自动触发），产物不进 git。
 frontend/public/plugin-sandbox.js
+
+# Mimosa 安全扫描器的本地缓存
+.mimosa/
