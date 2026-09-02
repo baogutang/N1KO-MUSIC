@@ -12,9 +12,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
-import { SubsonicAdapter } from '@/api/adapters/subsonic'
-import { JellyfinAdapter } from '@/api/adapters/jellyfin'
-import { EmbyAdapter } from '@/api/adapters/emby'
+import { createAdapter } from '@/api'
 import type { ServerType } from '@/api/types'
 import { useT } from '@/i18n'
 
@@ -69,56 +67,40 @@ export default function LoginPage() {
     setError('')
 
     try {
-      let result
-
       const url = form.url.replace(/\/$/, '')
 
-      if (selectedType === 'subsonic' || selectedType === 'navidrome') {
-        // Subsonic 先创建临时适配器测试
-        const tempAdapter = new SubsonicAdapter({
-          url,
-          username: form.username,
-          token: '',
-          salt: '',
-          serverId: '',
-        })
-        result = await tempAdapter.login(url, form.username, form.password)
-        if (!result.success) {
-          setError(result.error || t('login.errorFailed'))
-          return
-        }
-
-        const serverId = addServer({
-          name: form.name || `${selectedType === 'navidrome' ? 'Navidrome' : 'Subsonic'} - ${new URL(url).hostname}`,
-          type: selectedType,
-          url,
-          username: form.username,
-          token: result.token,
-          salt: result.salt,
-          isActive: true,
-        })
-        updateServerAuth(serverId, result.token, result.salt)
-        activateServer(serverId)
-      } else {
-        const AdapterClass = selectedType === 'jellyfin' ? JellyfinAdapter : EmbyAdapter
-        const tempAdapter = new AdapterClass({ url, token: '', userId: '', serverId: '' })
-        result = await tempAdapter.login(url, form.username, form.password)
-        if (!result.success) {
-          setError(result.error || t('login.errorFailed'))
-          return
-        }
-
-        const serverId = addServer({
-          name: form.name || `${selectedType === 'jellyfin' ? 'Jellyfin' : 'Emby'} - ${new URL(url).hostname}`,
-          type: selectedType,
-          url,
-          username: form.username,
-          token: result.token,
-          userId: result.userId,
-          isActive: true,
-        })
-        activateServer(serverId)
+      // 临时适配器走工厂：登录验证只需要 login()，不在这里 new 具体类
+      const tempAdapter = createAdapter({
+        id: 'login-temp',
+        name: '',
+        type: selectedType,
+        url,
+        username: form.username,
+        token: '',
+        isActive: false,
+        createdAt: 0,
+      })
+      const result = await tempAdapter.login(url, form.username, form.password)
+      if (!result.success) {
+        setError(result.error || t('login.errorFailed'))
+        return
       }
+
+      const typeLabel = getServerTypeLabel(selectedType)
+      const serverId = addServer({
+        name: form.name || `${typeLabel} - ${new URL(url).hostname}`,
+        type: selectedType,
+        url,
+        username: form.username,
+        ...(selectedType === 'subsonic' || selectedType === 'navidrome'
+          ? { token: result.token, salt: result.salt }
+          : { token: result.token, userId: result.userId }),
+        isActive: true,
+      })
+      if (selectedType === 'subsonic' || selectedType === 'navidrome') {
+        updateServerAuth(serverId, result.token, result.salt)
+      }
+      activateServer(serverId)
 
       navigate('/')
     } catch (err) {
