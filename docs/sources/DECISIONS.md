@@ -39,3 +39,21 @@
 - 选择：给 IssueEntry 增可选 serverId，由 rank / topArtists / topAlbums 从 song.serverId 透传。
 - 原因：比「Issue 页永远打主库」更正确——听歌历史本就跨服务器（审计 高-4 同源问题）。
 - 影响：services/issue.ts 一处类型 + 三处赋值；无需改协议文档。
+
+## 2026-09-02 · 阶段 1.6 · 播放优先级设置顺延到 2.6
+- 冲突：PLAN §195 把「播放优先级」列进 1.6 的 SourcesSettings 范围，§207 又把它列在 2.6（主库选择器同处）。
+- 选择：按 2.6 落地，SourcesSettings 本阶段不含优先级 UI。
+- 原因：优先级只在「同一首歌多来源」时才有意义，聚合视图与 match.ts 是阶段 2 的事；提前做一个没有消费方的设置项只会返工。
+- 影响：无需改文档（PLAN 两处本就矛盾，以 2.6 为准）；2.6 做主库选择器时一并实现。
+
+## 2026-09-02 · 阶段 1.6 · 沙箱产物关闭 minify（esbuild 星面码点 bug）
+- 冲突：生产构建默认 minify，但 esbuild 压缩时会把 `he` 包里 `'\uD835\uDD5E'` 转义属性键输出成裸星面标识符（𝕞），这不是合法 ES 标识符，浏览器加载 plugin-sandbox.js 直接 SyntaxError；Node 单测只测源码模块、从不执行构建产物，拦不住。
+- 选择：vite.sandbox.config.ts 固定 `minify: false`（426KB 原始 / 98KB gzip，体积可接受），构建后脚本另有 `new Function(source)` 语法自检兜底。
+- 原因：换库或升级 esbuild 都不如关掉压缩确定；沙箱产物是固定单文件、gzip 后体积差异很小。
+- 影响：frontend/vite.sandbox.config.ts 一处；后续若 esbuild 修复该 bug 可再评估打开。
+
+## 2026-09-02 · 阶段 1.6 · 沙箱 blob 必须显式 charset=utf-8（中文乱码）
+- 冲突：插件返回的歌单名在页面上是「Mock ç§è—」式 mojibake（UTF-8 字节被按 windows-1252 解码），而存储、传输、安装链路各环节逐一验证都是干净的。
+- 选择：沙箱文档 blob 与插件脚本 blob 的 MIME 都带 `charset=utf-8`，文档内再加 `<meta charset>`；PROTOCOL §8 已回填为协议要求。
+- 原因：opaque-origin 的 blob 文档不继承父页编码，按编码嗅探算法回落 windows-1252；无 charset 的经典外部脚本按所在文档的编码解码——插件代码里的中文字面量在执行那一刻就错了，与 RPC/存储无关。
+- 影响：sandboxDocument.ts + runtime.ts browserCodeLoader 两处；PROTOCOL §8 补了一句。

@@ -43,3 +43,36 @@
 - `scripts/mock-subsonic.mjs` 不记录请求日志，冒烟时无法从服务端侧确认请求到达
 - `docs/audit-2026-07-21.md` 高-4 提到的 `o3icCacheStore`（歌词缓存 key 缺 server 前缀）在当前 main 上仍存在（`useLyricsQuery` 的缓存路径读 `getCachedLyrics(songId)`）；阶段 2 做聚合歌词时需要一并处理，本阶段未动
 - `Login.tsx` 登录成功后 `activateServer` 的返回值未检查（沿用旧行为；阶段 1 登录流程重写时一并处理）
+
+## 阶段 1 · 2026-09-02
+
+### 完成
+- 1.1 · 沙箱运行时：CommonJS 插件在 opaque-origin iframe（`sandbox="allow-scripts"`）里以 blob: 脚本执行（协议禁 eval），postMessage RPC 双向校验 `event.source`；axios/bigInt shim、PluginError 注入、方法路径探测 · `99fbe99`
+- 1.2 · 宿主网络栈：hostFetch 三通道分发（CapacitorHttp / Tauri plugin-http / dev 代理 / 浏览器 fetch），白名单 + 私网拒绝双重校验（入口与每个通道），rebuildAllowedUrl 防解析器差异；请求/控制台日志环形缓冲 · `7b9df7e`
+- 1.3 · PluginAdapter：MusicFree 形状→App 实体映射（putRawItem LRU）、能力探测挂载可选方法、错误透传 · `e1f3a8f`
+- 1.4 · 安装与目录：manifest 校验、SHA-256 代码哈希、IndexedDB 持久化、目录/URL/粘贴三方式安装、更新比对、卸载连带清理（依赖服务器 + 凭据）· `916fc87`
+- 1.5 · Mock 插件 + Node 测试骨架：17 个 node:test 用例覆盖全部方法；扫码状态机（waiting×2→scanned×2→confirmed）、20 秒过期流地址、VIP 标记曲 · `560530c`
+- 1.6 · 登录与管理界面：登录页流媒体分组（声明确认→扫码/CK 登录→自动进入应用）、设置页音源区（账号数/更新/重登/请求日志/卸载/目录地址）、账号横幅、连接链异步化（沙箱初始化）· `dd05a31` + `e295dda`（登录页直接装插件，不必先进设置）
+- 1.6 · E2E 暴露的三个浏览器-only 缺陷修复：沙箱 blob charset（中文 mojibake）、产物 minify（esbuild 星面标识符 SyntaxError）、Mock WAV 分块 base64 截断（Format error）· `0061b68` + `66adbcb`
+- Tauri 侧：http 插件依赖与能力配置（CSP frame-src blob: / script-src 'self' blob:）随 `7b9df7e` 落地
+
+### 验证
+- 自动：`npm run lint`（--max-warnings 0）✅ · `npx tsc --noEmit` ✅ · `vitest` 36 文件 551 用例全过 ✅（阶段 0 基线 471 → +80）· `npm run test:plugins` 17 用例全过 ✅（WAV 修复后新增完整解码断言：24044 字节 / RIFF 头 / 幅值域）
+- 手动（一次性 CDP E2E 脚本，验收后已删；headless Chrome 1280×800 + Vite :5273，自动播放放行）：
+  - 全链路：目录安装 Mock → 声明确认 → 扫码（状态机 5 次轮询）→ 自动进入应用 → 歌单页三个 Mock 歌单 → 歌单详情 6 行 → 播放全部（3 秒 WAV 真出声，时间码走动）→ 全屏歌词（LRC 渲染）→ 等 21 秒过 TTL 后经播放队列重播同一首 → 时间码恢复走动（过期重取行为验证，即阶段 0.3 顺延过来的浏览器验证项）→ 全程 console 异常 0 条
+  - 截图 17 张在 `docs/sources/screenshots/phase1/`：流程 7 张 + 登录页/设置音源区 × 双皮肤（pop/editorial）× 明暗 8 张 + 详情 2 张
+- 平台通道：dev 代理（/__n1ko_proxy）走通；CapacitorHttp / Tauri 通道为条件编译代码路径，阶段 3 真机/桌面打包时验证（见未完成）
+
+### 未完成 / 跳过
+- 播放优先级设置：PLAN 自身两处矛盾（§195 列在 1.6、§207 列在 2.6），按 2.6 落地（DECISIONS.md 已记）；SourcesSettings 本阶段无优先级 UI
+- Capacitor / Tauri 真机通道实测：需打包产物，属阶段 3 联调（本阶段三通道代码齐备，dev 通道已验证）
+- pinyinInitial 全量拼音表：中文归 '#'，阶段 3 随网易云一起做（DECISIONS.md 1.3 条目）
+
+### 需要 N1KO 决定
+- 无阻塞项。两个小点已按最小侵入处理并记录：播放优先级顺延（上）；沙箱产物 minify 关闭（体积 426KB/gzip 98KB，可接受，见 DECISIONS）。
+
+### 顺手发现（没有修）
+- 声明确认步骤失败时错误提示不可见（该步骤不渲染错误区，只弹 toast；AddPluginDialog 安装失败同路径）——低频路径，阶段 2 统一理设置/登录错误呈现时一并处理
+- 「首页出现 Mock 歌单」类验收实际落在歌单页：首页没有歌单栏位（设计如此，非缺陷），报告时按歌单页验收
+- `Login.tsx` `activateServer` 返回值仍未检查（阶段 0 已记，登录流程虽重写但该行沿用；阶段 2 改登录态时处理）
+- mock-subsonic 不记请求日志（阶段 0 已记，未动）

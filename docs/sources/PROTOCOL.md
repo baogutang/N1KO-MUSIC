@@ -53,7 +53,7 @@
 | `entry` | 是 | 相对 manifest 的插件代码路径。 |
 | `auth.kind` | 是 | `qr` / `cookie` / `none`。决定登录页渲染什么。 |
 | `auth.allowAnonymous` | 否 | 为 `true` 时允许不登录就添加音源（搜索、榜单、免费曲）。 |
-| `hosts` | 是 | 宿主放行的域名白名单。支持 `*.` 前缀通配一级子域。不在名单内的请求一律拒绝并记录。 |
+| `hosts` | 是 | 宿主放行的域名白名单。支持 `*.` 前缀通配一级子域。不在名单内的请求一律拒绝并记录。另外：localhost / 127.0.0.1 / 私网段（10.、192.168.、172.16-31.）/ 链路本地（169.254.）及 `.local` `.internal` 后缀一律拒绝——即使写进了 `hosts` 也不放行（SSRF 防线，插件音源全部面向公网 API）。 |
 | `capabilities` | 是 | 宿主据此隐藏入口（见 §6）。声明了但方法不存在，宿主按未声明处理并在控制台警告。 |
 | `qualities` | 否 | 插件能提供的音质档位，映射见 §5.3。 |
 | `userVariables` | 否 | 用户可配置项，与 MusicFree 的 `userVariables` 兼容，宿主在音源设置里渲染成表单。 |
@@ -239,12 +239,13 @@ type PluginErrorCode =
 
 ```html
 <!doctype html>
+<meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src {ORIGIN} blob:; connect-src 'none'; img-src 'none'; style-src 'none'; frame-src 'none'">
 <script src="{ORIGIN}/plugin-sandbox.js"></script>
 ```
 
-`{ORIGIN}` 是 `location.origin`（浏览器 `http://localhost:5173`、iOS `capacitor://localhost`、Android `https://localhost`、Tauri `tauri://localhost` 或 `http://tauri.localhost`）。插件代码由运行时以 `blob:` 脚本方式载入，不用 `eval`。
+`{ORIGIN}` 是 `location.origin`（浏览器 `http://localhost:5173`、iOS `capacitor://localhost`、Android `https://localhost`、Tauri `tauri://localhost` 或 `http://tauri.localhost`）。插件代码由运行时以 `blob:` 脚本方式载入，不用 `eval`。沙箱文档与插件脚本两个 blob 的 MIME 都必须带 `charset=utf-8`（文档级 `<meta charset>` 同时保留）：opaque-origin 的 blob 文档不继承父页编码、会回落 windows-1252，无 charset 的经典脚本按文档编码解码——中文 literal 会全部变 mojibake。
 
 消息一律 `postMessage(msg, '*')`（opaque origin 只能用 `*`），双方都校验 `event.source`。
 
