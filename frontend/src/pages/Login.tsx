@@ -22,6 +22,7 @@ import type { PluginManifest, PluginUser } from '@/plugins/types'
 import { PluginDisclaimer } from '@/components/sources/PluginDisclaimer'
 import { QrLogin } from '@/components/sources/QrLogin'
 import { CookieLogin } from '@/components/sources/CookieLogin'
+import { AddPluginDialog } from '@/components/sources/AddPluginDialog'
 
 // 说明句只存 key：这张表在模块加载时就建好了，直接存译文会把语言钉死在首次加载那一刻
 const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string }> = [
@@ -69,6 +70,7 @@ export default function LoginPage() {
   const [selectedPlugin, setSelectedPlugin] = useState<InstalledPluginSummary | null>(null)
   const [pluginManifest, setPluginManifest] = useState<PluginManifest | null>(null)
   const [authHost, setAuthHost] = useState<PluginHost | null>(null)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
 
   useEffect(() => {
     void loadPlugins()
@@ -443,7 +445,7 @@ export default function LoginPage() {
                 </button>
               ))}
               <button
-                onClick={() => navigate('/settings')}
+                onClick={() => setAddDialogOpen(true)}
                 className="group flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
               >
                 <Plus size={15} className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
@@ -587,6 +589,9 @@ export default function LoginPage() {
           </div>
         ) : null}
       </div>
+
+      {/* 添加插件（目录 / URL / 粘贴）：无 NAS 的首跑用户装第一个音源就靠它 */}
+      <AddPluginDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} />
     </div>
   )
 }

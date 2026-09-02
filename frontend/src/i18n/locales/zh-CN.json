@@ -843,7 +843,7 @@
   "action.remove": "移除",
   "sources.group": "流媒体音源",
   "sources.addPlugin": "添加插件",
-  "sources.addPluginDesc": "在设置里从目录或 URL 安装",
+  "sources.addPluginDesc": "从目录或 URL 安装新的音源插件",
   "sources.subtitleDisclaimer": "首次添加 {name}，请先阅读并确认声明",
   "sources.subtitleAuth": "登录 {name}",
   "sources.authNone": "此音源无需登录，直接添加即可",

@@ -843,7 +843,7 @@
   "action.remove": "Remove",
   "sources.group": "Streaming Sources",
   "sources.addPlugin": "Add Plugin",
-  "sources.addPluginDesc": "Install from a catalog or URL in Settings",
+  "sources.addPluginDesc": "Install a new source plugin from a catalog or URL",
   "sources.subtitleDisclaimer": "First time adding {name} — review the disclaimer",
   "sources.subtitleAuth": "Sign in to {name}",
   "sources.authNone": "This source needs no sign-in. Just add it.",
