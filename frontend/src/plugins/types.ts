@@ -67,6 +67,8 @@ export interface PluginManifest {
   userVariables?: PluginUserVariable[]
   /** 添加音源时必须展示并让用户确认的文字 */
   disclaimer: string
+  /** 徽标底色（#RRGGBB），缺省按 id 哈希取宿主 token 色板（PLAN 2.1） */
+  color?: string
   homepage?: string
   /** 目录安装时的来源地址，更新检查用 */
   sourceUrl?: string

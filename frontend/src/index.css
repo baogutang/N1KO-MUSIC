@@ -215,6 +215,14 @@ html[data-skin='pop']:not(.dark) {
   --candy-danger-fill: 232 112 90;
   --candy-danger-soft: 251 199 185;
 
+  /* 来源徽标色板（PLAN 2.1）：非语义的装饰色，按音源 id 哈希取用。
+     只在 pop 皮肤做彩色底；纸·墨·朱的徽标是单色描边，不消费这套色板。 */
+  --src-1: 79 70 229;   /* #4f46e5 葡萄紫 */
+  --src-2: 20 113 63;   /* #14713f 苔绿 */
+  --src-3: 194 50 23;   /* #c23217 朱红 */
+  --src-4: 180 83 9;    /* #b45309 琥珀 */
+  --src-5: 2 105 124;   /* #02697c 青 */
+
   /* ----- 字：标题换粗黑体（和纸·墨·朱的宋体正好相反，DESIGN v3 §2）
      --font-serif 不改名、只改指向，全站 97 处 font-serif 随之翻面。
      Hanken Grotesk 是 300–800 的可变字体，800 直接可用，无需新增字体文件。 ----- */
@@ -311,6 +319,13 @@ html[data-skin='pop'].dark {
   --candy-danger: 255 138 114;
   --candy-danger-fill: 194 72 47;
   --candy-danger-soft: 90 42 32;
+
+  /* 来源徽标色板（暗色档）：亮度抬到奶油底上可辨即可 */
+  --src-1: 166 162 255;
+  --src-2: 111 220 160;
+  --src-3: 255 138 114;
+  --src-4: 240 198 60;
+  --src-5: 103 214 229;
 
   --font-serif: 'Hanken Grotesk', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', sans-serif;
@@ -844,6 +859,36 @@ html[data-skin='pop'] ::-webkit-scrollbar-thumb:hover {
     transform: translate(-2px, -2px);
     box-shadow: var(--shadow-float);
   }
+
+  /**
+   * 来源徽标小方块（PLAN 2.1）。
+   *
+   * 编辑风：单色空心描边（纸·墨·朱是单色体系，不消费色板）。
+   * 波普：  墨描边 + 色板实底。底色走 --chip-bg：默认由 .src-p1..p5
+   *         按 id 哈希档位给出；manifest 声明了 color 的插件由调用方
+   *         内联覆盖（透传原始 #RRGGBB 字符串，不在 JS 里解析）。
+   */
+  .src-chip {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    border: 1px solid rgb(var(--ink-faint) / 0.55);
+    background: transparent;
+    flex-shrink: 0;
+  }
+
+  html[data-skin='pop'] .src-chip {
+    border: 1.5px solid rgb(var(--hair));
+    border-radius: 1px;
+    background: var(--chip-bg, rgb(var(--accent)));
+  }
+
+  .src-p1 { --chip-bg: rgb(var(--src-1)); }
+  .src-p2 { --chip-bg: rgb(var(--src-2)); }
+  .src-p3 { --chip-bg: rgb(var(--src-3)); }
+  .src-p4 { --chip-bg: rgb(var(--src-4)); }
+  .src-p5 { --chip-bg: rgb(var(--src-5)); }
 
   /**
    * 分段控件（设置页的皮肤 / 主题 / 语言切换）当前项。

@@ -44,6 +44,8 @@ export interface InstalledPluginSummary {
   platform: string
   installedAt: number
   sourceUrl?: string
+  /** manifest 声明的徽标底色（#RRGGBB），可能缺省 */
+  color?: string
   codeHash: string
 }
 
@@ -180,6 +182,7 @@ function toSummary(p: StoredPlugin): InstalledPluginSummary {
     platform: m.platform,
     installedAt: p.installedAt,
     ...(p.sourceUrl ? { sourceUrl: p.sourceUrl } : {}),
+    ...(m.color ? { color: m.color } : {}),
     codeHash: p.codeHash,
   }
 }

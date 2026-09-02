@@ -58,6 +58,7 @@
 | `qualities` | 否 | 插件能提供的音质档位，映射见 §5.3。 |
 | `userVariables` | 否 | 用户可配置项，与 MusicFree 的 `userVariables` 兼容，宿主在音源设置里渲染成表单。 |
 | `disclaimer` | 是 | 添加音源时必须展示并让用户确认的文字。 |
+| `color` | 否 | 徽标底色 `#RRGGBB`。缺省时宿主按插件 id 哈希取自带色板。 |
 
 ## 3. 插件代码的形状
 

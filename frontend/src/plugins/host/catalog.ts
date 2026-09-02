@@ -133,6 +133,7 @@ export function validateManifest(raw: unknown): PluginManifest {
   if (typeof m.disclaimer !== 'string' || !m.disclaimer) fail('缺少 disclaimer')
   if (typeof m.name !== 'string' || !m.name) fail('缺少 name')
   if (typeof m.version !== 'string' || !m.version) fail('缺少 version')
+  if (m.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(m.color))) fail('color 必须是 #RRGGBB')
   return raw as PluginManifest
 }
 
