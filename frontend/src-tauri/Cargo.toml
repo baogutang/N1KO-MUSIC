@@ -22,3 +22,6 @@ tauri = { version = "2.10.3", features = [] }
 tauri-plugin-single-instance = "2"
 # n1ko:// 深链接：Windows/Linux 由 single-instance 转发进来，macOS 走系统事件
 tauri-plugin-deep-link = "2"
+# 插件音源的宿主网络通道（沙箱请求经 @tauri-apps/plugin-http 出网，
+# scope 由 capabilities/default.json 限定在 http/https）
+tauri-plugin-http = "2"

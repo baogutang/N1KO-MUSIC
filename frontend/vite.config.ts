@@ -1,12 +1,69 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
+import { isHostAllowed } from './src/plugins/host/whitelist'
+
+/**
+ * 开发态插件代理中间件：/__n1ko_proxy（POST JSON）。
+ *
+ * 浏览器里插件请求被 CORS 拦住，开发态经 dev server 转发。白名单在服务端
+ * 再校验一次（规则与宿主共用 src/plugins/host/whitelist.ts）——只转发
+ * manifest hosts 允许的公网目标，私网一律拒绝。只存在于 dev server，
+ * 不进任何构建产物，也不落盘任何请求内容。
+ */
+function n1koPluginProxyMiddleware(): Plugin {
+  return {
+    name: 'n1ko-plugin-proxy',
+    configureServer(server) {
+      server.middlewares.use('/__n1ko_proxy', async (req, res, next) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end('POST only')
+          return
+        }
+        try {
+          const chunks: Buffer[] = []
+          for await (const chunk of req) chunks.push(chunk as Buffer)
+          const { url, allow, method, headers, body } = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as {
+            url?: string; allow?: string; method?: string
+            headers?: Record<string, string>; body?: string | null
+          }
+          const allowList = (allow ?? '').split(',').map(s => s.trim()).filter(Boolean)
+          if (!url || !isHostAllowed(url, allowList)) {
+            res.statusCode = 403
+            res.end('host not allowed')
+            return
+          }
+          const upstream = await fetch(url, {
+            method: method ?? 'GET',
+            headers,
+            ...(body != null && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
+          })
+          const buf = Buffer.from(await upstream.arrayBuffer())
+          const outHeaders: Record<string, string> = {}
+          upstream.headers.forEach((v, k) => { outHeaders[k.toLowerCase()] = v })
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({
+            status: upstream.status,
+            headers: outHeaders,
+            bodyBase64: buf.toString('base64'),
+          }))
+        } catch (err) {
+          res.statusCode = 502
+          res.end(`proxy error: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      })
+    },
+  }
+}
 
 export default defineConfig(({ mode }) => ({
   base: './',
   plugins: [
     react(),
+    n1koPluginProxyMiddleware(),
     // Capacitor 原生壳内禁用 PWA/Service Worker（WebView 内 SW 缓存会导致资源陈旧）
     ...(mode === 'capacitor'
       ? []

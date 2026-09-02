@@ -222,6 +222,12 @@ export function createSandboxRuntime(
     })
 
   const handleInit = (msg: Extract<HostToSandboxMessage, { type: 'init' }>) => {
+    // 宿主在脚本就绪前发的 init 会丢失，因此它会重试到收到 ready 为止；
+    // 重复 init 只重发 ready，不重跑插件代码（副作用会翻倍）
+    if (initialized) {
+      transport.send({ type: 'ready', methods: pluginExports ? collectMethodPaths(pluginExports) : [] })
+      return
+    }
     const env = {
       appVersion: msg.env.appVersion,
       locale: msg.env.locale,

@@ -23,6 +23,8 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_deep_link::init())
+        // 插件音源的宿主网络通道：沙箱请求经此出网（scope 见 capabilities/default.json）
+        .plugin(tauri_plugin_http::init())
         .setup(|app| {
             // 构建中文菜单
             build_menu(app)?;
