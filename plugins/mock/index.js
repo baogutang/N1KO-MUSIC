@@ -119,7 +119,9 @@ function bytesToBase64(bytes) {
   // Node 测试骨架里没有 btoa，走 Buffer。
   if (typeof btoa === 'function') {
     let out = ''
-    const CHUNK = 0x2000
+    // 块长必须是 3 的倍数：btoa 给不足 3 字节的块补 '='，块间拼接时中间出现
+    // '=' 会让解码器提前截断（Chrome 直接 MEDIA_ELEMENT_ERROR: Format error）
+    const CHUNK = 3 * 0x1000
     for (let i = 0; i < bytes.length; i += CHUNK) {
       out += btoa(String.fromCharCode(...bytes.subarray(i, i + CHUNK)))
     }

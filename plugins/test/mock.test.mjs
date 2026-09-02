@@ -65,6 +65,15 @@ test('getMediaSource：3 秒 WAV data:URL，20 秒过期（测过期重取）', 
   assert.equal(media.mimeType, 'audio/wav')
   const remain = media.expiresAt - Date.now()
   assert.ok(remain > 18_000 && remain <= 20_000, `expiresAt 应约 20 秒后，实际 ${remain}ms`)
+  // 完整解码校验：分块 base64 拼接若块长非 3 的倍数，中间会出现 '='，
+  // Buffer 解码会提前截断（曾导致 Chrome MEDIA_ELEMENT_ERROR: Format error）
+  const b64 = media.url.slice(media.url.indexOf(',') + 1)
+  const bytes = Buffer.from(b64, 'base64')
+  assert.equal(bytes.length, 44 + 8_000 * 3, `解码后应 24044 字节，实际 ${bytes.length}`)
+  assert.equal(bytes.readUInt32LE(0), 0x46464952) // 'RIFF'
+  let min = 255, max = 0
+  for (const b of bytes.subarray(44)) { if (b < min) min = b; if (b > max) max = b }
+  assert.ok(min >= 64 && max <= 192, `样本幅值应落在 64-192，实际 ${min}-${max}`)
 })
 
 test('getMediaSource：不同曲目产出不同地址（音高派生）', async () => {
