@@ -1,0 +1,9 @@
+[
+  {
+    "id": "mock",
+    "name": "Mock 音源",
+    "version": "0.1.0",
+    "manifest": "mock/manifest.json",
+    "description": "开发与测试用的离线假音源：固定曲库、模拟扫码、3 秒 WAV 流（20 秒过期，测重取）"
+  }
+]

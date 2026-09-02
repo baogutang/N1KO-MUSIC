@@ -10,6 +10,7 @@
     "build": "cd frontend && npm run build",
     "check:versions": "node scripts/check-app-versions.mjs",
     "audit:check": "node scripts/audit-allowlist.mjs",
+    "test:plugins": "node --test \"plugins/test/*.test.mjs\"",
     "tauri:dev": "cd frontend && npm run tauri dev",
     "tauri:build": "cd frontend && npm run tauri build"
   },

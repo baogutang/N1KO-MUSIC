@@ -1,0 +1,38 @@
+{
+  "id": "mock",
+  "name": "Mock 音源",
+  "version": "0.1.0",
+  "protocol": 1,
+  "platform": "mock",
+  "entry": "index.js",
+  "auth": {
+    "kind": "qr",
+    "qrHint": "假装打开了一个 App——扫描这个并不存在的二维码",
+    "allowAnonymous": true
+  },
+  "hosts": ["mock.invalid"],
+  "capabilities": [
+    "search",
+    "album",
+    "artist",
+    "lyrics",
+    "userPlaylists",
+    "favorites",
+    "playlistWrite",
+    "topLists",
+    "recommendSheets",
+    "importSheet"
+  ],
+  "qualities": ["low", "medium", "high"],
+  "userVariables": [
+    {
+      "key": "preferQuality",
+      "label": "默认音质",
+      "type": "select",
+      "options": ["low", "medium", "high"],
+      "default": "high"
+    }
+  ],
+  "disclaimer": "这是开发与测试用的假音源：曲库固定、不访问任何网络、流地址是内存生成的 3 秒 WAV。扫码登录是模拟的（第 1-2 次等待、第 3 次已扫码、第 5 次确认）。",
+  "homepage": "https://github.com/baogutang/N1KO-MUSIC/tree/main/plugins/mock"
+}
