@@ -29,3 +29,7 @@ backend/data/
 # 临时排查页面。放进 public/ 会被原样打进 dist，还会进 Service Worker 的
 # 预缓存清单——等于把调试脚手架部署上线并离线可用。
 frontend/public/__probe/
+
+# 插件沙箱运行时：由 npm run build:sandbox 从 src/plugins/sandbox/runtime.ts
+# 重建（predev / prebuild / pretest 自动触发），产物不进 git。
+frontend/public/plugin-sandbox.js
