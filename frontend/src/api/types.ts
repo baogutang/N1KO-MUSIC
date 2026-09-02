@@ -149,6 +149,8 @@ export interface SongExtras {
   comment?: string
   /** 长音轨的服务端断点位置（毫秒）*/
   bookmarkPosition?: number
+  /** 插件音源：当前账号无权播放（会员曲），界面据此标灰并给出原因 */
+  vip?: boolean
 }
 
 /** 专辑 */
