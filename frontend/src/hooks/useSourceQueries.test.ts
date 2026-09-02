@@ -9,6 +9,7 @@ import type { ServerConfig } from '@/api/types'
 import {
   collectSourceRefs,
   defaultPriorityOrder,
+  resolveSourceOrder,
   zipQueryResults,
   type SourceRef,
 } from './useSourceQueries'
@@ -62,6 +63,29 @@ describe('defaultPriorityOrder（播放优先级默认序）', () => {
       { serverId: 'wy', name: 'wy', type: 'plugin', pluginId: 'netease' },
     ]
     expect(defaultPriorityOrder(refs).map(r => r.serverId)).toEqual(['qq', 'wy'])
+  })
+})
+
+describe('resolveSourceOrder（用户配置的播放优先序）', () => {
+  const refs: SourceRef[] = [
+    { serverId: 'nas', name: 'nas', type: 'subsonic' },
+    { serverId: 'wy', name: 'wy', type: 'plugin', pluginId: 'netease' },
+    { serverId: 'qq', name: 'qq', type: 'plugin', pluginId: 'qqmusic' },
+  ]
+
+  it('存储为空 → 自动序（NAS 优先）', () => {
+    expect(resolveSourceOrder(refs, []).map(r => r.serverId)).toEqual(['nas', 'wy', 'qq'])
+  })
+
+  it('用户排序生效；名单外的源排在名单之后', () => {
+    expect(resolveSourceOrder(refs, ['wy', 'qq']).map(r => r.serverId)).toEqual(['wy', 'qq', 'nas'])
+    expect(resolveSourceOrder(refs, ['qq']).map(r => r.serverId)).toEqual(['qq', 'nas', 'wy'])
+  })
+
+  it('不修改输入数组', () => {
+    const copy = [...refs]
+    resolveSourceOrder(refs, ['wy'])
+    expect(refs).toEqual(copy)
   })
 })
 

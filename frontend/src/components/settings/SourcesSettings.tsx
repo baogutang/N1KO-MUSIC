@@ -1,21 +1,29 @@
 /**
- * 音源设置（PLAN 1.6）：已安装插件的管理与安装入口。
- * 版本 / 账号 / 状态 / 更新 / 重新登录 / 请求日志 / 卸载、目录安装、
- * URL 与粘贴安装、插件目录地址。视觉沿用 settings/primitives。
+ * 音源设置（PLAN 1.6 + 2.6）：已安装插件的管理与安装入口 + 主库选择器 +
+ * 播放优先级。版本 / 账号 / 状态 / 更新 / 重新登录 / 请求日志 / 卸载、
+ * 目录安装、URL 与粘贴安装、插件目录地址。视觉沿用 settings/primitives。
  */
 
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowsClockwise, CaretDown, CaretRight, SignIn, Trash, DownloadSimple,
+  ArrowUp, ArrowDown, ArrowsCounterClockwise,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Row, Section } from '@/components/settings/primitives'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { useT } from '@/i18n'
 import { toast } from '@/components/ui/use-toast'
 import { useServerStore } from '@/store/serverStore'
+import { useSettingsStore } from '@/store/settingsStore'
+import {
+  defaultPriorityOrder,
+  resolveSourceOrder,
+  useConnectedSources,
+} from '@/hooks/useSourceQueries'
 import {
   usePluginStore,
   type InstalledPluginSummary,
@@ -27,6 +35,13 @@ export function SourcesSettings() {
   const { t } = useT()
   const navigate = useNavigate()
   const servers = useServerStore(s => s.servers)
+  const activeServerId = useServerStore(s => s.activeServerId)
+  const setPrimaryServer = useServerStore(s => s.setPrimaryServer)
+  const sources = useConnectedSources()
+  const playbackPriority = useSettingsStore(s => s.playbackPriority)
+  const setPlaybackPriority = useSettingsStore(s => s.setPlaybackPriority)
+  const ordered = resolveSourceOrder(sources, playbackPriority)
+  const priorityCustomized = playbackPriority.length > 0
 
   const plugins = usePluginStore(s => s.plugins)
   const catalogUrl = usePluginStore(s => s.catalogUrl)
@@ -151,6 +166,71 @@ export function SourcesSettings() {
 
   return (
     <Section title={t('sources.settings.title')} tag={t('sources.settings.tag')}>
+      {/* 主库与播放优先级（PLAN 2.6；只有一个音源时这两行没有意义，收起） */}
+      {sources.length > 1 && (
+        <>
+          <Row name={t('sources.settings.primary')}>
+            <select
+              value={activeServerId ?? ''}
+              onChange={e => setPrimaryServer(e.target.value)}
+              aria-label={t('sources.settings.primary')}
+              className="h-9 bg-transparent border-0 border-b border-hair rounded-none text-sm text-ink-soft cursor-pointer focus:outline-none focus:border-primary"
+            >
+              {sources.map(s => (
+                <option key={s.serverId} value={s.serverId}>{s.name}</option>
+              ))}
+            </select>
+          </Row>
+          <Row name={t('sources.settings.priority')}>
+            <div className="flex flex-col items-end gap-1.5">
+              {ordered.map((s, i) => (
+                <span key={s.serverId} className="flex items-center gap-2">
+                  <span className="num text-[10px] text-ink-faint w-4 text-right">{i + 1}</span>
+                  <SourceBadge serverId={s.serverId} withName />
+                  <span className="flex items-center gap-0.5">
+                    <button
+                      onClick={() => {
+                        const ids = ordered.map(x => x.serverId)
+                        if (i > 0) { [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]] }
+                        setPlaybackPriority(ids)
+                      }}
+                      disabled={i === 0}
+                      aria-label={t('sources.settings.moveUp', { name: s.name })}
+                      className="w-7 h-7 grid place-items-center rounded-full text-ink-soft hover:text-primary disabled:opacity-25"
+                    >
+                      <ArrowUp size={13} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const ids = ordered.map(x => x.serverId)
+                        if (i < ids.length - 1) { [ids[i + 1], ids[i]] = [ids[i], ids[i + 1]] }
+                        setPlaybackPriority(ids)
+                      }}
+                      disabled={i === ordered.length - 1}
+                      aria-label={t('sources.settings.moveDown', { name: s.name })}
+                      className="w-7 h-7 grid place-items-center rounded-full text-ink-soft hover:text-primary disabled:opacity-25"
+                    >
+                      <ArrowDown size={13} />
+                    </button>
+                  </span>
+                </span>
+              ))}
+              {priorityCustomized ? (
+                <button
+                  onClick={() => setPlaybackPriority([])}
+                  className="inline-flex items-center gap-1 text-[11.5px] text-ink-faint hover:text-primary"
+                >
+                  <ArrowsCounterClockwise size={11} />
+                  {t('sources.settings.priorityAuto', { default: defaultPriorityOrder(sources).map(s => s.name).join(' → ') })}
+                </button>
+              ) : (
+                <span className="text-[11.5px] text-ink-faint">{t('sources.settings.priorityAutoLabel')}</span>
+              )}
+            </div>
+          </Row>
+        </>
+      )}
+
       {/* 已安装插件 */}
       {plugins.length === 0 && (
         <p className="py-4 text-[13px] text-ink-faint">{t('sources.settings.noneInstalled')}</p>

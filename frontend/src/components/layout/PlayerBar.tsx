@@ -20,7 +20,9 @@ import {
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
+import { useServerStore } from '@/store/serverStore'
 import { SleepTimerMenu } from '@/components/player/SleepTimerMenu'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useToggleStar } from '@/hooks/useServerQueries'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
@@ -231,6 +233,8 @@ export function PlayerBar() {
   const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
 
   const toggleStar = useToggleStar()
+  // 多源连接时曲目信息带来源徽标（PLAN 2.5）；单源保持原样
+  const multiSource = useServerStore(s => s.connectedServerIds.length > 1)
 
   const coverUrl = currentSong?.coverArt
     ? (findAdapterFor(currentSong.serverId)?.getCoverUrl(currentSong.coverArt, 96) ?? undefined)
@@ -309,9 +313,10 @@ export function PlayerBar() {
             className="min-w-0 animate-page-turn motion-reduce:animate-none"
             style={{ transformOrigin: 'left center', perspective: '640px' }}
           >
-            <p className="font-serif text-[14.5px] font-semibold text-foreground truncate hover:text-primary cursor-pointer transition-colors duration-200"
+            <p className="font-serif text-[14.5px] font-semibold text-foreground truncate hover:text-primary cursor-pointer transition-colors duration-200 flex items-center gap-1.5"
               onClick={toggleFullscreen}>
-              {spaceCJK(currentSong.title)}
+              <span className="truncate">{spaceCJK(currentSong.title)}</span>
+              {multiSource && <SourceBadge serverId={currentSong.serverId} />}
             </p>
             <p className="text-[11.5px] text-ink-soft truncate mt-0.5">
               {spaceCJK(currentSong.artist)}{currentSong.album ? ` · ${spaceCJK(currentSong.album)}` : ''}

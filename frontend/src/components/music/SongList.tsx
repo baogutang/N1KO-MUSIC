@@ -25,12 +25,14 @@ import {
   ShareNetwork,
   Broadcast as BroadcastIcon,
   Trash,
+  CaretDown,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { usePlayerStore } from '@/store/playerStore'
+import { useServerStore } from '@/store/serverStore'
 import { findAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
@@ -62,6 +64,47 @@ function songIdentity(song: Song, index: number): string {
   return `${song.id}#${index}`
 }
 
+/**
+ * 多来源切换菜单（PLAN 2.5）：徽标变触发器，菜单里列出同一曲的各来源版本。
+ * 点击不冒泡——外面的行点击是「播放」，这里是「换来源」。
+ */
+function SourceSwitchMenu({ song, alternates, onPick }: {
+  song: Song
+  alternates: Song[]
+  onPick: (song: Song) => void
+}) {
+  const { t } = useT()
+  const serverName = useServerStore(s => s.servers.find(x => x.id === song.serverId)?.name ?? '')
+  return (
+    <span className="inline-block align-baseline" onClick={e => e.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="ml-1.5 inline-flex items-center gap-1 align-baseline translate-y-[-1px]"
+            aria-label={t('sources.switchSource', { current: serverName })}
+          >
+            <SourceBadge serverId={song.serverId} />
+            <CaretDown className="w-2.5 h-2.5 text-ink-faint" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <div className="px-3 pt-2 pb-1 text-[11px] tracking-[0.1em] text-ink-faint">
+            {t('sources.switchSourceTitle')}
+          </div>
+          {alternates.map(alt => (
+            <DropdownMenuItem key={`${alt.serverId}:${alt.id}`} onClick={() => onPick(alt)}>
+              <SourceBadge serverId={alt.serverId} withName />
+              {alt.serverId === song.serverId && (
+                <span className="ml-auto text-[10px] text-primary">✓</span>
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
+  )
+}
+
 interface SongListProps {
   /**
    * 从当前上下文移除这首歌（目前只有歌单详情用到）。
@@ -82,6 +125,10 @@ interface SongListProps {
   selectable?: boolean
   /** 聚合场景显示来源徽标（单源浏览页不必开，减少视觉噪声） */
   sourceBadge?: boolean
+  /** 行的多来源备选（match.ts 合并结果）；≥2 时徽标变成可点的来源切换菜单 */
+  getAlternates?: (index: number) => Song[] | undefined
+  /** 用户在切换菜单里选了另一来源的版本（替换调用方列表里的这一行） */
+  onReplace?: (index: number, song: Song) => void
 }
 
 export function SongList({
@@ -94,6 +141,8 @@ export function SongList({
   onRemove,
   selectable = true,
   sourceBadge = false,
+  getAlternates,
+  onReplace,
 }: SongListProps) {
   const { t } = useT()
   // 只订阅 id 和 isPlaying，不订阅 currentTime，避免高频重渲染
@@ -236,6 +285,8 @@ export function SongList({
       showAlbum={showAlbum}
       showIndex={showIndex}
       sourceBadge={sourceBadge}
+      alternates={getAlternates?.(index)}
+      onReplace={onReplace}
       onPlayIndex={handlePlayIndex}
       onPlaylistAdd={handlePlaylistAdd}
       onToggleStar={handleToggleStar}
@@ -248,7 +299,7 @@ export function SongList({
       onRowClick={selectable ? handleRowClick : undefined}
       onLongPress={selectable ? handleRowLongPress : undefined}
     />
-  ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, sourceBadge, handlePlayIndex,
+  ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, sourceBadge, getAlternates, onReplace, handlePlayIndex,
       handlePlaylistAdd, handleToggleStar, caps.shares, caps.radio, caps.rating,
       handleShare, handleRadio, isSelected, selectionActive, selectable,
       handleRowClick, handleRowLongPress, onRemove])
@@ -443,6 +494,9 @@ interface SongRowProps {
   showIndex: boolean
   /** 聚合场景：标题旁渲染来源徽标 */
   sourceBadge?: boolean
+  /** 多来源备选（含当前代表）；≥2 时徽标可点开切换菜单 */
+  alternates?: Song[]
+  onReplace?: (index: number, song: Song) => void
   onPlayIndex: (index: number) => void
   onPlaylistAdd?: (song: Song) => void
   onToggleStar: (song: Song, nextStarred: boolean) => void
@@ -468,6 +522,8 @@ const SongRow = React.memo(function SongRow({
   showAlbum,
   showIndex,
   sourceBadge,
+  alternates,
+  onReplace,
   onPlayIndex,
   onPlaylistAdd,
   onToggleStar,
@@ -646,9 +702,11 @@ const SongRow = React.memo(function SongRow({
           isCurrentSong ? 'text-primary' : 'text-foreground'
         )}>
           {spaceCJK(song.title)}
-          {sourceBadge && (
+          {sourceBadge && (alternates && alternates.length > 1 ? (
+            <SourceSwitchMenu song={song} alternates={alternates} onPick={alt => onReplace?.(index, alt)} />
+          ) : (
             <SourceBadge serverId={song.serverId} className="ml-1.5 align-baseline inline-block translate-y-[-1px]" />
-          )}
+          ))}
         </p>
         <p className="text-xs text-ink-soft line-clamp-1 mt-0.5">
           <button

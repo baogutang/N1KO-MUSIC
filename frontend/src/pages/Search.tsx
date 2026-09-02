@@ -17,12 +17,13 @@ import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { useSearch } from '@/hooks/useServerQueries'
 import {
-  defaultPriorityOrder,
   useConnectedSources,
+  usePlaybackPriorityOrder,
   useSourceCapabilities,
   useSourceSearch,
 } from '@/hooks/useSourceQueries'
 import { mergeSongs, normalizeText } from '@/plugins/match'
+import type { Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
@@ -98,17 +99,22 @@ export default function SearchPage() {
   const single = useSearch(debouncedQuery)
   const groups = useSourceSearch(debouncedQuery)
   const caps = useSourceCapabilities()
+  const priorityOrder = usePlaybackPriorityOrder()
+  // 用户在「全部」视图手动换过来源的行：mergedIndex → 替换后的曲目；
+  // 换查询词就作废（新结果集的下标对不上）
+  const [swaps, setSwaps] = useState<Record<number, Song>>({})
+  useEffect(() => { setSwaps({}) }, [debouncedQuery])
 
   /** 「全部」视图：成功组先合并（渐进渲染不等最慢源），失败组只计入错误行 */
   const merged = useMemo(() => {
     const success = groups.filter(g => g.status === 'success' && g.data)
     if (!success.length) return null
-    const order = defaultPriorityOrder(sources).map(s => s.serverId)
+    const order = priorityOrder.map(s => s.serverId)
     return mergeSongs(
       success.map(g => ({ serverId: g.serverId, songs: g.data!.songs })),
       order
     )
-  }, [groups, sources])
+  }, [groups, priorityOrder])
 
   /** 歌手 / 专辑跨源去重（归一名相等只留优先序在前的那个） */
   const mergedArtists = useMemo(() => {
@@ -314,7 +320,7 @@ export default function SearchPage() {
             </section>
           )}
 
-          {/* ============ 歌曲 · 编号列表（同曲合并，行内来源徽标） ============ */}
+          {/* ============ 歌曲 · 编号列表（同曲合并，行内来源徽标，多源行可切换来源） ============ */}
           {merged && merged.length > 0 && (
             <section aria-labelledby="search-songs">
               <div className="section-head">
@@ -325,7 +331,15 @@ export default function SearchPage() {
                   {t('song.trackCount', { count: merged.length })}
                 </span>
               </div>
-              <SongList songs={merged.map(m => m.song)} showCover showAlbum showIndex sourceBadge />
+              <SongList
+                songs={merged.map((m, i) => swaps[i] ?? m.song)}
+                showCover
+                showAlbum
+                showIndex
+                sourceBadge
+                getAlternates={i => (merged[i].sources.length > 1 ? merged[i].sources : undefined)}
+                onReplace={(i, song) => setSwaps(prev => ({ ...prev, [i]: song }))}
+              />
             </section>
           )}
         </>

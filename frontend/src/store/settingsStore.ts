@@ -168,6 +168,9 @@ interface SettingsState {
   setSeekStepSeconds: (v: number) => void
   setResumeAfterInterruption: (v: boolean) => void
   setMusicBrainzEnabled: (v: boolean) => void
+  /** 多源播放优先序（serverId 数组，前者优先）。空数组 = 自动：NAS 优先、主库在前 */
+  playbackPriority: string[]
+  setPlaybackPriority: (ids: string[]) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -205,6 +208,8 @@ export const useSettingsStore = create<SettingsState>()(
       seekStepSeconds: 15,
       resumeAfterInterruption: true,
       musicBrainzEnabled: false,
+      playbackPriority: [],
+      setPlaybackPriority: (ids) => set({ playbackPriority: ids }),
 
       // 全局来源优先级同时驱动封面和歌词，避免设置项只被持久化却不产生任何效果。
       // 用户仍可在下方用更细粒度的开关覆盖歌词策略。

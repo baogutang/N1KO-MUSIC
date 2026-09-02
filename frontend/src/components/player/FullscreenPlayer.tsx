@@ -44,6 +44,8 @@ import { getCachedColors } from '@/utils/colorExtract'
 import { toPaperSafe } from '@/utils/paperSafe'
 import { formatDuration } from '@/utils/formatters'
 import { useSettingsStore } from '@/store/settingsStore'
+import { useServerStore } from '@/store/serverStore'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { ShareDialog } from '@/components/music/ShareDialog'
 import { PRESETS } from '@/components/player/SleepTimerMenu'
@@ -226,6 +228,7 @@ export function FullscreenPlayer() {
 
   // 细粒度 selector：不订阅 currentTime / duration（由子组件处理）
   const currentSong     = usePlayerStore(s => s.currentSong)
+  const multiSource     = useServerStore(s => s.connectedServerIds.length > 1)
   const isPlaying       = usePlayerStore(s => s.isPlaying)
   const streamBuffering = usePlayerStore(s => s.streamBuffering)
   const volume          = usePlayerStore(s => s.volume)
@@ -400,8 +403,9 @@ export function FullscreenPlayer() {
 
         <div className="text-center min-w-0 px-4">
           <p className="text-[11px] tracking-[0.3em] text-ink-faint">{t('player.nowPlaying')}</p>
-          <p className="font-serif text-[13.5px] font-semibold mt-1 truncate max-w-md mx-auto text-ink">
-            {currentSong.title}
+          <p className="font-serif text-[13.5px] font-semibold mt-1 truncate max-w-md mx-auto text-ink inline-flex items-center gap-1.5">
+            <span className="truncate">{currentSong.title}</span>
+            {multiSource && <SourceBadge serverId={currentSong.serverId} />}
           </p>
         </div>
 

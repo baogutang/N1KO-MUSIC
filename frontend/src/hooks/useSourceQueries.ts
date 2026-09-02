@@ -14,6 +14,7 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { getAdapterFor, hasAdapterFor } from '@/api'
 import type { Album, Artist, Playlist, SearchResult, ServerConfig, Song, SourceCapabilities } from '@/api/types'
 import { useServerStore } from '@/store/serverStore'
+import { useSettingsStore } from '@/store/settingsStore'
 
 // ===================================================
 // 音源引用与顺序（纯函数，测试直接覆盖）
@@ -55,6 +56,26 @@ export function defaultPriorityOrder(refs: SourceRef[]): SourceRef[] {
   const nas = refs.filter(r => r.type !== 'plugin')
   const plugins = refs.filter(r => r.type === 'plugin')
   return [...nas, ...plugins]
+}
+
+/**
+ * 用户配置的优先序（settingsStore.playbackPriority）应用到当前已连接源。
+ * 存储为空 → 自动序（defaultPriorityOrder）；不在名单里的源排在名单之后。
+ * 纯函数，测试直接覆盖。
+ */
+export function resolveSourceOrder(refs: SourceRef[], stored: string[]): SourceRef[] {
+  if (!stored.length) return defaultPriorityOrder(refs)
+  const rank = new Map(stored.map((id, i) => [id, i]))
+  return [...refs].sort(
+    (a, b) => (rank.get(a.serverId) ?? stored.length) - (rank.get(b.serverId) ?? stored.length)
+  )
+}
+
+/** 播放优先序（match.ts 的代表曲目选择用它） */
+export function usePlaybackPriorityOrder(): SourceRef[] {
+  const sources = useConnectedSources()
+  const stored = useSettingsStore(s => s.playbackPriority)
+  return useMemo(() => resolveSourceOrder(sources, stored), [sources, stored])
 }
 
 // ===================================================

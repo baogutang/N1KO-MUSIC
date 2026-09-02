@@ -11,6 +11,8 @@ import { X, DotsSixVertical, Play, CaretUp, CaretDown, Shuffle, BookmarkSimple }
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
+import { useServerStore } from '@/store/serverStore'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { useCreatePlaylist } from '@/hooks/useServerQueries'
 import { toast } from '@/components/ui/use-toast'
 import { Input } from '@/components/ui/input'
@@ -30,6 +32,7 @@ import { spaceCJK } from '@/utils/cjkTypography'
 export function QueueDrawer() {
   const { t }           = useT()
   const queue           = usePlayerStore(s => s.queue)
+  const multiSource     = useServerStore(s => s.connectedServerIds.length > 1)
   const queueIndex      = usePlayerStore(s => s.queueIndex)
   const shuffle         = usePlayerStore(s => s.shuffle)
   const shuffledIndexes = usePlayerStore(s => s.shuffledIndexes)
@@ -189,11 +192,12 @@ export function QueueDrawer() {
                 <span className="flex-1 min-w-0">
                   <span
                     className={cn(
-                      'block font-serif text-[13.5px] font-semibold truncate',
+                      'block font-serif text-[13.5px] font-semibold truncate flex items-center gap-1.5',
                       isCurrent ? 'text-primary' : 'text-foreground'
                     )}
                   >
-                    {spaceCJK(song.title)}
+                    <span className="truncate">{spaceCJK(song.title)}</span>
+                    {multiSource && <SourceBadge serverId={song.serverId} />}
                   </span>
                   <span className="block text-[11px] text-ink-faint truncate mt-0.5">
                     {spaceCJK(song.artist)}
@@ -254,7 +258,7 @@ export function QueueDrawer() {
     // 依赖必须是 order 本身而不是 order.length：拖拽重排后长度不变、内容变了，
     // 只盯长度的话 renderRow 不会重建，行上的操作会作用在**旧顺序**上——
     // 于是「上移」挪的是另一首歌。order 是 useMemo 出来的，引用稳定，不会多余重建。
-  }, [queue, queueIndex, isPlaying, isMobile, order, dragIndex, overIndex, handleDragStart, handleDragOver, handleDrop, jumpToIndex, moveByPosition, removeFromQueue, t])
+  }, [queue, queueIndex, isPlaying, isMobile, multiSource, order, dragIndex, overIndex, handleDragStart, handleDragOver, handleDrop, jumpToIndex, moveByPosition, removeFromQueue, t])
 
   if (!isQueueOpen) return null
 
