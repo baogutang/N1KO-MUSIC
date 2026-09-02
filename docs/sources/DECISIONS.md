@@ -57,3 +57,9 @@
 - 选择：沙箱文档 blob 与插件脚本 blob 的 MIME 都带 `charset=utf-8`，文档内再加 `<meta charset>`；PROTOCOL §8 已回填为协议要求。
 - 原因：opaque-origin 的 blob 文档不继承父页编码，按编码嗅探算法回落 windows-1252；无 charset 的经典外部脚本按所在文档的编码解码——插件代码里的中文字面量在执行那一刻就错了，与 RPC/存储无关。
 - 影响：sandboxDocument.ts + runtime.ts browserCodeLoader 两处；PROTOCOL §8 补了一句。
+
+## 2026-09-02 · 阶段 2.3 · 跨源推荐/电台的两处收敛
+- 冲突：PLAN §4.5 说推荐与电台候选「对所有声明 radio 能力的音源各拉一份」，但定向候选（偏好歌手/歌曲 id）的 id 是源内标识，跨源不可迁移；按名字跨源猜需要名字→id 解析通道，阶段 2 没有这条通道。
+- 选择：外源只走探索通道（getRandomSongs / getStarred），定向三通道仍主库；电台起播按种子所属源路由适配器，续播补给暂限种子源内。
+- 原因：错配的定向候选比没有更糟（外源拿主库 id 查询只会 404 或错曲）；探索通道已满足「候选跨源混排」的产品意图。
+- 影响：usePersonalizedRecommendations / services/radio.ts；名字→id 解析通道（搜索先行）留到阶段 3 与真实插件联调时补。

@@ -5,7 +5,7 @@
  */
 
 import { Fragment, useEffect, useState, useMemo, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Play, Shuffle, CaretDown, CaretUp, MicrophoneStage } from '@phosphor-icons/react'
 import { DiscographyRail, type ArtistMarginalia } from '@/components/music/DiscographyRail'
 import { MarginNote } from '@/components/music/MarginNote'
@@ -29,7 +29,8 @@ export default function ArtistDetailPage() {
   const { t } = useT()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: artist, isLoading } = useArtistDetail(id ?? '')
+  const [searchParams] = useSearchParams()
+  const { data: artist, isLoading } = useArtistDetail(id ?? '', searchParams.get('src') ?? undefined)
   const [showAllSongs, setShowAllSongs] = useState(false)
   const [bioExpanded, setBioExpanded] = useState(false)
   const [imgError, setImgError] = useState(false)

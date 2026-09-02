@@ -2,12 +2,17 @@
  * 歌手列表页 —— 文字索引大列表（DESIGN v2 §3，demo 歌手索引范式）
  * 衬线歌手名行 + 发丝线分隔 + mono 收录数，hover 整行右移；
  * 顶部衬线标题 + mono 总数 + 发丝线下缘过滤输入框
+ *
+ * 多源（PLAN 2.4）：只列声明 libraryBrowse 的音源，多个可浏览源时
+ * 页头出现源切换 chip（?src=）——与专辑页同一套语义。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass } from '@phosphor-icons/react'
 import { useArtists } from '@/hooks/useServerQueries'
+import { useBrowseSource } from '@/hooks/useSourceQueries'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { buildIndexBuckets, IndexRail } from '@/components/common/IndexRail'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
@@ -16,7 +21,10 @@ import { useT } from '@/i18n'
 export default function ArtistsPage() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { data: artists, isLoading } = useArtists()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const srcParam = searchParams.get('src') ?? undefined
+  const { available, current } = useBrowseSource(srcParam)
+  const { data: artists, isLoading } = useArtists(current?.serverId)
   const [filter, setFilter] = useState('')
 
   const filtered = useMemo(
@@ -60,6 +68,15 @@ export default function ArtistsPage() {
     return () => observer.disconnect()
   }, [buckets])
 
+  if (!current) {
+    return (
+      <div className="pt-9 animate-fade-in">
+        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('nav.artists')}</h1>
+        <EmptyState ruled title={t('sources.noBrowseTitle')} description={t('sources.noBrowseDesc')} />
+      </div>
+    )
+  }
+
   return (
     <div className="pt-9 animate-fade-in">
       <div className="mb-6">
@@ -68,6 +85,25 @@ export default function ArtistsPage() {
           <p className="num text-sm text-ink-soft mt-1.5">
             {t('artist.total', { count: filtered.length })}
           </p>
+        )}
+        {available.length > 1 && (
+          <div className="mt-4 flex items-center gap-4">
+            {available.map(s => (
+              <button
+                key={s.serverId}
+                onClick={() => setSearchParams(s.serverId === current.serverId ? {} : { src: s.serverId }, { replace: true })}
+                className={
+                  'inline-flex items-center gap-1.5 pb-1 border-b transition-colors ' +
+                  (s.serverId === current.serverId
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-ink-faint hover:text-foreground')
+                }
+              >
+                <SourceBadge serverId={s.serverId} />
+                <span className="text-[12px]">{s.name}</span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
 

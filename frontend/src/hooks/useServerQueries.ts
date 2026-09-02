@@ -356,13 +356,14 @@ export function useAlbums(params: ListParams = {}) {
   })
 }
 
-/** 无限滚动加载专辑 */
-export function useAlbumsInfinite(size = 50, type = 'newest') {
+/** 无限滚动加载专辑（serverId 指定时按该源浏览——浏览页源切换用） */
+export function useAlbumsInfinite(size = 50, type = 'newest', serverId?: string) {
+  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useInfiniteQuery({
     // key 必须含 size：同一 type 不同 size 的两个书架否则会串缓存
-    queryKey: [serverKey(), 'albums', 'infinite', type, size],
+    queryKey: [serverId ?? serverKey(), 'albums', 'infinite', type, size],
     queryFn: ({ pageParam = 0, signal }) =>
-      getAdapter().getAlbums({ size, offset: pageParam as number, type, musicFolderId: currentFolderId(), signal }),
+      adapter.getAlbums({ size, offset: pageParam as number, type, musicFolderId: serverId ? undefined : currentFolderId(), signal }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -429,12 +430,13 @@ export function useSetRating() {
   })
 }
 
-/** 获取专辑详情 */
-export function useAlbumDetail(albumId: string) {
+/** 获取专辑详情（serverId 指定时按该源解析——跨源 ?src= 导航用） */
+export function useAlbumDetail(albumId: string, serverId?: string) {
+  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useQuery({
-    queryKey: queryKeys.albumDetail(albumId),
-    queryFn: ({ signal }) => getAdapter().getAlbumDetail(albumId, signal),
-    enabled: !!albumId,
+    queryKey: [serverId ?? serverKey(), 'albums', albumId] as const,
+    queryFn: ({ signal }) => adapter.getAlbumDetail(albumId, signal),
+    enabled: !!albumId && (!serverId || hasAdapterFor(serverId)),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -452,21 +454,23 @@ export function useRecentAlbums(size = 20) {
 // 歌手相关 Hooks
 // ===================================================
 
-/** 获取所有歌手 */
-export function useArtists() {
+/** 获取所有歌手（serverId 指定时按该源浏览——浏览页源切换用） */
+export function useArtists(serverId?: string) {
+  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useQuery({
-    queryKey: queryKeys.artists(),
-    queryFn: ({ signal }) => getAdapter().getArtists(currentFolderId(), signal),
+    queryKey: [serverId ?? serverKey(), 'artists'] as const,
+    queryFn: ({ signal }) => adapter.getArtists(serverId ? undefined : currentFolderId(), signal),
     staleTime: 10 * 60 * 1000,
   })
 }
 
-/** 获取歌手详情 */
-export function useArtistDetail(artistId: string) {
+/** 获取歌手详情（serverId 指定时按该源解析——跨源 ?src= 导航用） */
+export function useArtistDetail(artistId: string, serverId?: string) {
+  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useQuery({
-    queryKey: queryKeys.artistDetail(artistId),
-    queryFn: ({ signal }) => getAdapter().getArtistDetail(artistId, signal),
-    enabled: !!artistId,
+    queryKey: [serverId ?? serverKey(), 'artists', artistId] as const,
+    queryFn: ({ signal }) => adapter.getArtistDetail(artistId, signal),
+    enabled: !!artistId && (!serverId || hasAdapterFor(serverId)),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -565,11 +569,13 @@ export function useAddToPlaylist() {
 // 收藏相关 Hooks
 // ===================================================
 
-/** 获取收藏内容 */
-export function useStarred() {
+/** 获取收藏内容（serverId 指定时按该源取——收藏页分节用） */
+export function useStarred(serverId?: string) {
+  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useQuery({
-    queryKey: queryKeys.starred(),
-    queryFn: ({ signal }) => getAdapter().getStarred(signal),
+    queryKey: [serverId ?? serverKey(), 'starred'] as const,
+    queryFn: ({ signal }) => adapter.getStarred(signal),
+    enabled: !serverId || hasAdapterFor(serverId),
     staleTime: 3 * 60 * 1000,
   })
 }

@@ -1,10 +1,18 @@
+/**
+ * 收藏页（PLAN 2.4）：多源时按音源分节（歌曲/专辑双 tab 保留），
+ * ?src=<serverId> 只看某一源；单源行为与原版一致。
+ */
+
 import { useState } from 'react'
 import { Play } from '@phosphor-icons/react'
+import { useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useStarred } from '@/hooks/useServerQueries'
+import { useConnectedSources, useSourceStarred } from '@/hooks/useSourceQueries'
 import { playAllInOrder } from '@/utils/playActions'
 import { SongList } from '@/components/music/SongList'
 import { AlbumCard } from '@/components/music/AlbumCard'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
 
@@ -13,16 +21,31 @@ type FavTab = 'songs' | 'albums'
 export default function Favorites() {
   const { t } = useT()
   const [tab, setTab] = useState<FavTab>('songs')
-  const { data: starred, isLoading } = useStarred()
-  const songs = starred?.songs ?? []
-  const albums = starred?.albums ?? []
+  const [searchParams] = useSearchParams()
+  const srcFilter = searchParams.get('src') ?? undefined
 
-  function handlePlayAll() {
-    if (!songs.length) return
-    playAllInOrder(songs, 0)
-  }
+  const sources = useConnectedSources()
+  const multi = sources.length > 1 && !srcFilter
 
-  if (isLoading) {
+  // 单源 / ?src= 过滤：一条查询；多源：每源一条（失败塌缩成该节错误行）
+  const starredGroups = useSourceStarred().filter(g => g.status !== 'loading')
+  const single = useStarred(srcFilter)
+  const singleSongs = single.data?.songs ?? []
+  const singleAlbums = single.data?.albums ?? []
+
+  const sections = multi
+    ? starredGroups.map(g => ({
+        serverId: g.serverId,
+        name: g.name,
+        status: g.status,
+        songs: g.data?.songs ?? [],
+        albums: g.data?.albums ?? [],
+      }))
+    : srcFilter
+      ? [{ serverId: srcFilter, name: sources.find(s => s.serverId === srcFilter)?.name ?? '', status: 'success' as const, songs: singleSongs, albums: singleAlbums }]
+      : [{ serverId: '', name: '', status: 'success' as const, songs: singleSongs, albums: singleAlbums }]
+
+  if (!multi && single.isLoading) {
     return (
       <div className="pt-8 animate-fade-in">
         <div className="h-9 w-56 rounded-sm bg-paper-deep animate-pulse" />
@@ -40,6 +63,9 @@ export default function Favorites() {
     )
   }
 
+  const allSongs = sections.flatMap(s => s.songs)
+  const allAlbums = sections.flatMap(s => s.albums)
+
   return (
     <div className="pt-8 animate-fade-in">
       {/* 页头：衬线标题 + mono 统计 + 文字级主操作（DESIGN v2 §3/§4.1） */}
@@ -52,12 +78,12 @@ export default function Favorites() {
             </span>
           </h1>
           <p className="mt-1.5 font-num text-sm text-ink-faint">
-            {t('library.favoritesCounts', { songs: songs.length, albums: albums.length })}
+            {t('library.favoritesCounts', { songs: allSongs.length, albums: allAlbums.length })}
           </p>
         </div>
-        {songs.length > 0 && (
+        {allSongs.length > 0 && (
           <button
-            onClick={handlePlayAll}
+            onClick={() => playAllInOrder(allSongs, 0)}
             className="inline-flex flex-shrink-0 items-center gap-2 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
           >
             <Play className="w-3.5 h-3.5" weight="fill" />
@@ -78,7 +104,7 @@ export default function Favorites() {
           )}
         >
           {t('library.songs')}
-          <span className="ml-1.5 font-num text-xs text-ink-faint">{songs.length}</span>
+          <span className="ml-1.5 font-num text-xs text-ink-faint">{allSongs.length}</span>
         </button>
         <button
           onClick={() => setTab('albums')}
@@ -90,37 +116,56 @@ export default function Favorites() {
           )}
         >
           {t('library.albums')}
-          <span className="ml-1.5 font-num text-xs text-ink-faint">{albums.length}</span>
+          <span className="ml-1.5 font-num text-xs text-ink-faint">{allAlbums.length}</span>
         </button>
       </div>
 
-      {tab === 'songs' && (
-        songs.length === 0 ? (
-          <EmptyState
-            ruled
-            title={t('empty.favoriteSongs.title')}
-            description={t('empty.favoriteSongs.description')}
-          />
-        ) : (
-          <SongList songs={songs} showAlbum />
+      {sections.map(section => {
+        const songs = tab === 'songs' ? section.songs : []
+        const albums = tab === 'albums' ? section.albums : []
+        return (
+          <section key={section.serverId || 'single'} className="mb-10">
+            {multi && (
+              <div className="section-head">
+                <h2 className="flex items-center gap-2.5">
+                  <SourceBadge serverId={section.serverId} withName />
+                </h2>
+              </div>
+            )}
+            {section.status === 'error' && (
+              <p className="py-3 text-[13px] text-ink-faint border-t border-hair">
+                {t('sources.loadError')}
+              </p>
+            )}
+            {section.status === 'success' && tab === 'songs' && (
+              songs.length === 0 && !multi ? (
+                <EmptyState
+                  ruled
+                  title={t('empty.favoriteSongs.title')}
+                  description={t('empty.favoriteSongs.description')}
+                />
+              ) : songs.length > 0 ? (
+                <SongList songs={songs} showAlbum sourceBadge={multi} />
+              ) : null
+            )}
+            {section.status === 'success' && tab === 'albums' && (
+              albums.length === 0 && !multi ? (
+                <EmptyState
+                  ruled
+                  title={t('empty.favoriteAlbums.title')}
+                  description={t('empty.favoriteAlbums.description')}
+                />
+              ) : albums.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
+                  {albums.map(album => (
+                    <AlbumCard key={`${section.serverId}:${album.id}`} album={album} />
+                  ))}
+                </div>
+              ) : null
+            )}
+          </section>
         )
-      )}
-
-      {tab === 'albums' && (
-        albums.length === 0 ? (
-          <EmptyState
-            ruled
-            title={t('empty.favoriteAlbums.title')}
-            description={t('empty.favoriteAlbums.description')}
-          />
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
-            {albums.map(album => (
-              <AlbumCard key={album.id} album={album} />
-            ))}
-          </div>
-        )
-      )}
+      })}
     </div>
   )
 }

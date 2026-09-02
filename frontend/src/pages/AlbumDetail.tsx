@@ -4,7 +4,7 @@
  * 歌手链接、mono 年份·曲目数·总时长、文字级操作行；下方曲目表 = SongList（自带 border-t）
  */
 
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { Play, Shuffle, Heart } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
@@ -24,7 +24,8 @@ export default function AlbumDetailPage() {
   const { t } = useT()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: album, isLoading } = useAlbumDetail(id ?? '')
+  const [searchParams] = useSearchParams()
+  const { data: album, isLoading } = useAlbumDetail(id ?? '', searchParams.get('src') ?? undefined)
   const toggleStar = useToggleStar()
   const [starred, setStarred] = useState(false)
   const [view, setView] = useState<'tracks' | 'notes'>('tracks')

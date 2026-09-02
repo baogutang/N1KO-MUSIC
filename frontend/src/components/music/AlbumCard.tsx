@@ -12,7 +12,6 @@ import { usePlayerStore } from '@/store/playerStore'
 import { findAdapterFor, getAdapterFor } from '@/api'
 import type { Album, Song } from '@/api/types'
 import { useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from '@/hooks/useServerQueries'
 import { playListFrom } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
@@ -35,8 +34,9 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
   const handlePlay = async (e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      // 尝试从缓存获取专辑详情
-      const cached = queryClient.getQueryData(queryKeys.albumDetail(album.id))
+      // 尝试从缓存获取专辑详情（键带来源，与 useAlbumDetail 一致）
+      const cacheKey = [album.serverId, 'albums', album.id] as const
+      const cached = queryClient.getQueryData(cacheKey)
       if (cached && (cached as { songs?: unknown[] }).songs) {
         const detail = cached as { songs: Song[] }
         playListFrom(detail.songs)
@@ -44,7 +44,7 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
       }
       // 否则先播放第一首
       const detail = await getAdapterFor(album.serverId).getAlbumDetail(album.id)
-      queryClient.setQueryData(queryKeys.albumDetail(album.id), detail)
+      queryClient.setQueryData(cacheKey, detail)
       if (detail.songs.length) {
         playListFrom(detail.songs)
       }
@@ -53,16 +53,19 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
     }
   }
 
+  // 详情按专辑来源解析（多源下主库路由会打错适配器）；缓存键同样带来源
+  const detailHref = `/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`
+
   return (
     <div
       role="button"
       tabIndex={0}
       className={cn('group cursor-pointer min-w-0', className)}
-      onClick={() => navigate(`/albums/${album.id}`)}
+      onClick={() => navigate(detailHref)}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          navigate(`/albums/${album.id}`)
+          navigate(detailHref)
         }
       }}
     >

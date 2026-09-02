@@ -62,13 +62,14 @@ export default function HomePage() {
   const playAlbum = useCallback(
     async (album: Album) => {
       try {
-        const cached = queryClient.getQueryData(queryKeys.albumDetail(album.id))
+        const cacheKey = [album.serverId, 'albums', album.id] as const
+        const cached = queryClient.getQueryData(cacheKey)
         if (cached && (cached as { songs?: unknown[] }).songs) {
           playListFrom((cached as { songs: Song[] }).songs)
           return
         }
         const detail = await getAdapterFor(album.serverId).getAlbumDetail(album.id)
-        queryClient.setQueryData(queryKeys.albumDetail(album.id), detail)
+        queryClient.setQueryData(cacheKey, detail)
         if (detail.songs.length) playListFrom(detail.songs)
       } catch (err) {
         console.error('Failed to play album:', err)

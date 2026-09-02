@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, MusicNote, DotsThree, Trash, Play, Shuffle, UploadSimple } from '@phosphor-icons/react'
 import { usePlaylists, useDeletePlaylist, queryKeys } from '@/hooks/useServerQueries'
+import { useConnectedSources, useSourcePlaylists } from '@/hooks/useSourceQueries'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { findAdapterFor, getAdapter, getAdapterFor } from '@/api'
+import { useServerStore } from '@/store/serverStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/ui/use-toast'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
@@ -24,13 +27,38 @@ export default function Playlists() {
   const { t } = useT()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data: playlists, isLoading } = usePlaylists()
+  const [searchParams] = useSearchParams()
+  const srcFilter = searchParams.get('src') ?? undefined
+  const sources = useConnectedSources()
+  const multi = sources.length > 1 && !srcFilter
+  // 多源：每源一节（主库节带新建/导入与删除）；单源/?src=：一条查询，行为同旧版
+  const primary = usePlaylists()
+  const grouped = useSourcePlaylists()
   const deletePlaylist = useDeletePlaylist()
   const [showCreate, setShowCreate] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+
+  const activeServerId = useServerStore(s => s.activeServerId)
+  const isLoading = multi ? grouped.some(g => g.status === 'loading') : primary.isLoading
+  const sections = multi
+    ? grouped.map(g => ({
+        serverId: g.serverId,
+        name: g.name,
+        status: g.status,
+        items: g.data ?? [],
+        isPrimary: g.serverId === activeServerId,
+      }))
+    : [{
+        serverId: srcFilter ?? activeServerId ?? '',
+        name: sources.find(s => s.serverId === (srcFilter ?? activeServerId))?.name ?? '',
+        status: 'success' as const,
+        items: primary.data ?? [],
+        isPrimary: true,
+      }]
+  const totalCount = sections.reduce((sum, s) => sum + s.items.length, 0)
 
   async function handleCreate() {
     if (!newName.trim()) return
@@ -92,7 +120,7 @@ export default function Playlists() {
           </h1>
           {!isLoading && (
             <p className="mt-1.5 font-num text-sm text-ink-faint">
-              {t('playlist.count', { count: playlists?.length ?? 0 })}
+              {t('playlist.count', { count: totalCount })}
             </p>
           )}
         </div>
@@ -125,19 +153,34 @@ export default function Playlists() {
             </div>
           ))}
         </div>
-      ) : !playlists?.length ? (
+      ) : totalCount === 0 ? (
         <EmptyState
           title={t('empty.playlists.title')}
           description={t('empty.playlists.description')}
           action={{ label: t('empty.playlists.action'), onClick: () => setShowCreate(true) }}
         />
       ) : (
-        <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
-          {playlists.map(pl => (
+        sections.map(section => (
+          <section key={section.serverId} className="mt-10">
+            {multi && (
+              <div className="section-head">
+                <h2 className="flex items-center gap-2.5">
+                  <SourceBadge serverId={section.serverId} withName />
+                </h2>
+                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                  {t('playlist.count', { count: section.items.length })}
+                </span>
+              </div>
+            )}
+            {section.status === 'error' && (
+              <p className="py-3 text-[13px] text-ink-faint border-t border-hair">{t('sources.loadError')}</p>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
+              {section.items.map(pl => (
             <div
-              key={pl.id}
+              key={`${section.serverId}:${pl.id}`}
               className="group cursor-pointer min-w-0"
-              onClick={() => navigate(`/playlists/${pl.id}`)}
+              onClick={() => navigate(`/playlists/${pl.id}?src=${encodeURIComponent(pl.serverId)}`)}
             >
               {/* 封面：发丝 ring，hover 微放大 + 唯一允许的淡投影 */}
               <div className="relative mb-2.5">
@@ -197,7 +240,8 @@ export default function Playlists() {
                             {t('playlist.smartHint')}
                           </p>
                         </div>
-                      ) : (
+                      ) : section.isPrimary ? (
+                        // 删除走主库适配器；外源歌单的删除/退订语义不同，不在此提供
                         <DropdownMenuItem
                           className="text-destructive gap-2"
                           onClick={() => setDeleteTarget({ id: pl.id, name: pl.name })}
@@ -205,7 +249,7 @@ export default function Playlists() {
                           <Trash className="w-4 h-4" />
                           {t('playlist.delete')}
                         </DropdownMenuItem>
-                      )}
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -226,8 +270,10 @@ export default function Playlists() {
                 </p>
               </div>
             </div>
-          ))}
-        </div>
+              ))}
+            </div>
+          </section>
+        ))
       )}
 
       {/* Create dialog */}

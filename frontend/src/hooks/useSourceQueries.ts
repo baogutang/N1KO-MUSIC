@@ -10,9 +10,9 @@
  */
 
 import { useMemo } from 'react'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { getAdapterFor, hasAdapterFor } from '@/api'
-import type { SearchResult, ServerConfig, SourceCapabilities } from '@/api/types'
+import type { Album, Artist, Playlist, SearchResult, ServerConfig, Song, SourceCapabilities } from '@/api/types'
 import { useServerStore } from '@/store/serverStore'
 
 // ===================================================
@@ -158,4 +158,130 @@ export function useSourceSearch(query: string): SourceQueryGroup<SearchResult>[]
   // 不做 memo：results 每个查询状态翻转都是新引用，zip 只是小组数 map，
   // 记忆化反而会把「loading → success」的翻转吞掉
   return zipQueryResults<SearchResult>(eligible, results)
+}
+
+// ===================================================
+// 2.3 首页区块：各源歌单 / 榜单 / 推荐歌单
+// ===================================================
+
+/** 聚合歌单列表（每源一条 query；声明 userPlaylists 的源才参与） */
+export function useSourcePlaylists(): SourceQueryGroup<Playlist[]>[] {
+  const sources = useConnectedSources()
+  const caps = useSourceCapabilities()
+  const eligible = useMemo(
+    () => sources.filter(s => caps[s.serverId]?.userPlaylists && hasAdapterFor(s.serverId)),
+    [sources, caps]
+  )
+  const results = useQueries({
+    queries: eligible.map(s => ({
+      queryKey: [s.serverId, 'playlists'] as const,
+      queryFn: ({ signal }: { signal: AbortSignal }) => getAdapterFor(s.serverId).getPlaylists(signal),
+      staleTime: 3 * 60 * 1000,
+    })),
+  })
+  return zipQueryResults<Playlist[]>(eligible, results)
+}
+
+/** 榜单分组（getTopLists 的返回形状） */
+export interface TopListGroups {
+  groups: Array<{ title: string; items: Playlist[] }>
+}
+
+/** 各源榜单（声明 topLists 的源） */
+export function useSourceTopLists(): SourceQueryGroup<TopListGroups>[] {
+  const sources = useConnectedSources()
+  const caps = useSourceCapabilities()
+  const eligible = useMemo(
+    () => sources.filter(s => caps[s.serverId]?.topLists && hasAdapterFor(s.serverId)),
+    [sources, caps]
+  )
+  const results = useQueries({
+    queries: eligible.map(s => ({
+      queryKey: [s.serverId, 'toplists'] as const,
+      queryFn: async () => {
+        const groups = await getAdapterFor(s.serverId).getTopLists!()
+        return { groups }
+      },
+      staleTime: 10 * 60 * 1000,
+    })),
+  })
+  return zipQueryResults<TopListGroups>(eligible, results)
+}
+
+/** 各源推荐歌单第一页（声明 recommendSheets 的源） */
+export function useSourceRecommendSheets(): SourceQueryGroup<Playlist[]>[] {
+  const sources = useConnectedSources()
+  const caps = useSourceCapabilities()
+  const eligible = useMemo(
+    () => sources.filter(s => caps[s.serverId]?.recommendSheets && hasAdapterFor(s.serverId)),
+    [sources, caps]
+  )
+  const results = useQueries({
+    queries: eligible.map(s => ({
+      queryKey: [s.serverId, 'recommend-sheets', 0] as const,
+      queryFn: async () => {
+        const page = await getAdapterFor(s.serverId).getRecommendSheets!(0)
+        return page.items
+      },
+      staleTime: 10 * 60 * 1000,
+    })),
+  })
+  return zipQueryResults<Playlist[]>(eligible, results)
+}
+
+/** 榜单详情（TopListDetail 页用；key 按来源分域） */
+export function useTopListDetail(serverId: string, topListId: string) {
+  return useQuery({
+    queryKey: [serverId, 'toplists', 'detail', topListId] as const,
+    queryFn: async () => {
+      const page = await getAdapterFor(serverId).getTopListDetail!(topListId, 0)
+      return page.songs
+    },
+    enabled: !!serverId && !!topListId && hasAdapterFor(serverId),
+    staleTime: 10 * 60 * 1000,
+  })
+}
+
+// ===================================================
+// 2.4 浏览页：libraryBrowse 过滤与收藏分节
+// ===================================================
+
+export interface BrowseSourceInfo {
+  /** 参与浏览的全部源（libraryBrowse），主库在前 */
+  available: SourceRef[]
+  /** 实际浏览的源：?src= 指定 > 主库（若可浏览）> 第一个可浏览源 */
+  current: SourceRef | null
+}
+
+/**
+ * 专辑/歌手浏览页的源选择（PLAN 2.4：浏览页只列 libraryBrowse 的音源）。
+ * `srcParam` 是地址栏 ?src= 的值（encodeURIComponent 过的原始串，调用方先解码）。
+ */
+export function useBrowseSource(srcParam?: string): BrowseSourceInfo {
+  const sources = useConnectedSources()
+  const caps = useSourceCapabilities()
+  return useMemo(() => {
+    const available = sources.filter(s => caps[s.serverId]?.libraryBrowse)
+    const requested = srcParam ? available.find(s => s.serverId === srcParam) : undefined
+    const current = requested ?? available[0] ?? null
+    return { available, current }
+  }, [sources, caps, srcParam])
+}
+
+/** 各源收藏（收藏页分节；声明 favorites 的源） */
+export function useSourceStarred(): SourceQueryGroup<{ songs: Song[]; albums: Album[]; artists: Artist[] }>[] {
+  const sources = useConnectedSources()
+  const caps = useSourceCapabilities()
+  const eligible = useMemo(
+    () => sources.filter(s => caps[s.serverId]?.favorites && hasAdapterFor(s.serverId)),
+    [sources, caps]
+  )
+  const results = useQueries({
+    queries: eligible.map(s => ({
+      queryKey: [s.serverId, 'starred'] as const,
+      queryFn: ({ signal }: { signal: AbortSignal }) => getAdapterFor(s.serverId).getStarred(signal),
+      staleTime: 3 * 60 * 1000,
+    })),
+  })
+  return zipQueryResults(eligible, results)
 }

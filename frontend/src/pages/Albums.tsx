@@ -1,10 +1,17 @@
 /**
  * 专辑列表页 —— 封面墙（封面即内容，DESIGN v2 §3）
  * 衬线页头 + mono 总数；无限分页「加载更多」，加载中显示封面形骨架块
+ *
+ * 多源（PLAN 2.4）：只列声明 libraryBrowse 的音源；多个可浏览源时页头
+ * 出现源切换 chip（?src=），浏览的是「选中的那一个源」而不是跨源拼接——
+ * 专辑墙跨源混排需要先解决排序与去重语义，留给聚合视图迭代。
  */
 
+import { useSearchParams } from 'react-router-dom'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { useAlbumsInfinite } from '@/hooks/useServerQueries'
+import { useBrowseSource } from '@/hooks/useSourceQueries'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
 
@@ -12,7 +19,20 @@ const GRID_CLASS = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-
 
 export default function AlbumsPage() {
   const { t } = useT()
-  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useAlbumsInfinite(50)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const srcParam = searchParams.get('src') ?? undefined
+  const { available, current } = useBrowseSource(srcParam)
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useAlbumsInfinite(50, 'newest', current?.serverId)
+
+  if (!current) {
+    return (
+      <div className="pt-9 animate-fade-in">
+        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('section.albums')}</h1>
+        <EmptyState ruled title={t('sources.noBrowseTitle')} description={t('sources.noBrowseDesc')} />
+      </div>
+    )
+  }
 
   const albums = data?.pages.flatMap(p => p.items) ?? []
 
@@ -28,6 +48,25 @@ export default function AlbumsPage() {
           <p className="text-sm text-ink-soft mt-1.5">
             {t('album.total', { count: countText })}
           </p>
+        )}
+        {available.length > 1 && (
+          <div className="mt-4 flex items-center gap-4">
+            {available.map(s => (
+              <button
+                key={s.serverId}
+                onClick={() => setSearchParams(s.serverId === current.serverId ? {} : { src: s.serverId }, { replace: true })}
+                className={
+                  'inline-flex items-center gap-1.5 pb-1 border-b transition-colors ' +
+                  (s.serverId === current.serverId
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-ink-faint hover:text-foreground')
+                }
+              >
+                <SourceBadge serverId={s.serverId} />
+                <span className="text-[12px]">{s.name}</span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
