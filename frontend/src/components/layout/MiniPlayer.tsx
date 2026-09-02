@@ -11,7 +11,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { cn } from '@/lib/utils'
 import { usePlayerStore } from '@/store/playerStore'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { isNativePlatform } from '@/lib/platform'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
@@ -47,8 +47,8 @@ export function MiniPlayer() {
   const toggleFullscreen = usePlayerStore(s => s.toggleFullscreen)
   const setQueueOpen = usePlayerStore(s => s.setQueueOpen)
 
-  const coverUrl = currentSong?.coverArt && hasAdapter()
-    ? getAdapter().getCoverUrl(currentSong.coverArt, 96)
+  const coverUrl = currentSong?.coverArt
+    ? (findAdapterFor(currentSong.serverId)?.getCoverUrl(currentSong.coverArt, 96) ?? undefined)
     : undefined
 
   if (!currentSong) return null

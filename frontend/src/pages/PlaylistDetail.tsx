@@ -11,7 +11,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { SongList } from '@/components/music/SongList'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
@@ -109,7 +109,7 @@ export default function PlaylistDetail() {
         <div className="w-[240px] aspect-square flex-shrink-0 overflow-hidden rounded-md ring-1 ring-hair-soft shadow-float bg-paper-deep">
           {playlist.coverArt ? (
             <img
-              src={hasAdapter() ? getAdapter().getCoverUrl(playlist.coverArt, 480) : playlist.coverArt}
+              src={findAdapterFor(playlist.serverId)?.getCoverUrl(playlist.coverArt, 480) ?? playlist.coverArt}
               alt={playlist.name}
               className="w-full h-full object-cover"
             />

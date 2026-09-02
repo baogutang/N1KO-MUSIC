@@ -28,6 +28,7 @@ export const REFILL_THRESHOLD = 8
 
 /** 这台电台是否可用（服务器实现了对应的可选能力） */
 export function canStartRadio(seed: RadioSeed): boolean {
+  // TODO(sources): 候选来源阶段 2 扩到所有声明 radio 能力的音源（PLAN §4.5）
   if (!hasAdapter()) return false
   const adapter = getAdapter()
   if (seed.kind === 'song') return !!adapter.getSimilarSongs
@@ -36,6 +37,7 @@ export function canStartRadio(seed: RadioSeed): boolean {
 }
 
 async function fetchSeedCandidates(seed: RadioSeed): Promise<Song[]> {
+  // TODO(sources): 同上，阶段 2 多源并发
   if (!hasAdapter()) return []
   const adapter = getAdapter()
   try {

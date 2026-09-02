@@ -8,7 +8,7 @@ import { AlbumCard } from '@/components/music/AlbumCard'
 import { ArtistCard } from '@/components/music/ArtistCard'
 import { SongList } from '@/components/music/SongList'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { playAllInOrder, shuffleWholeLibrary } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
@@ -269,7 +269,7 @@ export default function Library() {
                   >
                     <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-hair-soft">
                       <ImageWithFallback
-                        src={album.coverArt && hasAdapter() ? getAdapter().getCoverUrl(album.coverArt, 96) : undefined}
+                        src={album.coverArt ? (findAdapterFor(album.serverId)?.getCoverUrl(album.coverArt, 96) ?? undefined) : undefined}
                         alt={album.name}
                         fallbackType="album"
                         className="w-full h-full"
@@ -337,7 +337,7 @@ export default function Library() {
                   <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-full ring-1 ring-hair-soft">
                     {artist.coverArt ? (
                       <ImageWithFallback
-                        src={hasAdapter() ? getAdapter().getCoverUrl(artist.coverArt, 96) : artist.coverArt}
+                        src={findAdapterFor(artist.serverId)?.getCoverUrl(artist.coverArt, 96) ?? artist.coverArt}
                         alt={artist.name}
                         fallbackType="artist"
                         className="w-full h-full"

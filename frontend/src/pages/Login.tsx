@@ -15,7 +15,6 @@ import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { SubsonicAdapter } from '@/api/adapters/subsonic'
 import { JellyfinAdapter } from '@/api/adapters/jellyfin'
 import { EmbyAdapter } from '@/api/adapters/emby'
-import { setActiveAdapter } from '@/api'
 import type { ServerType } from '@/api/types'
 import { useT } from '@/i18n'
 
@@ -70,7 +69,6 @@ export default function LoginPage() {
     setError('')
 
     try {
-      let adapter: SubsonicAdapter | JellyfinAdapter | EmbyAdapter
       let result
 
       const url = form.url.replace(/\/$/, '')
@@ -89,14 +87,6 @@ export default function LoginPage() {
           setError(result.error || t('login.errorFailed'))
           return
         }
-        adapter = new SubsonicAdapter({
-          url,
-          username: form.username,
-          token: result.token,
-          salt: result.salt ?? '',
-          serverId: '',
-        })
-        setActiveAdapter(adapter)
 
         const serverId = addServer({
           name: form.name || `${selectedType === 'navidrome' ? 'Navidrome' : 'Subsonic'} - ${new URL(url).hostname}`,
@@ -117,13 +107,6 @@ export default function LoginPage() {
           setError(result.error || t('login.errorFailed'))
           return
         }
-        adapter = new AdapterClass({
-          url,
-          token: result.token,
-          userId: result.userId ?? '',
-          serverId: '',
-        })
-        setActiveAdapter(adapter)
 
         const serverId = addServer({
           name: form.name || `${selectedType === 'jellyfin' ? 'Jellyfin' : 'Emby'} - ${new URL(url).hostname}`,

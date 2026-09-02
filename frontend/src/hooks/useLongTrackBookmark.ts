@@ -12,7 +12,7 @@
 import { useEffect, useRef } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 
 /** 超过这个时长才算「长音轨」 */
 export const LONG_TRACK_SECONDS = 20 * 60
@@ -26,15 +26,12 @@ export function isLongTrack(durationSeconds?: number): boolean {
 }
 
 export function useLongTrackBookmark() {
-  const activeServerId = useServerStore(s => s.activeServerId)
   const isConnected = useServerStore(s => s.isConnected)
   const currentSongId = usePlayerStore(s => s.currentSong?.id)
   const lastSavedRef = useRef(0)
 
   useEffect(() => {
-    if (!isConnected || !activeServerId || !hasAdapter()) return
-    const adapter = getAdapter()
-    if (!adapter.createBookmark) return
+    if (!isConnected) return
 
     /**
      * 记下最近一次看到的「哪首歌播到哪」。
@@ -43,9 +40,12 @@ export function useLongTrackBookmark() {
      * 再跑上一轮 effect 的清理——那时候现读 store 读到的已经是新歌了。
      * 所以位置要在 tick 里就存下来，清理时用存下来的这一份。
      */
-    let lastSeen: { id: string; duration: number; seconds: number } | null = null
+    let lastSeen: { id: string; serverId: string; duration: number; seconds: number } | null = null
 
-    const writeBookmark = (song: { id: string; duration: number }, seconds: number) => {
+    // 书签存在歌曲所属的服务器上：按 serverId 找适配器，而不是默认主库
+    const writeBookmark = (song: { id: string; serverId: string; duration: number }, seconds: number) => {
+      const adapter = findAdapterFor(song.serverId)
+      if (!adapter?.createBookmark) return
       // 快听完了就清掉，否则下次打开会提示从倒数第二分钟继续
       if (song.duration - seconds < NEAR_END_SECONDS) {
         adapter.deleteBookmark?.(song.id).catch(() => {})
@@ -61,7 +61,7 @@ export function useLongTrackBookmark() {
       if (!song || !isLongTrack(song.duration)) return
       const seconds = st.currentTime || 0
       if (seconds < 60) return
-      lastSeen = { id: song.id, duration: song.duration, seconds }
+      lastSeen = { id: song.id, serverId: song.serverId, duration: song.duration, seconds }
       if (Date.now() - lastSavedRef.current < SAVE_INTERVAL_MS) return
       writeBookmark(song, seconds)
     }
@@ -69,7 +69,7 @@ export function useLongTrackBookmark() {
     /** 清理时补记：用捕获到的那一份，而不是现读 store */
     const flushCapturedProgress = () => {
       if (!lastSeen) return
-      writeBookmark({ id: lastSeen.id, duration: lastSeen.duration }, lastSeen.seconds)
+      writeBookmark(lastSeen, lastSeen.seconds)
       lastSeen = null
     }
 
@@ -90,5 +90,5 @@ export function useLongTrackBookmark() {
        */
       flushCapturedProgress()
     }
-  }, [isConnected, activeServerId, currentSongId])
+  }, [isConnected, currentSongId])
 }

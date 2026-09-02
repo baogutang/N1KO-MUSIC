@@ -51,6 +51,8 @@ export function useQueueSync() {
 
   // --- 周期性写入 ---
   useEffect(() => {
+    // TODO(sources): 队列混源后的续播语义（跨源队列存不进单一服务器）需要单独设计；
+    // 当前只把「主库自己的歌」写回主库，语义等同于旧的单服务器行为
     if (!isConnected || !activeServerId || !hasAdapter()) return
     const adapter = getAdapter()
     if (!adapter.savePlayQueue) return

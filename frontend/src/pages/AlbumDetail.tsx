@@ -11,7 +11,7 @@ import { SongList } from '@/components/music/SongList'
 import { LinerNotes } from '@/components/music/LinerNotes'
 import { useAlbumDetail, useToggleStar } from '@/hooks/useServerQueries'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { formatDurationNatural } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
@@ -33,8 +33,8 @@ export default function AlbumDetailPage() {
     if (album) setStarred(!!album.starred)
   }, [album])
 
-  const coverUrl = album?.coverArt && hasAdapter()
-    ? getAdapter().getCoverUrl(album.coverArt, 600)
+  const coverUrl = album?.coverArt
+    ? (findAdapterFor(album.serverId)?.getCoverUrl(album.coverArt, 600) ?? undefined)
     : undefined
 
   if (isLoading) {

@@ -12,7 +12,7 @@ import { MarginNote } from '@/components/music/MarginNote'
 import { ArtistDossier } from '@/components/music/ArtistDossier'
 import { SongList } from '@/components/music/SongList'
 import { useArtistDetail } from '@/hooks/useServerQueries'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor, getAdapterFor } from '@/api'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { useServerStore } from '@/store/serverStore'
 import { isQualifiedListeningEvent, readListeningEvents } from '@/services/listeningHistory'
@@ -70,9 +70,9 @@ export default function ArtistDetailPage() {
     }
   }, [artist?.name, artist?.albums, serverId])
 
-  const handlePlayAlbum = useCallback(async (album: { id: string }) => {
+  const handlePlayAlbum = useCallback(async (album: { id: string; serverId: string }) => {
     try {
-      const detail = await getAdapter().getAlbumDetail(album.id)
+      const detail = await getAdapterFor(album.serverId).getAlbumDetail(album.id)
       if (detail.songs.length) playAllInOrder(detail.songs)
     } catch {
       // 拉取失败时不做任何事；用户可以点进专辑页再播
@@ -80,7 +80,7 @@ export default function ArtistDetailPage() {
   }, [])
 
   const serverImageUrl = artist?.artistImageUrl ||
-    (artist?.coverArt && hasAdapter() ? getAdapter().getCoverUrl(artist.coverArt, 300) : undefined)
+    (artist?.coverArt ? (findAdapterFor(artist.serverId)?.getCoverUrl(artist.coverArt, 300) ?? undefined) : undefined)
 
   const imageUrl = (serverImageUrl && !imgError) ? serverImageUrl : undefined
 

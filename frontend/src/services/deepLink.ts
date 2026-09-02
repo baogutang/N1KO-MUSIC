@@ -153,6 +153,8 @@ export async function runDeepLinkCommand(command: NonNullable<DeepLinkAction['co
       await shuffleWholeLibrary()
       return
     case 'playSong': {
+      // 深链接只带裸 id（不加 server 前缀，见 deepLink id 白名单），
+      // 解析始终落主库；跨源深链接若要做，得先改链接格式本身
       if (!hasAdapter()) return
       const song = await getAdapter().getSong(command.id).catch(() => null)
       if (song) playListFrom([song], 0)

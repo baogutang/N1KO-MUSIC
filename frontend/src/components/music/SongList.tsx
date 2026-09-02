@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { usePlayerStore } from '@/store/playerStore'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useToggleStar } from '@/hooks/useServerQueries'
@@ -477,10 +477,10 @@ const SongRow = React.memo(function SongRow({
   const localStarred = !!song.starred
   const { t } = useT()
   const navigate = useNavigate()
-  // 行是 memo 的，封面 URL 只在这首歌变化时才重算
+  // 行是 memo 的，封面 URL 只在这首歌变化时才重算；按歌曲来源取适配器
   const coverUrl = useMemo(
-    () => (song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(song.coverArt, 64) : undefined),
-    [song.coverArt]
+    () => song.coverArt ? (findAdapterFor(song.serverId)?.getCoverUrl(song.coverArt, 64) ?? undefined) : undefined,
+    [song.coverArt, song.serverId]
   )
 
   // 稳定的 handlePlay，只依赖 index 和 onPlayIndex（均为稳定引用）

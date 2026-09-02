@@ -17,7 +17,7 @@ import { useRecentAlbums, useArtists, queryKeys } from '@/hooks/useServerQueries
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
 import { pickFeaturedAlbum, rankArtistsByAffinity } from '@/services/recommendationEngine'
 import { usePlayerStore } from '@/store/playerStore'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor, getAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled, playListFrom } from '@/utils/playActions'
 import type { Album, Song } from '@/api/types'
@@ -44,8 +44,8 @@ export default function HomePage() {
 
   // 本期封面：在最近入库的专辑里按天轮换，同一天内保持稳定
   const heroAlbum = useMemo(() => pickFeaturedAlbum(recentAlbums ?? []), [recentAlbums])
-  const heroCoverUrl = heroAlbum?.coverArt && hasAdapter()
-    ? getAdapter().getCoverUrl(heroAlbum.coverArt, 600)
+  const heroCoverUrl = heroAlbum?.coverArt
+    ? (findAdapterFor(heroAlbum.serverId)?.getCoverUrl(heroAlbum.coverArt, 600) ?? undefined)
     : undefined
 
   // 不 memo：几句字符串拼接本来就不值一个 memo，每次渲染直接算更简单。
@@ -62,7 +62,7 @@ export default function HomePage() {
           playListFrom((cached as { songs: Song[] }).songs)
           return
         }
-        const detail = await getAdapter().getAlbumDetail(album.id)
+        const detail = await getAdapterFor(album.serverId).getAlbumDetail(album.id)
         queryClient.setQueryData(queryKeys.albumDetail(album.id), detail)
         if (detail.songs.length) playListFrom(detail.songs)
       } catch (err) {
@@ -327,8 +327,8 @@ function RecentAlbumRow({
   onPlay: () => void
 }) {
   const { t } = useT()
-  const coverUrl = album.coverArt && hasAdapter()
-    ? getAdapter().getCoverUrl(album.coverArt, 64)
+  const coverUrl = album.coverArt
+    ? (findAdapterFor(album.serverId)?.getCoverUrl(album.coverArt, 64) ?? undefined)
     : undefined
 
   const meta = [

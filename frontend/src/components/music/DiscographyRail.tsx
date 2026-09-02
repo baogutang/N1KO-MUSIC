@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import { Play } from '@phosphor-icons/react'
 import type { Album } from '@/api/types'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { t as translate, useT } from '@/i18n'
 import { cn } from '@/lib/utils'
@@ -141,8 +141,8 @@ export function DiscographyRail({
                       >
                         <span className="h-9 w-9 flex-none overflow-hidden rounded-sm ring-1 ring-hair-soft">
                           <ImageWithFallback
-                            src={album.coverArt && hasAdapter()
-                              ? getAdapter().getCoverUrl(album.coverArt, 96)
+                            src={album.coverArt
+                              ? (findAdapterFor(album.serverId)?.getCoverUrl(album.coverArt, 96) ?? undefined)
                               : undefined}
                             alt={album.name}
                             fallbackType="album"

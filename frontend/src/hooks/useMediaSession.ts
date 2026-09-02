@@ -18,7 +18,7 @@ import { useEffect, useRef } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 
 /** 锁屏在高分屏上会把封面铺满整屏，512 明显发糊 */
 const ARTWORK_SIZES = [96, 256, 512, 1024] as const
@@ -51,13 +51,15 @@ export function useMediaSession() {
       return
     }
 
+    // 封面按歌曲来源取适配器；来源未连接时不给 artwork（系统面板显示默认占位）
+    const artworkAdapter = currentSong.coverArt ? findAdapterFor(currentSong.serverId) : null
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentSong.title,
       artist: currentSong.artist,
       album: currentSong.album,
-      artwork: currentSong.coverArt && hasAdapter()
+      artwork: currentSong.coverArt && artworkAdapter
         ? ARTWORK_SIZES.map(size => ({
-            src: getAdapter().getCoverUrl(currentSong.coverArt!, size),
+            src: artworkAdapter.getCoverUrl(currentSong.coverArt!, size),
             sizes: `${size}x${size}`,
             type: 'image/jpeg',
           }))

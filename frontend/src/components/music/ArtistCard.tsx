@@ -6,7 +6,7 @@
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import type { Artist } from '@/api/types'
 import { useT } from '@/i18n'
 
@@ -20,8 +20,8 @@ export function ArtistCard({ artist, className }: ArtistCardProps) {
   const navigate = useNavigate()
 
   const imageUrl = artist.artistImageUrl ||
-    (artist.coverArt && hasAdapter()
-      ? getAdapter().getCoverUrl(artist.coverArt, 300)
+    (artist.coverArt
+      ? (findAdapterFor(artist.serverId)?.getCoverUrl(artist.coverArt, 300) ?? undefined)
       : undefined)
 
   return (

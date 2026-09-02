@@ -182,6 +182,7 @@ export function usePersonalizedRecommendations(size = 30) {
         if (cached?.length) return cached.slice(0, size)
       }
       justAdvancedRef.current = false
+      // TODO(sources): 推荐候选阶段 2 扩到所有声明 radio 能力的音源（PLAN §4.5），当前只取主库
       const adapter = getAdapter()
       const [randomResult, starredResult, directedResult] = await Promise.allSettled([
         // 随机候选保留下来作为探索通道，让画像之外的曲目仍有机会出现

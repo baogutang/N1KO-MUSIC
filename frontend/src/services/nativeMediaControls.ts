@@ -10,7 +10,7 @@ import { useEffect } from 'react'
 import { CapacitorMusicControls } from 'capacitor-music-controls-plugin'
 import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { isNativePlatform } from '@/lib/platform'
 
 /** 上一首：播放超过 3 秒重播当前歌曲（与 PlayerBar 行为一致） */
@@ -35,8 +35,8 @@ export function useNativeMediaControls() {
       if (!currentSong) return
       // 256 封面：插件会把 bitmap 两次塞进 MediaSession metadata，
       // 512 位图接近 Binder 事务上限（TransactionTooLargeException 闪退）
-      const cover = currentSong.coverArt && hasAdapter()
-        ? getAdapter().getCoverUrl(currentSong.coverArt, 256)
+      const cover = currentSong.coverArt
+        ? (findAdapterFor(currentSong.serverId)?.getCoverUrl(currentSong.coverArt, 256) ?? '')
         : ''
       CapacitorMusicControls.create({
         track: currentSong.title,

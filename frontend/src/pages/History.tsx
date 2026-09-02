@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Play, Trash } from '@phosphor-icons/react'
 import { usePlayerStore } from '@/store/playerStore'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import {
@@ -178,7 +178,7 @@ export default function History() {
                       {/* 小封面 */}
                       <span className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-hair-soft">
                         <ImageWithFallback
-                          src={entry.song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(entry.song.coverArt, 64) : undefined}
+                          src={entry.song.coverArt ? (findAdapterFor(entry.song.serverId)?.getCoverUrl(entry.song.coverArt, 64) ?? undefined) : undefined}
                           alt={entry.song.title}
                           fallbackType="album"
                           className="h-full w-full"

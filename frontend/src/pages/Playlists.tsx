@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, MusicNote, DotsThree, Trash, Play, Shuffle, UploadSimple } from '@phosphor-icons/react'
 import { usePlaylists, useDeletePlaylist, queryKeys } from '@/hooks/useServerQueries'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor, getAdapter, getAdapterFor } from '@/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/ui/use-toast'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
@@ -49,10 +49,10 @@ export default function Playlists() {
     }
   }
 
-  async function handlePlayPlaylist(playlistId: string, randomPlay = false, e?: React.MouseEvent) {
+  async function handlePlayPlaylist(playlist: { id: string; serverId: string }, randomPlay = false, e?: React.MouseEvent) {
     e?.stopPropagation()
     try {
-      const detail = await getAdapter().getPlaylistDetail(playlistId)
+      const detail = await getAdapterFor(playlist.serverId).getPlaylistDetail(playlist.id)
       if (!detail?.songs?.length) {
         toast({ title: t('playlist.emptyToast') })
         return
@@ -144,7 +144,7 @@ export default function Playlists() {
                 <div className="aspect-square overflow-hidden rounded-md ring-1 ring-hair-soft bg-paper-deep transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:shadow-float">
                   {pl.coverArt ? (
                     <img
-                      src={hasAdapter() ? getAdapter().getCoverUrl(pl.coverArt, 300) : pl.coverArt}
+                      src={pl.coverArt ? (findAdapterFor(pl.serverId)?.getCoverUrl(pl.coverArt, 300) ?? pl.coverArt) : pl.coverArt}
                       alt={pl.name}
                       className="w-full h-full object-cover"
                     />
@@ -157,7 +157,7 @@ export default function Playlists() {
                 {/* hover 浮现细线圆播放键 / 随机键（不做实心色块） */}
                 <div className="absolute right-2.5 bottom-2.5 flex items-center gap-2 opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
                   <button
-                    onClick={(e) => handlePlayPlaylist(pl.id, true, e)}
+                    onClick={(e) => handlePlayPlaylist(pl, true, e)}
                     title={t('player.shuffle')}
                     aria-label={t('player.shuffle')}
                     className="w-8 h-8 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
@@ -165,7 +165,7 @@ export default function Playlists() {
                     <Shuffle className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={(e) => handlePlayPlaylist(pl.id, false, e)}
+                    onClick={(e) => handlePlayPlaylist(pl, false, e)}
                     title={t('player.playAll')}
                     aria-label={t('player.playAll')}
                     className="w-9 h-9 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"

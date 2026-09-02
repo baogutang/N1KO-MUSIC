@@ -17,7 +17,7 @@ import {
 } from '@/services/issue'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { startRadio } from '@/services/radio'
 import { useT } from '@/i18n'
 
@@ -49,7 +49,9 @@ export default function IssuePage() {
   const issue = useMemo(() => buildIssue(events, period), [events, period])
 
   const coverArt = issue.coverArtist?.coverArt
-  const coverUrl = coverArt && hasAdapter() ? getAdapter().getCoverUrl(coverArt, 600) : undefined
+  const coverUrl = coverArt
+    ? (findAdapterFor(issue.coverArtist?.serverId)?.getCoverUrl(coverArt, 600) ?? undefined)
+    : undefined
 
   return (
     <div className="animate-fade-in pb-8">

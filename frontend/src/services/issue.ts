@@ -34,6 +34,8 @@ export interface IssueEntry {
   /** 用于跳转 */
   id?: string
   coverArt?: string
+  /** 封面 / 跳转目标的来源服务器（听歌事件透传）*/
+  serverId?: string
 }
 
 export interface IssueSuperlative {
@@ -131,6 +133,7 @@ function rank(map: Map<string, { count: number; song: Song }>, limit: number): I
       count: v.count,
       id: v.song.id,
       coverArt: v.song.coverArt,
+      serverId: v.song.serverId,
     }))
 }
 
@@ -184,6 +187,7 @@ export function buildIssue(
       count: v.count,
       id: v.song.artistId,
       coverArt: v.song.coverArt,
+      serverId: v.song.serverId,
     }))
   const topAlbums = Array.from(albums.entries())
     .sort((a, b) => b[1].count - a[1].count)
@@ -195,6 +199,7 @@ export function buildIssue(
       count: v.count,
       id: v.song.albumId,
       coverArt: v.song.coverArt,
+      serverId: v.song.serverId,
     }))
 
   // 本期发现：这一期第一次听到、而此前从没听过的歌手

@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { usePlayerStore } from '@/store/playerStore'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor, getAdapterFor } from '@/api'
 import type { Album, Song } from '@/api/types'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/hooks/useServerQueries'
@@ -28,8 +28,8 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
   const playSong  = usePlayerStore(s => s.playSong)
   const queryClient = useQueryClient()
 
-  const coverUrl = album.coverArt && hasAdapter()
-    ? getAdapter().getCoverUrl(album.coverArt, 300)
+  const coverUrl = album.coverArt
+    ? (findAdapterFor(album.serverId)?.getCoverUrl(album.coverArt, 300) ?? undefined)
     : undefined
 
   const handlePlay = async (e: React.MouseEvent) => {
@@ -43,7 +43,7 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
         return
       }
       // 否则先播放第一首
-      const detail = await getAdapter().getAlbumDetail(album.id)
+      const detail = await getAdapterFor(album.serverId).getAlbumDetail(album.id)
       queryClient.setQueryData(queryKeys.albumDetail(album.id), detail)
       if (detail.songs.length) {
         playListFrom(detail.songs)

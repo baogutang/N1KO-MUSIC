@@ -25,7 +25,7 @@ import { buildSpecLine } from '@/utils/audioSpec'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
 import { usePinnedCover } from '@/hooks/useCoverUrl'
 import { useSongDetail } from '@/hooks/useServerQueries'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { formatDuration, formatFileSize } from '@/utils/formatters'
 import type { Song } from '@/api/types'
@@ -728,7 +728,7 @@ export default function SongDetailPage() {
         <div className="flex items-start gap-7">
           <div className="w-36 h-36 rounded-md ring-1 ring-hair overflow-hidden flex-shrink-0 shadow-float bg-paper-deep">
             <ImageWithFallback
-              src={song.coverArt && hasAdapter() ? getAdapter().getCoverUrl(song.coverArt, 300) : undefined}
+              src={song.coverArt ? (findAdapterFor(song.serverId)?.getCoverUrl(song.coverArt, 300) ?? undefined) : undefined}
               alt={song.title}
               fallbackType="album"
               className="w-full h-full"

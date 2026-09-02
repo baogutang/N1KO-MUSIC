@@ -26,7 +26,7 @@ import { useToggleStar } from '@/hooks/useServerQueries'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
@@ -232,8 +232,8 @@ export function PlayerBar() {
 
   const toggleStar = useToggleStar()
 
-  const coverUrl = currentSong?.coverArt && hasAdapter()
-    ? getAdapter().getCoverUrl(currentSong.coverArt, 96)
+  const coverUrl = currentSong?.coverArt
+    ? (findAdapterFor(currentSong.serverId)?.getCoverUrl(currentSong.coverArt, 96) ?? undefined)
     : undefined
 
   const handleVolumeChange = useCallback(

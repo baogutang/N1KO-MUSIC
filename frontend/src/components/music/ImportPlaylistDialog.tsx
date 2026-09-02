@@ -65,6 +65,7 @@ export function ImportPlaylistDialog({
     setStage('resolving')
     try {
       const result = await resolvePlaylistEntries(entries, async query => {
+        // TODO(sources): 文本导入的匹配候选应聚合所有已连接音源，阶段 5 与跨源导入一起做
         const found = await getAdapter().searchAll(query)
         return found.songs ?? []
       })

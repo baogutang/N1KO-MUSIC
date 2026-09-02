@@ -6,7 +6,7 @@
 
 import { useMemo } from 'react'
 import { useSettingsStore, buildRemoteCoverUrl, type CoverSource } from '@/store/settingsStore'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
 
 interface CoverTarget {
@@ -16,6 +16,8 @@ interface CoverTarget {
   title?: string
   id?: string
   path?: string
+  /** 来源服务器：多源下封面必须向正确的适配器请求 */
+  serverId?: string
 }
 
 interface UseCoverUrlOptions {
@@ -89,9 +91,10 @@ export function useCoverUrl(
   return useMemo(() => {
     if (!target) return { primary: undefined, fallback: undefined }
 
-    // 服务器封面（需要带鉴权的 URL）
-    const serverUrl = target.coverArt && hasAdapter()
-      ? getAdapter().getCoverUrl(target.coverArt, size)
+    // 服务器封面（需要带鉴权的 URL）；来源未连接时降级为无服务器封面
+    const adapter = findAdapterFor(target.serverId)
+    const serverUrl = target.coverArt && adapter
+      ? adapter.getCoverUrl(target.coverArt, size)
       : undefined
 
     // 远程 API 封面（每次实时请求，不带鉴权）
