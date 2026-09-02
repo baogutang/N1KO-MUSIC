@@ -2,12 +2,12 @@
  * 服务器登录页 —— 纸面杂志化（DESIGN v2 §4.4/§4.5）
  * 居中窄栏：品牌报头 + 衬线大标题；服务器类型为发丝线行式单选，
  * 已存服务器为编号行式快速连接；错误直接陈述
- * 支持 Subsonic/Navidrome/Jellyfin/Emby 四种服务器类型
+ * NAS：Subsonic/Navidrome/Jellyfin/Emby；流媒体音源：已安装插件（PLAN 1.6）
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, CaretRight, CircleNotch, Eye, EyeSlash } from '@phosphor-icons/react'
+import { ArrowLeft, CaretRight, CircleNotch, Eye, EyeSlash, Plus } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +15,13 @@ import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { createAdapter } from '@/api'
 import type { ServerType } from '@/api/types'
 import { useT } from '@/i18n'
+import { usePluginStore, type InstalledPluginSummary } from '@/plugins/host/pluginStore'
+import { closeAuthHost, openAuthHost } from '@/plugins/host/pluginRuntime'
+import type { PluginHost } from '@/plugins/host/PluginHost'
+import type { PluginManifest, PluginUser } from '@/plugins/types'
+import { PluginDisclaimer } from '@/components/sources/PluginDisclaimer'
+import { QrLogin } from '@/components/sources/QrLogin'
+import { CookieLogin } from '@/components/sources/CookieLogin'
 
 // 说明句只存 key：这张表在模块加载时就建好了，直接存译文会把语言钉死在首次加载那一刻
 const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string }> = [
@@ -24,20 +31,127 @@ const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string }> 
   { type: 'emby', label: 'Emby', descKey: 'login.type.emby' },
 ]
 
+/** 已确认过声明的插件（卸载或换设备后要重新确认） */
+const DISCLAIMER_KEY = 'n1ko-plugin-disclaimers-confirmed'
+function isDisclaimerConfirmed(pluginId: string): boolean {
+  try {
+    return JSON.parse(localStorage.getItem(DISCLAIMER_KEY) ?? '[]').includes(pluginId)
+  } catch {
+    return false
+  }
+}
+function markDisclaimerConfirmed(pluginId: string): void {
+  try {
+    const list: string[] = JSON.parse(localStorage.getItem(DISCLAIMER_KEY) ?? '[]')
+    if (!list.includes(pluginId)) {
+      localStorage.setItem(DISCLAIMER_KEY, JSON.stringify([...list, pluginId]))
+    }
+  } catch { /* 存不了就每次重新确认，无害 */ }
+}
+
+type LoginStep = 'type' | 'credentials' | 'plugin-disclaimer' | 'plugin-auth'
+
 export default function LoginPage() {
   const { t } = useT()
   const navigate = useNavigate()
   const { servers, addServer, activateServer, updateServerAuth } = useServerStore()
 
-  const [step, setStep] = useState<'type' | 'credentials'>('type')
+  const [step, setStep] = useState<LoginStep>('type')
   const [selectedType, setSelectedType] = useState<ServerType | null>(null)
   const [form, setForm] = useState({ url: '', username: '', password: '', name: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleQuickConnect = (serverId: string) => {
-    if (activateServer(serverId)) {
+  // 插件音源：选中项 + 完整 manifest + 预登录沙箱
+  const plugins = usePluginStore(s => s.plugins)
+  const loadPlugins = usePluginStore(s => s.load)
+  const [selectedPlugin, setSelectedPlugin] = useState<InstalledPluginSummary | null>(null)
+  const [pluginManifest, setPluginManifest] = useState<PluginManifest | null>(null)
+  const [authHost, setAuthHost] = useState<PluginHost | null>(null)
+
+  useEffect(() => {
+    void loadPlugins()
+  }, [loadPlugins])
+
+  // 声明文案在选中插件时随 manifest 一起取回
+  const disclaimerText = pluginManifest?.disclaimer ?? ''
+
+  const openPluginAuth = async (plugin: InstalledPluginSummary) => {
+    setError('')
+    try {
+      const installed = await usePluginStore.getState().getInstalled(plugin.id)
+      if (!installed) throw new Error(t('sources.errorNotInstalled'))
+      const manifest = installed.manifest as unknown as PluginManifest
+      const host = await openAuthHost(plugin.id)
+      setSelectedPlugin(plugin)
+      setPluginManifest(manifest)
+      setAuthHost(host)
+      setStep('plugin-auth')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const handlePluginSelect = (plugin: InstalledPluginSummary) => {
+    setSelectedPlugin(plugin)
+    setPluginManifest(null)
+    setAuthHost(null)
+    setError('')
+    void (async () => {
+      const installed = await usePluginStore.getState().getInstalled(plugin.id)
+      if (!installed) {
+        setError(t('sources.errorNotInstalled'))
+        return
+      }
+      const manifest = installed.manifest as unknown as PluginManifest
+      setPluginManifest(manifest)
+      if (isDisclaimerConfirmed(plugin.id)) {
+        await openPluginAuth(plugin)
+      } else {
+        setStep('plugin-disclaimer')
+      }
+    })()
+  }
+
+  /** 扫码 / Cookie / 匿名殊途同归：凭据落 serverStore 并激活 */
+  const finishPluginAuth = async (credentials: string | null) => {
+    if (!selectedPlugin) return
+    setIsLoading(true)
+    try {
+      let nickname: string | null = null
+      if (credentials && authHost?.hasMethod('n1ko.auth.getUser')) {
+        try {
+          const user = await authHost.call<PluginUser | null>('n1ko.auth.getUser')
+          nickname = user?.name ?? null
+        } catch { /* 取不到昵称不拦登录 */ }
+      }
+      const serverId = addServer({
+        type: 'plugin',
+        pluginId: selectedPlugin.id,
+        name: nickname ? `${selectedPlugin.name} · ${nickname}` : selectedPlugin.name,
+        url: '',
+        username: nickname ?? 'anonymous',
+        token: '',
+        ...(credentials ? { credentials } : {}),
+        isActive: true,
+      })
+      closeAuthHost(selectedPlugin.id)
+      setAuthHost(null)
+      if (!(await activateServer(serverId))) {
+        setError(t('login.errorFailed'))
+        return
+      }
+      navigate('/')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleQuickConnect = async (serverId: string) => {
+    if (await activateServer(serverId)) {
       navigate('/')
       return
     }
@@ -100,7 +214,10 @@ export default function LoginPage() {
       if (selectedType === 'subsonic' || selectedType === 'navidrome') {
         updateServerAuth(serverId, result.token, result.salt)
       }
-      activateServer(serverId)
+      if (!(await activateServer(serverId))) {
+        setError(t('login.errorFailed'))
+        return
+      }
 
       navigate('/')
     } catch (err) {
@@ -129,10 +246,91 @@ export default function LoginPage() {
         <p className="mt-3 mb-10 text-center text-[13.5px] leading-relaxed text-ink-soft">
           {step === 'type'
             ? t('login.subtitleChooseType')
-            : t('login.subtitleConfiguring', {
-                type: SERVER_TYPES.find(item => item.type === selectedType)?.label ?? '',
-              })}
+            : step === 'credentials'
+              ? t('login.subtitleConfiguring', {
+                  type: SERVER_TYPES.find(item => item.type === selectedType)?.label ?? '',
+                })
+              : step === 'plugin-disclaimer'
+                ? t('sources.subtitleDisclaimer', { name: selectedPlugin?.name ?? '' })
+                : t('sources.subtitleAuth', { name: selectedPlugin?.name ?? '' })}
         </p>
+
+        {step === 'plugin-disclaimer' && selectedPlugin && (
+          <PluginDisclaimer
+            pluginName={selectedPlugin.name}
+            disclaimer={disclaimerText}
+            onConfirm={() => {
+              markDisclaimerConfirmed(selectedPlugin.id)
+              void openPluginAuth(selectedPlugin)
+            }}
+            onCancel={() => setStep('type')}
+          />
+        )}
+
+        {step === 'plugin-auth' && selectedPlugin && authHost && pluginManifest && (
+          <div className="space-y-5 border-t border-hair pt-7">
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => {
+                  closeAuthHost(selectedPlugin.id)
+                  setAuthHost(null)
+                  setStep('type')
+                }}
+                className="inline-flex items-center gap-1.5 text-[12.5px] tracking-[0.08em] text-ink-soft hover:text-primary transition-colors"
+              >
+                <ArrowLeft size={13} />
+                {t('action.back')}
+              </button>
+              <span className="text-ink-faint">·</span>
+              <span className="font-serif text-[14px] font-semibold text-foreground">
+                {selectedPlugin.name}
+              </span>
+            </div>
+
+            {isLoading ? (
+              <p className="flex items-center justify-center gap-2 py-10 text-[13px] text-ink-soft">
+                <CircleNotch size={15} className="animate-spin text-primary" />
+                {t('login.connecting')}
+              </p>
+            ) : (
+              <>
+                {pluginManifest.auth.kind === 'qr' && (
+                  <QrLogin
+                    host={authHost}
+                    qrHint={pluginManifest.auth.qrHint}
+                    onAuthorized={credentials => void finishPluginAuth(credentials)}
+                  />
+                )}
+                {pluginManifest.auth.kind === 'none' && (
+                  <p className="py-6 text-center text-[13px] text-ink-soft">
+                    {t('sources.authNone')}
+                  </p>
+                )}
+                <CookieLogin
+                  host={authHost}
+                  cookieHint={pluginManifest.auth.cookieHint}
+                  onAuthorized={credentials => void finishPluginAuth(credentials)}
+                />
+                {pluginManifest.auth.allowAnonymous && (
+                  <div className="border-t border-hair-soft pt-4 text-center">
+                    <button
+                      onClick={() => void finishPluginAuth(null)}
+                      className="text-[12.5px] text-ink-faint underline-offset-4 hover:text-primary hover:underline transition-colors"
+                    >
+                      {t('sources.anonymous')}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {error && (
+              <p className="border-l-2 border-destructive pl-3 text-[13px] leading-relaxed text-destructive">
+                {error}
+              </p>
+            )}
+          </div>
+        )}
 
         {step === 'type' ? (
           <div>
@@ -218,8 +416,47 @@ export default function LoginPage() {
                 )
               })}
             </div>
+
+            {/* 流媒体音源：已安装插件 + 添加入口（PLAN 1.6） */}
+            <p className="mt-10 mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
+              {t('sources.group')} · STREAMING
+            </p>
+            <div className="border-t border-hair">
+              {plugins.map(plugin => (
+                <button
+                  key={plugin.id}
+                  onClick={() => handlePluginSelect(plugin)}
+                  className="group flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-serif text-[15.5px] font-semibold text-foreground transition-colors group-hover:text-primary">
+                      {plugin.name}
+                    </span>
+                    <span className="num block text-[12px] text-ink-faint">
+                      {plugin.platform} · v{plugin.version}
+                    </span>
+                  </span>
+                  <CaretRight
+                    size={13}
+                    className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary"
+                  />
+                </button>
+              ))}
+              <button
+                onClick={() => navigate('/settings')}
+                className="group flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
+              >
+                <Plus size={15} className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] text-ink-soft transition-colors group-hover:text-primary">
+                    {t('sources.addPlugin')}
+                  </span>
+                  <span className="block text-[12px] text-ink-faint">{t('sources.addPluginDesc')}</span>
+                </span>
+              </button>
+            </div>
           </div>
-        ) : (
+        ) : step === 'credentials' ? (
           /* 填写连接信息 */
           <div className="space-y-5 border-t border-hair pt-7">
             <div className="flex items-center gap-2.5">
@@ -348,7 +585,7 @@ export default function LoginPage() {
               </Button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

@@ -12,6 +12,7 @@ import {
   SignOut, CaretRight, WifiHigh,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { SourcesSettings } from '@/components/settings/SourcesSettings'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import { useThemeStore } from '@/store/themeStore'
 import { LOCALES, setLocale, useT } from '@/i18n'
@@ -330,8 +331,8 @@ export default function Settings() {
     }
   }
 
-  function handleSwitch(id: string) {
-    if (!activateServer(id)) {
+  async function handleSwitch(id: string) {
+    if (!(await activateServer(id))) {
       toast({
         title: t('settings.server.reloginTitle'),
         description: t('settings.server.reloginDesc'),
@@ -455,6 +456,9 @@ export default function Settings() {
             </Button>
           </div>
         </Section>
+
+        {/* 音源（插件）：安装 / 更新 / 卸载 / 请求日志 / 目录地址 */}
+        <SourcesSettings />
 
         {/* 界面语言 */}
         <Section title={t('settings.language')} tag={t('settings.language.tag')}>

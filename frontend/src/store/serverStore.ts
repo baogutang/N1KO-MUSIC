@@ -17,6 +17,7 @@ import { queryClient } from '@/lib/queryClient'
 import { usePlayerStore } from '@/store/playerStore'
 import { createSecurePersistStorage } from '@/store/securePersistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
+import { disposePluginHost, ensurePluginHost, createPluginAdapterFor } from '@/plugins/host/pluginRuntime'
 
 /** persist 实际写盘的那一份，storage 适配器按它的形状加解密 */
 type PersistedServerState = Pick<ServerState, 'servers' | 'activeServerId' | 'username'>
@@ -40,8 +41,8 @@ interface ServerState {
   addServer: (config: Omit<ServerConfig, 'id' | 'createdAt'>) => string
   /** 删除服务器配置（同时注销其适配器）*/
   removeServer: (id: string) => void
-  /** 连接单个服务器（注册适配器，不改主库）；返回是否成功 */
-  connectServer: (id: string) => boolean
+  /** 连接单个服务器（注册适配器，不改主库）；插件音源要装载沙箱，是异步的 */
+  connectServer: (id: string) => Promise<boolean>
   /** 断开单个服务器（注销适配器；若是主库则清空主库）*/
   disconnectServer: (id: string) => void
   /** 把主库切到某个已连接的服务器 */
@@ -50,11 +51,13 @@ interface ServerState {
    * 连接并设为主库。旧语义保留：登录页「快速连接」与添加新服务器走这里。
    * 返回是否成功（失效的旧版 Jellyfin/Emby 凭据会返回 false 并要求重新登录）。
    */
-  activateServer: (id: string) => boolean
+  activateServer: (id: string) => Promise<boolean>
   /** 登出并断开所有服务器 */
   disconnect: () => void
   /** 更新服务器认证信息（登录成功后调用）*/
   updateServerAuth: (id: string, token: string, salt?: string, userId?: string) => void
+  /** 插件音源凭据回写（env.setCredentials / 重新登录产生新串时）*/
+  updateServerCredentials: (id: string, credentials: string | null) => void
   /** 获取主库配置 */
   getActiveServer: () => ServerConfig | null
 }
@@ -85,6 +88,7 @@ export const useServerStore = create<ServerState>()(
         if (removingActiveServer) {
           usePlayerStore.getState().resetForServerChange()
         }
+        disposePluginHost(id)
         unregisterAdapter(id)
         set(state => {
           const servers = state.servers.filter(s => s.id !== id)
@@ -102,7 +106,7 @@ export const useServerStore = create<ServerState>()(
         })
       },
 
-      connectServer: (id) => {
+      connectServer: async (id) => {
         const server = get().servers.find(s => s.id === id)
         if (!server) return false
 
@@ -126,7 +130,13 @@ export const useServerStore = create<ServerState>()(
         }
 
         try {
-          registerAdapter(id, createAdapter(server))
+          if (server.type === 'plugin') {
+            // 插件音源：装载沙箱（异步）→ 按 manifest 挂能力的适配器
+            const host = await ensurePluginHost(server)
+            registerAdapter(id, createPluginAdapterFor(id, host.manifest, host))
+          } else {
+            registerAdapter(id, createAdapter(server))
+          }
           set(state => ({
             connectedServerIds: state.connectedServerIds.includes(id)
               ? state.connectedServerIds
@@ -141,6 +151,7 @@ export const useServerStore = create<ServerState>()(
 
       disconnectServer: (id) => {
         const wasPrimary = get().activeServerId === id
+        disposePluginHost(id)
         unregisterAdapter(id)
         set(state => ({
           connectedServerIds: state.connectedServerIds.filter(x => x !== id),
@@ -181,8 +192,8 @@ export const useServerStore = create<ServerState>()(
         return true
       },
 
-      activateServer: (id) => {
-        if (!get().connectServer(id)) return false
+      activateServer: async (id) => {
+        if (!(await get().connectServer(id))) return false
         return get().setPrimaryServer(id)
       },
 
@@ -205,6 +216,12 @@ export const useServerStore = create<ServerState>()(
           servers: state.servers.map(s =>
             s.id === id ? { ...s, token, salt: salt ?? s.salt, userId: userId ?? s.userId } : s
           ),
+        }))
+      },
+
+      updateServerCredentials: (id, credentials) => {
+        set(state => ({
+          servers: state.servers.map(s => (s.id === id ? { ...s, credentials: credentials ?? undefined } : s)),
         }))
       },
 
@@ -250,16 +267,19 @@ export const useServerStore = create<ServerState>()(
         activeServerId: state.activeServerId,
         username: state.username,
       }),
-      // 持久化后恢复：把所有 autoConnect 的服务器都连上，再恢复主库
+      // 持久化后恢复：把所有 autoConnect 的服务器都连上，再恢复主库。
+      // 插件音源装载沙箱是异步的，整体在后台异步执行
       onRehydrateStorage: () => (state) => {
         if (!state) return
-        for (const server of state.servers) {
-          if (server.autoConnect === false) continue
-          state.connectServer(server.id)
-        }
-        if (state.activeServerId) {
-          state.setPrimaryServer(state.activeServerId)
-        }
+        void (async () => {
+          for (const server of state.servers) {
+            if (server.autoConnect === false) continue
+            await state.connectServer(server.id)
+          }
+          if (state.activeServerId) {
+            state.setPrimaryServer(state.activeServerId)
+          }
+        })()
       },
     }
   )

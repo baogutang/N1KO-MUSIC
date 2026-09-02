@@ -80,8 +80,8 @@ export function Masthead() {
             {servers.map(server => (
               <DropdownMenuItem
                 key={server.id}
-                onClick={() => {
-                  if (!activateServer(server.id)) {
+                onClick={async () => {
+                  if (!(await activateServer(server.id))) {
                     toast({
                       title: t('settings.server.reloginTitle'),
                       description: t('settings.server.reloginDesc'),

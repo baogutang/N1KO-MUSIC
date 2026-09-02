@@ -5,6 +5,7 @@ import { Masthead } from './Masthead'
 import { TopNav } from './TopNav'
 import { PlayerBar } from './PlayerBar'
 import { ConnectionBanner } from './ConnectionBanner'
+import { SourceAccountBanner } from '@/components/sources/SourceAccountBanner'
 import { UpdatePrompt } from './UpdatePrompt'
 import { Colophon, RunningHead } from './Colophon'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -92,6 +93,8 @@ function DesktopLayout() {
         <TopBar />
         <UpdatePrompt />
         <ConnectionBanner />
+        {/* 插件音源凭据失效横幅（扫码过期等）：不静默失败（PLAN §2 决定 7） */}
+        <SourceAccountBanner />
         <ResumeOffer />
         <Masthead />
         <TopNav />

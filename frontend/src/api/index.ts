@@ -48,7 +48,8 @@ export function createAdapter(config: ServerConfig): MusicServerAdapter {
         serverId: config.id,
       })
 
-    // 插件音源的适配器在阶段 1 落地；在此之前 type 'plugin' 走不到 createAdapter
+    // 插件音源装载沙箱是异步的，不走 createAdapter：
+    // 见 plugins/host/pluginRuntime.ts 与 serverStore.connectServer
     default:
       throw new Error(`Unsupported server type: ${config.type}`)
   }
