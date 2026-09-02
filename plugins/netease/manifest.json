@@ -1,0 +1,34 @@
+{
+  "id": "netease",
+  "name": "网易云音乐",
+  "version": "0.1.0",
+  "protocol": 1,
+  "platform": "netease",
+  "entry": "index.js",
+  "author": "N1KO",
+  "auth": {
+    "kind": "qr",
+    "allowAnonymous": true
+  },
+  "hosts": [
+    "music.163.com",
+    "*.music.126.net"
+  ],
+  "capabilities": [
+    "search",
+    "musicUrl",
+    "lyric",
+    "album",
+    "artist",
+    "musicSheet",
+    "importMusicSheet",
+    "importMusicItem",
+    "topLists",
+    "recommendSheets",
+    "userPlaylists",
+    "playlistWrite"
+  ],
+  "qualities": ["low", "medium", "high", "lossless"],
+  "disclaimer": "本插件使用你自己的网易云账号访问你有权收听的内容。登录凭据只保存在本机，不会上传到任何服务器；VIP / 付费曲目按你的账号权益播放，本插件不提供任何解锁或免费听 VIP 能力。接口为社区逆向实现，可能随官方调整失效。",
+  "color": "#c20c0c"
+}

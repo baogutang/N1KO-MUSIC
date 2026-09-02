@@ -5,5 +5,12 @@
     "version": "0.1.0",
     "manifest": "mock/manifest.json",
     "description": "开发与测试用的离线假音源：固定曲库、模拟扫码、3 秒 WAV 流（20 秒过期，测重取）"
+  },
+  {
+    "id": "netease",
+    "name": "网易云音乐",
+    "version": "0.1.0",
+    "manifest": "netease/manifest.json",
+    "description": "用你自己的网易云账号听你有权听的歌；扫码登录，凭据只在本机"
   }
 ]

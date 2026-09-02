@@ -69,3 +69,9 @@
 - 选择：v1 在搜索「全部」视图的曲目行做换源（行内换代表曲目，再播放即用新源）；队列内换源顺延。
 - 原因：队列存的是扁平 Song 数组，塞备选需要改 playerStore 的队列形状与持久化格式，影响面远超阶段 2 收益；搜索视图已覆盖「切来源再播」的主路径。
 - 影响：SongList 的 getAlternates/onReplace 只在搜索页接线；阶段 3 联调时再评估队列通道。
+
+## 2026-09-02 · 阶段 3 · 网易云插件单文件交付（无 lib/）
+- 冲突：PLAN §4.2 提到 plugins/netease/（+ lib/crypto.js），但阶段 1 的沙箱 CommonJS 加载器只认具名模块（axios/crypto-js/dayjs/qs/he/big-integer），不支持插件内相对 require。
+- 选择：crypto 与请求封装全部内联进 index.js 单文件；`_crypto` 命名空间导出给测试用。
+- 原因：给加载器加相对路径解析要动沙箱运行时与安装校验（多文件代码哈希、入口解析），影响面大于收益；单文件与 Node 测试骨架也天然兼容。
+- 影响：plugins/netease/index.js；将来加载器支持多文件时再拆 lib/。
