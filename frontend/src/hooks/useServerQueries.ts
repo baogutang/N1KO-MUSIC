@@ -14,7 +14,7 @@ import {
   keepPreviousData,
   type QueryClient,
 } from '@tanstack/react-query'
-import { getAdapter, getAdapterFor, hasAdapterFor } from '@/api'
+import { getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
 import { useLibraryScopeStore } from '@/store/libraryScopeStore'
@@ -358,12 +358,15 @@ export function useAlbums(params: ListParams = {}) {
 
 /** 无限滚动加载专辑（serverId 指定时按该源浏览——浏览页源切换用） */
 export function useAlbumsInfinite(size = 50, type = 'newest', serverId?: string) {
-  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useInfiniteQuery({
     // key 必须含 size：同一 type 不同 size 的两个书架否则会串缓存
     queryKey: [serverId ?? serverKey(), 'albums', 'infinite', type, size],
+    // 适配器在 queryFn 里解析：插件源 rehydrate 时 activeServerId 先于沙箱就绪，
+    // 渲染体里同步 getAdapter() 会把「还没连上」炸成整页错误
     queryFn: ({ pageParam = 0, signal }) =>
-      adapter.getAlbums({ size, offset: pageParam as number, type, musicFolderId: serverId ? undefined : currentFolderId(), signal }),
+      (serverId ? getAdapterFor(serverId) : getAdapter())
+        .getAlbums({ size, offset: pageParam as number, type, musicFolderId: serverId ? undefined : currentFolderId(), signal }),
+    enabled: serverId ? hasAdapterFor(serverId) : hasAdapter(),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -432,11 +435,11 @@ export function useSetRating() {
 
 /** 获取专辑详情（serverId 指定时按该源解析——跨源 ?src= 导航用） */
 export function useAlbumDetail(albumId: string, serverId?: string) {
-  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'albums', albumId] as const,
-    queryFn: ({ signal }) => adapter.getAlbumDetail(albumId, signal),
-    enabled: !!albumId && (!serverId || hasAdapterFor(serverId)),
+    queryFn: ({ signal }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter()).getAlbumDetail(albumId, signal),
+    enabled: !!albumId && (serverId ? hasAdapterFor(serverId) : hasAdapter()),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -456,21 +459,23 @@ export function useRecentAlbums(size = 20) {
 
 /** 获取所有歌手（serverId 指定时按该源浏览——浏览页源切换用） */
 export function useArtists(serverId?: string) {
-  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'artists'] as const,
-    queryFn: ({ signal }) => adapter.getArtists(serverId ? undefined : currentFolderId(), signal),
+    queryFn: ({ signal }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter())
+        .getArtists(serverId ? undefined : currentFolderId(), signal),
+    enabled: serverId ? hasAdapterFor(serverId) : hasAdapter(),
     staleTime: 10 * 60 * 1000,
   })
 }
 
 /** 获取歌手详情（serverId 指定时按该源解析——跨源 ?src= 导航用） */
 export function useArtistDetail(artistId: string, serverId?: string) {
-  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'artists', artistId] as const,
-    queryFn: ({ signal }) => adapter.getArtistDetail(artistId, signal),
-    enabled: !!artistId && (!serverId || hasAdapterFor(serverId)),
+    queryFn: ({ signal }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter()).getArtistDetail(artistId, signal),
+    enabled: !!artistId && (serverId ? hasAdapterFor(serverId) : hasAdapter()),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -571,11 +576,11 @@ export function useAddToPlaylist() {
 
 /** 获取收藏内容（serverId 指定时按该源取——收藏页分节用） */
 export function useStarred(serverId?: string) {
-  const adapter = serverId ? getAdapterFor(serverId) : getAdapter()
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'starred'] as const,
-    queryFn: ({ signal }) => adapter.getStarred(signal),
-    enabled: !serverId || hasAdapterFor(serverId),
+    queryFn: ({ signal }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter()).getStarred(signal),
+    enabled: serverId ? hasAdapterFor(serverId) : hasAdapter(),
     staleTime: 3 * 60 * 1000,
   })
 }
