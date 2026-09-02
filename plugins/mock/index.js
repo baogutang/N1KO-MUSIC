@@ -58,6 +58,14 @@ const ALBUMS = [
       ['so-6-3', '爱在记忆中找你', 235], ['so-6-4', '如果时间来到', 248],
     ],
   },
+  {
+    // 与 mock-subsonic 的同名曲对齐（同歌手、时长差 1 秒）：
+    // 阶段 2 验收「搜索 summer 两组结果 + 全部视图合并成一条」的夹具
+    id: 'al-7', title: 'Summer Breeze', artist: 'ar-7', artistName: 'The Winds', date: '2021', artwork: artworkUrl('al-7'),
+    tracks: [
+      ['so-7-1', 'Summer Breeze', 204], ['so-7-2', 'Salt Air', 188],
+    ],
+  },
 ]
 
 const ARTISTS = [
@@ -67,11 +75,12 @@ const ARTISTS = [
   { id: 'ar-4', name: '王力宏' },
   { id: 'ar-5', name: 'BEYOND' },
   { id: 'ar-6', name: '林峯' },
+  { id: 'ar-7', name: 'The Winds' },
 ]
 
 /** 1x1 SVG 占位封面：不同专辑不同底色，界面上的封面格不会一片相同 */
 function artworkUrl(albumId) {
-  const colors = { 'al-1': '%23b45309', 'al-2': '%231d4ed8', 'al-3': '%23be185d', 'al-4': '%23b91c1c', 'al-5': '%231e3a8a', 'al-6': '%236d28d9' }
+  const colors = { 'al-1': '%23b45309', 'al-2': '%231d4ed8', 'al-3': '%23be185d', 'al-4': '%23b91c1c', 'al-5': '%231e3a8a', 'al-6': '%236d28d9', 'al-7': '%230379c6' }
   const fill = colors[albumId] || '%23337178'
   const label = albumId.replace('al-', 'No.')
   return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' fill='" + fill + "'/%3E%3Ctext x='48' y='54' font-size='20' fill='white' text-anchor='middle' font-family='serif'%3E" + label + "%3C/text%3E%3C/svg%3E"
@@ -210,8 +219,8 @@ function parseCredentials(credentials) {
 }
 
 const USER_PLAYLISTS = [
-  { id: 'pl-mock-1', title: 'Mock 私藏', songIds: ['so-1-1', 'so-2-1', 'so-3-2', 'so-5-1', 'so-4-3', 'so-6-3'] },
-  { id: 'pl-mock-2', title: '深夜代码歌单', songIds: ['so-5-3', 'so-1-3', 'so-2-3', 'so-3-4'] },
+  { id: 'pl-mock-1', title: 'Mock 私藏', songIds: ['so-1-1', 'so-2-1', 'so-3-2', 'so-5-1', 'so-4-3', 'so-6-3', 'so-7-1'] },
+  { id: 'pl-mock-2', title: '深夜代码歌单', songIds: ['so-5-3', 'so-1-3', 'so-2-3', 'so-3-4', 'so-7-2'] },
 ]
 const SUBSCRIBED_PLAYLISTS = [
   { id: 'pl-mock-9', title: '别人家的精选（收藏的）', songIds: ['so-4-1', 'so-5-2', 'so-6-1'] },

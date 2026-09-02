@@ -107,7 +107,7 @@ test('getAlbumInfo / getArtistWorks', async () => {
 
 test('importMusicSheet / importMusicItem：链接含 id 即命中', async () => {
   const sheet = await mock.importMusicSheet('https://mock.test/share?pl-mock-2')
-  assert.equal(sheet.length, 4)
+  assert.equal(sheet.length, 5)
   const fallback = await mock.importMusicSheet('https://mock.test/unknown')
   assert.equal(fallback.length, 5)
   const song = await mock.importMusicItem('https://mock.test/w/so-1-3')
@@ -121,7 +121,7 @@ test('榜单：getTopLists 分组 + getTopListDetail', async () => {
   assert.equal(groups[0].title, 'Mock 飙升榜')
   assert.equal(groups[0].data.length, 2)
   const detail = await mock.getTopListDetail(groups[0].data[0])
-  assert.equal(detail.musicList.length, 6)
+  assert.equal(detail.musicList.length, 7)
 })
 
 test('推荐歌单：tags + byTag', async () => {
@@ -208,10 +208,10 @@ test('登录后：歌单 2+1、收藏分页、收藏增删、建单、加减歌'
 
   await mock.n1ko.user.addToPlaylist({ id: 'pl-mock-2' }, [{ id: 'so-6-4' }])
   const added = await mock.getMusicSheetInfo({ id: 'pl-mock-2' })
-  assert.equal(added.musicList.length, 5)
+  assert.equal(added.musicList.length, 6)
   await mock.n1ko.user.removeFromPlaylist({ id: 'pl-mock-2' }, [{ id: 'so-6-4' }])
   const removed = await mock.getMusicSheetInfo({ id: 'pl-mock-2' })
-  assert.equal(removed.musicList.length, 4)
+  assert.equal(removed.musicList.length, 5)
 })
 
 test('env.setCredentials / logout', async () => {

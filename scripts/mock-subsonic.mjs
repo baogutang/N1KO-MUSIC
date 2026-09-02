@@ -71,6 +71,14 @@ const ALBUM_SEED = [
     notes: '林峯第九张个人专辑。紫灰色的都市夜行，时间是你唯一带不走的行李。',
     tracks: [['A Time 4 You', 241], ['Nice', 216], ['爱在记忆中找你', 235], ['如果时间来到', 248]],
   },
+  {
+    // 与 plugins/mock 的同名曲对齐（同歌手、时长差 1 秒）：
+    // 阶段 2 验收「搜索 summer 两组结果 + 全部视图合并成一条」的夹具。
+    // 放在末尾：so-N-x 的 id 按专辑序生成，插中间会平移既有 id。
+    name: 'Summer Breeze', sub: 'EP', artist: 'The Winds', year: 2021, genre: 'Pop',
+    notes: '海风与吊床的四分钟。阶段 2 聚合验收的夹具专辑。',
+    tracks: [['Summer Breeze', 203], ['Salt Air', 188]],
+  },
 ]
 
 /** 播放次数是伪随机但确定的：同一首歌每次启动都拿到同一个数，截图才可复现 */
