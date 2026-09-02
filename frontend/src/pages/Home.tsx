@@ -12,6 +12,11 @@ import { AlbumShelf } from '@/components/music/AlbumShelf'
 import { RediscoveryShelf } from '@/components/music/RediscoveryShelf'
 import { ContinueShelf } from '@/components/music/ContinueShelf'
 import { NowPlayingOnServer } from '@/components/music/NowPlayingOnServer'
+import {
+  SourceCollections,
+  SourceRecommendSheetsRail,
+  SourceTopListsRail,
+} from '@/components/sources/SourceShelves'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { useRecentAlbums, useArtists, queryKeys } from '@/hooks/useServerQueries'
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
@@ -231,6 +236,12 @@ export default function HomePage() {
 
       <AlbumShelf type="frequent" label={t('section.mostPlayed')} tag="MOST PLAYED" limit={6} />
       <AlbumShelf type="recent" label={t('nav.history')} tag="RECENTLY PLAYED" limit={6} />
+
+      {/* ============ 多源区块（PLAN 2.3）：各源歌单/收藏入口、榜单、推荐歌单 ============ */}
+      {/* 三块都是「有内容才渲染」：单源用户看不到任何变化 */}
+      <SourceCollections />
+      <SourceTopListsRail />
+      <SourceRecommendSheetsRail />
 
       {/*
         ============ 为你推荐 · 编号列表 ============

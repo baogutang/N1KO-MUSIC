@@ -130,7 +130,7 @@ export function SongList({
   const caps = useServerCapabilities()
   const handleShare = useCallback((song: Song) => setShareSong(song), [])
   const handleRadio = useCallback(async (song: Song) => {
-    const ok = await startRadio({ kind: 'song', id: song.id, name: song.title })
+    const ok = await startRadio({ kind: 'song', id: song.id, name: song.title, serverId: song.serverId })
     if (!ok) toast({ title: t('song.radioUnsupported'), variant: 'destructive' })
   }, [t])
 

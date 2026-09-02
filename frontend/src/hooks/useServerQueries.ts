@@ -14,7 +14,7 @@ import {
   keepPreviousData,
   type QueryClient,
 } from '@tanstack/react-query'
-import { getAdapter } from '@/api'
+import { getAdapter, getAdapterFor, hasAdapterFor } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
 import { useLibraryScopeStore } from '@/store/libraryScopeStore'
@@ -484,12 +484,19 @@ export function usePlaylists() {
   })
 }
 
-/** 获取歌单详情 */
-export function usePlaylistDetail(playlistId: string) {
+/**
+ * 获取歌单详情。
+ *
+ * `serverId` 指定时按该音源解析（跨源导航 /playlists/:id?src=… 用），
+ * 缺省按主库——单源时代的既有行为不变。缓存键同样按来源分域，
+ * 不同源的「同 id 歌单」不会互相污染。
+ */
+export function usePlaylistDetail(playlistId: string, serverId?: string) {
   return useQuery({
-    queryKey: queryKeys.playlistDetail(playlistId),
-    queryFn: ({ signal }) => getAdapter().getPlaylistDetail(playlistId, signal),
-    enabled: !!playlistId,
+    queryKey: [serverId ?? serverKey(), 'playlists', playlistId] as const,
+    queryFn: ({ signal }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter()).getPlaylistDetail(playlistId, signal),
+    enabled: !!playlistId && (!serverId || hasAdapterFor(serverId)),
     staleTime: 3 * 60 * 1000,
   })
 }
@@ -517,10 +524,15 @@ export function useCreatePlaylist() {
 export function useRemoveSongsFromPlaylist() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ playlistId, songIndexes }: { playlistId: string; songIndexes: number[] }) =>
-      getAdapter().removeSongsFromPlaylist(playlistId, songIndexes),
-    onSuccess: (_data, { playlistId }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.playlistDetail(playlistId) })
+    mutationFn: ({ playlistId, songIndexes, serverId }: {
+      playlistId: string
+      songIndexes: number[]
+      /** 跨源歌单：条目所属音源；缺省主库 */
+      serverId?: string
+    }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter()).removeSongsFromPlaylist(playlistId, songIndexes),
+    onSuccess: (_data, { playlistId, serverId }) => {
+      queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists', playlistId] })
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
     },
   })

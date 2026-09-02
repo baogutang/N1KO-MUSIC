@@ -25,6 +25,7 @@ import {
   SettingsPage,
   RecommendationsPage,
   SongDetailPage,
+  TopListDetailPage,
 } from './routes/lazyRoutes'
 
 function RouteLoading() {
@@ -116,8 +117,9 @@ export default function App() {
               {/* 深链接落点：web+n1ko:// 由 PWA 转成这个路径 */}
               <Route path="open" element={<OpenLinkPage />} />
               <Route path="settings" element={<SettingsPage />} />
-              <Route path="songs/:id" element={<SongDetailPage />} />
-              <Route path="songs/detail" element={<Navigate to="/library" replace />} />
+                    <Route path="songs/:id" element={<SongDetailPage />} />
+                    <Route path="toplists/:serverId/:topListId" element={<TopListDetailPage />} />
+                    <Route path="songs/detail" element={<Navigate to="/library" replace />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

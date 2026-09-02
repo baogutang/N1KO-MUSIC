@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getAdapter, hasAdapter } from '@/api'
+import { getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
 import { useServerStore } from '@/store/serverStore'
 import { useRecommendationCursorStore } from '@/store/recommendationCursorStore'
 import { readMutedSets } from '@/store/tasteStore'
@@ -81,6 +81,18 @@ async function fetchDirectedCandidates(
 
 function readHistorySnapshot(serverId: string | null, _revision: number) {
   return serverId ? readListeningEvents(serverId) : []
+}
+
+/**
+ * 主库之外的 radio 能力音源适配器（PLAN §4.5 推荐候选跨源）。
+ * 只收已连接、在册的源；随机 / 收藏两个探索通道够用即可。
+ */
+function collectForeignRadioAdapters(primaryServerId: string): MusicServerAdapter[] {
+  const state = useServerStore.getState()
+  return state.connectedServerIds
+    .filter(id => id !== primaryServerId && hasAdapterFor(id))
+    .map(id => getAdapterFor(id))
+    .filter(a => a.getSourceCapabilities?.().radio || typeof a.getRandomSongs === 'function' || typeof a.getStarred === 'function')
 }
 
 function readCachedRecommendations(key: string): Song[] | null {
@@ -182,20 +194,32 @@ export function usePersonalizedRecommendations(size = 30) {
         if (cached?.length) return cached.slice(0, size)
       }
       justAdvancedRef.current = false
-      // TODO(sources): 推荐候选阶段 2 扩到所有声明 radio 能力的音源（PLAN §4.5），当前只取主库
       const adapter = getAdapter()
-      const [randomResult, starredResult, directedResult] = await Promise.allSettled([
+      // 外源候选只走探索通道（随机 + 收藏）：定向种子（歌手 id / 歌曲 id）
+      // 跨源不可迁移，强行按名字猜会打开一整层错配，留给阶段 3 联调
+      const foreignAdapters = collectForeignRadioAdapters(serverId)
+      const [randomResult, starredResult, directedResult, foreignResults] = await Promise.allSettled([
         // 随机候选保留下来作为探索通道，让画像之外的曲目仍有机会出现
         adapter.getRandomSongs(Math.max(120, size * 5)),
         adapter.getStarred(),
         fetchDirectedCandidates(adapter, profile, events, size, batch),
+        Promise.all(foreignAdapters.map(async a => {
+          const parts = await Promise.allSettled([
+            a.getRandomSongs ? a.getRandomSongs(Math.max(40, size)) : Promise.resolve([] as Song[]),
+            a.getStarred ? a.getStarred().then(r => r.songs) : Promise.resolve([] as Song[]),
+          ])
+          return parts.flatMap(p => (p.status === 'fulfilled' ? p.value : []))
+        })),
       ])
       const randomSongs = randomResult.status === 'fulfilled' ? randomResult.value : []
       const starredSongs = starredResult.status === 'fulfilled' ? starredResult.value.songs : []
       const directedSongs = directedResult.status === 'fulfilled' ? directedResult.value : []
+      const foreignSongs = foreignResults.status === 'fulfilled' ? foreignResults.value.flat() : []
       const historySongs = events.slice(0, 150).map(event => event.song)
-      const candidates = [...directedSongs, ...randomSongs, ...starredSongs, ...historySongs]
-        .map(song => ({ ...song, serverId }))
+      // 候选自带来源（mapper 已填 serverId），这里只兜底补缺，不再整体覆盖——
+      // 多源候选一旦盖成主库 id，播放和上报就全打错适配器
+      const candidates = [...directedSongs, ...randomSongs, ...starredSongs, ...foreignSongs, ...historySongs]
+        .map(song => (song.serverId ? song : { ...song, serverId: serverId! }))
       // 排除集合只取「更早的批次」。若把当前批次也算进去，queryFn 一旦重跑
       // （StrictMode、refetch）就会把用户正看着的这一批整批排掉。
       const exclude = batch > 0

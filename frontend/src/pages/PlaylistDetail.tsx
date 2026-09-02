@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Play, Shuffle, MusicNote, DownloadSimple } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -29,8 +29,11 @@ export default function PlaylistDetail() {
   const removeSongs = useRemoveSongsFromPlaylist()
   const [pendingRemove, setPendingRemove] = useState<number | null>(null)
   const { id } = useParams<{ id: string }>()
+  /** 跨源歌单导航带 ?src=<serverId>；单源/主库歌单没有这个参数 */
+  const [searchParams] = useSearchParams()
+  const srcServerId = searchParams.get('src') ?? undefined
   const navigate = useNavigate()
-  const { data: playlist, isLoading, error } = usePlaylistDetail(id!)
+  const { data: playlist, isLoading, error } = usePlaylistDetail(id!, srcServerId)
 
   function handlePlayAll() {
     if (!playlist?.songs.length) return
@@ -211,7 +214,7 @@ export default function PlaylistDetail() {
               onClick={async () => {
                 if (pendingRemove === null || !id) return
                 try {
-                  await removeSongs.mutateAsync({ playlistId: id, songIndexes: [pendingRemove] })
+                  await removeSongs.mutateAsync({ playlistId: id, songIndexes: [pendingRemove], serverId: srcServerId })
                   toast({ title: t('playlist.removedSong') })
                 } catch (err) {
                   toast({

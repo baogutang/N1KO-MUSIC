@@ -222,7 +222,7 @@ export default function IssuePage() {
                     className="more"
                     onClick={() => {
                       const first = issue.discoveries[0]
-                      void startRadio({ kind: 'artist', id: first.id, name: first.title })
+                      void startRadio({ kind: 'artist', id: first.id, name: first.title, serverId: first.serverId })
                     }}
                   >
                     <Play size={12} className="mr-1.5 inline" />

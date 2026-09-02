@@ -7,7 +7,7 @@
  * 播放侧根本够不着——队列播完就是停。
  */
 
-import { getAdapter, hasAdapter } from '@/api'
+import { getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
 import { usePlayerStore } from '@/store/playerStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import { readMutedSets } from '@/store/tasteStore'
@@ -15,9 +15,9 @@ import { buildRecommendationProfile, recommendSongs } from '@/services/recommend
 import type { Song } from '@/api/types'
 
 export type RadioSeed =
-  | { kind: 'song'; id: string; name?: string }
-  | { kind: 'artist'; id?: string; name: string }
-  | { kind: 'genre'; name: string }
+  | { kind: 'song'; id: string; name?: string; serverId?: string }
+  | { kind: 'artist'; id?: string; name: string; serverId?: string }
+  | { kind: 'genre'; name: string; serverId?: string }
 
 /** 一次补给拉多少候选 */
 const FETCH_SIZE = 60
@@ -26,20 +26,27 @@ const APPEND_SIZE = 20
 /** 未播曲目少于这个数就补给 */
 export const REFILL_THRESHOLD = 8
 
-/** 这台电台是否可用（服务器实现了对应的可选能力） */
+/** 这台电台是否可用：种子所属音源（缺省任一已连接音源）实现了对应可选能力 */
 export function canStartRadio(seed: RadioSeed): boolean {
-  // TODO(sources): 候选来源阶段 2 扩到所有声明 radio 能力的音源（PLAN §4.5）
-  if (!hasAdapter()) return false
-  const adapter = getAdapter()
-  if (seed.kind === 'song') return !!adapter.getSimilarSongs
-  if (seed.kind === 'artist') return !!adapter.getArtistSongs
-  return !!adapter.getGenreSongs
+  const pick = (serverId?: string) => {
+    if (serverId && hasAdapterFor(serverId)) return getAdapterFor(serverId)
+    return null
+  }
+  const candidates = [pick(seed.serverId), ...(hasAdapter() ? [getAdapter()] : [])]
+  if (seed.kind === 'song') return candidates.some(a => !!a?.getSimilarSongs)
+  if (seed.kind === 'artist') return candidates.some(a => !!a?.getArtistSongs)
+  return candidates.some(a => !!a?.getGenreSongs)
+}
+
+/** 种子所属音源的适配器：种子带 serverId 就按它解析，否则回落主库（旧调用方） */
+function seedAdapter(seed: RadioSeed) {
+  if (seed.serverId && hasAdapterFor(seed.serverId)) return getAdapterFor(seed.serverId)
+  return hasAdapter() ? getAdapter() : null
 }
 
 async function fetchSeedCandidates(seed: RadioSeed): Promise<Song[]> {
-  // TODO(sources): 同上，阶段 2 多源并发
-  if (!hasAdapter()) return []
-  const adapter = getAdapter()
+  const adapter = seedAdapter(seed)
+  if (!adapter) return []
   try {
     if (seed.kind === 'song' && adapter.getSimilarSongs) {
       return await adapter.getSimilarSongs(seed.id, FETCH_SIZE)
@@ -61,7 +68,8 @@ async function fetchSeedCandidates(seed: RadioSeed): Promise<Song[]> {
  * 复用推荐引擎的打分与多样性重排，避免电台连着放同一位歌手。
  */
 function rankForRadio(candidates: Song[], exclude: Set<string>, size: number, serverId?: string): Song[] {
-  const fresh = candidates.filter(s => s?.id && !exclude.has(s.id))
+  const key = (s: Song) => `${s.serverId}:${s.id}`
+  const fresh = candidates.filter(s => s?.id && !exclude.has(key(s)))
   if (!fresh.length) return []
   const events = serverId ? readListeningEvents(serverId) : []
   const profile = buildRecommendationProfile(events)
@@ -98,15 +106,15 @@ export async function refillRadio(serverId?: string): Promise<number> {
   const current = st.currentSong
   if (!current) return 0
 
-  const exclude = new Set(st.queue.map(s => s.id))
-  let candidates = await fetchSeedCandidates({ kind: 'song', id: current.id })
+  const exclude = new Set(st.queue.map(s => `${s.serverId}:${s.id}`))
+  let candidates = await fetchSeedCandidates({ kind: 'song', id: current.id, serverId: current.serverId })
   if (!candidates.length && current.artist) {
     candidates = await fetchSeedCandidates({
-      kind: 'artist', id: current.artistId, name: current.artist,
+      kind: 'artist', id: current.artistId, name: current.artist, serverId: current.serverId,
     })
   }
   if (!candidates.length && current.genre) {
-    candidates = await fetchSeedCandidates({ kind: 'genre', name: current.genre })
+    candidates = await fetchSeedCandidates({ kind: 'genre', name: current.genre, serverId: current.serverId })
   }
   if (!candidates.length) return 0
 
