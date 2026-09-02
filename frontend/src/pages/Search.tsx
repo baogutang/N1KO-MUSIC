@@ -1,18 +1,33 @@
 /**
- * 搜索页 —— 杂志化检索（DESIGN v2 §4.4/§4.5）
+ * 搜索页 —— 杂志化检索（DESIGN v2 §4.4/§4.5）＋ 多源聚合（PLAN §4.5）
+ *
  * 大号无框搜索框（下缘 1px hair，focus 变 accent 2px）＋ 分区结果：
  * 歌手文字索引 / 专辑封面墙 / 歌曲编号列表；空态为衬线一句 + ink-faint 说明
+ *
+ * 多源（≥2 个已连接音源）时结果区有两种视图：
+ * - 「全部」：match.ts 三级同曲合并成一条带来源徽标（默认视图，聚合是产品主张）
+ * - 「分组」：按音源顺序（主库在前）各源一组，单源失败只塌缩成该组的错误行
  */
 
-import { Fragment, useState, useCallback, useEffect, useRef } from 'react'
+import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { SongList } from '@/components/music/SongList'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { useSearch } from '@/hooks/useServerQueries'
+import {
+  defaultPriorityOrder,
+  useConnectedSources,
+  useSourceCapabilities,
+  useSourceSearch,
+} from '@/hooks/useSourceQueries'
+import { mergeSongs, normalizeText } from '@/plugins/match'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
+
+type SearchView = 'all' | 'grouped'
 
 export default function SearchPage() {
   const { t } = useT()
@@ -26,6 +41,8 @@ export default function SearchPage() {
   const [query, setQuery] = useState(() => params.get('q') ?? '')
   const [debouncedQuery, setDebouncedQuery] = useState(() => params.get('q') ?? '')
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  /** 多源时的结果视图；单源不受影响 */
+  const [view, setView] = useState<SearchView>('all')
 
   // 带着新的 q 再次进入本页（组件没卸载，比如从深链接跳过来）时同步一次
   const urlQuery = params.get('q') ?? ''
@@ -73,15 +90,67 @@ export default function SearchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery])
 
-  const { data: results, isLoading, isFetching } = useSearch(debouncedQuery)
+  // ── 数据：单源走旧链路（行为零变化），多源叠加聚合链路 ─────────────
+  // 两个 hook 的 query key 同为 [serverId, 'search', q]（未选库时），
+  // React Query 会去重成同一条请求，同时调用没有双倍流量。
+  const sources = useConnectedSources()
+  const multi = sources.length > 1
+  const single = useSearch(debouncedQuery)
+  const groups = useSourceSearch(debouncedQuery)
+  const caps = useSourceCapabilities()
+
+  /** 「全部」视图：成功组先合并（渐进渲染不等最慢源），失败组只计入错误行 */
+  const merged = useMemo(() => {
+    const success = groups.filter(g => g.status === 'success' && g.data)
+    if (!success.length) return null
+    const order = defaultPriorityOrder(sources).map(s => s.serverId)
+    return mergeSongs(
+      success.map(g => ({ serverId: g.serverId, songs: g.data!.songs })),
+      order
+    )
+  }, [groups, sources])
+
+  /** 歌手 / 专辑跨源去重（归一名相等只留优先序在前的那个） */
+  const mergedArtists = useMemo(() => {
+    const seen = new Set<string>()
+    return (groups.flatMap(g => (g.status === 'success' ? g.data?.artists ?? [] : []))
+      .filter(a => caps[a.serverId]?.artist)
+      .filter(a => {
+        const key = normalizeText(a.name)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      }))
+  }, [groups, caps])
+
+  const mergedAlbums = useMemo(() => {
+    const seen = new Set<string>()
+    return (groups.flatMap(g => (g.status === 'success' ? g.data?.albums ?? [] : []))
+      .filter(al => caps[al.serverId]?.album)
+      .filter(al => {
+        const key = `${normalizeText(al.name)}|${normalizeText(al.artist)}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      }))
+  }, [groups, caps])
+
+  const multiSourceCount = merged?.filter(m => m.sources.length > 1).length ?? 0
+  const fuzzyCount = merged?.filter(m => m.tier === 'fuzzy').length ?? 0
+  const failedGroups = groups.filter(g => g.status === 'error')
 
   const handleClear = useCallback(() => setQuery(''), [])
 
-  const hasResults = results && (
-    results.songs.length > 0 ||
-    results.albums.length > 0 ||
-    results.artists.length > 0
-  )
+  const singleResults = single.data
+  const hasResults = multi
+    ? !!(merged?.length || mergedArtists.length || mergedAlbums.length)
+    : singleResults && (
+      singleResults.songs.length > 0 ||
+      singleResults.albums.length > 0 ||
+      singleResults.artists.length > 0
+    )
+  const isLoading = multi ? groups.every(g => g.status === 'loading') : single.isLoading
+  const isFetching = multi ? groups.some(g => g.status === 'loading') : single.isFetching
 
   // UI 必须以 debouncedQuery 为准展示结果：
   // 清空输入后 keepPreviousData 仍会保留上次结果，query 刚变化时结果也还是旧查询的
@@ -125,6 +194,30 @@ export default function SearchPage() {
             </button>
           )}
         </div>
+
+        {/* ============ 视图切换（多源才出现）：全部 / 按音源分组 ============ */}
+        {multi && showResults && (
+          <div className="mt-7 flex items-center gap-6" role="tablist" aria-label={t('search.viewSwitch')}>
+            {([['all', t('search.viewAll')], ['grouped', t('search.viewGrouped')]] as Array<[SearchView, string]>).map(
+              ([key, label]) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={view === key}
+                  onClick={() => setView(key)}
+                  className={
+                    'pb-1 text-[13px] tracking-[0.08em] border-b transition-colors duration-200 ' +
+                    (view === key
+                      ? 'text-primary border-primary'
+                      : 'text-ink-faint border-transparent hover:text-foreground')
+                  }
+                >
+                  {label}
+                </button>
+              )
+            )}
+          </div>
+        )}
       </div>
 
       {/* 空态：衬线一句 + ink-faint 说明（DESIGN §4.5） */}
@@ -146,74 +239,203 @@ export default function SearchPage() {
         />
       )}
 
-      {/* ============ 歌手 · 文字索引 ============ */}
-      {showResults && results?.artists && results.artists.length > 0 && (
-        <section aria-labelledby="search-artists">
-          <div className="section-head">
-            <h2 id="search-artists">
-              {t('nav.artists')}<small>ARTISTS</small>
-            </h2>
-            <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-              {t('search.artistCount', { count: results.artists.length })}
-            </span>
-          </div>
-          <p className="font-serif text-[19px] lg:text-[22px] font-semibold leading-[2.1]">
-            {results.artists.map((artist, i) => (
-              <Fragment key={artist.id}>
-                {i > 0 && (
-                  <span aria-hidden className="mx-2 align-middle text-[0.7em] font-normal text-ink-faint">
-                    ·
-                  </span>
-                )}
-                <button
-                  onClick={() => navigate(`/artists/${artist.id}`)}
-                  className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
-                >
-                  {spaceCJK(artist.name)}
-                  {artist.albumCount !== undefined && (
-                    <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
-                      {artist.albumCount}
-                    </span>
-                  )}
-                </button>
-              </Fragment>
-            ))}
-          </p>
-        </section>
+      {showResults && multi && view === 'all' && (
+        <>
+          {/* 单源失败只挂一行说明，不挡其他源的结果 */}
+          {failedGroups.map(g => (
+            <p key={g.serverId} className="mt-6 flex items-center gap-2 text-[12px] text-ink-faint">
+              <SourceBadge serverId={g.serverId} />
+              {g.name}：{t('search.sourceError')}（{g.error?.slice(0, 120)}）
+            </p>
+          ))}
+
+          {/* 同曲合并的信息行：几首跨源、几首待确认 */}
+          {(multiSourceCount > 0 || fuzzyCount > 0) && (
+            <p className="mt-6 num text-[11.5px] tracking-[0.12em] text-ink-faint">
+              {multiSourceCount > 0 && t('search.mergedCount', { count: multiSourceCount })}
+              {multiSourceCount > 0 && fuzzyCount > 0 && ' · '}
+              {fuzzyCount > 0 && t('search.fuzzyCount', { count: fuzzyCount })}
+            </p>
+          )}
+
+          {/* ============ 歌手 · 文字索引（跨源去重，非主源带徽标） ============ */}
+          {mergedArtists.length > 0 && (
+            <section aria-labelledby="search-artists">
+              <div className="section-head">
+                <h2 id="search-artists">
+                  {t('nav.artists')}<small>ARTISTS</small>
+                </h2>
+                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                  {t('search.artistCount', { count: mergedArtists.length })}
+                </span>
+              </div>
+              <p className="font-serif text-[19px] lg:text-[22px] font-semibold leading-[2.1]">
+                {mergedArtists.map((artist, i) => (
+                  <Fragment key={`${artist.serverId}:${artist.id}`}>
+                    {i > 0 && (
+                      <span aria-hidden className="mx-2 align-middle text-[0.7em] font-normal text-ink-faint">
+                        ·
+                      </span>
+                    )}
+                    <button
+                      onClick={() => navigate(`/artists/${artist.id}`)}
+                      className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
+                    >
+                      {spaceCJK(artist.name)}
+                      {artist.albumCount !== undefined && (
+                        <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
+                          {artist.albumCount}
+                        </span>
+                      )}
+                      <SourceBadge serverId={artist.serverId} className="ml-1.5 inline-block align-baseline" />
+                    </button>
+                  </Fragment>
+                ))}
+              </p>
+            </section>
+          )}
+
+          {/* ============ 专辑 · 封面墙（跨源去重） ============ */}
+          {mergedAlbums.length > 0 && (
+            <section aria-labelledby="search-albums">
+              <div className="section-head">
+                <h2 id="search-albums">
+                  {t('section.albums')}<small>ALBUMS</small>
+                </h2>
+                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                  {t('search.albumCount', { count: mergedAlbums.length })}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7 [&>*]:min-w-0">
+                {mergedAlbums.map(album => (
+                  <AlbumCard key={`${album.serverId}:${album.id}`} album={album} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ============ 歌曲 · 编号列表（同曲合并，行内来源徽标） ============ */}
+          {merged && merged.length > 0 && (
+            <section aria-labelledby="search-songs">
+              <div className="section-head">
+                <h2 id="search-songs">
+                  {t('section.songs')}<small>SONGS</small>
+                </h2>
+                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                  {t('song.trackCount', { count: merged.length })}
+                </span>
+              </div>
+              <SongList songs={merged.map(m => m.song)} showCover showAlbum showIndex sourceBadge />
+            </section>
+          )}
+        </>
       )}
 
-      {/* ============ 专辑 · 封面墙 ============ */}
-      {showResults && results?.albums && results.albums.length > 0 && (
-        <section aria-labelledby="search-albums">
-          <div className="section-head">
-            <h2 id="search-albums">
-              {t('section.albums')}<small>ALBUMS</small>
-            </h2>
-            <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-              {t('search.albumCount', { count: results.albums.length })}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7 [&>*]:min-w-0">
-            {results.albums.map(album => (
-              <AlbumCard key={album.id} album={album} />
-            ))}
-          </div>
-        </section>
+      {showResults && multi && view === 'grouped' && (
+        /* ============ 分组视图：每源一组，主库在前 ============ */
+        groups.map(g => (
+          <section key={g.serverId} aria-labelledby={`search-${g.serverId}`}>
+            <div className="section-head">
+              <h2 id={`search-${g.serverId}`} className="flex items-center gap-2.5">
+                <SourceBadge serverId={g.serverId} withName />
+                <small>{g.type === 'plugin' ? 'PLUGIN' : 'NAS'}</small>
+              </h2>
+              {g.status === 'success' && (
+                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                  {t('song.trackCount', { count: g.data?.songs.length ?? 0 })}
+                </span>
+              )}
+            </div>
+            {g.status === 'loading' && <SongRowsSkeleton rows={3} />}
+            {g.status === 'error' && (
+              <p className="text-[13px] text-ink-faint py-3 border-t border-hair">
+                {t('search.sourceError')}（{g.error?.slice(0, 120)}）
+              </p>
+            )}
+            {g.status === 'success' && (g.data?.songs.length ?? 0) > 0 && (
+              <SongList songs={g.data!.songs} showCover showAlbum showIndex />
+            )}
+            {g.status === 'success' && (g.data?.songs.length ?? 0) === 0 && (
+              <p className="text-[13px] text-ink-faint py-3 border-t border-hair">
+                {t('search.noResultInSource')}
+              </p>
+            )}
+          </section>
+        ))
       )}
 
-      {/* ============ 歌曲 · 编号列表 ============ */}
-      {showResults && results?.songs && results.songs.length > 0 && (
-        <section aria-labelledby="search-songs">
-          <div className="section-head">
-            <h2 id="search-songs">
-              {t('section.songs')}<small>SONGS</small>
-            </h2>
-            <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-              {t('song.trackCount', { count: results.songs.length })}
-            </span>
-          </div>
-          <SongList songs={results.songs} showCover showAlbum showIndex />
-        </section>
+      {showResults && !multi && (
+        <>
+          {/* ============ 歌手 · 文字索引（单源：原样保留） ============ */}
+          {singleResults?.artists && singleResults.artists.length > 0 && (
+            <section aria-labelledby="search-artists">
+              <div className="section-head">
+                <h2 id="search-artists">
+                  {t('nav.artists')}<small>ARTISTS</small>
+                </h2>
+                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                  {t('search.artistCount', { count: singleResults.artists.length })}
+                </span>
+              </div>
+              <p className="font-serif text-[19px] lg:text-[22px] font-semibold leading-[2.1]">
+                {singleResults.artists.map((artist, i) => (
+                  <Fragment key={artist.id}>
+                    {i > 0 && (
+                      <span aria-hidden className="mx-2 align-middle text-[0.7em] font-normal text-ink-faint">
+                        ·
+                      </span>
+                    )}
+                    <button
+                      onClick={() => navigate(`/artists/${artist.id}`)}
+                      className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
+                    >
+                      {spaceCJK(artist.name)}
+                      {artist.albumCount !== undefined && (
+                        <span className="num ml-1.5 align-middle text-[11px] font-normal text-ink-faint">
+                          {artist.albumCount}
+                        </span>
+                      )}
+                    </button>
+                  </Fragment>
+                ))}
+              </p>
+            </section>
+          )}
+
+          {/* ============ 专辑 · 封面墙（单源） ============ */}
+          {singleResults?.albums && singleResults.albums.length > 0 && (
+            <section aria-labelledby="search-albums">
+              <div className="section-head">
+                <h2 id="search-albums">
+                  {t('section.albums')}<small>ALBUMS</small>
+                </h2>
+                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                  {t('search.albumCount', { count: singleResults.albums.length })}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7 [&>*]:min-w-0">
+                {singleResults.albums.map(album => (
+                  <AlbumCard key={album.id} album={album} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ============ 歌曲 · 编号列表（单源） ============ */}
+          {singleResults?.songs && singleResults.songs.length > 0 && (
+            <section aria-labelledby="search-songs">
+              <div className="section-head">
+                <h2 id="search-songs">
+                  {t('section.songs')}<small>SONGS</small>
+                </h2>
+                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                  {t('song.trackCount', { count: singleResults.songs.length })}
+                </span>
+              </div>
+              <SongList songs={singleResults.songs} showCover showAlbum showIndex />
+            </section>
+          )}
+        </>
       )}
     </div>
   )

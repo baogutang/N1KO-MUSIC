@@ -29,6 +29,7 @@ import {
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { usePlayerStore } from '@/store/playerStore'
 import { findAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
@@ -79,6 +80,8 @@ interface SongListProps {
   onPlaylistAdd?: (song: Song) => void
   /** 关掉多选（队列抽屉这类自身已有拖拽语义的列表用得上） */
   selectable?: boolean
+  /** 聚合场景显示来源徽标（单源浏览页不必开，减少视觉噪声） */
+  sourceBadge?: boolean
 }
 
 export function SongList({
@@ -90,6 +93,7 @@ export function SongList({
   onPlaylistAdd,
   onRemove,
   selectable = true,
+  sourceBadge = false,
 }: SongListProps) {
   const { t } = useT()
   // 只订阅 id 和 isPlaying，不订阅 currentTime，避免高频重渲染
@@ -231,6 +235,7 @@ export function SongList({
       showCover={showCover}
       showAlbum={showAlbum}
       showIndex={showIndex}
+      sourceBadge={sourceBadge}
       onPlayIndex={handlePlayIndex}
       onPlaylistAdd={handlePlaylistAdd}
       onToggleStar={handleToggleStar}
@@ -243,7 +248,7 @@ export function SongList({
       onRowClick={selectable ? handleRowClick : undefined}
       onLongPress={selectable ? handleRowLongPress : undefined}
     />
-  ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, handlePlayIndex,
+  ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, sourceBadge, handlePlayIndex,
       handlePlaylistAdd, handleToggleStar, caps.shares, caps.radio, caps.rating,
       handleShare, handleRadio, isSelected, selectionActive, selectable,
       handleRowClick, handleRowLongPress, onRemove])
@@ -436,6 +441,8 @@ interface SongRowProps {
   showCover: boolean
   showAlbum: boolean
   showIndex: boolean
+  /** 聚合场景：标题旁渲染来源徽标 */
+  sourceBadge?: boolean
   onPlayIndex: (index: number) => void
   onPlaylistAdd?: (song: Song) => void
   onToggleStar: (song: Song, nextStarred: boolean) => void
@@ -460,6 +467,7 @@ const SongRow = React.memo(function SongRow({
   showCover,
   showAlbum,
   showIndex,
+  sourceBadge,
   onPlayIndex,
   onPlaylistAdd,
   onToggleStar,
@@ -638,6 +646,9 @@ const SongRow = React.memo(function SongRow({
           isCurrentSong ? 'text-primary' : 'text-foreground'
         )}>
           {spaceCJK(song.title)}
+          {sourceBadge && (
+            <SourceBadge serverId={song.serverId} className="ml-1.5 align-baseline inline-block translate-y-[-1px]" />
+          )}
         </p>
         <p className="text-xs text-ink-soft line-clamp-1 mt-0.5">
           <button
