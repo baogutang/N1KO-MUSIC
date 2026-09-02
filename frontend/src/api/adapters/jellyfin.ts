@@ -23,6 +23,7 @@ import type {
   PageResult,
   SongExtras,
   ServerCapabilities,
+  SourceCapabilities,
 } from '../types'
 import { parseLrcText } from './subsonic'
 
@@ -32,11 +33,14 @@ export class JellyfinAdapter implements MusicServerAdapter {
   private baseUrl: string
   private token: string
   private userId: string
+  /** 所属 ServerConfig.id，映射进每条数据的 serverId（跨源分域的根基）*/
+  protected serverId: string
 
-  constructor(config: { url: string; token: string; userId: string }) {
+  constructor(config: { url: string; token: string; userId: string; serverId: string }) {
     this.baseUrl = config.url.replace(/\/$/, '')
     this.token = config.token
     this.userId = config.userId
+    this.serverId = config.serverId
 
     this.client = axios.create({
       baseURL: this.baseUrl,
@@ -147,6 +151,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       userRating: item.UserData
         ? Number((item.UserData as Record<string, unknown>).Rating) || undefined
         : undefined,
+      serverId: this.serverId,
       ext: this.mapJellyfinExtras(item),
     }
   }
@@ -210,6 +215,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       starred: item.UserData
         ? !!(item.UserData as Record<string, unknown>).IsFavorite
         : false,
+      serverId: this.serverId,
     }
   }
 
@@ -223,6 +229,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       starred: item.UserData
         ? !!(item.UserData as Record<string, unknown>).IsFavorite
         : false,
+      serverId: this.serverId,
     }
   }
 
@@ -653,6 +660,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       name: String(p.Name || ''),
       songCount: p.ChildCount ? Number(p.ChildCount) : undefined,
       coverArt: String(p.Id),
+      serverId: this.serverId,
     }))
   }
 
@@ -672,6 +680,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       songs,
       songCount: songs.length,
       coverArt: String(plResp.data.Id),
+      serverId: this.serverId,
     }
   }
 
@@ -682,7 +691,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       UserId: this.userId,
       MediaType: 'Audio',
     })
-    return { id: String(resp.data.Id), name }
+    return { id: String(resp.data.Id), name, serverId: this.serverId }
   }
 
   async updatePlaylist(playlistId: string, name?: string): Promise<void> {
@@ -793,5 +802,26 @@ export class JellyfinAdapter implements MusicServerAdapter {
       songCount: 0,
       albumCount: 0,
     }))
+  }
+
+  /**
+   * 音源级能力：Jellyfin/Emby 与 Subsonic 系同为完整曲库音源。
+   * 注意歌词是尽力而为（getLyrics 404 时返回 null），但入口应当出现。
+   */
+  getSourceCapabilities(): SourceCapabilities {
+    return {
+      search: true,
+      album: true,
+      artist: true,
+      lyrics: true,
+      userPlaylists: true,
+      favorites: true,
+      playlistWrite: true,
+      topLists: false,
+      recommendSheets: false,
+      importSheet: false,
+      libraryBrowse: true,
+      radio: true,
+    }
   }
 }

@@ -5,7 +5,7 @@ import type { Song } from '@/api/types'
 type PlayerSnapshot = ReturnType<typeof usePlayerStore.getState>
 
 function song(id: string): Song {
-  return { id, title: `Song ${id}`, artist: 'Artist', album: 'Album', duration: 200 }
+  return { id, title: `Song ${id}`, artist: 'Artist', album: 'Album', duration: 200, serverId: 'srv-test' }
 }
 
 /** 队列曲目的 id 与下标一一对应（s0 在下标 0），下标断言因此可以直接读懂 */

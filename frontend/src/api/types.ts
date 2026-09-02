@@ -7,8 +7,11 @@
 // 服务器配置
 // ===================================================
 
-/** 支持的服务器类型 */
-export type ServerType = 'subsonic' | 'navidrome' | 'jellyfin' | 'emby'
+/**
+ * 支持的服务器类型。
+ * `plugin` 是插件音源：同一个插件可以登录两个账号，产生两个 ServerConfig。
+ */
+export type ServerType = 'subsonic' | 'navidrome' | 'jellyfin' | 'emby' | 'plugin'
 
 /** 服务器连接配置 */
 export interface ServerConfig {
@@ -23,6 +26,15 @@ export interface ServerConfig {
   salt?: string
   /** 服务端用户 ID（Jellyfin/Emby 需要，登录响应返回；不可用 token 代替）*/
   userId?: string
+  /** 插件音源指向的已安装插件 id（type 为 'plugin' 时必填）*/
+  pluginId?: string
+  /**
+   * 插件音源的不透明凭据串（插件自己决定格式，通常是 Cookie 或 JSON）。
+   * 只经 securePersistStorage 的 collect / apply 加密落盘，不进 sync backend。
+   */
+  credentials?: string
+  /** 启动时是否自动连接，默认 true */
+  autoConnect?: boolean
   isActive: boolean
   createdAt: number
   /** 服务器版本信息 */
@@ -71,8 +83,11 @@ export interface Song {
   playCount?: number
   /** 是否收藏 */
   starred?: boolean
-  /** 服务器 ID（来源标识）*/
-  serverId?: string
+  /**
+   * 服务器 ID（来源标识）。多源聚合下跨源唯一性全靠它，
+   * 必填：mapper 漏填时 tsc 直接报错（审计 高-4/高-5/中-14 的教训）。
+   */
+  serverId: string
   /** 评分（1-5）*/
   userRating?: number
   /** 文件路径（用于自定义歌词/封面 API 的 path 参数）*/
@@ -149,7 +164,7 @@ export interface Album {
   genre?: string
   starred?: boolean
   playCount?: number
-  serverId?: string
+  serverId: string
 }
 
 /** 专辑详情（含歌曲列表）*/
@@ -172,7 +187,7 @@ export interface Artist {
   coverArt?: string
   artistImageUrl?: string
   starred?: boolean
-  serverId?: string
+  serverId: string
   /**
    * 服务端给出的索引字母（A–Z / # / 拼音首字母）。
    * 排序规则归服务端管——Navidrome 有 sortName、忽略冠词表，中文库还按拼音
@@ -211,7 +226,7 @@ export interface Playlist {
   isPublic?: boolean
   created?: string
   changed?: string
-  serverId?: string
+  serverId: string
   /**
    * Navidrome 的智能歌单会带 readonly:true 一起返回，长得和普通歌单一模一样。
    * 不标出来的话，用户对它做的编辑操作会静默失效。
@@ -448,6 +463,59 @@ export interface MusicServerAdapter {
 
   /** 精确播放上报（Jellyfin 会话生命周期 / OpenSubsonic reportPlayback）*/
   reportPlayback?(songId: string, state: { positionMs: number; isPaused?: boolean; event: 'start' | 'progress' | 'stop' }): Promise<void>
+
+  // --- 多音源扩展（阶段 0 起）---
+
+  /**
+   * 异步取流：插件音源 / 需要签名或会过期的流地址走这里。
+   * 未实现时播放引擎回退到同步的 getStreamUrl。
+   * headers 字段协议里保留，当前播放引擎不支持自定义请求头，宿主忽略。
+   */
+  resolveStreamUrl?(songId: string, opts: {
+    maxBitrate: number
+    quality: 'lossless' | 'high' | 'medium' | 'low'
+  }): Promise<{ url: string; expiresAt?: number; mimeType?: string }>
+
+  /** 音源级能力声明（PROTOCOL §6），宿主据此隐藏入口 */
+  getSourceCapabilities?(): SourceCapabilities
+
+  /** 榜单（插件音源；声明了 topLists 能力才实现）*/
+  getTopLists?(): Promise<Array<{ title: string; items: Playlist[] }>>
+  /** 榜单曲目，分页 */
+  getTopListDetail?(topListId: string, page: number): Promise<{ isEnd: boolean; songs: Song[] }>
+  /** 推荐歌单，分页（插件音源）*/
+  getRecommendSheets?(page: number): Promise<{ isEnd: boolean; items: Playlist[] }>
+}
+
+/**
+ * 音源级能力（协议 PROTOCOL §6 加 `libraryBrowse` 与 `radio`）。
+ * NAS 音源与插件音源用同一组字段描述，宿主按它决定入口是否出现。
+ */
+export interface SourceCapabilities {
+  /** 参与聚合搜索 */
+  search: boolean
+  /** 曲目行上的专辑可点 */
+  album: boolean
+  /** 曲目行上的歌手可点 */
+  artist: boolean
+  /** 提供歌词 */
+  lyrics: boolean
+  /** 有「我的歌单」 */
+  userPlaylists: boolean
+  /** 有收藏 */
+  favorites: boolean
+  /** 歌单可写 */
+  playlistWrite: boolean
+  /** 有榜单 */
+  topLists: boolean
+  /** 有推荐歌单 */
+  recommendSheets: boolean
+  /** 支持粘贴链接导入歌单 */
+  importSheet: boolean
+  /** 出现在专辑 / 歌手 / 流派浏览页（流媒体音源一般不声明）*/
+  libraryBrowse: boolean
+  /** 可作为电台 / 推荐的候选来源 */
+  radio: boolean
 }
 
 /** 服务器声明的能力，用于在 UI 上隐藏不受支持的入口 */

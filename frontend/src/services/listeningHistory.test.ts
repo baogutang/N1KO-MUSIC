@@ -24,6 +24,7 @@ const testSong: Song = {
   artist: 'Artist',
   album: 'Album',
   duration: 200,
+  serverId: 'srv-test',
 }
 
 function listeningEvent(serverId: string, eventId = 'event-1'): ListeningEvent {
@@ -83,8 +84,9 @@ describe('listening history persistence', () => {
   })
 
   it('migrates legacy deduplicated entries into the active server scope', () => {
+    // 旧格式数据的定义就是没有 serverId；JSON.stringify 会把 undefined 丢掉，正好还原旧形状
     localStorage.setItem('msp-play-history', JSON.stringify([
-      { song: testSong, playedAt: 200000 },
+      { song: { ...testSong, serverId: undefined }, playedAt: 200000 },
     ]))
 
     const [migrated] = readListeningEvents('server-a')

@@ -206,6 +206,7 @@ export function getServerTypeLabel(type: ServerType): string {
     navidrome: 'Navidrome',
     jellyfin: 'Jellyfin',
     emby: 'Emby',
+    plugin: 'Plugin',
   }
   return labels[type] ?? type
 }

@@ -1,4 +1,46 @@
 /**
+ * serverId 是跨源分域的根基（审计 高-4/高-5/中-14 都从它缺位开始）。
+ * 每条从适配器出来的数据都必须带上所属 ServerConfig.id——漏一条，
+ * 多源聚合时它就会打错服务器或命中别家的缓存。
+ */
+describe('mapper 必须填 serverId', () => {
+  function makeAdapter() {
+    const adapter = new SubsonicAdapter({
+      url: 'https://example.test', username: 'u', token: 't', salt: 's', serverId: 'srv-a',
+    })
+    ;(adapter as unknown as { client: unknown }).client = {
+      get: async () => ({
+        data: {
+          'subsonic-response': {
+            status: 'ok',
+            searchResult3: {
+              song: [{ id: 's1', title: 'a', artist: 'x', album: 'b' }],
+              album: [{ id: 'al1', name: 'b', artist: 'x' }],
+              artist: [{ id: 'ar1', name: 'x' }],
+            },
+          },
+        },
+      }),
+    }
+    return adapter
+  }
+
+  it('searchAll 的歌曲 / 专辑 / 歌手都带 serverId', async () => {
+    const { songs, albums, artists } = await makeAdapter().searchAll('q')
+    expect(songs.every(s => s.serverId === 'srv-a')).toBe(true)
+    expect(albums.every(a => a.serverId === 'srv-a')).toBe(true)
+    expect(artists.every(a => a.serverId === 'srv-a')).toBe(true)
+  })
+
+  it('音源能力声明 libraryBrowse', () => {
+    const caps = makeAdapter().getSourceCapabilities()
+    expect(caps.libraryBrowse).toBe(true)
+    expect(caps.search).toBe(true)
+    expect(caps.topLists).toBe(false)
+  })
+})
+
+/**
  * adapter 面对的是不受信任的服务器 JSON：任何一处字段形态不合预期
  * 都不该让整个 mapSong 抛错——那会连带把整页曲目的渲染打断。
  */
@@ -65,7 +107,7 @@ describe('取消信号的透传', () => {
   function makeAdapter() {
     const calls: Array<{ url: string; config: { signal?: AbortSignal } }> = []
     const adapter = new SubsonicAdapter({
-      url: 'https://example.test', username: 'u', token: 't', salt: 's',
+      url: 'https://example.test', username: 'u', token: 't', salt: 's', serverId: 'srv-a',
     })
     // 替掉真实的 axios 实例，只记录调用
     ;(adapter as unknown as { client: unknown }).client = {
@@ -119,7 +161,7 @@ describe('分享能力探测', () => {
   function makeAdapter(respond: (url: string) => unknown) {
     const calls: string[] = []
     const adapter = new SubsonicAdapter({
-      url: 'https://example.test', username: 'u', token: 't', salt: 's',
+      url: 'https://example.test', username: 'u', token: 't', salt: 's', serverId: 'srv-a',
     })
     ;(adapter as unknown as { client: unknown }).client = {
       get: async (url: string) => {
@@ -207,7 +249,7 @@ describe('分享能力探测', () => {
 describe('连接诊断', () => {
   function makeAdapter(respond: (url: string) => unknown) {
     const adapter = new SubsonicAdapter({
-      url: 'https://example.test', username: 'u', token: 't', salt: 's',
+      url: 'https://example.test', username: 'u', token: 't', salt: 's', serverId: 'srv-a',
     })
     ;(adapter as unknown as { client: unknown }).client = {
       get: async (url: string) => {

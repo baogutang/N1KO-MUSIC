@@ -25,6 +25,7 @@ export function createAdapter(config: ServerConfig): MusicServerAdapter {
         username: config.username,
         token: config.token,
         salt: config.salt ?? '',
+        serverId: config.id,
       })
 
     case 'jellyfin':
@@ -32,6 +33,7 @@ export function createAdapter(config: ServerConfig): MusicServerAdapter {
         url: config.url,
         token: config.token,
         userId: config.userId ?? '',
+        serverId: config.id,
       })
 
     case 'emby':
@@ -39,8 +41,10 @@ export function createAdapter(config: ServerConfig): MusicServerAdapter {
         url: config.url,
         token: config.token,
         userId: config.userId ?? '',
+        serverId: config.id,
       })
 
+    // 插件音源的适配器在阶段 1 落地；在此之前 type 'plugin' 走不到 createAdapter
     default:
       throw new Error(`Unsupported server type: ${config.type}`)
   }

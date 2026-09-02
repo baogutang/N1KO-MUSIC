@@ -27,6 +27,7 @@ import type {
   Contributor,
   ReplayGainInfo,
   ServerCapabilities,
+  SourceCapabilities,
 } from '../types'
 
 /** Subsonic 协议要求的客户端标识 */
@@ -157,12 +158,15 @@ export class SubsonicAdapter implements MusicServerAdapter {
   private username: string
   private token: string
   private salt: string
+  /** 所属 ServerConfig.id，映射进每条数据的 serverId（跨源分域的根基）*/
+  private serverId: string
 
-  constructor(config: { url: string; username: string; token: string; salt: string }) {
+  constructor(config: { url: string; username: string; token: string; salt: string; serverId: string }) {
     this.baseUrl = config.url.replace(/\/$/, '')
     this.username = config.username
     this.token = config.token
     this.salt = config.salt
+    this.serverId = config.serverId
 
     this.client = axios.create({
       baseURL: `${this.baseUrl}/rest`,
@@ -297,6 +301,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       userRating: s.userRating ? Number(s.userRating) : undefined,
       path: s.path ? String(s.path) : undefined,
       suffix: s.suffix ? String(s.suffix) : undefined,
+      serverId: this.serverId,
       ext: mapSongExtras(s),
     }
   }
@@ -315,6 +320,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       genre: a.genre ? String(a.genre) : undefined,
       starred: !!a.starred,
       playCount: a.playCount ? Number(a.playCount) : undefined,
+      serverId: this.serverId,
     }
   }
 
@@ -327,6 +333,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       coverArt: a.coverArt ? String(a.coverArt) : undefined,
       artistImageUrl: a.artistImageUrl ? String(a.artistImageUrl) : undefined,
       starred: !!a.starred,
+      serverId: this.serverId,
     }
   }
 
@@ -712,6 +719,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       created: p.created ? String(p.created) : undefined,
       readonly: p.readonly === true,
       validUntil: p.validUntil ? String(p.validUntil) : undefined,
+      serverId: this.serverId,
     }))
   }
 
@@ -729,6 +737,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       isPublic: !!pl.public,
       readonly: pl.readonly === true,
       validUntil: pl.validUntil ? String(pl.validUntil) : undefined,
+      serverId: this.serverId,
       songs,
     }
   }
@@ -739,7 +748,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       songId: songIds,
     })
     const pl = (data.playlist ?? { id: '', name }) as Record<string, unknown>
-    return { id: String(pl.id), name: String(pl.name || name) }
+    return { id: String(pl.id), name: String(pl.name || name), serverId: this.serverId }
   }
 
   async updatePlaylist(playlistId: string, name?: string, comment?: string): Promise<void> {
@@ -1057,6 +1066,27 @@ export class SubsonicAdapter implements MusicServerAdapter {
       // 扩展清单拿不到不影响 openSubsonic 判定
     }
     return caps
+  }
+
+  /**
+   * 音源级能力：Subsonic 系是完整曲库音源，浏览 / 搜索 / 歌单 / 收藏 / 电台全有；
+   * 榜单、推荐歌单、链接导入是流媒体平台的概念，这里一律没有。
+   */
+  getSourceCapabilities(): SourceCapabilities {
+    return {
+      search: true,
+      album: true,
+      artist: true,
+      lyrics: true,
+      userPlaylists: true,
+      favorites: true,
+      playlistWrite: true,
+      topLists: false,
+      recommendSheets: false,
+      importSheet: false,
+      libraryBrowse: true,
+      radio: true,
+    }
   }
 }
 

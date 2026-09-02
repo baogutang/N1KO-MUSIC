@@ -240,6 +240,7 @@ function album(id: string, songCount: number, coverArt: string | null = `cover-$
     artist: `Artist ${id}`,
     songCount,
     coverArt: coverArt ?? undefined,
+    serverId: 'srv-test',
   }
 }
 

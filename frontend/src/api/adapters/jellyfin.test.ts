@@ -1,6 +1,37 @@
 import { describe, expect, it } from 'vitest'
 import { JellyfinAdapter } from '@/api/adapters/jellyfin'
 
+/** serverId 必填是跨源分域的根基（审计 高-4/高-5/中-14），mapper 漏填必须在测试里暴露 */
+describe('mapper 必须填 serverId', () => {
+  function makeAdapter() {
+    const adapter = new JellyfinAdapter({
+      url: 'https://jf.test', token: 't', userId: 'user1', serverId: 'srv-jf',
+    })
+    ;(adapter as unknown as { client: unknown }).client = {
+      get: async () => ({
+        data: {
+          Items: [{ Id: 'item1', Name: 'a', Album: 'b', RunTimeTicks: 0 }],
+          TotalRecordCount: 1,
+        },
+      }),
+    }
+    return adapter
+  }
+
+  it('getSongs 的每首歌都带 serverId', async () => {
+    const page = await makeAdapter().getSongs()
+    expect(page.items.length).toBeGreaterThan(0)
+    expect(page.items.every(s => s.serverId === 'srv-jf')).toBe(true)
+  })
+
+  it('音源能力声明 libraryBrowse', () => {
+    const caps = makeAdapter().getSourceCapabilities()
+    expect(caps.libraryBrowse).toBe(true)
+    expect(caps.search).toBe(true)
+    expect(caps.topLists).toBe(false)
+  })
+})
+
 /**
  * 从歌单移除：调用方传的是下标（沿用 Subsonic 的语义），
  * 而 Jellyfin 的 EntryIds 要的是 PlaylistItemId——条目自己的 GUID。
@@ -12,7 +43,7 @@ describe('Jellyfin 从歌单移除', () => {
   function makeAdapter(items: Array<{ PlaylistItemId: string }>) {
     const calls: Array<{ url: string; params: Record<string, unknown> }> = []
     const adapter = new JellyfinAdapter({
-      url: 'https://jf.test', token: 't', userId: 'user1',
+      url: 'https://jf.test', token: 't', userId: 'user1', serverId: 'srv-jf',
     })
     ;(adapter as unknown as { client: unknown }).client = {
       get: async () => ({ data: { Items: items } }),

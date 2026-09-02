@@ -11,9 +11,14 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getAdapter, hasAdapter } from '@/api'
+import type { SourceCapabilities } from '@/api/types'
 import { useServerStore } from '@/store/serverStore'
 
-export interface ClientCapabilities {
+/**
+ * 客户端视角的能力 = 音源级能力（SourceCapabilities，PROTOCOL §6）
+ * + 只对 NAS 音源有意义的客户端能力（方法存在性 + 服务器探测）。
+ */
+export interface ClientCapabilities extends SourceCapabilities {
   /** 公开分享链接 */
   shares: boolean
   /** 五星评分写回 */
@@ -28,13 +33,15 @@ export interface ClientCapabilities {
   scan: boolean
   /** 跨设备播放队列 */
   playQueue: boolean
-  /** 电台种子（相似曲目 / 热门曲目 / 流派）*/
-  radio: boolean
 }
 
 const NONE: ClientCapabilities = {
+  search: false, album: false, artist: false, lyrics: false,
+  userPlaylists: false, favorites: false, playlistWrite: false,
+  topLists: false, recommendSheets: false, importSheet: false,
+  libraryBrowse: false, radio: false,
   shares: false, rating: false, bookmarks: false, nowPlaying: false,
-  musicFolders: false, scan: false, playQueue: false, radio: false,
+  musicFolders: false, scan: false, playQueue: false,
 }
 
 /**
@@ -55,7 +62,22 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
   const methods = useMemo<ClientCapabilities>(() => {
     if (!hasAdapter()) return NONE
     const a = getAdapter()
+    // 音源级能力优先取适配器声明；未声明 getSourceCapabilities 的适配器按方法存在性推断
+    const declared = a.getSourceCapabilities?.()
     return {
+      search: declared?.search ?? typeof a.searchAll === 'function',
+      album: declared?.album ?? typeof a.getAlbumDetail === 'function',
+      artist: declared?.artist ?? typeof a.getArtistDetail === 'function',
+      lyrics: declared?.lyrics ?? typeof a.getLyrics === 'function',
+      userPlaylists: declared?.userPlaylists ?? typeof a.getPlaylists === 'function',
+      favorites: declared?.favorites ?? typeof a.getStarred === 'function',
+      playlistWrite: declared?.playlistWrite ?? typeof a.createPlaylist === 'function',
+      topLists: declared?.topLists ?? typeof a.getTopLists === 'function',
+      recommendSheets: declared?.recommendSheets ?? typeof a.getRecommendSheets === 'function',
+      importSheet: declared?.importSheet ?? false,
+      libraryBrowse: declared?.libraryBrowse ?? true,
+      radio: declared?.radio
+        ?? (typeof a.getSimilarSongs === 'function' || typeof a.getArtistSongs === 'function'),
       shares: typeof a.createShare === 'function',
       rating: typeof a.setRating === 'function',
       bookmarks: typeof a.createBookmark === 'function',
@@ -63,7 +85,6 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
       musicFolders: typeof a.getMusicFolders === 'function',
       scan: typeof a.startScan === 'function',
       playQueue: typeof a.savePlayQueue === 'function',
-      radio: typeof a.getSimilarSongs === 'function' || typeof a.getArtistSongs === 'function',
     }
     // activeServerId 是必要依赖：getAdapter() 在切换服务器后会返回另一个实例，
     // 而 lint 看不到这层间接关系，只能显式说明。

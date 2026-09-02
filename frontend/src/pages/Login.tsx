@@ -82,6 +82,7 @@ export default function LoginPage() {
           username: form.username,
           token: '',
           salt: '',
+          serverId: '',
         })
         result = await tempAdapter.login(url, form.username, form.password)
         if (!result.success) {
@@ -93,6 +94,7 @@ export default function LoginPage() {
           username: form.username,
           token: result.token,
           salt: result.salt ?? '',
+          serverId: '',
         })
         setActiveAdapter(adapter)
 
@@ -109,7 +111,7 @@ export default function LoginPage() {
         activateServer(serverId)
       } else {
         const AdapterClass = selectedType === 'jellyfin' ? JellyfinAdapter : EmbyAdapter
-        const tempAdapter = new AdapterClass({ url, token: '', userId: '' })
+        const tempAdapter = new AdapterClass({ url, token: '', userId: '', serverId: '' })
         result = await tempAdapter.login(url, form.username, form.password)
         if (!result.success) {
           setError(result.error || t('login.errorFailed'))
@@ -119,6 +121,7 @@ export default function LoginPage() {
           url,
           token: result.token,
           userId: result.userId ?? '',
+          serverId: '',
         })
         setActiveAdapter(adapter)
 

@@ -29,6 +29,7 @@ const testSong: Song = {
   artist: 'Artist',
   album: 'Album',
   duration: 200,
+  serverId: 'srv-test',
 }
 
 function listeningEvent(

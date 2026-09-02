@@ -64,7 +64,8 @@ function rankForRadio(candidates: Song[], exclude: Set<string>, size: number, se
   const events = serverId ? readListeningEvents(serverId) : []
   const profile = buildRecommendationProfile(events)
   return recommendSongs(
-    fresh.map(s => ({ ...s, serverId })),
+    // serverId 现在必填：候选自带来源；显式传入时（主库电台）覆盖之
+    serverId ? fresh.map(s => ({ ...s, serverId })) : fresh,
     events,
     Math.min(size, fresh.length),
     `radio:${Date.now()}`,
