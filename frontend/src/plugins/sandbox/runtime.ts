@@ -80,7 +80,9 @@ export const browserCodeLoader: PluginCodeLoader = (code, invoke) => {
   scope[hook] = invoke
   // 行尾注释会吞掉补的 "\n})"，所以 code 后必须先换行再闭合
   const boot = `self[${JSON.stringify(hook)}](function (module, exports, require, env, console) {\n${code}\n});`
-  const url = URL.createObjectURL(new Blob([boot], { type: 'text/javascript' }))
+  // 无 charset 的经典脚本会按所在文档的编码解码（opaque 沙箱里即 windows-1252），
+  // 中文 literal 直接变 mojibake；MIME charset 优先级高于文档编码
+  const url = URL.createObjectURL(new Blob([boot], { type: 'text/javascript;charset=utf-8' }))
   const script = document.createElement('script')
   const cleanup = () => {
     delete scope[hook]

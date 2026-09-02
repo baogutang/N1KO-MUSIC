@@ -16,9 +16,13 @@ export function createSandboxDocumentUrl(origin: string): string {
     "frame-src 'none'",
   ].join('; ')
 
+  // charset 必须显式声明（MIME 参数 + meta 双保险）：opaque-origin 的 blob
+  // 文档不继承父页编码，会回落到 windows-1252，连带把无 charset 的插件脚本
+  // 一起错误解码，中文歌词名全部变成 mojibake
   const html = `<!doctype html>
+<meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <script src="${origin}/plugin-sandbox.js"></script>`
 
-  return URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+  return URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
 }
