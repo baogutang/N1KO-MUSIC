@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import fs from 'node:fs'
 import { VitePWA } from 'vite-plugin-pwa'
 import { isHostAllowed } from './src/plugins/host/whitelist'
 
@@ -59,11 +60,60 @@ function n1koPluginProxyMiddleware(): Plugin {
   }
 }
 
+/**
+ * 开发态插件目录中间件：/__n1ko_plugins/*。
+ *
+ * 直接读仓库根的 plugins/ 目录（catalog.json 与各插件的 manifest/代码），
+ * 让「插件目录地址」在开发态默认指向本地，装插件不需要发版。
+ * 只在 dev server 存在；路径做了穿越防护，只能读 plugins/ 内的文件。
+ */
+function n1koPluginCatalogMiddleware(): Plugin {
+  const pluginsRoot = path.resolve(__dirname, '../plugins')
+  const CONTENT_TYPES: Record<string, string> = {
+    '.json': 'application/json; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
+    '.txt': 'text/plain; charset=utf-8',
+  }
+  return {
+    name: 'n1ko-plugin-catalog',
+    configureServer(server) {
+      server.middlewares.use('/__n1ko_plugins', (req, res, next) => {
+        const relative = decodeURIComponent((req.url ?? '').replace(/^\/+/, ''))
+        if (!relative) {
+          res.statusCode = 404
+          res.end('not found')
+          return
+        }
+        const filePath = path.resolve(pluginsRoot, relative)
+        // 穿越防护：解析后的路径必须仍在 plugins/ 内
+        if (!filePath.startsWith(pluginsRoot + path.sep)) {
+          res.statusCode = 403
+          res.end('forbidden')
+          return
+        }
+        fs.readFile(filePath, (err, data) => {
+          if (err) {
+            res.statusCode = 404
+            res.end('not found')
+            return
+          }
+          res.statusCode = 200
+          res.setHeader('Content-Type', CONTENT_TYPES[path.extname(filePath)] ?? 'application/octet-stream')
+          res.setHeader('Cache-Control', 'no-store')
+          res.end(data)
+        })
+      })
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => ({
   base: './',
   plugins: [
     react(),
     n1koPluginProxyMiddleware(),
+    n1koPluginCatalogMiddleware(),
     // Capacitor 原生壳内禁用 PWA/Service Worker（WebView 内 SW 缓存会导致资源陈旧）
     ...(mode === 'capacitor'
       ? []
