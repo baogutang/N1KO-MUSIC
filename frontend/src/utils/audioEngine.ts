@@ -23,6 +23,89 @@ export function buildLoadedKey(
   return `${serverId}:${songId}@${quality}@${playVersion}`
 }
 
+/**
+ * 流地址缓存的 key：与 buildLoadedKey 同构但**不含 playVersion**——
+ * 重播同一首歌不必重取仍然新鲜的流地址（插件音源的地址取一次是一次请求）。
+ */
+export function buildStreamCacheKey(serverId: string, songId: string, quality: string): string {
+  return `${serverId}:${songId}@${quality}`
+}
+
+/**
+ * 一次已解析的流地址。expiresAt 在解析时就补齐默认值（缺省按 20 分钟，
+ * PROTOCOL §5.4），过期判断因此只需看一个字段。
+ */
+export interface ResolvedStream {
+  url: string
+  /** 毫秒时间戳；此后地址视作过期，播放前必须重取 */
+  expiresAt: number
+  /** 解析时刻，诊断用 */
+  resolvedAt: number
+  /** 来自适配器的异步 resolveStreamUrl（插件音源）；false 为同步拼 URL 的 NAS 直链 */
+  async: boolean
+}
+
+/** PROTOCOL §5.4：取流结果未带 expiresAt 时按 20 分钟处理 */
+export const DEFAULT_STREAM_TTL_MS = 20 * 60 * 1000
+/** 同步直链（Subsonic 系）不会过期；给一个远超会话寿命的占位过期时间 */
+export const DIRECT_STREAM_TTL_MS = 24 * 60 * 60 * 1000
+
+/**
+ * 流地址是否已过期。marginMs 是提前量：地址在「即将过期」时就应该判死——
+ * 恰好压线取到的地址，等播放器真正发起请求时多半已经失效。
+ */
+export function isStreamExpired(expiresAt: number, now: number, marginMs = 30_000): boolean {
+  return now >= expiresAt - marginMs
+}
+
+/**
+ * 从适配器解析一次流地址：
+ * 有 `resolveStreamUrl`（插件 / 需要签名的流）就 await；否则包一层同步的
+ * `getStreamUrl`。不碰缓存——缓存策略归调用方（useAudioEngine 的模块级缓存）。
+ * headers 字段协议里保留，当前播放引擎无法附加请求头，此处丢弃。
+ */
+export async function resolveStreamFromAdapter(
+  adapter: {
+    getStreamUrl: MusicServerAdapterShape['getStreamUrl']
+    resolveStreamUrl?: MusicServerAdapterShape['resolveStreamUrl']
+  },
+  songId: string,
+  opts: { maxBitrate: number; quality: 'lossless' | 'high' | 'medium' | 'low'; contentType?: string; path?: string; suffix?: string },
+  now = Date.now()
+): Promise<ResolvedStream> {
+  if (adapter.resolveStreamUrl) {
+    const r = await adapter.resolveStreamUrl(songId, { maxBitrate: opts.maxBitrate, quality: opts.quality })
+    return {
+      url: r.url,
+      expiresAt: r.expiresAt ?? now + DEFAULT_STREAM_TTL_MS,
+      resolvedAt: now,
+      async: true,
+    }
+  }
+  return {
+    url: adapter.getStreamUrl(songId, opts.maxBitrate, '', opts.contentType, opts.path, opts.suffix),
+    expiresAt: now + DIRECT_STREAM_TTL_MS,
+    resolvedAt: now,
+    async: false,
+  }
+}
+
+/** 只取 resolveStream 用得到的适配器方法面（测试里好用桩替换） */
+interface MusicServerAdapterShape {
+  getStreamUrl: (
+    songId: string,
+    maxBitrate: number,
+    format: string,
+    contentType?: string,
+    path?: string,
+    suffix?: string
+  ) => string
+  resolveStreamUrl?: (
+    songId: string,
+    opts: { maxBitrate: number; quality: 'lossless' | 'high' | 'medium' | 'low' }
+  ) => Promise<{ url: string; expiresAt?: number; mimeType?: string }>
+}
+
 export interface ParsedLoadedKey {
   /** `serverId:songId` 部分 */
   base: string

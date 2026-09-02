@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   accumulateListenedDelta,
   buildLoadedKey,
+  buildStreamCacheKey,
+  DEFAULT_STREAM_TTL_MS,
   getFiniteDuration,
   isAtBufferedTail,
   isNearEndOfTrack,
   isPrematureEnd,
+  isStreamExpired,
   parseLoadedKey,
+  resolveStreamFromAdapter,
 } from '@/utils/audioEngine'
 
 function audioWithDuration(duration: number): Pick<HTMLAudioElement, 'duration'> {
@@ -201,5 +205,99 @@ describe('isNearEndOfTrack', () => {
     expect(isNearEndOfTrack(14, 15)).toBe(false)
     expect(isNearEndOfTrack(300, Number.POSITIVE_INFINITY)).toBe(false)
     expect(isNearEndOfTrack(10, 0)).toBe(false)
+  })
+})
+
+describe('流地址缓存 key', () => {
+  it('不含 playVersion：重播同一首命中同一 key，音质不同则不同', () => {
+    expect(buildStreamCacheKey('srv', 'song', 'high'))
+      .toBe(buildStreamCacheKey('srv', 'song', 'high'))
+    expect(buildStreamCacheKey('srv', 'song', 'high'))
+      .not.toBe(buildStreamCacheKey('srv', 'song', 'lossless'))
+  })
+
+  it('serverId 分域：两个服务器的同 id 歌曲不共享缓存', () => {
+    expect(buildStreamCacheKey('srv-a', '1042', 'high'))
+      .not.toBe(buildStreamCacheKey('srv-b', '1042', 'high'))
+  })
+})
+
+describe('isStreamExpired', () => {
+  const EXPIRES = 1_000_000
+
+  it('过期前 margin 内即判死：压线取到的地址多半撑不到真正开播', () => {
+    expect(isStreamExpired(EXPIRES, EXPIRES - 31_000)).toBe(false)
+    expect(isStreamExpired(EXPIRES, EXPIRES - 30_000)).toBe(true)
+    expect(isStreamExpired(EXPIRES, EXPIRES - 1)).toBe(true)
+  })
+
+  it('已过期的地址当然判死', () => {
+    expect(isStreamExpired(EXPIRES, EXPIRES + 1)).toBe(true)
+    expect(isStreamExpired(EXPIRES, EXPIRES + 60_000)).toBe(true)
+  })
+
+  it('margin 可以自定义（测试与紧场景用）', () => {
+    expect(isStreamExpired(EXPIRES, EXPIRES - 5_000, 4_000)).toBe(false)
+    expect(isStreamExpired(EXPIRES, EXPIRES - 5_000, 6_000)).toBe(true)
+  })
+})
+
+describe('resolveStreamFromAdapter', () => {
+  it('异步适配器：await resolveStreamUrl，透传 expiresAt', async () => {
+    const now = 5_000_000
+    const resolved = await resolveStreamFromAdapter(
+      {
+        getStreamUrl: () => { throw new Error('should not be called') },
+        resolveStreamUrl: async songId => ({ url: `https://cdn.test/${songId}`, expiresAt: now + 60_000 }),
+      },
+      's1',
+      { maxBitrate: 320, quality: 'high' },
+      now
+    )
+    expect(resolved).toEqual({ url: 'https://cdn.test/s1', expiresAt: now + 60_000, resolvedAt: now, async: true })
+  })
+
+  it('异步适配器不带 expiresAt 时按 20 分钟默认 TTL 补齐', async () => {
+    const now = 5_000_000
+    const resolved = await resolveStreamFromAdapter(
+      {
+        getStreamUrl: () => '',
+        resolveStreamUrl: async songId => ({ url: `https://cdn.test/${songId}` }),
+      },
+      's1',
+      { maxBitrate: 0, quality: 'lossless' },
+      now
+    )
+    expect(resolved.expiresAt).toBe(now + DEFAULT_STREAM_TTL_MS)
+    expect(resolved.async).toBe(true)
+  })
+
+  it('同步适配器：包一层 getStreamUrl，占位过期时间远超会话寿命', async () => {
+    const now = 5_000_000
+    const resolved = await resolveStreamFromAdapter(
+      { getStreamUrl: (songId, bitrate, format) => `https://nas.test/stream?id=${songId}&b=${bitrate}&f=${format}` },
+      's1',
+      { maxBitrate: 320, quality: 'high', contentType: 'audio/flac', path: 'a/b.flac', suffix: 'flac' },
+      now
+    )
+    expect(resolved.url).toBe('https://nas.test/stream?id=s1&b=320&f=')
+    expect(resolved.async).toBe(false)
+    expect(isStreamExpired(resolved.expiresAt, now + 60_000)).toBe(false)
+  })
+
+  it('插件流 5 秒后过期：margin 内即判死，须如实重取', async () => {
+    const now = 5_000_000
+    const resolved = await resolveStreamFromAdapter(
+      {
+        getStreamUrl: () => '',
+        resolveStreamUrl: async () => ({ url: 'data:audio/wav;base64,AAA', expiresAt: now + 5_000 }),
+      },
+      's1',
+      { maxBitrate: 0, quality: 'lossless' },
+      now
+    )
+    // 5 秒 < 30 秒 margin：解析完成的那一刻就已经在「即将过期」窗口内
+    expect(isStreamExpired(resolved.expiresAt, now)).toBe(true)
+    expect(isStreamExpired(resolved.expiresAt, now, 1_000)).toBe(false)
   })
 })

@@ -29,8 +29,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePlayerStore } from '@/store/playerStore'
 import { redactUrl } from '@/utils/redactUrl'
 import { useServerStore } from '@/store/serverStore'
-import { useSettingsStore, QUALITY_MAX_BITRATE } from '@/store/settingsStore'
-import { getAdapter, hasAdapter } from '@/api'
+import { useSettingsStore, QUALITY_MAX_BITRATE, type AudioQuality } from '@/store/settingsStore'
+import { getAdapterFor, hasAdapterFor } from '@/api'
 import { toast } from '@/components/ui/use-toast'
 import type { Song } from '@/api/types'
 import { computeReplayGainScalar } from '@/utils/replayGain'
@@ -46,11 +46,15 @@ import {
 import {
   accumulateListenedDelta,
   buildLoadedKey,
+  buildStreamCacheKey,
   getFiniteDuration,
   isAtBufferedTail,
   isNearEndOfTrack,
   isPrematureEnd,
+  isStreamExpired,
   parseLoadedKey,
+  resolveStreamFromAdapter,
+  type ResolvedStream,
 } from '@/utils/audioEngine'
 
 /**
@@ -89,6 +93,61 @@ const preloadEl: HTMLAudioElement = new Audio()
 preloadEl.preload = 'auto'
 preloadEl.muted = true
 preloadEl.volume = 0
+
+/**
+ * 流地址缓存（key 见 buildStreamCacheKey）：插件音源取一次地址是一次网络请求，
+ * 还新鲜的地址不该在重播 / 预热间反复重取。Map 保插入序，超限 FIFO 淘汰。
+ */
+const streamCache = new Map<string, ResolvedStream>()
+const STREAM_CACHE_MAX = 32
+
+/**
+ * 歌曲归属的服务器：新数据一律带 serverId；旧版本持久化进队列的曲目没有，
+ * 退回主库（阶段 0 只连一台，语义等价）。
+ */
+function songServerId(song: Pick<Song, 'serverId'>): string {
+  return song.serverId || useServerStore.getState().activeServerId || ''
+}
+
+/**
+ * 解析（或命中缓存的）流地址。过期或 skipCache 时重取。
+ * 适配器未注册（音源已断开）会抛错，由调用方决定如何降级。
+ */
+async function resolveStream(
+  song: Song,
+  quality: AudioQuality,
+  opts: { skipCache?: boolean } = {}
+): Promise<ResolvedStream> {
+  const serverId = songServerId(song)
+  const key = buildStreamCacheKey(serverId, song.id, quality)
+  if (!opts.skipCache) {
+    const cached = streamCache.get(key)
+    if (cached && !isStreamExpired(cached.expiresAt, Date.now())) return cached
+  }
+  const resolved = await resolveStreamFromAdapter(
+    getAdapterFor(serverId),
+    song.id,
+    {
+      maxBitrate: QUALITY_MAX_BITRATE[quality],
+      quality,
+      contentType: song.contentType,
+      path: song.path,
+      suffix: song.suffix,
+    }
+  )
+  if (streamCache.size >= STREAM_CACHE_MAX) {
+    const oldest = streamCache.keys().next().value
+    if (oldest !== undefined) streamCache.delete(oldest)
+  }
+  streamCache.set(key, resolved)
+  return resolved
+}
+
+/**
+ * 异步加载序号：resolveStream await 期间可能已经切歌，
+ * 晚到的结果（含它要写的 audio.src）必须作废。
+ */
+let loadSeq = 0
 
 /**
  * 在不改变任何状态的前提下算出「下一首是谁」。
@@ -450,22 +509,20 @@ export function useAudioEngine() {
       if (!st.duration || remaining > 15 || remaining <= 0) return
       const nextSong = peekNextSong(st)
       if (!nextSong || nextSong.id === preloadedIdRef.current) return
-      if (!hasAdapter()) return
-      try {
-        const url = getAdapter().getStreamUrl(
-          nextSong.id,
-          QUALITY_MAX_BITRATE[effectiveQuality],
-          '',
-          nextSong.contentType,
-          nextSong.path,
-          nextSong.suffix
-        )
-        preloadedIdRef.current = nextSong.id
-        preloadEl.src = url
-        preloadEl.load()
-      } catch {
-        // 预热失败无所谓，正常加载路径会再拉一次
-      }
+      if (!hasAdapterFor(songServerId(nextSong))) return
+      preloadedIdRef.current = nextSong.id
+      // 预热同样走 resolveStream：命中未过期的地址（含刚解析过的）直接用，
+      // 预热的地址到正式加载时若已过期，加载路径会重取
+      resolveStream(nextSong, effectiveQuality)
+        .then(resolved => {
+          // resolve 期间队列可能已经变化：预热错了歌比不预热更糟
+          if (peekNextSong(usePlayerStore.getState())?.id !== nextSong.id) return
+          preloadEl.src = resolved.url
+          preloadEl.load()
+        })
+        .catch(() => {
+          // 预热失败无所谓，正常加载路径会再拉一次
+        })
     }, 2000)
     return () => clearInterval(timer)
   }, [preloadNext, isPlaying, metered, effectiveQuality])
@@ -502,7 +559,9 @@ export function useAudioEngine() {
       return
     }
 
-    if (!isConnected || !activeServerId || !hasAdapter()) {
+    // 队列允许混源：加载只看这首歌自己的来源是否连着，不看主库是谁
+    const songServer = songServerId(activeSong)
+    if (!isConnected || !hasAdapterFor(songServer)) {
       persistListeningSession()
       resetListeningSession()
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
@@ -513,13 +572,13 @@ export function useAudioEngine() {
       return
     }
 
-    const currentKey = buildLoadedKey(activeServerId, songId, effectiveQuality, playVersion)
+    const currentKey = buildLoadedKey(songServer, songId, effectiveQuality, playVersion)
 
     // 捕获当前歌曲 id，供 debounce 内校验
     const capturedSongId = songId
     const capturedKey = currentKey
     const capturedSong = activeSong
-    const capturedServerId = activeServerId
+    const capturedServerId = songServer
 
     /**
      * 同曲同版本、仅音质变化（会员状态/音质设置变更）触发的重载：
@@ -530,7 +589,7 @@ export function useAudioEngine() {
     // 首次播放不需要 debounce（没有旧音频要中断），后续切歌才 debounce 吸收连续点击
     // reattachOnly=true：同 key 重挂监听（依赖变化触发过 cleanup 后），
     // 绝不能触碰 audioEl.src / currentTime，否则正在播放的歌会从头重播
-    const doLoad = (reattachOnly = false) => {
+    const doLoad = async (reattachOnly = false) => {
       // 检查 store 当前状态是否还是同一首歌，避免 debounce 期间又切走了
       const latestSong = usePlayerStore.getState().currentSong
       if (!latestSong || latestSong.id !== capturedSongId) return
@@ -538,21 +597,19 @@ export function useAudioEngine() {
       // ── 实际加载逻辑 ──────────────────────────────────────────
       const maxBitrate = QUALITY_MAX_BITRATE[effectiveQuality]
       const contentType = capturedSong.contentType
-      let streamUrl: string
+      // 异步加载序号：取流 await 期间切了歌，本次加载整体作废
+      const seq = ++loadSeq
+      let resolved: ResolvedStream
       try {
-        streamUrl = getAdapter().getStreamUrl(
-          capturedSongId,
-          maxBitrate,
-          '',
-          contentType,
-          capturedSong.path,
-          capturedSong.suffix
-        )
+        resolved = await resolveStream(capturedSong, effectiveQuality)
       } catch (e) {
-        console.error('[AudioEngine] getStreamUrl failed:', e)
+        console.error('[AudioEngine] resolveStream failed:', e)
+        usePlayerStore.getState().setStreamBuffering(false)
         return
       }
-
+      if (seq !== loadSeq || usePlayerStore.getState().currentSong?.id !== capturedSongId) return
+      const streamUrl = resolved.url
+      // 取到流才认领这个加载 key：被作废的加载不能抢走属于别人的 key
       loadedKey = capturedKey
 
       const audio = audioEl
@@ -696,7 +753,8 @@ export function useAudioEngine() {
         if (listenedSec < threshold) return
         playSubmitted = true
         scrobbleAttempts += 1
-        void getAdapter().scrobble(capturedSongId, true).catch(error => {
+        // 上报永远打回歌曲自己的来源服务器（队列混源时主库未必是它在的那台）
+        void getAdapterFor(capturedServerId).scrobble(capturedSongId, true).catch(error => {
           playSubmitted = false
           const backoffMs = Math.min(60_000, 2_000 * 2 ** (scrobbleAttempts - 1))
           scrobbleRetryAt = performance.now() + backoffMs
@@ -800,7 +858,7 @@ export function useAudioEngine() {
         // （启动时 rehydrate 的歌只加载不播放，不应上报）
         if (!nowPlayingSent && playStatKey === capturedKey) {
           nowPlayingSent = true
-          void getAdapter().scrobble(capturedSongId, false).catch(error => {
+          void getAdapterFor(capturedServerId).scrobble(capturedSongId, false).catch(error => {
             nowPlayingSent = false
             console.warn('[AudioEngine] now-playing report failed; will retry:', error)
           })
@@ -944,15 +1002,46 @@ export function useAudioEngine() {
         // 重载会把两者复位到 0，若恢复期间再次出错，就会把恢复点覆盖为 0 导致从头重播
         if (recoverAttempts < maxRecoverAttempts && (code === 2 || code === 3 || code === 4)) {
           const activeUrl = audio.currentSrc || streamUrl
+          let adapter: ReturnType<typeof getAdapterFor> | null = null
+          try {
+            adapter = getAdapterFor(capturedServerId)
+          } catch {
+            adapter = null
+          }
+
+          // 异步取流型（插件音源）：第一次恢复先绕过缓存重取一次新地址——
+          // 这类 URL 常是短时效签名链接，原样重载多半还是同一个错
+          if (adapter?.resolveStreamUrl) {
+            recoverAttempts += 1
+            healthyPlaySec = 0
+            if (recoverAttempts === 1) {
+              void resolveStream(capturedSong, effectiveQuality, { skipCache: true })
+                .then(fresh => {
+                  if (loadedKey !== capturedKey) return
+                  reloadForRecovery(fresh.url, 1000, `Recovery 1/${maxRecoverAttempts}: refetched stream after code ${rawCode}`)
+                })
+                .catch(() => {
+                  if (loadedKey !== capturedKey) return
+                  // 重取也失败：退回原地址重载一次，别比现有的同步路径恢复力更差
+                  reloadForRecovery(activeUrl, 1000, `Recovery 1/${maxRecoverAttempts}: refetch failed, retrying same URL after code ${rawCode}`)
+                })
+              return
+            }
+            reloadForRecovery(activeUrl, 600, `Recovery ${recoverAttempts}/${maxRecoverAttempts} after code ${rawCode}`)
+            return
+          }
+
+          // 同步直链（Subsonic 系）：维持原有格式回退——只对 URL 带 format
+          // 参数的转码流有意义；异步源的 URL 是不透明串，不走这段
           let retryUrl = activeUrl
           try {
             const u = new URL(activeUrl, typeof window !== 'undefined' ? window.location.href : undefined)
             const fmt = u.searchParams.get('format')
 
-            if (maxBitrate === 0) {
+            if (maxBitrate === 0 && adapter) {
               if (recoverAttempts === 0) {
                 if (!fmt) {
-                  retryUrl = getAdapter().getStreamUrl(
+                  retryUrl = adapter.getStreamUrl(
                     capturedSongId,
                     0,
                     'flac',
@@ -962,7 +1051,7 @@ export function useAudioEngine() {
                   )
                   console.warn('[AudioEngine] Retrying with format=flac (first URL had no format param)')
                 } else if (fmt === 'flac' && (code === 4 || code === 3)) {
-                  retryUrl = getAdapter().getStreamUrl(
+                  retryUrl = adapter.getStreamUrl(
                     capturedSongId,
                     320,
                     'mp3',
@@ -975,7 +1064,7 @@ export function useAudioEngine() {
                   )
                 }
               } else if (recoverAttempts === 1 && fmt === 'flac' && (code === 4 || code === 3)) {
-                retryUrl = getAdapter().getStreamUrl(
+                retryUrl = adapter.getStreamUrl(
                   capturedSongId,
                   320,
                   'mp3',
@@ -1137,7 +1226,7 @@ export function useAudioEngine() {
       const parsed = parseLoadedKey(loadedKey)
       if (
         parsed &&
-        parsed.base === `${activeServerId}:${songId}` &&
+        parsed.base === `${songServer}:${songId}` &&
         parsed.version === String(playVersion) &&
         parsed.quality !== effectiveQuality
       ) {
