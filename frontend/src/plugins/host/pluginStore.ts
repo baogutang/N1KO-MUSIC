@@ -59,6 +59,8 @@ interface PluginStoreState {
   installing: string | null
   /** 首启内置安装（网易云 / QQ）：load 里触发，幂等（meta 标记） */
   seedBuiltins: () => Promise<void>
+  /** 内置音源自动更新：hosts 无新增时静默升级（load 里触发） */
+  autoUpdateBuiltins: () => Promise<void>
   /** 安装结果里带回「hosts 较上一版有新增」的标记（PROTOCOL §9 更新确认用） */
   install: (manifestUrl: string) => Promise<{ ok: true; hostsAdded: boolean } | { ok: false; error: string }>
   installPasted: (manifestJson: string, code: string) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -91,6 +93,35 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
        正式版默认目录为空 → 静默跳过（无目录可拉）。 */
     if (!seeded && stored.length === 0 && (get().catalogUrl || defaultCatalogUrl())) {
       void get().seedBuiltins()
+      return
+    }
+    /* 内置音源自动更新：官方一等音源不该要求用户去找更新入口
+       （设置页在登录墙后面，首启未连服时根本进不去）。
+       hosts 有新增时跳过，留给手动更新走确认流程（PROTOCOL §9）。 */
+    void get().autoUpdateBuiltins()
+  },
+
+  autoUpdateBuiltins: async () => {
+    const { catalogUrl, plugins, install } = get()
+    if (!catalogUrl) return
+    try {
+      const catalog = await fetchCatalog(catalogUrl)
+      for (const id of BUILTIN_PLUGIN_IDS) {
+        const installed = plugins.find(p => p.id === id)
+        const entry = catalog.entries.find(e => e.id === id)
+        if (!installed || !entry || entry.version === installed.version) continue
+        const prev = await readPlugin(id)
+        const prevHosts = prev ? (prev.manifest as unknown as PluginManifest).hosts : []
+        const manifestUrl = resolveManifestUrl(catalog.baseUrl, entry)
+        const manifest = validateManifest(await fetchInstallJson(manifestUrl))
+        if (manifest.hosts.some(h => !prevHosts.includes(h))) continue
+        const result = await install(manifestUrl)
+        if (result.ok) {
+          set({ plugins: (await readAllPlugins()).map(toSummary) })
+        }
+      }
+    } catch {
+      /* 目录不可达：静默跳过，等下次启动 */
     }
   },
 

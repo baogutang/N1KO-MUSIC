@@ -87,3 +87,9 @@
 - 选择：开发代理对 manual 请求走 node:http/https 原生请求（Node 核心默认不跟随 3xx，状态与 set-cookie/Location 完整可读）。
 - 原因：规范行为与需求冲突时，换实现比绕规范稳。
 - 影响：vite.config.ts nodeRequestNoRedirect；CapacitorHttp 通道仍不支持 manual（QQ 扫码在真机的可用性待真机验证）。
+
+## 2026-09-03 · 验收反馈 · 内置音源自动更新（设置页在登录墙后）
+- 冲突：插件更新入口在设置 → 音源，但设置页在 RequireAuth 后面——首启未连任何音乐服务器时（正是登录 QQ 的场景）用户进不去，被要求「先更新插件」死锁。
+- 选择：load() 时对内置音源（netease/qqmusic）静默自动更新：目录版本 ≠ 已装版本且 hosts 无新增（有新增留给手动更新走确认，PROTOCOL §9）。
+- 原因：官方一等音源是产品主路径，更新不该是用户任务。
+- 影响：pluginStore.ts autoUpdateBuiltins。
