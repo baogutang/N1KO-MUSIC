@@ -11,6 +11,7 @@
 
 import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { SongList } from '@/components/music/SongList'
@@ -23,7 +24,7 @@ import {
   useSourceSearch,
 } from '@/hooks/useSourceQueries'
 import { mergeSongs, normalizeText } from '@/plugins/match'
-import type { Song } from '@/api/types'
+import type { Album, Artist, Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
@@ -33,6 +34,7 @@ type SearchView = 'all' | 'grouped'
 export default function SearchPage() {
   const { t } = useT()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   /**
    * `?q=` 是这一页的入口参数：命令面板、深链接（n1ko://search?q=…）、
    * 以及用户直接分享出去的一条搜索链接，都从这里进来。
@@ -96,54 +98,109 @@ export default function SearchPage() {
   // React Query 会去重成同一条请求，同时调用没有双倍流量。
   const sources = useConnectedSources()
   const multi = sources.length > 1
-  const single = useSearch(debouncedQuery)
-  const groups = useSourceSearch(debouncedQuery)
+  // 多源模式下聚合分组才是数据源；单源 hook 关掉（否则设了曲库范围时
+  // 两套查询键不同，主库同一请求会打两遍）
+  const single = useSearch(debouncedQuery, { enabled: !multi })
+  const [page, setPage] = useState(1)
+  const groups = useSourceSearch(debouncedQuery, page)
   const caps = useSourceCapabilities()
   const priorityOrder = usePlaybackPriorityOrder()
   // 用户在「全部」视图手动换过来源的行：mergedIndex → 替换后的曲目；
   // 换查询词就作废（新结果集的下标对不上）
   const [swaps, setSwaps] = useState<Record<number, Song>>({})
-  useEffect(() => { setSwaps({}) }, [debouncedQuery])
+  useEffect(() => { setSwaps({}); setPage(1); setAcc({}); setAccMeta({ artists: [], albums: [] }) }, [debouncedQuery])
+
+  // 各源结果累积（跨页保留、按 id 去重）：page>1 到达时并入已有结果
+  const [acc, setAcc] = useState<Record<string, Song[]>>({})
+  useEffect(() => {
+    setAcc(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const g of groups) {
+        if (g.status !== 'success' || !g.data) continue
+        if (page === 1) {
+          // 第一页直接覆盖（重试/风控解除后旧数据不残留）
+          if ((next[g.serverId] ?? []).length !== g.data.songs.length
+            || g.data.songs.some((s, i) => next[g.serverId]?.[i]?.id !== s.id)) {
+            next[g.serverId] = g.data.songs
+            changed = true
+          }
+        } else {
+          const known = new Set((next[g.serverId] ?? []).map(s => s.id))
+          const fresh = g.data.songs.filter(s => !known.has(s.id))
+          if (fresh.length) {
+            next[g.serverId] = [...(next[g.serverId] ?? []), ...fresh]
+            changed = true
+          }
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [groups, page])
 
   /** 「全部」视图：成功组先合并（渐进渲染不等最慢源），失败组只计入错误行 */
   const merged = useMemo(() => {
-    const success = groups.filter(g => g.status === 'success' && g.data)
-    if (!success.length) return null
+    const entries = Object.entries(acc)
+    if (!entries.length) return null
     const order = priorityOrder.map(s => s.serverId)
     return mergeSongs(
-      success.map(g => ({ serverId: g.serverId, songs: g.data!.songs })),
+      entries.map(([serverId, songs]) => ({ serverId, songs })),
       order
     )
-  }, [groups, priorityOrder])
+  }, [acc, priorityOrder])
 
-  /** 歌手 / 专辑跨源去重（归一名相等只留优先序在前的那个） */
+  /** 歌手 / 专辑跨源去重（归一名相等只留优先序在前的那个）。
+   *  数据源是第 1 页结果的累积状态：翻页后 groups 只剩当页数据 */
+  const [accMeta, setAccMeta] = useState<{ artists: Artist[]; albums: Album[] }>({ artists: [], albums: [] })
+  useEffect(() => {
+    if (page !== 1) return
+    setAccMeta(prev => {
+      let changed = false
+      const artists = [...prev.artists]
+      const albums = [...prev.albums]
+      for (const g of groups) {
+        if (g.status !== 'success') continue
+        for (const a of g.data?.artists ?? []) {
+          if (!artists.some(x => x.serverId === a.serverId && x.id === a.id)) { artists.push(a); changed = true }
+        }
+        for (const al of g.data?.albums ?? []) {
+          if (!albums.some(x => x.serverId === al.serverId && x.id === al.id)) { albums.push(al); changed = true }
+        }
+      }
+      return changed ? { artists, albums } : prev
+    })
+  }, [groups, page])
+
   const mergedArtists = useMemo(() => {
     const seen = new Set<string>()
-    return (groups.flatMap(g => (g.status === 'success' ? g.data?.artists ?? [] : []))
+    return accMeta.artists
       .filter(a => caps[a.serverId]?.artist)
       .filter(a => {
         const key = normalizeText(a.name)
         if (seen.has(key)) return false
         seen.add(key)
         return true
-      }))
-  }, [groups, caps])
+      })
+  }, [accMeta.artists, caps])
 
   const mergedAlbums = useMemo(() => {
     const seen = new Set<string>()
-    return (groups.flatMap(g => (g.status === 'success' ? g.data?.albums ?? [] : []))
+    return accMeta.albums
       .filter(al => caps[al.serverId]?.album)
       .filter(al => {
         const key = `${normalizeText(al.name)}|${normalizeText(al.artist)}`
         if (seen.has(key)) return false
         seen.add(key)
         return true
-      }))
-  }, [groups, caps])
+      })
+  }, [accMeta.albums, caps])
 
   const multiSourceCount = merged?.filter(m => m.sources.length > 1).length ?? 0
   const fuzzyCount = merged?.filter(m => m.tier === 'fuzzy').length ?? 0
   const failedGroups = groups.filter(g => g.status === 'error')
+  /** 还有源没到尾页（NAS 一次性全量、isEnd 恒真，不参与） */
+  const moreAvailable = groups.some(g => g.status === 'success' && g.data && !g.data.isEnd)
+  const loadingMore = page > 1 && groups.some(g => g.status === 'loading')
 
   const handleClear = useCallback(() => setQuery(''), [])
 
@@ -155,7 +212,8 @@ export default function SearchPage() {
       singleResults.albums.length > 0 ||
       singleResults.artists.length > 0
     )
-  const isLoading = multi ? groups.every(g => g.status === 'loading') : single.isLoading
+  // 无可用源（eligible 空）时 every 对空数组为 true，会永久转骨架——排除掉
+  const isLoading = multi ? groups.length > 0 && groups.every(g => g.status === 'loading') : single.isLoading
   const isFetching = multi ? groups.some(g => g.status === 'loading') : single.isFetching
 
   // UI 必须以 debouncedQuery 为准展示结果：
@@ -234,11 +292,36 @@ export default function SearchPage() {
         />
       )}
 
-      {/* 加载骨架（hair-soft 行闪烁，不用 spinner） */}
+      {/* 加载骨架（hair-soft 行闪烁，不用 spinner）；无可用源时不转圈 */}
       {showResults && isLoading && <SongRowsSkeleton rows={6} />}
 
-      {/* 无结果（等待防抖或请求进行中时不提前展示） */}
-      {showResults && !isLoading && !isFetching && !hasResults && (
+      {/* 全部源都失败：与「无结果」分开——大空态会让人以为这首歌不存在 */}
+      {showResults && multi && !isLoading && failedGroups.length === groups.length && groups.length > 0 && !hasResults && (
+        <div className="mt-8">
+          <EmptyState
+            ruled
+            title={t('search.allFailedTitle')}
+            description={t('search.allFailedDesc')}
+          />
+          <div className="mt-2 space-y-1.5">
+            {failedGroups.map(g => (
+              <p key={g.serverId} className="flex items-center gap-2 text-[12px] text-ink-faint">
+                <SourceBadge serverId={g.serverId} withName />
+                <span className="truncate">{g.error?.slice(0, 120)}</span>
+              </p>
+            ))}
+          </div>
+          <div className="mt-4 text-center">
+            <button className="more" onClick={() => void queryClient.invalidateQueries({ queryKey: ['search'] })}>
+              {t('action.retry')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 无结果（等待防抖或请求进行中时不提前展示；全失败态已单独处理） */}
+      {showResults && !isLoading && !isFetching && !hasResults
+        && !(multi && failedGroups.length === groups.length && groups.length > 0) && (
         <EmptyState
           title={t('empty.searchNoResult.title', { query })}
           description={t('empty.searchNoResult.description')}
@@ -340,6 +423,18 @@ export default function SearchPage() {
                 getAlternates={i => (merged[i].sources.length > 1 ? merged[i].sources : undefined)}
                 onReplace={(i, song) => setSwaps(prev => ({ ...prev, [i]: song }))}
               />
+              {/* 加载更多：插件源默认页长有限，全部视图不再静默截断在第一页 */}
+              {moreAvailable && (
+                <div className="mt-4 text-center">
+                  <button
+                    className="more"
+                    disabled={loadingMore}
+                    onClick={() => setPage(p => p + 1)}
+                  >
+                    {loadingMore ? t('search.loadingMore') : t('search.loadMore')}
+                  </button>
+                </div>
+              )}
             </section>
           )}
         </>
@@ -356,7 +451,7 @@ export default function SearchPage() {
               </h2>
               {g.status === 'success' && (
                 <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-                  {t('song.trackCount', { count: g.data?.songs.length ?? 0 })}
+                  {t('song.trackCount', { count: acc[g.serverId]?.length ?? g.data?.songs.length ?? 0 })}
                 </span>
               )}
             </div>
@@ -366,10 +461,10 @@ export default function SearchPage() {
                 {t('search.sourceError')}（{g.error?.slice(0, 120)}）
               </p>
             )}
-            {g.status === 'success' && (g.data?.songs.length ?? 0) > 0 && (
-              <SongList songs={g.data!.songs} showCover showAlbum showIndex />
+            {g.status === 'success' && (acc[g.serverId]?.length ?? g.data?.songs.length ?? 0) > 0 && (
+              <SongList songs={acc[g.serverId] ?? g.data!.songs} showCover showAlbum showIndex />
             )}
-            {g.status === 'success' && (g.data?.songs.length ?? 0) === 0 && (
+            {g.status === 'success' && (acc[g.serverId]?.length ?? g.data?.songs.length ?? 0) === 0 && (
               <p className="text-[13px] text-ink-faint py-3 border-t border-hair">
                 {t('search.noResultInSource')}
               </p>
