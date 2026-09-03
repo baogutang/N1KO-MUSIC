@@ -2,14 +2,14 @@
   {
     "id": "netease",
     "name": "网易云音乐",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "manifest": "netease/manifest.json",
     "description": "用你自己的网易云账号听你有权听的歌；扫码登录，凭据只在本机"
   },
   {
     "id": "qqmusic",
     "name": "QQ 音乐",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "manifest": "qqmusic/manifest.json",
     "description": "用你自己的 QQ 音乐账号听你有权听的歌；QQ 扫码登录，凭据只在本机"
   }

@@ -1,7 +1,7 @@
 {
   "id": "netease",
   "name": "网易云音乐",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "protocol": 1,
   "platform": "netease",
   "entry": "index.js",

@@ -784,6 +784,8 @@ module.exports = {
     })
     var metaSingers = (meta && meta.singer) || []
     return {
+      /* 本方法一次拉全（num 200），isEnd 必须给 true，否则宿主拉全循环会重拉 */
+      isEnd: true,
       title: basic.albumName || albumItem.title,
       artwork: albumItem.artwork,
       description: basic.desc || '',

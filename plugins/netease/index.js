@@ -526,7 +526,10 @@ module.exports = {
     var deviceId = await ensureDeviceId(env)
     var res = await weapiRequest(env, '/api/v1/album/' + albumItem.id, {}, deviceId)
     var album = res.body.album || {}
+    /* v1/album 一次性返回全量曲目（无分页），isEnd 必须给 true，
+       否则宿主 fetchAllDetailPages 会当还有下一页反复重拉 */
     return {
+      isEnd: true,
       title: album.name,
       artwork: album.picUrl,
       description: album.description,
