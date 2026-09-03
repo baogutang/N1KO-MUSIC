@@ -103,9 +103,24 @@ export function createSecurePersistStorage<T>(
       }
 
       // 设备密钥不可用（无痕模式等）时退回明文：能用比不能用重要，
-      // deviceKey 已经把原因打到控制台了
+      // deviceKey 已经把原因打到控制台了。
+      // 但插件凭据（网易云/QQ 的完整 Cookie）不在此列——明文落盘的 blast radius
+      // 是整个流媒体账号，宁可让用户下次重扫码。
       if (!anySealed && entries.some(([, plain]) => plain)) {
-        return inner.setItem(name, value as unknown as StorageValue<Record<string, unknown>>)
+        const sanitized = JSON.parse(JSON.stringify(value.state)) as {
+          servers?: Array<Record<string, unknown>>
+        }
+        let droppedCredentials = false
+        for (const server of sanitized.servers ?? []) {
+          if (server.credentials !== undefined) {
+            delete server.credentials
+            droppedCredentials = true
+          }
+        }
+        if (droppedCredentials) {
+          console.warn('[securePersistStorage] deviceKey unavailable: plugin credentials NOT persisted in plaintext fallback')
+        }
+        return inner.setItem(name, { ...value, state: sanitized } as StorageValue<Record<string, unknown>>)
       }
 
       const scrubbed = spec.apply(value.state, blanks) as unknown as Record<string, unknown>
