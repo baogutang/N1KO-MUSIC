@@ -723,10 +723,14 @@ module.exports = {
       key: key,
       type: 3,
     }, deviceId)
-    var code = res.body.code
+    /* 确认成功时响应体可能是 null（登录 Cookie 已在 set-cookie 里下发，
+       body 反而为空）——不能只认 body.code，要同时看 Cookie */
+    var body = res.body || {}
+    var code = body.code
+    var hasLoginCookie = /MUSIC_U=/.test((res.setCookies || []).join('; '))
     if (code === 800) return { status: 'expired' }
     if (code === 802) return { status: 'scanned' }
-    if (code === 803) {
+    if (code === 803 || (hasLoginCookie && code === undefined)) {
       return {
         status: 'confirmed',
         credentials: mergeCookies(env.credentials || '', res.setCookies),
