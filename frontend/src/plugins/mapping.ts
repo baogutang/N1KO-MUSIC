@@ -42,9 +42,20 @@ export function getRawItem<T>(serverId: string, kind: RawKind, id: string): T | 
   return hit as T
 }
 
-/** 缓存未命中时的最小回传项（PROTOCOL §5.2） */
-export function minimalMusicItem(item: Pick<Song, 'id'>, platform: string): MusicItem {
-  return { platform, id: item.id, title: '', artist: '' }
+/** 缓存未命中时的最小回传项（PROTOCOL §5.2）。
+ *  title/artist 有就带上：缓存被 LRU 淘汰后，靠标题+歌手兜底取词/取流的
+ *  插件（QQ getLyric 一类）不至于拿到两个空串直接失效。 */
+export function minimalMusicItem(
+  item: Pick<Song, 'id'> & Partial<Pick<Song, 'title' | 'artist' | 'album'>>,
+  platform: string
+): MusicItem {
+  return {
+    platform,
+    id: item.id,
+    title: item.title ?? '',
+    artist: item.artist ?? '',
+    ...(item.album !== undefined ? { album: item.album } : {}),
+  }
 }
 
 // ===================================================
