@@ -678,6 +678,7 @@
   "empty.offline.auth": "登录已失效",
   "empty.offline.authHint": " · 密码可能已更改，需要重新登录",
   "empty.offline.reauth": "重新登录",
+  "empty.offline.sourceAuth": "「{names}」的登录已失效",
   "empty.offline.serverHint": "，可能是离开了服务器所在的网络",
   "section.search": "检索",
   "login.title": "连接你的音乐服务器",

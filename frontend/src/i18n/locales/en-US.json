@@ -678,6 +678,7 @@
   "empty.offline.auth": "Your session has expired",
   "empty.offline.authHint": " · the password may have changed; sign in again",
   "empty.offline.reauth": "Sign in again",
+  "empty.offline.sourceAuth": "Sign-in expired for: {names}",
   "empty.offline.serverHint": " — you may have left the server's network",
   "section.search": "Search",
   "login.title": "Connect your music server",

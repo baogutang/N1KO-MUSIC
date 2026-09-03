@@ -51,6 +51,8 @@ import {
 export interface PluginHostLike {
   call<T = unknown>(method: string, ...args: unknown[]): Promise<T>
   hasMethod(method: string): boolean
+  /** 当前凭据（真 PluginHost 有；测试假实现可缺省，按匿名处理） */
+  readonly credentials?: string | null
 }
 
 /** 分页拉全的上限（PLAN 1.3：分页拉全歌单上限 2000 条） */
@@ -90,8 +92,25 @@ export class PluginAdapter implements MusicServerAdapter {
   }
 
   async ping(): Promise<boolean> {
-    // 沙箱 ready 即视为可达；凭据有效性由 n1ko.auth.getUser 的定期检查负责
+    // 沙箱 ready 即视为可达；凭据有效性由 diagnose() 的定期检查负责
     return true
+  }
+
+  /**
+   * 凭据诊断（ConnectionBanner 逐源调用）：
+   * - 匿名浏览（无凭据）是合法状态，按 ok 处理，不制造「登录失效」噪音；
+   * - 插件明确抛 unauthorized → unauthorized；网络类错误 → unreachable。
+   */
+  async diagnose(): Promise<'ok' | 'unreachable' | 'unauthorized'> {
+    if (!this.host.hasMethod('n1ko.auth.getUser')) return 'ok'
+    if (this.host.credentials == null) return 'ok'
+    try {
+      const user = await this.host.call<{ id?: string | number; name?: string } | null>('n1ko.auth.getUser')
+      return user ? 'ok' : 'unauthorized'
+    } catch (e) {
+      const code = (e as { code?: string }).code
+      return code === 'unauthorized' ? 'unauthorized' : 'unreachable'
+    }
   }
 
   // --- 歌曲 / 搜索 ---

@@ -93,6 +93,11 @@ export class PluginHost {
     this.options = options
   }
 
+  /** 当前凭据（凭据诊断用它区分「匿名浏览」与「登录态过期」） */
+  get credentials(): string | null {
+    return this.options.credentials
+  }
+
   /** 装载沙箱并等待 ready；返回插件导出的方法路径 */
   async init(code: string): Promise<string[]> {
     if (typeof document === 'undefined') {

@@ -10,12 +10,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowsClockwise, WifiSlash, Key } from '@phosphor-icons/react'
 import { useQueryClient } from '@tanstack/react-query'
-import { getAdapter, hasAdapter } from '@/api'
+import { getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
 import { useServerStore } from '@/store/serverStore'
 import { useT } from '@/i18n'
 
 /** 浏览器报离线后多久探一次服务器 */
 const PROBE_INTERVAL_MS = 20_000
+/** 插件音源凭据体检间隔（会打到真实登录接口，放慢） */
+const CREDENTIAL_PROBE_INTERVAL_MS = 120_000
 
 export function ConnectionBanner() {
   const { t } = useT()
@@ -98,34 +100,75 @@ export function ConnectionBanner() {
   }, [queryClient])
 
   const offline = browserOffline || serverUnreachable || unauthorized
-  if (!offline) return null
 
-  // 凭据失效：重试没有意义，给一个真正能解决问题的出口
   /**
-   * 设备本身离线时，任何「服务器怎么说」的判定都不可信——那一刻我们
-   * 根本没问到服务器。所以 browserOffline 的优先级高于 unauthorized，
-   * 否则会出现「拔掉 Wi-Fi 之后被告知登录失效」这种把人引向错误方向的提示。
+   * 逐源凭据体检（验收第三轮 #10）：非主库的插件音源也各自问一次
+   * n1ko.auth.getUser（匿名浏览按健康处理）。流媒体 Cookie 的半衰期是
+   * 「周」，过期后的表现是收藏/推荐悄悄消失——必须有一条常驻可见的
+   * 「请重新登录」出口。选择器吐 join 后的字符串保持引用稳定。
    */
-  const showAuth = unauthorized && !browserOffline
-  const message = showAuth ? t('empty.offline.auth')
-    : browserOffline ? t('empty.offline.device') : t('empty.offline.server')
-  const hint = showAuth ? t('empty.offline.authHint')
-    : browserOffline ? t('empty.offline.deviceHint') : t('empty.offline.serverHint')
+  const pluginIds = useServerStore(s => s.connectedServerIds
+    .filter(id => {
+      const server = s.servers.find(v => v.id === id)
+      return server?.type === 'plugin' && id !== s.activeServerId
+    })
+    .sort()
+    .join('|'))
+  const [expiredSources, setExpiredSources] = useState<Array<{ id: string; name: string }>>([])
 
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex items-center justify-center gap-3 border-b border-hair bg-paper-deep px-4 py-1.5 text-[12px] text-ink-soft"
-    >
-      {showAuth
-        ? <Key size={13} aria-hidden="true" className="text-primary flex-shrink-0" />
-        : <WifiSlash size={13} aria-hidden="true" className="text-primary flex-shrink-0" />}
-      <span>
-        {message}
-        <span className="text-ink-faint">{hint}</span>
-      </span>
-      {showAuth ? (
+  useEffect(() => {
+    const ids = pluginIds ? pluginIds.split('|') : []
+    if (!ids.length) {
+      setExpiredSources(prev => (prev.length ? [] : prev))
+      return
+    }
+    let cancelled = false
+    const probeSources = async () => {
+      const bad: Array<{ id: string; name: string }> = []
+      for (const id of ids) {
+        if (!hasAdapterFor(id)) continue
+        const adapter = getAdapterFor(id)
+        if (!adapter.diagnose) continue
+        try {
+          if ((await adapter.diagnose()) === 'unauthorized') {
+            const name = useServerStore.getState().servers.find(s => s.id === id)?.name ?? id
+            bad.push({ id, name })
+          }
+        } catch { /* 单源探测失败不影响其它源的结论 */ }
+      }
+      if (!cancelled) setExpiredSources(bad)
+    }
+    void probeSources()
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'hidden') return
+      void probeSources()
+    }, CREDENTIAL_PROBE_INTERVAL_MS)
+    const onVisible = () => { if (document.visibilityState === 'visible') void probeSources() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [pluginIds])
+
+  // 主库横幅可见时优先只显示它（登录页从横幅都能进，不叠两条）
+  if (offline) {
+    return renderOfflineBanner()
+  }
+  if (expiredSources.length) {
+    const names = expiredSources.map(s => s.name).join('、')
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex items-center justify-center gap-3 border-b border-hair bg-paper-deep px-4 py-1.5 text-[12px] text-ink-soft"
+      >
+        <Key size={13} aria-hidden="true" className="text-primary flex-shrink-0" />
+        <span>
+          {t('empty.offline.sourceAuth', { names })}
+          <span className="text-ink-faint">{t('empty.offline.authHint')}</span>
+        </span>
         <button
           onClick={() => navigate('/login')}
           className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary"
@@ -133,16 +176,50 @@ export function ConnectionBanner() {
           <Key size={11} aria-hidden="true" />
           {t('empty.offline.reauth')}
         </button>
-      ) : (
-        <button
-          onClick={retry}
-          disabled={retrying}
-          className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary disabled:opacity-50"
-        >
-          <ArrowsClockwise size={11} className={retrying ? 'animate-spin' : undefined} aria-hidden="true" />
-          {t('action.retry')}
-        </button>
-      )}
-    </div>
-  )
+      </div>
+    )
+  }
+  return null
+
+  function renderOfflineBanner() {
+    const showAuth = unauthorized && !browserOffline
+    const message = showAuth ? t('empty.offline.auth')
+      : browserOffline ? t('empty.offline.device') : t('empty.offline.server')
+    const hint = showAuth ? t('empty.offline.authHint')
+      : browserOffline ? t('empty.offline.deviceHint') : t('empty.offline.serverHint')
+
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex items-center justify-center gap-3 border-b border-hair bg-paper-deep px-4 py-1.5 text-[12px] text-ink-soft"
+      >
+        {showAuth
+          ? <Key size={13} aria-hidden="true" className="text-primary flex-shrink-0" />
+          : <WifiSlash size={13} aria-hidden="true" className="text-primary flex-shrink-0" />}
+        <span>
+          {message}
+          <span className="text-ink-faint">{hint}</span>
+        </span>
+        {showAuth ? (
+          <button
+            onClick={() => navigate('/login')}
+            className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary"
+          >
+            <Key size={11} aria-hidden="true" />
+            {t('empty.offline.reauth')}
+          </button>
+        ) : (
+          <button
+            onClick={retry}
+            disabled={retrying}
+            className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary disabled:opacity-50"
+          >
+            <ArrowsClockwise size={11} className={retrying ? 'animate-spin' : undefined} aria-hidden="true" />
+            {t('action.retry')}
+          </button>
+        )}
+      </div>
+    )
+  }
 }
