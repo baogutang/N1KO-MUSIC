@@ -58,6 +58,11 @@ interface ServerState {
   updateServerAuth: (id: string, token: string, salt?: string, userId?: string) => void
   /** 插件音源凭据回写（env.setCredentials / 重新登录产生新串时）*/
   updateServerCredentials: (id: string, credentials: string | null) => void
+  /** 插件音源重复登录时原地更新账号身份与凭据，避免同一插件堆出多行 */
+  updatePluginServer: (
+    id: string,
+    patch: { name?: string; username?: string; credentials?: string | null }
+  ) => void
   /** 获取主库配置 */
   getActiveServer: () => ServerConfig | null
 }
@@ -222,6 +227,21 @@ export const useServerStore = create<ServerState>()(
       updateServerCredentials: (id, credentials) => {
         set(state => ({
           servers: state.servers.map(s => (s.id === id ? { ...s, credentials: credentials ?? undefined } : s)),
+        }))
+      },
+
+      updatePluginServer: (id, patch) => {
+        set(state => ({
+          servers: state.servers.map(s =>
+            s.id === id
+              ? {
+                  ...s,
+                  ...(patch.name !== undefined ? { name: patch.name } : {}),
+                  ...(patch.username !== undefined ? { username: patch.username } : {}),
+                  ...(patch.credentials !== undefined ? { credentials: patch.credentials ?? undefined } : {}),
+                }
+              : s
+          ),
         }))
       },
 

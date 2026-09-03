@@ -682,6 +682,8 @@
   "login.subtitleConfiguring": "Setting up the connection to {type}.",
   "login.savedServers": "SAVED SERVERS",
   "login.addNewServer": "Or add a new server",
+  "login.removeSavedServer": "Remove this server",
+  "login.removeSavedServerConfirm": "Remove saved “{name}”? You will need to add it or sign in again.",
   "login.serverType": "SERVER TYPE",
   "login.serverName": "Server name (optional)",
   "login.serverNamePlaceholder": "My Navidrome",

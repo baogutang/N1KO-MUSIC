@@ -682,6 +682,8 @@
   "login.subtitleConfiguring": "正在配置 {type} 的连接信息。",
   "login.savedServers": "已保存的服务器 · SAVED",
   "login.addNewServer": "或添加新服务器",
+  "login.removeSavedServer": "删除此服务器",
+  "login.removeSavedServerConfirm": "删除已保存的「{name}」？删除后需要重新添加或登录。",
   "login.serverType": "选择服务器类型 · SERVER TYPE",
   "login.serverName": "服务器名称（可选）",
   "login.serverNamePlaceholder": "我的 Navidrome",

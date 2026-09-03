@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, CaretRight, CircleNotch, Eye, EyeSlash, Plus } from '@phosphor-icons/react'
+import { ArrowLeft, CaretRight, CircleNotch, Eye, EyeSlash, Plus, X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,7 +55,7 @@ type LoginStep = 'type' | 'credentials' | 'plugin-disclaimer' | 'plugin-auth'
 export default function LoginPage() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { servers, addServer, activateServer, updateServerAuth } = useServerStore()
+  const { servers, addServer, activateServer, updateServerAuth, updatePluginServer, removeServer } = useServerStore()
 
   const [step, setStep] = useState<LoginStep>('type')
   const [selectedType, setSelectedType] = useState<ServerType | null>(null)
@@ -116,7 +116,9 @@ export default function LoginPage() {
     })()
   }
 
-  /** 扫码 / Cookie / 匿名殊途同归：凭据落 serverStore 并激活 */
+  /** 扫码 / Cookie / 匿名殊途同归：凭据落 serverStore 并激活。
+   *  同插件同账号复用已有条目；仅有的一条旧条目（比如匿名）原地升级 ——
+   *  不然每次「先不登录」/重登都会堆出一行重复的音源 */
   const finishPluginAuth = async (credentials: string | null) => {
     if (!selectedPlugin) return
     setIsLoading(true)
@@ -128,16 +130,31 @@ export default function LoginPage() {
           nickname = user?.name ?? null
         } catch { /* 取不到昵称不拦登录 */ }
       }
-      const serverId = addServer({
-        type: 'plugin',
-        pluginId: selectedPlugin.id,
+      const display = {
         name: nickname ? `${selectedPlugin.name} · ${nickname}` : selectedPlugin.name,
-        url: '',
         username: nickname ?? 'anonymous',
-        token: '',
-        ...(credentials ? { credentials } : {}),
-        isActive: true,
-      })
+      }
+      const pluginRows = servers.filter(s => s.type === 'plugin' && s.pluginId === selectedPlugin.id)
+      const matched = pluginRows.find(s => (s.credentials ?? null) === (credentials ?? null))
+      // 正式登录优先升级一条匿名旧行，而不是再堆一行；匿名进入时 matched 已兜住重复
+      const upgrade = matched || !credentials ? undefined : pluginRows.find(s => !s.credentials)
+      const target = matched ?? upgrade ?? (pluginRows.length === 1 ? pluginRows[0] : undefined)
+      let serverId: string
+      if (target) {
+        updatePluginServer(target.id, { ...display, ...(credentials ? { credentials } : {}) })
+        serverId = target.id
+      } else {
+        serverId = addServer({
+          type: 'plugin',
+          pluginId: selectedPlugin.id,
+          name: display.name,
+          url: '',
+          username: display.username,
+          token: '',
+          ...(credentials ? { credentials } : {}),
+          isActive: true,
+        })
+      }
       closeAuthHost(selectedPlugin.id)
       setAuthHost(null)
       if (!(await activateServer(serverId))) {
@@ -344,20 +361,24 @@ export default function LoginPage() {
                 </p>
                 <ol className="border-t border-hair">
                   {servers.map((server, i) => (
-                    <li key={server.id} className="border-b border-hair-soft">
+                    <li key={server.id} className="group/row relative border-b border-hair-soft">
                       <button
                         onClick={() => handleQuickConnect(server.id)}
-                        className="group flex w-full items-center gap-4 px-2 py-3 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
+                        className="flex w-full items-center gap-4 px-2 py-3 pr-11 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
                       >
-                        <span className="num w-6 flex-shrink-0 text-[11.5px] text-ink-faint transition-colors group-hover:text-primary">
+                        <span className="num w-6 flex-shrink-0 text-[11.5px] text-ink-faint transition-colors group-hover/row:text-primary">
                           {String(i + 1).padStart(2, '0')}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate font-serif text-[15px] font-semibold text-foreground transition-colors group-hover:text-primary">
+                          <span className="block truncate font-serif text-[15px] font-semibold text-foreground transition-colors group-hover/row:text-primary">
                             {server.name}
                           </span>
                           <span className="block truncate text-[11.5px] text-ink-faint">
-                            {getServerTypeLabel(server.type)} · {server.username}
+                            {server.type === 'plugin'
+                              ? plugins.find(p => p.id === server.pluginId)?.name ?? getServerTypeLabel(server.type)
+                              : getServerTypeLabel(server.type)}
+                            {' · '}
+                            {server.username}
                           </span>
                         </span>
                         <span className="num hidden sm:block max-w-[150px] truncate text-[10.5px] text-ink-faint">
@@ -365,8 +386,21 @@ export default function LoginPage() {
                         </span>
                         <CaretRight
                           size={13}
-                          className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary"
+                          className="flex-shrink-0 text-ink-faint transition-colors group-hover/row:text-primary"
                         />
+                      </button>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (window.confirm(t('login.removeSavedServerConfirm', { name: server.name }))) {
+                            removeServer(server.id)
+                          }
+                        }}
+                        aria-label={t('login.removeSavedServer')}
+                        title={t('login.removeSavedServer')}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-faint/50 transition-colors hover:bg-paper-deep hover:text-destructive"
+                      >
+                        <X size={14} />
                       </button>
                     </li>
                   ))}
