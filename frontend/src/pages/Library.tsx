@@ -9,6 +9,7 @@ import { ArtistCard } from '@/components/music/ArtistCard'
 import { SongList } from '@/components/music/SongList'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { findAdapterFor } from '@/api'
+import { useServerStore } from '@/store/serverStore'
 import { playAllInOrder, shuffleWholeLibrary } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
@@ -107,8 +108,23 @@ export default function Library() {
     { id: 'playlists', label: t('nav.playlists') },
   ]
 
+  // 插件音源当主库：曲库浏览是 NAS 的能力，四个 tab 会全空——
+  // 明说 + 指路（专辑/歌手浏览页有源选择器，歌单页有各源分区）
+  const primaryType = useServerStore(s => s.servers.find(x => x.id === s.activeServerId)?.type)
+  const pluginPrimary = primaryType === 'plugin'
+
   return (
     <div className="pt-9 animate-fade-in">
+      {pluginPrimary && (
+        <div className="mb-8">
+          <EmptyState
+            ruled
+            title={t('sources.noBrowseTitle')}
+            description={t('sources.noBrowseDesc')}
+            action={{ label: t('nav.playlists'), onClick: () => navigate('/playlists') }}
+          />
+        </div>
+      )}
       {/* 页头：衬线标题 + mono 计数；右侧细线小图标键切换视图 */}
       <div className="flex items-end justify-between gap-6">
         <div className="min-w-0">
