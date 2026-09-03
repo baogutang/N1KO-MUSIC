@@ -99,3 +99,8 @@
 - 选择：协议新增可选方法 `n1ko.user.getRecommendSongs()` 与能力 `recommendSongs`；首页新增「今日推荐」合并区——各源轮转交错 + 标题/歌手归一去重（上限 20），推荐歌单横栏同样合并成一张交错网格（卡片带音源标识）。榜单保持各源分组（榜单本质是平台各自的）。
 - 原因：合并区把「今天听什么」变成一个入口；交错而非拼接保证单一音源不刷屏；未登录的源查询失败降级为不出场，不拖垮整页。
 - 影响：plugins/netease 0.1.6、plugins/qqmusic 0.1.4（fetchDailyRecommend / fetchRadarSongs 抽出复用）；plugin.ts 挂 getRecommendSongs；useSourceQueries.interleaveRecommendations（纯函数有单测）。
+
+## 2026-09-03 · 验收第三轮 · QQ 非歌曲搜索的诚实降级
+- 冲突：do_search_v2 的 search_type 此前硬编码 100，歌单/专辑/歌手搜索全按歌查；改为按类型映射（100/10/200/3000）后，实测匿名态新版响应里非歌曲分节（item_songlist/singer/item_album）依旧为空——QQ 侧歌单广场、soso 老 CGI、PlayListPlazaServer 全部 500003 或空（IP 区域限制，与当初搜索被封同源）。
+- 选择：保留类型映射（方向正确、登录态下才可能点亮、对歌曲搜索零影响），QQ 匿名不向「推荐歌单」合并区贡献内容，网格由网易云撑起；不做假数据。
+- 影响：plugins/qqmusic 0.1.6；等有登录凭据或端点恢复后再实测点亮。

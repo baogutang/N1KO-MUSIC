@@ -689,7 +689,7 @@ function sectionItems(v) {
 
 module.exports = {
   platform: 'qqmusic',
-  version: '0.1.3',
+  version: '0.1.6',
   author: 'N1KO',
   description: 'QQ 音乐（用自己的账号听自己有权听的）',
 
@@ -697,11 +697,14 @@ module.exports = {
 
   /* ---------- 搜索（music.adaptor.SearchAdaptor.do_search_v2） ---------- */
   async search(query, page, type) {
+    /* search_type 必须按类型给：100 歌曲 / 10 专辑 / 200 歌手 / 3000 歌单。
+       全按 100 查的话新版响应里非歌曲分节恒为空（推荐歌单就是这么哑掉的） */
+    var typeMap = { music: 100, album: 10, artist: 200, sheet: 3000 }
     /* searchid 是大整数字符串（utils/common.py get_searchID 的形态）；
        布尔值按服务端约定转 0/1（QQMusicApi 的 bool_to_int 默认转换） */
     var data = await cgi('music.adaptor.SearchAdaptor', 'do_search_v2', {
       searchid: String(18014398509481984 * (1 + secureRandInt(20)) + 4294967296 * secureRandInt(4194304) + (Date.now() % 86400000)),
-      search_type: 100,
+      search_type: typeMap[type] || 100,
       page_num: 30,
       query: String(query || ''),
       page_id: page || 1,
