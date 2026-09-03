@@ -105,3 +105,57 @@
 ### 顺手发现（没有修）
 - 声明确认/安装失败步骤错误提示不可见（阶段 1 已记，仍开放）
 - `Login.tsx` `activateServer` 返回值未检查（阶段 0 已记，仍开放）
+
+## 阶段 3 · 2026-09-03
+
+### 完成
+- 网易云音乐插件 `plugins/netease/`：weapi（双重 AES-CBC + 原生 BigInt 裸 RSA 模幂）/ eapi（URL 摘要 + AES-ECB）从 api-enhanced 移植，不引其包；eapi(interfacepc) / weapi(music.163.com) 双通道请求封装，header cookie 全量自拼；匿名令牌 register/anonimous 惰性注册（注册请求显式绕过凭据解析，打断自递归）；cloudsearch / player-url-v1（回落 download-url-v1）/ lyric-v1 / album / artist-top-song / toplist / playlist-list / v6-playlist-detail+v3-song-detail / playlist 操作；扫码状态机 800/801/802/803；音质四档映射 level；fee/-110 → forbidden（只播账号有权内容）· `d23950b`（见 git log）
+- 测试：crypto 与参考包（临时目录安装，不进仓库依赖）逐字段一致（weapi params/encSecKey + eapi 全等）；live 测试默认跳过（N1KO_NETEASE_LIVE=1），本机实测 947ms 全过：匿名注册 → 搜索 → 榜单 → 二维码 key → 免费曲流地址 → 歌词
+- 单文件交付（沙箱加载器不支持相对 require，记 DECISIONS）；网易云 n1ko.auth 补 createQr/checkQr 委托
+
+### 验证
+- 自动：vitest 576/576 · test:plugins 20 过 + 1 live 跳过（CI）· live 本机全过
+
+### 需要 N1KO 决定（手机验收清单）
+1. 扫码登录：显示昵称头像；我的歌单与收藏
+2. VIP 曲：会员账号可播；非会员账号标灰并有原因
+3. Cookie 失效后顶部横幅出现；重新扫码后恢复
+
+## 阶段 4 · 2026-09-03
+
+### 完成
+- QQ 音乐插件 `plugins/qqmusic/`：musicu.fcg web 平台 comm（g_tk=hash33）+ zzc 签名 + hash33 从 luren-dc/QQMusicApi 移植 · `commit`
+  - do_search_v2 搜索（布尔转 0/1、大整型 searchid）；Toplist 榜单（GetAll 的 group[] / GetDetail 的 songInfoList——实证发现的真实形状）；CgiGetDiss 歌单；vkey.GetVkey + GetCdnDispatch 取流（result 104003/104013 → forbidden）；专辑/歌手/用户接口
+  - **QRC 歌词魔改 3DES 全量移植**：QQ 自定义 S 盒与带 bug 的 PC-2 密钥压缩（标准 crypto-js 解不开，逐函数对照 Python 参考）；HEX 载荷；3DES 尾部垃圾用增量读解压前缀容忍（python zlib.decompress 同语义）
+  - QQ 扫码登录链路：ptqrshow（PNG 二维码 + qrsig）→ ptqrlogin（hash33 token）→ check_sig（p_skey）→ authorize（Location 取 code）→ QQConnectLogin.QQLogin CGI
+- 宿主扩展：HostFetchRequest.redirect='manual' 全链路透传（axios shim / hostFetch / dev 代理 / Tauri）；createQr 可返回 qrImage（服务端二维码图），QrLogin 渲染 <img>
+- 测试：zzc/hash33 与 Python 参考逐值一致（向量由参考实现在本机算出后钉死）；live 默认跳过（N1KO_QQ_LIVE=1）
+
+### 验证
+- 自动：vitest 576/576 · test:plugins 24 过 + 2 live 跳过
+- live 本机：榜单 → 详情 → 二维码（PNG+qrsig）→ 免费曲 vkey 流地址 → QRC 歌词解密全过（386ms）
+- **搜索受 IP 地域限制**：本机出口 IP 被 QQ 搜索静默过滤（do_search_v2 code 2001 / sum 0，两个端点一致）——live 测试降级告警；实现本身待手机端确认
+
+### 需要 N1KO 决定（手机验收清单）
+1. QQ/微信扫码登录成功显示昵称
+2. 中国大陆网络下搜索是否正常（本机 IP 无法验证）
+3. VIP 曲按账号权益播放；非会员标灰
+4. QQ 扫码需要 App 或桌面版（浏览器跨源 manual redirect 是 opaque，与 PLAN 一致）
+
+## 阶段 5 · 2026-09-03
+
+### 完成
+- ImportFromSourceDialog：选来源歌单（任何声明 userPlaylists 的已连接源）→ bestMatchFor 三级匹配进主库（ISRC/精确/待确认分级展示）→ 新建或追加主库歌单；未匹配清单自动放进本地混合歌单
+- 本地混合歌单：IndexedDB n1ko-music-local-playlists，条目 {serverId, songId} + 曲目快照；歌单页独立分节带「本地」标，查看对话框支持播放/删除；不同步 backend
+- 文件导入（M3U/XSPF）匹配候选聚合所有已连接音源（阶段 1 遗留 TODO）：主库命中进服务端歌单，只在其他音源命中的放进本地混合歌单
+
+### 验证
+- 自动：lint ✅ tsc ✅ vitest 576/576 · 三级匹配规则单测（match.test.ts，阶段 2 落地）覆盖 isrc/exact/fuzzy/时长缺席/同名不同歌手/Live 版
+- 手动：跨源导入与本地混合歌单走查属于手机验收清单第 5 项（Mock NAS + Mock 插件之间导入）
+
+### 手机验收清单（全部阶段合并，需要 N1KO）
+1. 网易云扫码：昵称头像 / 我的歌单与收藏 / VIP 曲按账号权益 / Cookie 失效横幅
+2. QQ 扫码（需 App 或桌面版）：昵称 / 大陆网络下搜索 / VIP 曲按账号权益
+3. 真机（iOS/Android）与桌面（Tauri）安装真实插件后取流通畅（CapacitorHttp / tauri-plugin-http 通道，代码就绪未真机验证）
+4. 双源同时连接的日常使用：搜索聚合 / 播放 / 歌词 / 过期重取（开发态 E2E 已覆盖，真机复验）
+5. 跨源导入：Mock NAS ↔ Mock 插件互导 + 本地混合歌单
