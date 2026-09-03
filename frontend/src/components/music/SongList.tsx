@@ -617,7 +617,8 @@ const SongRow = React.memo(function SongRow({
   const handleNavigateArtist = (e: React.MouseEvent) => {
     if (song.artistId) {
       e.stopPropagation()
-      navigate(`/artists/${song.artistId}`)
+      // 混合列表里 artistId 属于 song.serverId 那个源，跳转必须带上，否则详情页按主库查会落空
+      navigate(`/artists/${song.artistId}?src=${encodeURIComponent(song.serverId)}`)
     }
     // 无 artistId 时不 stopPropagation，click 冒泡到行级 onClick → 触发播放
   }
@@ -625,7 +626,7 @@ const SongRow = React.memo(function SongRow({
   const handleNavigateAlbum = (e: React.MouseEvent) => {
     if (song.albumId) {
       e.stopPropagation()
-      navigate(`/albums/${song.albumId}`)
+      navigate(`/albums/${song.albumId}?src=${encodeURIComponent(song.serverId)}`)
     }
   }
 
@@ -702,6 +703,14 @@ const SongRow = React.memo(function SongRow({
           isCurrentSong ? 'text-primary' : 'text-foreground'
         )}>
           {spaceCJK(song.title)}
+          {(song.vip || song.ext?.vip) && (
+            <span
+              title={t('song.vipHint')}
+              className="ml-1.5 inline-block translate-y-[-1px] rounded-[2px] border border-primary/60 px-1 align-baseline latin-tag text-[9px] font-semibold tracking-[0.08em] text-primary"
+            >
+              VIP
+            </span>
+          )}
           {sourceBadge && (alternates && alternates.length > 1 ? (
             <SourceSwitchMenu song={song} alternates={alternates} onPick={alt => onReplace?.(index, alt)} />
           ) : (

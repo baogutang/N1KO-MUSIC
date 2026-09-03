@@ -735,6 +735,7 @@
   "section.similarArtists": "Similar artists",
   "section.songs": "Songs",
   "song.trackCount": "{count} tracks",
+  "song.vipHint": "VIP track: playable per your account entitlement",
   "song.trackCount_one": "{count} track",
   "song.trackCountDuration": "{count} tracks · {duration}",
   "song.trackTotal": "{count} tracks in total",

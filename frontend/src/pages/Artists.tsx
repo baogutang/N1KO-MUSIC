@@ -148,7 +148,7 @@ export default function ArtistsPage() {
                   {bucket.items.map(artist => (
                     <button
                       key={artist.id}
-                      onClick={() => navigate(`/artists/${artist.id}`)}
+                      onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
                       className="group flex w-full items-baseline justify-between gap-4 px-2 py-3.5 text-left transition-all duration-200 hover:translate-x-1.5 hover:bg-paper-deep"
                     >
                       <span className="min-w-0 truncate font-serif text-lg font-semibold text-ink transition-colors duration-200 group-hover:text-primary md:text-xl">

@@ -28,7 +28,7 @@ export function ArtistCard({ artist, className }: ArtistCardProps) {
     <button
       type="button"
       className={cn('group cursor-pointer text-center min-w-0 w-full', className)}
-      onClick={() => navigate(`/artists/${artist.id}`)}
+      onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
     >
       {/* 圆形头像：发丝 ring，hover 微放大 */}
       <div className="relative aspect-square overflow-hidden rounded-full mb-2.5 ring-1 ring-hair-soft transition-transform duration-300 ease-out group-hover:scale-[1.03]">

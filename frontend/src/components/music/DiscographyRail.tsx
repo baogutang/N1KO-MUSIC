@@ -136,7 +136,7 @@ export function DiscographyRail({
                   <li key={album.id}>
                     <div className="group flex items-center gap-3.5 border-b border-hair-soft py-2.5 transition-[background,transform] duration-200 hover:translate-x-1 hover:bg-paper-deep">
                       <button
-                        onClick={() => navigate(`/albums/${album.id}`)}
+                        onClick={() => navigate(`/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`)}
                         className="flex min-w-0 flex-1 items-center gap-3.5 text-left"
                       >
                         <span className="h-9 w-9 flex-none overflow-hidden rounded-sm ring-1 ring-hair-soft">

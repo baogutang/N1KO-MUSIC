@@ -150,7 +150,7 @@ export function CommandPalette() {
       label: album.name,
       hint: album.artist,
       icon: <Disc size={15} />,
-      run: () => navigate(`/albums/${album.id}`),
+      run: () => navigate(`/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`),
     }))
   ), [results, navigate])
 
@@ -159,7 +159,7 @@ export function CommandPalette() {
       id: `artist-${artist.id}`,
       label: artist.name,
       icon: <MicrophoneStage size={15} />,
-      run: () => navigate(`/artists/${artist.id}`),
+      run: () => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`),
     }))
   ), [results, navigate])
 

@@ -400,7 +400,7 @@ export default function SearchPage() {
                       </span>
                     )}
                     <button
-                      onClick={() => navigate(`/artists/${artist.id}`)}
+                      onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
                       className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                     >
                       {spaceCJK(artist.name)}

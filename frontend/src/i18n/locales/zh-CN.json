@@ -735,6 +735,7 @@
   "section.similarArtists": "相似歌手",
   "section.songs": "歌曲",
   "song.trackCount": "{count} 首",
+  "song.vipHint": "会员曲：按你的账号权益播放，未开通可能无法试听",
   "song.trackCount_one": "{count} 首",
   "song.trackCountDuration": "{count} 首 · {duration}",
   "song.trackTotal": "共 {count} 首",

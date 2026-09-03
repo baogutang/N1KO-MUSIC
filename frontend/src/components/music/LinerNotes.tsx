@@ -142,7 +142,7 @@ export function LinerNotes({ album }: { album: AlbumDetail }) {
                         {i > 0 && <span className="mx-2 text-ink-faint">·</span>}
                         {artistId ? (
                           <button
-                            onClick={() => navigate(`/artists/${artistId}`)}
+                            onClick={() => navigate(`/artists/${artistId}?src=${encodeURIComponent(album.serverId)}`)}
                             className="border-b border-transparent transition-colors hover:border-primary hover:text-primary"
                           >
                             {name}
@@ -211,7 +211,16 @@ function SpecRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 /** 单曲页用的紧凑制作人员块 */
-export function SongCredits({ contributors, composer }: { contributors?: Contributor[]; composer?: string }) {
+export function SongCredits({
+  contributors,
+  composer,
+  serverId,
+}: {
+  contributors?: Contributor[]
+  composer?: string
+  /** 制作人员归属的音源（跳歌手页带 src 用） */
+  serverId?: string
+}) {
   const { t } = useT()
   const navigate = useNavigate()
   const list = contributors ?? []
@@ -241,7 +250,7 @@ export function SongCredits({ contributors, composer }: { contributors?: Contrib
             <button
               onClick={() =>
                 c.artistId
-                  ? navigate(`/artists/${c.artistId}`)
+                  ? navigate(`/artists/${c.artistId}${serverId ? `?src=${encodeURIComponent(serverId)}` : ''}`)
                   : navigate(`/search?q=${encodeURIComponent(c.name)}`)
               }
               className="border-b border-transparent transition-colors hover:border-primary hover:text-primary"

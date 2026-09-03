@@ -347,13 +347,13 @@ export function FullscreenPlayer() {
   const handleNavigateArtist = () => {
     if (!currentSong?.artistId) return
     toggleFullscreen()
-    navigate(`/artists/${currentSong.artistId}`)
+    navigate(`/artists/${currentSong.artistId}?src=${encodeURIComponent(currentSong.serverId)}`)
   }
 
   const handleNavigateAlbum = () => {
     if (!currentSong?.albumId) return
     toggleFullscreen()
-    navigate(`/albums/${currentSong.albumId}`)
+    navigate(`/albums/${currentSong.albumId}?src=${encodeURIComponent(currentSong.serverId)}`)
   }
 
   if (!currentSong) return null

@@ -94,6 +94,8 @@ export interface Song {
   path?: string
   /** Subsonic 文件后缀（部分列表无 path 时有 suffix，用于流格式推断）*/
   suffix?: string
+  /** 插件音源：会员曲（当前账号可能无权播放），曲目行据此标 VIP */
+  vip?: boolean
   /**
    * 服务器已经返回、此前被 mapSong 丢弃的扩展元数据。
    * 收在一个可选对象里而不是往 Song 上摊二十个平铺字段。
@@ -149,7 +151,7 @@ export interface SongExtras {
   comment?: string
   /** 长音轨的服务端断点位置（毫秒）*/
   bookmarkPosition?: number
-  /** 插件音源：当前账号无权播放（会员曲），界面据此标灰并给出原因 */
+  /** 插件音源：当前账号无权播放（会员曲），界面据此标 VIP */
   vip?: boolean
 }
 

@@ -264,7 +264,7 @@ export default function Library() {
                 {albums.map(album => (
                   <div
                     key={album.id}
-                    onClick={() => navigate(`/albums/${album.id}`)}
+                    onClick={() => navigate(`/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`)}
                     className="group flex cursor-pointer items-center gap-4 px-2 py-3 transition-all duration-200 hover:translate-x-1 hover:bg-paper-deep"
                   >
                     <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-hair-soft">
@@ -331,7 +331,7 @@ export default function Library() {
               {(artists ?? []).map(artist => (
                 <div
                   key={artist.id}
-                  onClick={() => navigate(`/artists/${artist.id}`)}
+                  onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
                   className="group flex cursor-pointer items-center gap-4 px-2 py-3 transition-all duration-200 hover:translate-x-1 hover:bg-paper-deep"
                 >
                   <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-full ring-1 ring-hair-soft">

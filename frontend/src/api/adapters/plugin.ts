@@ -438,14 +438,23 @@ export class PluginAdapter implements MusicServerAdapter {
     const songs: Song[] = []
     let page = 1
     let item: TItem | undefined
+    let prevFirstId: string | undefined
     for (;;) {
       const detail = await fetchPage(page)
       item = detail.item ?? item
-      for (const music of detail.musicList ?? []) {
+      const list = detail.musicList ?? []
+      // 防呆：端点忽略 page 参数时（插件忘了 isEnd），同一首批重拉会无限循环——
+      // 首项 id 与上一页相同即视为到头
+      const firstId = list[0] ? (list[0] as MusicItem).id : undefined
+      if (page > 1 && firstId !== undefined && firstId === prevFirstId) {
+        return { songs, item }
+      }
+      prevFirstId = firstId
+      for (const music of list) {
         songs.push(mapMusicItem(music, this.serverId))
         if (songs.length >= FETCH_ALL_CAP) return { songs, item }
       }
-      if (detail.isEnd || !(detail.musicList ?? []).length) return { songs, item }
+      if (detail.isEnd || !list.length) return { songs, item }
       page += 1
     }
   }

@@ -156,7 +156,7 @@ export default function IssuePage() {
                       {t('issue.coverStar')}
                     </span>
                     <button
-                      onClick={() => issue.coverArtist?.id && navigate(`/artists/${issue.coverArtist.id}`)}
+                      onClick={() => issue.coverArtist?.id && navigate(`/artists/${issue.coverArtist.id}?src=${encodeURIComponent(issue.coverArtist.serverId ?? '')}`)}
                       className="mt-1 block truncate font-serif text-[19px] font-bold transition-colors hover:text-primary"
                     >
                       {spaceCJK(issue.coverArtist.title)}

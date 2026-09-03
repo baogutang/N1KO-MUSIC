@@ -43,7 +43,7 @@ export function AlbumShelf({
         {albums.map((album, index) => (
           <li key={album.id}>
             <button
-              onClick={() => navigate(`/albums/${album.id}`)}
+              onClick={() => navigate(`/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`)}
               className="group flex w-full items-baseline gap-4 border-b border-hair-soft px-2 py-3 text-left transition-[background,transform] duration-200 hover:translate-x-1 hover:bg-paper-deep"
             >
               <span className="font-num w-7 flex-none text-[11px] text-ink-faint">

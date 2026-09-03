@@ -63,7 +63,8 @@ export function mapMusicItem(item: MusicItem, serverId: string): Song {
     coverArt: typeof item.artwork === 'string' ? item.artwork : undefined,
     duration: Number(item.duration) || 0,
     serverId,
-    // VIP 曲（当前账号无权）：App 侧用 ext.vip 标灰
+    // VIP 曲（当前账号无权）：曲目行直接标 VIP，播放失败时用户能对上原因
+    ...(item.vip ? { vip: true } : {}),
     ext: item.vip ? { ...songExtras(item), vip: true } : songExtras(item),
   }
   putRawItem(serverId, 'song', song.id, item)

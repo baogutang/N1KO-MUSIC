@@ -756,14 +756,14 @@ export default function SongDetailPage() {
           <Row
             label={t('song.field.album')}
             value={song.album || '—'}
-            onClick={song.albumId ? () => navigate(`/albums/${song.albumId}`) : undefined}
+            onClick={song.albumId ? () => navigate(`/albums/${song.albumId}?src=${encodeURIComponent(song.serverId)}`) : undefined}
             linkable={!!song.albumId}
           />
 
           <Row
             label={t('song.field.artist')}
             value={song.artist || '—'}
-            onClick={song.artistId ? () => navigate(`/artists/${song.artistId}`) : undefined}
+            onClick={song.artistId ? () => navigate(`/artists/${song.artistId}?src=${encodeURIComponent(song.serverId)}`) : undefined}
             linkable={!!song.artistId}
           />
 
@@ -858,6 +858,7 @@ export default function SongDetailPage() {
             <SongCredits
               contributors={song.ext?.contributors}
               composer={song.ext?.displayComposer}
+              serverId={song.serverId}
             />
           </Section>
         )}

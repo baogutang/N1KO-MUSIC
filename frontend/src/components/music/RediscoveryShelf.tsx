@@ -101,7 +101,7 @@ export function RediscoveryShelf() {
                     column.entries.map(item => item.song),
                     index
                   )}
-                  onOpenArtist={() => entry.song.artistId && navigate(`/artists/${entry.song.artistId}`)}
+                  onOpenArtist={() => entry.song.artistId && navigate(`/artists/${entry.song.artistId}?src=${encodeURIComponent(entry.song.serverId)}`)}
                 />
               ))}
             </ol>
