@@ -894,6 +894,8 @@
   "scrobble.endpointChangedDesc": "token 是发给某一台主机的。换了地址就要重新填一次，不会把旧 token 带过去。",
   "player.error.detail": "错误码 {code}{message}",
   "player.streamFailed": "无法播放「{title}」",
+  "player.fallbackSource": "已切换到 {source} 的版本继续播放",
+  "player.queueHalted": "连续多首都无法播放，已停止自动跳歌",
   "action.back": "返回",
   "action.remove": "移除",
   "sources.group": "流媒体音源",

@@ -175,6 +175,11 @@ interface PlayerState {
   next: (options?: { auto?: boolean }) => void
   /** 自然播放结束时前进；单曲循环只在此路径生效 */
   advanceOnEnded: () => void
+  /**
+   * 跨源降级用的原位替换：队列位置与播放状态不变，只换 queue[queueIndex]
+   * 与 currentSong。引擎随后按新歌（不同 serverId/id）重新取流。
+   */
+  replaceCurrentSong: (song: Song) => void
   prev: () => void
   seekTo: (time: number) => void
   setCurrentTime: (time: number) => void
@@ -370,6 +375,14 @@ export const usePlayerStore = create<PlayerState>()(
           currentTime: 0,
           repeatSeekToken: (state.repeatSeekToken ?? 0) + 1,
         })
+      },
+
+      replaceCurrentSong: (song) => {
+        const { queue, queueIndex } = get()
+        if (queueIndex < 0 || queueIndex >= queue.length) return
+        const nextQueue = [...queue]
+        nextQueue[queueIndex] = song
+        set({ queue: nextQueue, currentSong: song })
       },
 
       prev: () => {
