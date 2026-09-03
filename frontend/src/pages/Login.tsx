@@ -77,6 +77,13 @@ export default function LoginPage() {
     void loadPlugins()
   }, [loadPlugins])
 
+  // 扫码中途路由跳走（浏览器返回 / 深链）时拆掉预登录沙箱，
+  // 否则二维码 iframe 和消息监听会活到下次刷新
+  useEffect(() => () => {
+    const current = usePluginStore.getState().plugins
+    for (const p of current) closeAuthHost(p.id)
+  }, [])
+
   // 声明文案在选中插件时随 manifest 一起取回
   const disclaimerText = pluginManifest?.disclaimer ?? ''
 
