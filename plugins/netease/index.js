@@ -235,8 +235,9 @@ async function ensureAnonymousCookie(env, deviceId) {
   var cached = await env.storage.get('anonymous-cookie')
   if (cached) return cached
   /* cookieOverride 必须显式传空串：匿名注册自身不能走 currentCookie，
-     否则「注册 → 请求要 cookie → 没 cookie 再注册」构成自递归 */
-  var res = await eapiRequest(env, '/api/register/anonimous', { username: anonymousUsername(deviceId) }, deviceId, '')
+     否则「注册 → 请求要 cookie → 没 cookie 再注册」构成自递归。
+     weapi + 桌面 UA（与扫码会话同上下文，风控一致性） */
+  var res = await weapiRequest(env, '/api/register/anonimous', { username: anonymousUsername(deviceId) }, deviceId, '')
   var merged = mergeCookies('', res.setCookies)
   var jar = cookieToObj(merged)
   if (!jar.MUSIC_A) return ''
@@ -250,9 +251,10 @@ async function currentCookie(env, deviceId) {
   return ensureAnonymousCookie(env, deviceId)
 }
 
-/** weapi 请求（music.163.com/weapi/...） */
-async function weapiRequest(env, apiPath, data, deviceId) {
-  var cookie = await currentCookie(env, deviceId)
+/** weapi 请求（music.163.com/weapi/...）。cookieOverride 显式传 '' 时跳过
+ *  凭据/匿名解析（匿名注册自身用，打断 currentCookie 自递归）。 */
+async function weapiRequest(env, apiPath, data, deviceId, cookieOverride) {
+  var cookie = cookieOverride !== undefined ? cookieOverride : await currentCookie(env, deviceId)
   var jar = Object.assign(await ensureTrackingCookies(env), cookieToObj(cookie))
   var payload = Object.assign({}, data, {
     csrf_token: jar['__csrf'] || '',
@@ -701,10 +703,14 @@ module.exports = {
     },
   },
 
-  /* ---------- 登录（扫码状态机） ---------- */
+  /* ---------- 登录（扫码状态机） ----------
+   * 走 weapi + 桌面 UA：二维码内容是 music.163.com/login 网页会话，
+   * unikey 也要在网页上下文里创建，风控才认（eapi+iPhone UA 的
+   * 客户端形态与网页扫码场景对不上，会触发「设备环境异常」拦截）。
+   * 这也是 Binaryify 版被大规模验证过的路径。 */
   async getQRCode() {
     var deviceId = await ensureDeviceId(env)
-    var res = await eapiRequest(env, '/api/login/qrcode/unikey', { type: 3 }, deviceId)
+    var res = await weapiRequest(env, '/api/login/qrcode/unikey', { type: 3 }, deviceId)
     var key = res.body.unikey
     if (!key) throw pluginError('unknown', '二维码 key 创建失败')
     /* login_qr_create 是客户端行为：二维码内容就是这条 URL（api-enhanced 同款） */
@@ -713,7 +719,7 @@ module.exports = {
 
   async checkQRCode(key) {
     var deviceId = await ensureDeviceId(env)
-    var res = await eapiRequest(env, '/api/login/qrcode/client/login', {
+    var res = await weapiRequest(env, '/api/login/qrcode/client/login', {
       key: key,
       type: 3,
     }, deviceId)
@@ -734,6 +740,16 @@ module.exports = {
     auth: {
       createQr() { return module.exports.getQRCode() },
       checkQr(key) { return module.exports.checkQRCode(key) },
+      async loginWithCookie(text) {
+        /* Cookie 登录：绕过扫码风控（出口 IP 被标记时唯一稳妥路径）。
+           用传入的 cookie 直接调 user_account 验证有效性 */
+        var deviceId = await ensureDeviceId(env)
+        var res = await weapiRequest(env, '/api/nuser/account/get', {}, deviceId, String(text || '').trim())
+        if (!res.body.profile) {
+          throw pluginError('unauthorized', 'Cookie 无效或已过期（需要包含 MUSIC_U 的完整 Cookie）')
+        }
+        return { credentials: String(text || '').trim() }
+      },
       getUser() {
         return module.exports.user.getUser()
       },
