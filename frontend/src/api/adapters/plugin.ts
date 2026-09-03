@@ -77,6 +77,7 @@ export class PluginAdapter implements MusicServerAdapter {
   getTopListDetail?: MusicServerAdapter['getTopListDetail']
   getRecommendSheets?: MusicServerAdapter['getRecommendSheets']
   getRecommendSongs?: MusicServerAdapter['getRecommendSongs']
+  searchSongsPage?: MusicServerAdapter['searchSongsPage']
 
   constructor(config: PluginAdapterConfig) {
     this.serverId = config.serverId
@@ -130,8 +131,9 @@ export class PluginAdapter implements MusicServerAdapter {
   async searchAll(query: string): Promise<SearchResult> {
     const result: SearchResult = { songs: [], albums: [], artists: [], playlists: [] }
     if (!this.capability('search')) return result
-    const paged = await this.host.call<Paged<MusicItem | AlbumItem | ArtistItem | SheetItem>>('search', query, 1, 'music')
-    result.songs = (paged.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId))
+    const paged = await this.host.call<Paged<MusicItem | AlbumItem | ArtistItem | SheetItem> | null>('search', query, 1, 'music')
+    result.songs = (paged?.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId))
+    result.songsIsEnd = paged?.isEnd ?? true
     if (this.host.hasMethod('search')) {
       const [albums, artists, sheets] = await Promise.allSettled([
         this.host.call<Paged<AlbumItem>>('search', query, 1, 'album'),
@@ -217,8 +219,8 @@ export class PluginAdapter implements MusicServerAdapter {
 
   async getPlaylists(): Promise<Playlist[]> {
     if (!this.host.hasMethod('n1ko.user.getPlaylists')) return []
-    const { created, subscribed } = await this.host.call<{ created: SheetItem[]; subscribed: SheetItem[] }>('n1ko.user.getPlaylists')
-    return [...(created ?? []), ...(subscribed ?? [])].map(s => mapSheetItem(s, this.serverId))
+    const res = await this.host.call<{ created?: SheetItem[]; subscribed?: SheetItem[] } | null>('n1ko.user.getPlaylists')
+    return [...(res?.created ?? []), ...(res?.subscribed ?? [])].map(s => mapSheetItem(s, this.serverId))
   }
 
   async getPlaylistDetail(playlistId: string): Promise<PlaylistDetail> {
@@ -282,8 +284,8 @@ export class PluginAdapter implements MusicServerAdapter {
 
   async getStarred(): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }> {
     if (!this.host.hasMethod('n1ko.user.getFavorites')) return { songs: [], albums: [], artists: [] }
-    const first = await this.host.call<Paged<MusicItem>>('n1ko.user.getFavorites', 1)
-    const songs = await this.fetchMusicPages(1, page => this.host.call<Paged<MusicItem>>('n1ko.user.getFavorites', page), first)
+    const first = await this.host.call<Paged<MusicItem> | null>('n1ko.user.getFavorites', 1)
+    const songs = await this.fetchMusicPages(1, page => this.host.call<Paged<MusicItem> | null>('n1ko.user.getFavorites', page).then(p => p ?? { data: [], isEnd: true }), first ?? { data: [], isEnd: true })
     return { songs, albums: [], artists: [] }
   }
 
@@ -388,6 +390,15 @@ export class PluginAdapter implements MusicServerAdapter {
       this.resolveStreamUrl = resolve
     }
 
+    // 分页歌曲搜索：聚合「全部」视图的加载更多（searchAll 仍是首页聚合用）
+    if (this.capability('search') && this.host.hasMethod('search')) {
+      this.searchSongsPage = async (query: string, page: number) => {
+        const paged = await this.host.call<Paged<MusicItem> | null>('search', query, page, 'music')
+        const songs = (paged?.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId))
+        return { songs, isEnd: paged?.isEnd ?? true }
+      }
+    }
+
     if (this.capability('topLists') && this.host.hasMethod('getTopLists')) {
       this.getTopLists = async () => {
         const groups = await this.host.call<TopListGroup[]>('getTopLists')
@@ -406,8 +417,8 @@ export class PluginAdapter implements MusicServerAdapter {
 
     if (this.capability('recommendSheets') && this.host.hasMethod('getRecommendSheetsByTag')) {
       this.getRecommendSheets = async (page: number) => {
-        const paged = await this.host.call<Paged<SheetItem>>('getRecommendSheetsByTag', '', page)
-        return { isEnd: paged.isEnd, items: (paged.data ?? []).map(s => mapSheetItem(s, this.serverId)) }
+        const paged = await this.host.call<Paged<SheetItem> | null>('getRecommendSheetsByTag', '', page)
+        return { isEnd: paged?.isEnd ?? true, items: (paged?.data ?? []).map(s => mapSheetItem(s, this.serverId)) }
       }
     }
 
@@ -439,8 +450,14 @@ export class PluginAdapter implements MusicServerAdapter {
     const songs: Song[] = []
     let page = firstPage
     let current = first
+    let prevFirstId: string | undefined
     for (;;) {
       if (!current) current = await fetchPage(page)
+      // 防呆：端点忽略 page 参数且不给 isEnd 时，同一首批反复返回会变成
+      // 无限串行请求（FETCH_ALL_CAP 也要 2000 条才打断）——首项 id 重复即止损
+      const firstId = current.data?.[0]?.id
+      if (page > firstPage && firstId !== undefined && firstId === prevFirstId) return songs
+      prevFirstId = firstId
       for (const item of current.data ?? []) {
         songs.push(mapMusicItem(item, this.serverId))
         if (songs.length >= FETCH_ALL_CAP) return songs
