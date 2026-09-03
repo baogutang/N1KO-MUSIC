@@ -192,7 +192,8 @@ export function SourcesSettings() {
                       onClick={() => {
                         const ids = ordered.map(x => x.serverId)
                         if (i > 0) { [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]] }
-                        setPlaybackPriority(ids)
+                        // 已断开的源不在列表里但偏好要保住：排在末尾，重连后自动回来
+                        setPlaybackPriority([...ids, ...useSettingsStore.getState().playbackPriority.filter(x => !ids.includes(x))])
                       }}
                       disabled={i === 0}
                       aria-label={t('sources.settings.moveUp', { name: s.name })}
@@ -204,7 +205,7 @@ export function SourcesSettings() {
                       onClick={() => {
                         const ids = ordered.map(x => x.serverId)
                         if (i < ids.length - 1) { [ids[i + 1], ids[i]] = [ids[i], ids[i + 1]] }
-                        setPlaybackPriority(ids)
+                        setPlaybackPriority([...ids, ...useSettingsStore.getState().playbackPriority.filter(x => !ids.includes(x))])
                       }}
                       disabled={i === ordered.length - 1}
                       aria-label={t('sources.settings.moveDown', { name: s.name })}

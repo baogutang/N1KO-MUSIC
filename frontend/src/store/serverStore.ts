@@ -15,6 +15,7 @@ import {
 } from '@/api'
 import { queryClient } from '@/lib/queryClient'
 import { usePlayerStore } from '@/store/playerStore'
+import { useSettingsStore } from '@/store/settingsStore'
 import { createSecurePersistStorage } from '@/store/securePersistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 import { disposePluginHost, ensurePluginHost, createPluginAdapterFor } from '@/plugins/host/pluginRuntime'
@@ -95,6 +96,9 @@ export const useServerStore = create<ServerState>()(
         }
         disposePluginHost(id)
         unregisterAdapter(id)
+        // 播放优先级里的死 id 同步清掉：resolveSourceOrder 虽能容忍，
+        // 但下次在设置页调排序时会按「只写已连接源」把用户的旧偏好静默丢掉
+        useSettingsStore.getState().prunePlaybackPriority([id])
         set(state => {
           const servers = state.servers.filter(s => s.id !== id)
           const activeServerId = state.activeServerId === id ? null : state.activeServerId

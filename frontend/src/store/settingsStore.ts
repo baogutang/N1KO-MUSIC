@@ -171,6 +171,8 @@ interface SettingsState {
   /** 多源播放优先序（serverId 数组，前者优先）。空数组 = 自动：NAS 优先、主库在前 */
   playbackPriority: string[]
   setPlaybackPriority: (ids: string[]) => void
+  /** 删除音源时同步摘掉死 id（设置页调排序只写已连接源，死 id 残留会被静默丢弃） */
+  prunePlaybackPriority: (removedIds: string[]) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -210,6 +212,9 @@ export const useSettingsStore = create<SettingsState>()(
       musicBrainzEnabled: false,
       playbackPriority: [],
       setPlaybackPriority: (ids) => set({ playbackPriority: ids }),
+      prunePlaybackPriority: (removedIds) => set(state => ({
+        playbackPriority: state.playbackPriority.filter(id => !removedIds.includes(id)),
+      })),
 
       // 全局来源优先级同时驱动封面和歌词，避免设置项只被持久化却不产生任何效果。
       // 用户仍可在下方用更细粒度的开关覆盖歌词策略。
