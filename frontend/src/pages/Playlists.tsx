@@ -1,14 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, MusicNote, DotsThree, Trash, Play, Shuffle, UploadSimple } from '@phosphor-icons/react'
+import { Plus, MusicNote, DotsThree, Trash, Play, Shuffle, UploadSimple, HardDrive } from '@phosphor-icons/react'
 import { usePlaylists, useDeletePlaylist, queryKeys } from '@/hooks/useServerQueries'
 import { useConnectedSources, useSourcePlaylists } from '@/hooks/useSourceQueries'
 import { SourceBadge } from '@/components/sources/SourceBadge'
+import { ImportFromSourceDialog } from '@/components/sources/ImportFromSourceDialog'
+import { useLocalPlaylistStore, type LocalPlaylist } from '@/store/localPlaylistStore'
+import { SongList } from '@/components/music/SongList'
+import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { findAdapterFor, getAdapter, getAdapterFor } from '@/api'
 import { useServerStore } from '@/store/serverStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/ui/use-toast'
-import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,9 +40,16 @@ export default function Playlists() {
   const deletePlaylist = useDeletePlaylist()
   const [showCreate, setShowCreate] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showImportSource, setShowImportSource] = useState(false)
+  const [viewingLocal, setViewingLocal] = useState<string | null>(null)
+  const localPlaylists = useLocalPlaylistStore(s => s.playlists)
+  const localLoad = useLocalPlaylistStore(s => s.load)
+  const localRemove = useLocalPlaylistStore(s => s.remove)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+
+  useEffect(() => { void localLoad() }, [localLoad])
 
   const activeServerId = useServerStore(s => s.activeServerId)
   const isLoading = multi ? grouped.some(g => g.status === 'loading') : primary.isLoading
@@ -125,13 +135,27 @@ export default function Playlists() {
           )}
         </div>
         <div className="flex flex-shrink-0 items-center gap-6">
-          <button
-            onClick={() => setShowImport(true)}
-            className="inline-flex items-center gap-2 text-sm text-ink-soft transition-colors hover:text-primary active:scale-[0.97]"
-          >
-            <UploadSimple className="w-3.5 h-3.5" />
-            {t('action.import')}
-          </button>
+          {/* 导入拆两项：文件（M3U/XSPF）与跨源歌单（阶段 5） */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="inline-flex items-center gap-2 text-sm text-ink-soft transition-colors hover:text-primary active:scale-[0.97]"
+              >
+                <UploadSimple className="w-3.5 h-3.5" />
+                {t('action.import')}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowImport(true)}>
+                <UploadSimple className="w-4 h-4" />
+                {t('playlist.import.title')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowImportSource(true)}>
+                <HardDrive className="w-4 h-4" />
+                {t('sources.import.title')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
             onClick={() => setShowCreate(true)}
             className="inline-flex items-center gap-2 text-sm font-semibold text-foreground underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
@@ -153,14 +177,53 @@ export default function Playlists() {
             </div>
           ))}
         </div>
-      ) : totalCount === 0 ? (
+      ) : totalCount === 0 && localPlaylists.length === 0 ? (
         <EmptyState
           title={t('empty.playlists.title')}
           description={t('empty.playlists.description')}
           action={{ label: t('empty.playlists.action'), onClick: () => setShowCreate(true) }}
         />
       ) : (
-        sections.map(section => (
+        <>
+        {/* 本地混合歌单（阶段 5）：跨源曲目快照，不同步 backend */}
+        {localPlaylists.length > 0 && (
+          <section className="mt-10">
+            <div className="section-head">
+              <h2 className="flex items-center gap-2.5">
+                <HardDrive className="w-4 h-4 text-ink-faint" />
+                {t('sources.import.localSection')}
+              </h2>
+              <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                {t('playlist.count', { count: localPlaylists.length })}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
+              {localPlaylists.map(pl => (
+                <div
+                  key={pl.id}
+                  className="group cursor-pointer min-w-0"
+                  onClick={() => setViewingLocal(pl.id)}
+                >
+                  <div className="relative mb-2.5">
+                    <div className="aspect-square rounded-md ring-1 ring-hair-soft bg-paper-deep transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:shadow-float flex items-center justify-center pop:border pop:border-hair pop:ring-0">
+                      <MusicNote className="w-10 h-10 text-ink-faint/50" />
+                    </div>
+                  </div>
+                  <div className="min-w-0 px-0.5">
+                    <p className="font-serif font-semibold text-[15px] leading-snug truncate transition-colors group-hover:text-primary">
+                      {spaceCJK(pl.name)}
+                    </p>
+                    <p className="mt-0.5 flex items-baseline gap-2 text-xs text-ink-faint">
+                      <span className="font-num">{t('song.count', { count: pl.items.length })}</span>
+                      <span className="text-[10.5px] tracking-[0.14em] text-primary">{t('sources.import.localBadge')}</span>
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+        {sections.map(section => (
           <section key={section.serverId} className="mt-10">
             {multi && (
               <div className="section-head">
@@ -273,7 +336,8 @@ export default function Playlists() {
               ))}
             </div>
           </section>
-        ))
+        ))}
+        </>
       )}
 
       {/* Create dialog */}
@@ -323,6 +387,76 @@ export default function Playlists() {
       </Dialog>
 
       <ImportPlaylistDialog open={showImport} onOpenChange={setShowImport} />
+      <ImportFromSourceDialog open={showImportSource} onOpenChange={setShowImportSource} />
+
+      {/* 本地混合歌单查看（阶段 5）：播放 / 删除，曲目来自快照 */}
+      <LocalPlaylistViewDialog
+        playlist={localPlaylists.find(p => p.id === viewingLocal) ?? null}
+        onClose={() => setViewingLocal(null)}
+        onDelete={async id => {
+          await localRemove(id)
+          setViewingLocal(null)
+        }}
+      />
     </div>
+  )
+}
+
+function LocalPlaylistViewDialog({
+  playlist,
+  onClose,
+  onDelete,
+}: {
+  playlist: LocalPlaylist | null
+  onClose: () => void
+  onDelete: (id: string) => void
+}) {
+  const { t } = useT()
+  const songs = (playlist?.items ?? []).map(i => i.song)
+  if (!playlist) return null
+  return (
+    <Dialog open onOpenChange={next => { if (!next) onClose() }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2.5">
+            <HardDrive className="w-4 h-4 text-ink-faint" />
+            {playlist.name}
+            <span className="num text-[11px] font-normal text-ink-faint">
+              {t('song.trackCount', { count: songs.length })}
+            </span>
+          </DialogTitle>
+          <DialogDescription>{t('sources.import.localBadge')}</DialogDescription>
+        </DialogHeader>
+        {songs.length === 0 ? (
+          <p className="py-6 text-center text-[13px] text-ink-faint">{t('sources.import.localEmpty')}</p>
+        ) : (
+          <div className="flex items-center gap-5 pb-2">
+            <button className="more inline-flex items-center gap-1.5" onClick={() => playAllInOrder(songs, 0)}>
+              <Play size={12} />
+              {t('player.playAll')}
+            </button>
+            <button className="more inline-flex items-center gap-1.5" onClick={() => playAllShuffled(songs, 0)}>
+              <Shuffle size={12} />
+              {t('player.shuffle')}
+            </button>
+          </div>
+        )}
+        {songs.length > 0 && (
+          <div className="max-h-[50vh] overflow-y-auto">
+            <SongList songs={songs} showCover showAlbum showIndex sourceBadge />
+          </div>
+        )}
+        <div className="flex justify-end gap-3 pt-1">
+          <Button
+            variant="ghost"
+            className="text-destructive"
+            onClick={() => { void onDelete(playlist.id) }}
+          >
+            <Trash className="w-4 h-4" />
+            {t('playlist.delete')}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

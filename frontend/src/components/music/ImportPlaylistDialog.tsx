@@ -1,13 +1,17 @@
 /**
  * 导入歌单（M3U / M3U8 / XSPF）。
  *
- * 文件在本地解析，条目逐条拿去问服务端搜索再严格匹配——不下载整个曲库。
- * 对不上的会原样列出来给用户看，而不是悄悄少几首。
+ * 文件在本地解析，条目逐条拿去问**所有已连接音源**的搜索再严格匹配
+ * （阶段 5 聚合候选）——主库命中的进服务端歌单；只在其他音源命中的
+ * 那部分可一键放进「本地混合歌单」。对不上的会原样列出来给用户看，
+ * 而不是悄悄少几首。
  */
 
 import { useCallback, useRef, useState } from 'react'
 import { UploadSimple, Warning } from '@phosphor-icons/react'
-import { getAdapter } from '@/api'
+import { getAdapter, getAdapterFor, hasAdapterFor } from '@/api'
+import { useServerStore } from '@/store/serverStore'
+import { useLocalPlaylistStore } from '@/store/localPlaylistStore'
 import {
   parsePlaylistFile, resolvePlaylistEntries, MAX_IMPORT_ENTRIES,
   type ParsedPlaylistEntry,
@@ -42,6 +46,7 @@ export function ImportPlaylistDialog({
   const [stage, setStage] = useState<Stage>('pick')
   const [name, setName] = useState('')
   const [matched, setMatched] = useState<Song[]>([])
+  const [foreign, setForeign] = useState<Song[]>([])
   const [missing, setMissing] = useState<ParsedPlaylistEntry[]>([])
   const [truncated, setTruncated] = useState(0)
 
@@ -49,6 +54,7 @@ export function ImportPlaylistDialog({
     setStage('pick')
     setName('')
     setMatched([])
+    setForeign([])
     setMissing([])
     setTruncated(0)
     if (fileRef.current) fileRef.current.value = ''
@@ -65,11 +71,17 @@ export function ImportPlaylistDialog({
     setStage('resolving')
     try {
       const result = await resolvePlaylistEntries(entries, async query => {
-        // TODO(sources): 文本导入的匹配候选应聚合所有已连接音源，阶段 5 与跨源导入一起做
-        const found = await getAdapter().searchAll(query)
-        return found.songs ?? []
+        // 聚合所有已连接音源的搜索候选（阶段 5 TODO 落地）；
+        // 单源失败按空候选处理，不让一条拖垮整次导入
+        const connected = useServerStore.getState().connectedServerIds
+        const results = await Promise.allSettled(
+          connected.filter(id => hasAdapterFor(id)).map(id => getAdapterFor(id).searchAll(query))
+        )
+        return results.flatMap(r => (r.status === 'fulfilled' ? r.value.songs ?? [] : []))
       })
-      setMatched(result.matched)
+      const primaryId = useServerStore.getState().activeServerId ?? ''
+      setMatched(result.matched.filter(song => song.serverId === primaryId))
+      setForeign(result.matched.filter(song => song.serverId !== primaryId))
       setMissing(result.missing)
       setTruncated(result.truncated)
       setStage('review')
@@ -86,14 +98,21 @@ export function ImportPlaylistDialog({
       const adapter = getAdapter()
       await adapter.createPlaylist(name.trim(), matched.map(song => song.id))
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
-      toast({ title: t('playlist.import.done', { count: matched.length, name: name.trim() }) })
+      const localCount = foreign.length
+      if (localCount > 0) {
+        await useLocalPlaylistStore.getState().create(`${name.trim()} · ${t('sources.import.localSuffix')}`, foreign)
+      }
+      toast({
+        title: t('playlist.import.done', { count: matched.length, name: name.trim() }),
+        description: localCount > 0 ? t('sources.import.localCreated', { count: localCount }) : undefined,
+      })
       onOpenChange(false)
       reset()
     } catch {
       toast({ title: t('playlist.createFailed'), variant: 'destructive' })
       setStage('review')
     }
-  }, [name, matched, queryClient, onOpenChange, reset, t])
+  }, [name, matched, foreign, queryClient, onOpenChange, reset, t])
 
   return (
     <Dialog
@@ -173,6 +192,24 @@ export function ImportPlaylistDialog({
                 </span>
               )}
             </p>
+
+            {foreign.length > 0 && (
+              <div className="border-t border-hair pt-3">
+                <p className="mb-2 text-[11px] tracking-[0.16em] text-ink-faint">
+                  {t('sources.import.foreignOnly', { count: foreign.length })}
+                </p>
+                <ul className="space-y-1 text-[12.5px] text-ink-soft">
+                  {foreign.slice(0, MISSING_PREVIEW).map(song => (
+                    <li key={`${song.serverId}:${song.id}`} className="truncate">
+                      {spaceCJK(`${song.title} - ${song.artist}`)}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[11px] text-ink-faint">
+                  {t('sources.import.localHint', { count: foreign.length })}
+                </p>
+              </div>
+            )}
 
             {missing.length > 0 && (
               <div className="border-t border-hair pt-3">
