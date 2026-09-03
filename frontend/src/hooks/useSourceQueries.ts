@@ -161,8 +161,17 @@ export function zipQueryResults<T>(
   })
 }
 
-/** 聚合搜索：对每个声明 search 的音源并发一条 query（PLAN 2.2） */
-export function useSourceSearch(query: string): SourceQueryGroup<SearchResult>[] {
+/** 聚合搜索：对每个声明 search 的音源并发一条 query（PLAN 2.2）。
+ *  第 1 页走 searchAll（顺带取歌手/专辑分区）；page>1 用插件分页能力，
+ *  NAS 无分页语义（isEnd 恒真） */
+export interface SourceSearchPage {
+  songs: Song[]
+  isEnd: boolean
+  artists?: Artist[]
+  albums?: Album[]
+}
+
+export function useSourceSearch(query: string, page = 1): SourceQueryGroup<SourceSearchPage>[] {
   const sources = useConnectedSources()
   const caps = useSourceCapabilities()
   const eligible = useMemo(
@@ -171,15 +180,28 @@ export function useSourceSearch(query: string): SourceQueryGroup<SearchResult>[]
   )
   const results = useQueries({
     queries: eligible.map(s => ({
-      queryKey: [s.serverId, 'search', query] as const,
-      queryFn: ({ signal }: { signal: AbortSignal }) => getAdapterFor(s.serverId).searchAll(query, signal),
+      queryKey: [s.serverId, 'search', query, page] as const,
+      queryFn: async ({ signal }: { signal: AbortSignal }): Promise<SourceSearchPage> => {
+        const adapter = getAdapterFor(s.serverId)
+        if (page === 1) {
+          const res = await adapter.searchAll(query, signal)
+          return {
+            songs: res.songs,
+            isEnd: adapter.searchSongsPage ? (res.songsIsEnd ?? true) : true,
+            artists: res.artists,
+            albums: res.albums,
+          }
+        }
+        if (adapter.searchSongsPage) return adapter.searchSongsPage(query, page)
+        return { songs: [], isEnd: true }
+      },
       enabled: query.trim().length >= 1,
       staleTime: 2 * 60 * 1000,
     })),
   })
   // 不做 memo：results 每个查询状态翻转都是新引用，zip 只是小组数 map，
   // 记忆化反而会把「loading → success」的翻转吞掉
-  return zipQueryResults<SearchResult>(eligible, results)
+  return zipQueryResults<SourceSearchPage>(eligible, results)
 }
 
 // ===================================================

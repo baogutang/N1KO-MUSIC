@@ -339,6 +339,8 @@ export interface SearchResult {
   albums: Album[]
   artists: Artist[]
   playlists?: Playlist[]
+  /** 歌曲结果是否已到尾页（插件音源分页搜索填；缺省视为是） */
+  songsIsEnd?: boolean
 }
 
 // ===================================================
@@ -358,6 +360,8 @@ export interface MusicServerAdapter {
   getSong(songId: string): Promise<Song | null>
   /** signal 由 React Query 的 queryFn 提供，用于取消在途搜索 */
   searchAll(query: string, signal?: AbortSignal): Promise<SearchResult>
+  /** 分页歌曲搜索（插件音源实现）；聚合「全部」视图的加载更多用 */
+  searchSongsPage?(query: string, page: number): Promise<{ songs: Song[]; isEnd: boolean }>
   /** path / suffix 用于识别 DSF/DSD（Navidrome 常缺准确 MIME，但会有 suffix）*/
   getStreamUrl(
     songId: string,
