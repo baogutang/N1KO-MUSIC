@@ -16,6 +16,7 @@ import { createAdapter } from '@/api'
 import type { ServerType } from '@/api/types'
 import { useT } from '@/i18n'
 import { usePluginStore, type InstalledPluginSummary } from '@/plugins/host/pluginStore'
+import { pluginLogoSrc, SourceLogo } from '@/components/sources/SourceBadge'
 import { closeAuthHost, openAuthHost } from '@/plugins/host/pluginRuntime'
 import type { PluginHost } from '@/plugins/host/PluginHost'
 import type { PluginManifest, PluginUser } from '@/plugins/types'
@@ -464,6 +465,15 @@ export default function LoginPage() {
                   onClick={() => handlePluginSelect(plugin)}
                   className="group flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
                 >
+                  {pluginLogoSrc(plugin.id) ? (
+                    <SourceLogo pluginId={plugin.id} size={22} className="ring-1 ring-hair-soft" />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="h-[22px] w-[22px] flex-shrink-0 rounded-[5px] border border-hair"
+                      style={plugin.color ? { background: plugin.color } : undefined}
+                    />
+                  )}
                   <span className="min-w-0 flex-1">
                     <span className="block font-serif text-[15.5px] font-semibold text-foreground transition-colors group-hover:text-primary">
                       {plugin.name}
