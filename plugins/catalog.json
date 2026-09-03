@@ -9,7 +9,7 @@
   {
     "id": "qqmusic",
     "name": "QQ 音乐",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "manifest": "qqmusic/manifest.json",
     "description": "用你自己的 QQ 音乐账号听你有权听的歌；QQ 扫码登录，凭据只在本机"
   }

@@ -24,7 +24,12 @@ function nodeRequestNoRedirect(
 ): Promise<{ status: number; headers: Record<string, string>; buf: Buffer }> {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https:') ? https : http
-    const req = mod.request(url, { method, headers }, upstream => {
+    // Node http 不写 Content-Length 会用 chunked 编码，部分腾讯端点不接受
+    const finalHeaders = { ...headers }
+    if (body != null && method !== 'GET' && method !== 'HEAD') {
+      finalHeaders['Content-Length'] = String(Buffer.byteLength(body, 'utf8'))
+    }
+    const req = mod.request(url, { method, headers: finalHeaders }, upstream => {
       const chunks: Buffer[] = []
       upstream.on('data', (c: Buffer) => chunks.push(c))
       upstream.on('end', () => {

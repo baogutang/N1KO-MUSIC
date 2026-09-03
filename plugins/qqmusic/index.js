@@ -173,6 +173,13 @@ function withParams(base, params) {
   return base + '?' + qs
 }
 
+/** 表单请求体编码（k=v&k=v） */
+function formEncode(obj) {
+  return Object.keys(obj)
+    .map(function (k) { return k + '=' + encodeURIComponent(obj[k]) })
+    .join('&')
+}
+
 /** 「…&key=value&…」里取 value（切分实现；key 不带 '='） */
 function queryValue(from, key, nextKey) {
   var parts = String(from || '').split(key + '=')
@@ -297,26 +304,28 @@ async function authorizeQq(uin, sigx) {
   var sigCookies = cookieObjFrom(parseSetCookie(checkRes.headers['set-cookie']))
   if (!sigCookies.p_skey) throw pluginError('unauthorized', 'QQ 授权失败（没有 p_skey）')
 
-  var authRes = await axios.post(AUTHORIZE, null, {
+  /* Python 参考里这些参数是 data=（表单请求体），不是 query ——
+     放 query 会被 QQ 当空提交，返回 200 页面而非 302 */
+  var authBody = formEncode({
+    response_type: 'code',
+    client_id: '100497308',
+    redirect_uri: 'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/',
+    scope: 'get_user_info,get_app_friends',
+    state: 'state',
+    switch: '',
+    from_ptlogin: '1',
+    src: '1',
+    update_auth: '1',
+    openapi: '1010_1030',
+    g_tk: String(hash33(sigCookies.p_skey, 5381)),
+    auth_time: String(Date.now()),
+    ui: 'n1ko-' + Date.now(),
+  })
+  var authRes = await axios.post(AUTHORIZE, authBody, {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Referer: 'https://xui.ptlogin2.qq.com/',
       Cookie: cookieHeader(sigCookies),
-    },
-    params: {
-      response_type: 'code',
-      client_id: '100497308',
-      redirect_uri: 'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/',
-      scope: 'get_user_info,get_app_friends',
-      state: 'state',
-      switch: '',
-      from_ptlogin: '1',
-      src: '1',
-      update_auth: '1',
-      openapi: '1010_1030',
-      g_tk: String(hash33(sigCookies.p_skey, 5381)),
-      auth_time: String(Date.now()),
-      ui: 'n1ko-' + Date.now(),
     },
     responseType: 'text',
     redirect: 'manual',
