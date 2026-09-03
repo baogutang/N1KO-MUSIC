@@ -354,6 +354,39 @@ async function fetchTracksByIds(env, deviceId, trackIds) {
   return (res.body.songs || []).map(mapSong)
 }
 
+/** 当前登录 uid（缓存进私有存储，账号横幅/收藏都要用） */
+async function currentUid(env, deviceId) {
+  var cached = await env.storage.get('uid')
+  if (cached) return cached
+  var res = await weapiRequest(env, '/api/nuser/account/get', {}, deviceId)
+  var uid = res.body.account && res.body.account.id
+  if (!uid) return null
+  await env.storage.set('uid', String(uid))
+  return String(uid)
+}
+
+/** 收藏曲 id 列表 + 元数据（会话级缓存；likelist 只回 id，详情按 300 一批拉） */
+var favoritesCache = { key: '', songs: [] }
+
+async function fetchFavoriteSongs(env, deviceId) {
+  var credKey = String((env && env.credentials) || '')
+  if (favoritesCache.key === credKey && favoritesCache.songs.length >= 0 && favoritesCache.loaded) {
+    return favoritesCache.songs
+  }
+  var uid = await currentUid(env, deviceId)
+  if (!uid) throw pluginError('unauthorized', '凭据已失效，请重新扫码')
+  var listRes = await eapiRequest(env, '/api/song/like/get', { uid: Number(uid) }, deviceId)
+  var ids = (listRes.body.ids || []).slice(0, 1000)
+  var songs = []
+  for (var i = 0; i < ids.length; i += 300) {
+    var chunk = ids.slice(i, i + 300).map(function (id) { return '{"id":' + id + '}' })
+    var res = await weapiRequest(env, '/api/v3/song/detail', { c: '[' + chunk.join(',') + ']' }, deviceId)
+    songs = songs.concat((res.body.songs || []).map(mapSong))
+  }
+  favoritesCache = { key: credKey, songs: songs, loaded: true }
+  return songs
+}
+
 /* 音质档位映射（协议四档 → 网易云 level） */
 var QUALITY_LEVEL = { low: 'standard', medium: 'higher', high: 'exhigh', lossless: 'lossless' }
 
@@ -481,6 +514,10 @@ module.exports = {
       return { id: String(raw.id), title: raw.name, artwork: raw.coverImgUrl, worksNum: raw.trackCount }
     }
     var groups = []
+    /* 登录后置顶「每日推荐」（/api/v3/discovery/recommend/songs） */
+    if (env && env.credentials) {
+      groups.push({ title: '每日推荐', data: [{ id: '__daily__', title: '每日推荐 · 私人歌单' }] })
+    }
     if (list.length) groups.push({ title: '官方榜', data: list.slice(0, 4).map(toSheet) })
     if (list.length > 4) groups.push({ title: '更多榜单', data: list.slice(4).map(toSheet) })
     return groups
@@ -488,6 +525,12 @@ module.exports = {
 
   async getTopListDetail(topListItem) {
     var deviceId = await ensureDeviceId(env)
+    if (String(topListItem.id) === '__daily__') {
+      /* 每日推荐（api-enhanced recommend_songs：weapi v3/discovery/recommend/songs） */
+      var daily = await weapiRequest(env, '/api/v3/discovery/recommend/songs', {}, deviceId)
+      var dailySongs = (daily.body.data && (daily.body.data.dailySongs || daily.body.data.songs)) || []
+      return { musicList: dailySongs.map(mapSong) }
+    }
     var detail = await eapiRequest(env, '/api/v6/playlist/detail', {
       id: topListItem.id,
       n: 100000,
@@ -657,18 +700,38 @@ module.exports = {
     return { status: 'waiting' }
   },
 
-  /* n1ko 扩展：宿主登录页（QrLogin）与账号横幅用 */
+  /* n1ko 扩展：宿主登录页（QrLogin）、账号横幅、收藏页用 */
   n1ko: {
     auth: {
       createQr() { return module.exports.getQRCode() },
       checkQr(key) { return module.exports.checkQRCode(key) },
-      async getUser() {
+      getUser() {
         return module.exports.user.getUser()
       },
     },
     user: {
       getPlaylists() { return module.exports.user.getPlaylists() },
       getUser() { return module.exports.user.getUser() },
+      async getFavorites(page) {
+        module.exports.requireLogin()
+        var deviceId = await ensureDeviceId(env)
+        var songs = await fetchFavoriteSongs(env, deviceId)
+        var pageNum = page || 1
+        var size = 100
+        var start = (pageNum - 1) * size
+        return { data: songs.slice(start, start + size), isEnd: start + size >= songs.length }
+      },
+      async setFavorite(musicItem, liked) {
+        module.exports.requireLogin()
+        var deviceId = await ensureDeviceId(env)
+        await weapiRequest(env, '/api/radio/like', {
+          alg: 'itembased',
+          trackId: Number(musicItem.id),
+          like: !!liked,
+          time: '3',
+        }, deviceId)
+        favoritesCache.loaded = false
+      },
     },
     getMediaSource(item, quality) { return module.exports.getMediaSource(item, quality) },
   },

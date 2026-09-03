@@ -1,7 +1,7 @@
 {
   "id": "netease",
   "name": "网易云音乐",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "protocol": 1,
   "platform": "netease",
   "entry": "index.js",
@@ -12,6 +12,7 @@
   },
   "hosts": [
     "music.163.com",
+    "*.music.163.com",
     "*.music.126.net"
   ],
   "capabilities": [
@@ -26,6 +27,7 @@
     "topLists",
     "recommendSheets",
     "userPlaylists",
+    "favorites",
     "playlistWrite"
   ],
   "qualities": ["low", "medium", "high", "lossless"],

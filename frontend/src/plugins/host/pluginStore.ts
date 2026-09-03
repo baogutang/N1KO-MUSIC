@@ -110,12 +110,11 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
         const installed = plugins.find(p => p.id === id)
         const entry = catalog.entries.find(e => e.id === id)
         if (!installed || !entry || entry.version === installed.version) continue
-        const prev = await readPlugin(id)
-        const prevHosts = prev ? (prev.manifest as unknown as PluginManifest).hosts : []
-        const manifestUrl = resolveManifestUrl(catalog.baseUrl, entry)
-        const manifest = validateManifest(await fetchInstallJson(manifestUrl))
-        if (manifest.hosts.some(h => !prevHosts.includes(h))) continue
-        const result = await install(manifestUrl)
+        /* 内置音源来自本仓库自己的目录，hosts 扩容（如 netease 补
+           *.music.163.com 子域）随更新直接生效——「hosts 有新增留给手动」
+           的规则只针对第三方插件；否则设置页在登录墙后，用户会被锁死在
+           旧 hosts 上（网易云登录 allowlist 报错的教训） */
+        const result = await install(resolveManifestUrl(catalog.baseUrl, entry))
         if (result.ok) {
           set({ plugins: (await readAllPlugins()).map(toSummary) })
         }

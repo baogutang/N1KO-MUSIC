@@ -337,12 +337,18 @@ async function authorizeQq(uin, sigx) {
 
   var data = await cgi('QQConnectLogin.LoginServer', 'QQLogin', { code: code }, { tmeLoginType: 2 })
   if (!data || !data.musickey) throw pluginError('unauthorized', 'QQ 音乐登录失败')
+  /* 昵称/头像趁登录响应里有就存进凭据（模型未定义字段按常见名兜底），
+     getUser 不再发请求——euin 链路太重 */
+  var nick = data.nick || data.nickname || data.user_nick || ''
+  var avatar = data.avatar || data.headpic || data.pic || ''
   return JSON.stringify({
     musicid: data.musicid,
     str_musicid: String(data.str_musicid || data.musicid),
     musickey: data.musickey,
     refresh_key: data.refresh_key || '',
     loginType: 2,
+    nick: nick,
+    avatar: avatar,
   })
 }
 
@@ -394,14 +400,14 @@ function mapSinger(raw) {
 }
 
 function mapSheet(raw) {
-  var pic = raw.pic_url || raw.logo
+  var pic = raw.picurl || raw.pic_url || raw.logo || raw.bigpicUrl
   return {
-    id: String(raw.tid !== undefined ? raw.tid : raw.dissid),
-    title: raw.title || raw.diss_name || '',
-    artist: [raw.creator || 'QQ 音乐'],
+    id: String(raw.tid !== undefined ? raw.tid : (raw.dissid !== undefined ? raw.dissid : raw.id)),
+    title: raw.dissname || raw.title || raw.dirName || raw.name || '',
+    artist: [raw.nick || raw.creator || 'QQ 音乐'],
     artwork: pic || (raw.mid ? 'https://y.qq.com/music/photo_new/T002R300x300M000' + raw.mid + '.jpg' : ''),
-    worksNum: raw.song_cnt !== undefined ? raw.song_cnt : raw.songnum,
-    createUserId: raw.creator_uin !== undefined ? String(raw.creator_uin) : undefined,
+    worksNum: raw.songnum !== undefined ? raw.songnum : (raw.song_cnt !== undefined ? raw.song_cnt : undefined),
+    createUserId: raw.uin !== undefined ? String(raw.uin) : (raw.creator_uin !== undefined ? String(raw.creator_uin) : undefined),
   }
 }
 
@@ -416,17 +422,24 @@ var QUALITY_FILE = {
 /** 流地址有效期：vkey 经验值 1 小时（过期由宿主重取兜底） */
 var STREAM_TTL_MS = 60 * 60 * 1000
 
-/** CDN 域名（GetCdnDispatch，一次会话缓存） */
+/** CDN 域名：GetCdnDispatch 尽力而为（部分网络返回 500003），
+ *  失败回落 isure.stream（实测三个 stream 域名对 vkey purl 都返回 206） */
 async function cdnBase(guid) {
   var cached = cdnBase._cached
   if (cached) return cached
-  var data = await cgi('music.audioCdnDispatch.cdnDispatch', 'GetCdnDispatch', {
-    guid: guid,
-    uid: '0',
-    use_new_domain: 1,
-    use_ipv6: 1,
-  })
-  var sip = (data && data.sip && data.sip[0]) || 'https://isure.stream.qqmusic.qq.com/'
+  var sip = ''
+  try {
+    var data = await cgi('music.audioCdnDispatch.cdnDispatch', 'GetCdnDispatch', {
+      guid: guid,
+      uid: '0',
+      use_new_domain: 1,
+      use_ipv6: 1,
+    })
+    sip = (data && data.sip && data.sip[0]) || ''
+  } catch (e) {
+    sip = ''
+  }
+  if (!sip) sip = 'https://isure.stream.qqmusic.qq.com/'
   if (!/\/$/.test(sip)) sip += '/'
   cdnBase._cached = sip
   return sip
@@ -738,15 +751,25 @@ module.exports = {
     var param = /^\d+$/.test(String(albumItem.id))
       ? { albumId: Number(albumItem.id) }
       : { albumMId: albumItem.id }
-    var data = await cgi('music.musichallAlbum.AlbumInfoServer', 'GetAlbumDetail', param)
-    var info = (data && data.info) || {}
+    /* GetAlbumDetail 只回元数据（basicInfo/singer/company），歌曲在
+       GetAlbumSongList——实测两个端点都是这个形状；cgi() 返回的已是 req_0.data */
+    var meta = await cgi('music.musichallAlbum.AlbumInfoServer', 'GetAlbumDetail', param)
+    var basic = (meta && meta.basicInfo) || {}
+    var songs = await cgi('music.musichallAlbum.AlbumSongList', 'GetAlbumSongList', {
+      albumMid: basic.albumMid || (/^\d+$/.test(String(albumItem.id)) ? undefined : albumItem.id),
+      albumId: basic.albumMid ? undefined : Number(albumItem.id),
+      begin: 0,
+      num: 200,
+      order: 2,
+    })
+    var metaSingers = (meta && meta.singer) || []
     return {
-      title: info.title || albumItem.title,
+      title: basic.albumName || albumItem.title,
       artwork: albumItem.artwork,
-      description: info.desc || '',
-      artist: albumItem.artist,
-      date: info.aDate || '',
-      musicList: (data && data.songs && data.songs.list) ? data.songs.list.map(mapSong) : [],
+      description: basic.desc || '',
+      artist: metaSingers.map(function (s) { return s.name }).join(' / ') || albumItem.artist,
+      date: (basic.publishDate || '').slice(0, 4),
+      musicList: ((songs && songs.songList) || []).map(function (row) { return mapSong(row.songInfo || row) }),
     }
   },
 
@@ -757,8 +780,9 @@ module.exports = {
       number: 50,
       begin: ((page || 1) - 1) * 50,
     })
-    var songs = ((data && data.song_list) || []).map(function (row) { return mapSong(row.song || row) })
-    if (type === 'music') return { data: songs, isEnd: !data || data.total_num <= (page || 1) * 50 }
+    /* 实测响应是驼峰：songList[].songInfo，总数在 totalNum（cgi 已剥掉 req_0 外壳） */
+    var songs = ((data && data.songList) || []).map(function (row) { return mapSong(row.songInfo || row) })
+    if (type === 'music') return { data: songs, isEnd: !data || !data.totalNum || (page || 1) * 50 >= data.totalNum }
     return { data: [], isEnd: true }
   },
 
@@ -766,7 +790,7 @@ module.exports = {
   async getTopLists() {
     var data = await cgi('music.musicToplist.Toplist', 'GetAll', {})
     var groups = (data && data.group) || []
-    return groups.map(function (group) {
+    var mapped = groups.map(function (group) {
       return {
         title: group.groupName || '排行榜',
         data: (group.toplist || []).map(function (raw) {
@@ -779,11 +803,27 @@ module.exports = {
         }),
       }
     }).filter(function (g) { return g.data.length > 0 })
+    /* 登录后置顶「雷达推荐」（每日推荐，GetRadarSong） */
+    if (parseCredentials(env && env.credentials)) {
+      mapped.unshift({ title: '每日推荐', data: [{ id: '__radar__', title: '雷达推荐 · 猜你喜欢' }] })
+    }
+    return mapped
   },
 
   async getTopListDetail(topListItem) {
+    var id = String(topListItem.id)
+    if (id === '__radar__') {
+      /* 雷达推荐（modules/recommend.py GetRadarSong）：响应字段是 tracks */
+      var radar = await cgi('music.recommend.TrackRelationServer', 'GetRadarSong', {
+        Page: 1,
+        ReqType: 0,
+        FavSongs: [],
+        EntranceSongs: [],
+      })
+      return { musicList: ((radar && radar.tracks) || []).map(mapSong) }
+    }
     var data = await cgi('music.musicToplist.Toplist', 'GetDetail', {
-      topId: Number(topListItem.id),
+      topId: Number(id),
       offset: 0,
       num: 100,
       withTags: false,
@@ -851,11 +891,10 @@ module.exports = {
     },
 
     async getUser() {
-      requireLogin()
-      var data = await cgi('music.UnifiedHomepage.UnifiedHomepageSrv', 'GetHomepageHeader', { req_from: 1 })
-      var info = (data && data.head && data.head.creator) || {}
-      if (!info.nick) throw pluginError('unauthorized', '凭据已失效，请重新扫码')
-      return { name: info.nick, avatar: info.headpic }
+      var cred = requireLogin()
+      /* 昵称/头像在登录时已存进凭据（见 authorizeQq）；
+         GetHomepageHeader 需要 euin 加密链路，不值得为个昵称走一遍 */
+      return { name: cred.nick || 'QQ 音乐用户', avatar: cred.avatar || '' }
     },
   },
 
