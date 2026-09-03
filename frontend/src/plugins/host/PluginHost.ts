@@ -219,12 +219,17 @@ export class PluginHost {
         void this.handleSandboxFetch(msg.id, msg.request)
         break
       case 'storage:get':
+        // .catch 必须有：宿主 storage 抛错时若不回包，沙箱侧只能等超时
         void this.options.storage.get(this.manifest.id, msg.key).then(value => {
           this.postToSandbox({ type: 'storage:result', id: msg.id, value })
+        }).catch(() => {
+          this.postToSandbox({ type: 'storage:result', id: msg.id, value: null })
         })
         break
       case 'storage:set':
         void this.options.storage.set(this.manifest.id, msg.key, msg.value).then(() => {
+          this.postToSandbox({ type: 'storage:result', id: msg.id, value: null })
+        }).catch(() => {
           this.postToSandbox({ type: 'storage:result', id: msg.id, value: null })
         })
         break

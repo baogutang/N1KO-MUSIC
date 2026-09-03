@@ -209,11 +209,22 @@ export function createSandboxRuntime(
     error: (...args: unknown[]) => transport.send({ type: 'log', level: 'error', args: args.map(stringifyArg) }),
   } as Console
 
+  // IndexedDB 损坏/配额满时宿主侧可能既不回结果也不报错——fetch 路径有 30s 超时，
+  // storage 也必须有：超时按「没有值」返回，插件登录流程才不会永久挂死
+  const STORAGE_RPC_TIMEOUT_MS = 10_000
+
   const storageGet = (key: string): Promise<string | null> =>
     new Promise(resolve => {
       const id = ++rpcSeq
       pendingStorage.set(id, { resolve })
       transport.send({ type: 'storage:get', id, key })
+      setTimeout(() => {
+        // 宿主晚到再回结果时 pendingStorage 已清，resolve 是幂等无害的
+        if (pendingStorage.has(id)) {
+          pendingStorage.delete(id)
+          resolve(null)
+        }
+      }, STORAGE_RPC_TIMEOUT_MS)
     })
 
   const storageSet = (key: string, value: string): Promise<void> =>
@@ -221,6 +232,12 @@ export function createSandboxRuntime(
       const id = ++rpcSeq
       pendingStorage.set(id, { resolve: () => resolve() })
       transport.send({ type: 'storage:set', id, key, value })
+      setTimeout(() => {
+        if (pendingStorage.has(id)) {
+          pendingStorage.delete(id)
+          resolve()
+        }
+      }, STORAGE_RPC_TIMEOUT_MS)
     })
 
   const handleInit = (msg: Extract<HostToSandboxMessage, { type: 'init' }>) => {
