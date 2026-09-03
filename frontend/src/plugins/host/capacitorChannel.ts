@@ -18,6 +18,9 @@ export async function capacitorChannel(request: HostFetchRequest, allow: readonl
     headers: request.headers,
     data: request.body ?? undefined,
     responseType: request.responseType === 'arraybuffer' ? 'arraybuffer' : 'text',
+    // manual redirect 的原生对应物是不跟随 302（QQ 登录要从 Location 读 code）；
+    // 目标 URL 已在上方经 isHostAllowed 白名单 + 私网拒绝校验
+    ...(request.redirect === 'manual' ? { disableRedirects: true } : {}),
     // 原生实现读不到 set-cookie 时拿不到就拿不到（协议约定给空），不在这层补
   })
 
