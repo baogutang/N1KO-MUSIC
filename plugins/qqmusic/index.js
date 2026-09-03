@@ -368,7 +368,7 @@ function mapSong(raw) {
     artistId: singers[0] ? singers[0].mid : undefined,
     album: album.title || album.name || '',
     albumId: album.mid,
-    artwork: album.mid ? 'https://y.qq.com/music/photo_new/T002R300x300M000' + album.mid + '.jpg' : '',
+    artwork: album.mid ? 'https://y.qq.com/music/photo_new/T002R300x300M000' + (album.pmid || album.mid) + '.jpg' : '',
     duration: raw.interval || 0,
     /* pay.pay_play: 1 = VIP */
     vip: pay.pay_play === 1,
@@ -663,13 +663,21 @@ async function qrcDecrypt(hexText) {
   }
 }
 
+/* 2026-09 起 do_search_v2 各分节从数组改成 { items: [...] } 对象（estimate_sum
+   等元数据挪进对象里）；两种形态都要认 */
+function sectionItems(v) {
+  if (Array.isArray(v)) return v
+  if (v && Array.isArray(v.items)) return v.items
+  return []
+}
+
 /* ============================================================
  * 插件主体
  * ============================================================ */
 
 module.exports = {
   platform: 'qqmusic',
-  version: '0.1.0',
+  version: '0.1.3',
   author: 'N1KO',
   description: 'QQ 音乐（用自己的账号听自己有权听的）',
 
@@ -691,10 +699,10 @@ module.exports = {
     var body = (data && data.body) || {}
     var meta = (data && data.meta) || {}
     var isEnd = meta.nextpage === undefined ? true : meta.nextpage === -1
-    if (type === 'album') return { data: (body.item_album || []).map(mapAlbum), isEnd: isEnd }
-    if (type === 'artist') return { data: (body.singer || []).map(mapSinger), isEnd: isEnd }
-    if (type === 'sheet') return { data: (body.item_songlist || []).map(mapSheet), isEnd: isEnd }
-    return { data: (body.item_song || []).map(mapSong), isEnd: isEnd }
+    if (type === 'album') return { data: sectionItems(body.item_album).map(mapAlbum), isEnd: isEnd }
+    if (type === 'artist') return { data: sectionItems(body.singer).map(mapSinger), isEnd: isEnd }
+    if (type === 'sheet') return { data: sectionItems(body.item_songlist).map(mapSheet), isEnd: isEnd }
+    return { data: sectionItems(body.item_song).map(mapSong), isEnd: isEnd }
   },
 
   /* ---------- 取流（vkey.GetVkey.UrlGetVkey + CDN 拼接） ---------- */
