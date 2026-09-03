@@ -205,6 +205,11 @@ export const useServerStore = create<ServerState>()(
       disconnect: () => {
         usePlayerStore.getState().resetForServerChange()
         clearAdapter()
+        // 登出全部必须拆掉每个插件沙箱（removeServer/disconnectServer 都拆，这里不能漏）：
+        // 否则带凭据的 iframe 与消息监听在「已登出」后继续存活，仍能让宿主代发请求
+        for (const id of [...get().connectedServerIds]) {
+          disposePluginHost(id)
+        }
         // 登出时清空查询缓存，避免下次登录其他服务器时命中旧数据
         queryClient.clear()
         set({
