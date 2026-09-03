@@ -129,12 +129,12 @@ export function useSongDetail(songId: string, initialData?: Song) {
 }
 
 /** 搜索 */
-export function useSearch(query: string) {
+export function useSearch(query: string, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.search(query),
     // TODO(sources): 聚合搜索——阶段 2 的 useSourceQueries 对所有声明 search 能力的音源并发，此处只覆盖主库
     queryFn: ({ signal }) => getAdapter().searchAll(query, signal),
-    enabled: query.trim().length >= 1,
+    enabled: (options.enabled ?? true) && query.trim().length >= 1,
     staleTime: 2 * 60 * 1000,
     placeholderData: keepPreviousData,
   })
@@ -575,12 +575,12 @@ export function useAddToPlaylist() {
 // ===================================================
 
 /** 获取收藏内容（serverId 指定时按该源取——收藏页分节用） */
-export function useStarred(serverId?: string) {
+export function useStarred(serverId?: string, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'starred'] as const,
     queryFn: ({ signal }) =>
       (serverId ? getAdapterFor(serverId) : getAdapter()).getStarred(signal),
-    enabled: serverId ? hasAdapterFor(serverId) : hasAdapter(),
+    enabled: (options.enabled ?? true) && (serverId ? hasAdapterFor(serverId) : hasAdapter()),
     staleTime: 3 * 60 * 1000,
   })
 }

@@ -27,9 +27,10 @@ export default function Favorites() {
   const sources = useConnectedSources()
   const multi = sources.length > 1 && !srcFilter
 
-  // 单源 / ?src= 过滤：一条查询；多源：每源一条（失败塌缩成该节错误行）
+  // 单源 / ?src= 过滤：一条查询；多源：每源一条（失败塌缩成该节错误行）。
+  // 多源时单源 hook 关掉，避免设了曲库范围后主库同一请求打两遍
   const starredGroups = useSourceStarred().filter(g => g.status !== 'loading')
-  const single = useStarred(srcFilter)
+  const single = useStarred(srcFilter, { enabled: !multi })
   const singleSongs = single.data?.songs ?? []
   const singleAlbums = single.data?.albums ?? []
 
