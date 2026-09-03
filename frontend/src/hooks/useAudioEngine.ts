@@ -605,6 +605,13 @@ export function useAudioEngine() {
       } catch (e) {
         console.error('[AudioEngine] resolveStream failed:', e)
         usePlayerStore.getState().setStreamBuffering(false)
+        // 静默失败在用户眼里就是「点了没反应」——VIP/付费曲至少要说明原因
+        const detail = e instanceof Error ? e.message : String(e)
+        toast({
+          title: t('player.streamFailed', { title: capturedSong.title }),
+          description: /forbidden|无权|VIP|付费/.test(detail) ? detail : undefined,
+          variant: 'destructive',
+        })
         return
       }
       if (seq !== loadSeq || usePlayerStore.getState().currentSong?.id !== capturedSongId) return

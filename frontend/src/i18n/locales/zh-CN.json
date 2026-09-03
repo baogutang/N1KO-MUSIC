@@ -889,6 +889,7 @@
   "scrobble.endpointChanged": "端点地址已更改，已断开连接",
   "scrobble.endpointChangedDesc": "token 是发给某一台主机的。换了地址就要重新填一次，不会把旧 token 带过去。",
   "player.error.detail": "错误码 {code}{message}",
+  "player.streamFailed": "无法播放「{title}」",
   "action.back": "返回",
   "action.remove": "移除",
   "sources.group": "流媒体音源",

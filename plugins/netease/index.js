@@ -186,6 +186,35 @@ async function ensureDeviceId(env) {
   return id
 }
 
+/**
+ * 合成追踪 cookie（api-enhanced processCookieObject 同款）：网易风控
+ * 会检查 _ntes_nuid / WNMCID / NMTID 这些浏览器指纹字段，缺了就
+ * 「检测到当前设备环境异常，本次操作已拦截」。持久化在私有存储，
+ * 同一设备每次请求带同一套值（真浏览器就是这样的）。
+ */
+async function ensureTrackingCookies(env) {
+  var cached = await env.storage.get('tracking-cookies')
+  if (cached) return cookieToObj(cached)
+  var nuid = ''
+  for (var i = 0; i < 32; i++) nuid += '0123456789abcdef'.charAt(secureRandInt(16))
+  var wnmcid = ''
+  for (var w = 0; w < 6; w++) wnmcid += 'abcdefghijklmnopqrstuvwxyz'.charAt(secureRandInt(26))
+  var nmtid = '00O'
+  for (var n = 0; n < 19; n++) nmtid += '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.charAt(secureRandInt(62))
+  var jar = {
+    _ntes_nuid: nuid,
+    _ntes_nnid: nuid + ',' + Date.now(),
+    WNMCID: wnmcid + '.' + Date.now() + '.01.0',
+    WEVNSM: '1.0.0',
+    NMTID: nmtid,
+    __remember_me: 'true',
+    ntes_kaola_ad: '1',
+  }
+  var str = objToCookie(jar)
+  await env.storage.set('tracking-cookies', str)
+  return jar
+}
+
 /** 匿名设备 id → 注册用 username（api-enhanced cloudmusic_dll_encode_id） */
 function anonymousUsername(deviceId) {
   var salt = PROTOCOL_OBFUSCATION.anonSalt
@@ -224,7 +253,7 @@ async function currentCookie(env, deviceId) {
 /** weapi 请求（music.163.com/weapi/...） */
 async function weapiRequest(env, apiPath, data, deviceId) {
   var cookie = await currentCookie(env, deviceId)
-  var jar = cookieToObj(cookie)
+  var jar = Object.assign(await ensureTrackingCookies(env), cookieToObj(cookie))
   var payload = Object.assign({}, data, {
     csrf_token: jar['__csrf'] || '',
     e_r: false,
@@ -258,7 +287,7 @@ async function weapiRequest(env, apiPath, data, deviceId) {
 async function eapiRequest(env, apiPath, data, deviceIdOverride, cookieOverride) {
   var deviceId = deviceIdOverride || (await ensureDeviceId(env))
   var cookie = cookieOverride !== undefined ? cookieOverride : await currentCookie(env, deviceId)
-  var jar = cookieToObj(cookie)
+  var jar = Object.assign(await ensureTrackingCookies(env), cookieToObj(cookie))
   var csrf = jar['__csrf'] || ''
   var requestId = Date.now() + '_' + String(secureRandInt(1000)).padStart(4, '0')
   var header = {

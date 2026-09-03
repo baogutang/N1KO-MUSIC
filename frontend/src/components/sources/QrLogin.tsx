@@ -27,8 +27,7 @@ export function QrLogin({
 }) {
   const { t } = useT()
   const [phase, setPhase] = useState<QrPhase>('loading')
-  const [qrSvg, setQrSvg] = useState('')
-  /** 插件直接给出二维码图片（QQ 扫码的服务端 PNG）时优先于本地渲染 */
+  /** 二维码统一以 <img> 渲染（服务端图或本地生成的 data URL） */
   const [qrImage, setQrImage] = useState('')
   const [errorText, setErrorText] = useState('')
   const qrKeyRef = useRef<string | null>(null)
@@ -47,15 +46,14 @@ export function QrLogin({
         // 服务端生成的二维码图（含扫描跳转地址，本地无法复刻）
         setQrImage(created.qrImage)
       } else {
-        // 黑模块跟随界面墨色，扫码器照样认；背景留白保证对比度
-        const svg = await QRCode.toString(created.content, {
-          type: 'svg',
+        // 统一走 data URL <img>：SVG 注入会带固有宽高，URL 变长时溢出方框
+        const dataUrl = await QRCode.toDataURL(created.content, {
           margin: 1,
-          width: 220,
+          width: 440,
           color: { dark: '#000000', light: '#ffffff' },
         })
         if (cancelledRef.current) return
-        setQrSvg(svg)
+        setQrImage(dataUrl)
       }
       setPhase('waiting')
     } catch (err) {
@@ -125,12 +123,7 @@ export function QrLogin({
             (phase === 'expired' ? 'opacity-25' : 'opacity-100')
           }
         >
-          {qrImage ? (
-            <img src={qrImage} alt="QR" className="w-full h-full object-contain" />
-          ) : (
-            // qrcode 库产出的 SVG（自渲染、无外链），按内容注入
-            <span dangerouslySetInnerHTML={{ __html: qrSvg }} className="block w-full h-full" />
-          )}
+          <img src={qrImage} alt="QR" className="w-full h-full object-contain" />
         </div>
         {phase === 'expired' && (
           <button
