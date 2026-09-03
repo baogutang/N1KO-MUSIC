@@ -657,9 +657,11 @@ module.exports = {
     return { status: 'waiting' }
   },
 
-  /* n1ko 扩展：宿主账号横幅用 */
+  /* n1ko 扩展：宿主登录页（QrLogin）与账号横幅用 */
   n1ko: {
     auth: {
+      createQr() { return module.exports.getQRCode() },
+      checkQr(key) { return module.exports.checkQRCode(key) },
       async getUser() {
         return module.exports.user.getUser()
       },

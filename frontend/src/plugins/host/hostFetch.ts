@@ -86,7 +86,13 @@ async function browserChannel(request: HostFetchRequest, target: string): Promis
       body: request.body !== undefined && request.method !== 'GET' && request.method !== 'HEAD'
         ? request.body
         : undefined,
+      // 同源限制下跨源 manual redirect 会拿到 opaque 响应（读不到 Location）；
+      // 真正能用到 manual 的通道是开发代理与 Tauri，这里只是尽力透传
+      ...(request.redirect ? { redirect: request.redirect } : {}),
     })
+    if (res.type === 'opaqueredirect') {
+      return networkError('跨源重定向不跟随需要 App / 桌面版通道（浏览器同源限制）')
+    }
     return await normalizeFetchResponse(res, request.responseType)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

@@ -26,9 +26,10 @@ function n1koPluginProxyMiddleware(): Plugin {
         try {
           const chunks: Buffer[] = []
           for await (const chunk of req) chunks.push(chunk as Buffer)
-          const { url, allow, method, headers, body } = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as {
+          const { url, allow, method, headers, body, redirect } = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as {
             url?: string; allow?: string; method?: string
             headers?: Record<string, string>; body?: string | null
+            redirect?: 'follow' | 'manual'
           }
           const allowList = (allow ?? '').split(',').map(s => s.trim()).filter(Boolean)
           if (!url || !isHostAllowed(url, allowList)) {
@@ -36,9 +37,12 @@ function n1koPluginProxyMiddleware(): Plugin {
             res.end('host not allowed')
             return
           }
+          // 服务端 fetch 的 manual redirect 能拿到 3xx 状态与 Location 头
+          // （QQ 登录的 authorize 要从 Location 读 code）；浏览器同源限制不适用
           const upstream = await fetch(url, {
             method: method ?? 'GET',
             headers,
+            redirect: redirect ?? 'follow',
             ...(body != null && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
           })
           const buf = Buffer.from(await upstream.arrayBuffer())

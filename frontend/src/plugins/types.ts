@@ -102,6 +102,13 @@ export interface HostFetchRequest {
   bodyEncoding?: 'text' | 'base64'
   responseType: 'json' | 'text' | 'arraybuffer'
   timeoutMs?: number
+  /**
+   * 重定向策略（PROTOCOL §8.3）。'manual'：不跟随 3xx，Location 头透传给插件
+   * （QQ 登录的 graph.qq.com/oauth2.0/authorize 要从 Location 里取 code）。
+   * 浏览器同源限制下 manual 会得到 opaque redirect——该场景只在
+   * 宿主代发通道（开发代理 / Tauri）里有意义。
+   */
+  redirect?: 'follow' | 'manual'
 }
 
 export interface HostFetchSuccess {
@@ -255,7 +262,7 @@ export interface PluginExports {
   getRecommendSheetsByTag?(tag: string | SheetItem, page: number): Promise<Paged<SheetItem>>
   n1ko?: {
     auth?: {
-      createQr?(): Promise<{ key: string; content: string; expiresIn: number }>
+      createQr?(): Promise<{ key: string; content: string; expiresIn: number; qrImage?: string }>
       checkQr?(key: string): Promise<PluginQrCheckResult>
       loginWithCookie?(text: string): Promise<{ credentials: string }>
       getUser?(): Promise<PluginUser | null>

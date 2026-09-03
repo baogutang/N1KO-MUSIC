@@ -19,5 +19,7 @@ export async function tauriChannel(request: HostFetchRequest, allow: readonly st
     body: request.body !== undefined && request.method !== 'GET' && request.method !== 'HEAD'
       ? request.body
       : undefined,
+    // Rust 侧的 manual redirect 可读 Location（QQ 登录链路需要）
+    ...(request.redirect ? { redirect: request.redirect } : {}),
   })
 }

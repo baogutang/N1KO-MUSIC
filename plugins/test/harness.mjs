@@ -36,12 +36,18 @@ function makeAxios() {
     const res = await fetch(url, {
       method: (config.method ?? 'get').toUpperCase(),
       headers,
+      redirect: config.redirect ?? 'follow',
       ...(body !== undefined && body !== null ? { body } : {}),
     })
-    const text = await res.text()
-    let data = text
-    if ((config.responseType ?? 'json') === 'json') {
-      try { data = text ? JSON.parse(text) : null } catch { /* 保持文本 */ }
+    let data
+    if ((config.responseType ?? 'json') === 'arraybuffer') {
+      data = new Uint8Array(await res.arrayBuffer())
+    } else {
+      const text = await res.text()
+      data = text
+      if ((config.responseType ?? 'json') === 'json') {
+        try { data = text ? JSON.parse(text) : null } catch { /* 保持文本 */ }
+      }
     }
     const response = { status: res.status, headers: Object.fromEntries(res.headers), data, config }
     const validate = config.validateStatus === undefined

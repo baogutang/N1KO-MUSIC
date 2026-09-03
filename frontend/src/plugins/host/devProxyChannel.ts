@@ -25,6 +25,7 @@ export async function devProxyChannel(request: HostFetchRequest, allow: readonly
       responseType: request.responseType,
       headers: request.headers ?? {},
       body: request.body ?? null,
+      redirect: request.redirect ?? 'follow',
     }),
   })
   if (!res.ok) {

@@ -21,6 +21,8 @@ export interface AxiosLikeConfig {
   responseType?: 'json' | 'text' | 'arraybuffer'
   timeout?: number
   validateStatus?: ((status: number) => boolean) | null
+  /** 透传宿主取流的重定向策略（'manual' 不跟随 3xx，Location 可读） */
+  redirect?: 'follow' | 'manual'
 }
 
 export interface AxiosLikeResponse<T = unknown> {
@@ -97,6 +99,7 @@ export function createAxiosShim(fetchViaHost: FetchViaHost) {
       bodyEncoding,
       responseType,
       timeoutMs: config.timeout,
+      redirect: config.redirect,
     })
 
     if (!result.ok) {

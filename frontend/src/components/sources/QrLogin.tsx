@@ -28,6 +28,8 @@ export function QrLogin({
   const { t } = useT()
   const [phase, setPhase] = useState<QrPhase>('loading')
   const [qrSvg, setQrSvg] = useState('')
+  /** 插件直接给出二维码图片（QQ 扫码的服务端 PNG）时优先于本地渲染 */
+  const [qrImage, setQrImage] = useState('')
   const [errorText, setErrorText] = useState('')
   const qrKeyRef = useRef<string | null>(null)
   const cancelledRef = useRef(false)
@@ -36,19 +38,25 @@ export function QrLogin({
     cancelledRef.current = false
     setPhase('loading')
     setErrorText('')
+    setQrImage('')
     try {
-      const created = await host.call<{ key: string; content: string; expiresIn: number }>('n1ko.auth.createQr')
+      const created = await host.call<{ key: string; content: string; expiresIn: number; qrImage?: string }>('n1ko.auth.createQr')
       if (cancelledRef.current) return
       qrKeyRef.current = created.key
-      // 黑模块跟随界面墨色，扫码器照样认；背景留白保证对比度
-      const svg = await QRCode.toString(created.content, {
-        type: 'svg',
-        margin: 1,
-        width: 220,
-        color: { dark: '#000000', light: '#ffffff' },
-      })
-      if (cancelledRef.current) return
-      setQrSvg(svg)
+      if (created.qrImage) {
+        // 服务端生成的二维码图（含扫描跳转地址，本地无法复刻）
+        setQrImage(created.qrImage)
+      } else {
+        // 黑模块跟随界面墨色，扫码器照样认；背景留白保证对比度
+        const svg = await QRCode.toString(created.content, {
+          type: 'svg',
+          margin: 1,
+          width: 220,
+          color: { dark: '#000000', light: '#ffffff' },
+        })
+        if (cancelledRef.current) return
+        setQrSvg(svg)
+      }
       setPhase('waiting')
     } catch (err) {
       if (cancelledRef.current) return
@@ -116,9 +124,14 @@ export function QrLogin({
             'w-[220px] h-[220px] rounded-md ring-1 ring-hair bg-white p-2 transition-opacity ' +
             (phase === 'expired' ? 'opacity-25' : 'opacity-100')
           }
-          // qrcode 库产出的 SVG（自渲染、无外链），按内容注入
-          dangerouslySetInnerHTML={{ __html: qrSvg }}
-        />
+        >
+          {qrImage ? (
+            <img src={qrImage} alt="QR" className="w-full h-full object-contain" />
+          ) : (
+            // qrcode 库产出的 SVG（自渲染、无外链），按内容注入
+            <span dangerouslySetInnerHTML={{ __html: qrSvg }} className="block w-full h-full" />
+          )}
+        </div>
         {phase === 'expired' && (
           <button
             onClick={() => void startQr()}
