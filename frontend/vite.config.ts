@@ -2,8 +2,45 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'node:fs'
+import http from 'node:http'
+import https from 'node:https'
 import { VitePWA } from 'vite-plugin-pwa'
 import { isHostAllowed } from './src/plugins/host/whitelist'
+
+/**
+ * 手动重定向请求：Node 原生 http/https 模块（默认就不跟随 3xx，
+ * 状态码与 set-cookie / Location 头完整可读）。
+ *
+ * 为什么不用 fetch(url, { redirect: 'manual' })：undici 实现 Fetch 规范，
+ * manual 返回的是 opaque-redirect（状态 0、头部全空）——QQ 登录的
+ * check_sig（读 p_skey cookie）与 authorize（读 Location 里的 code）
+ * 都拿不到东西，实测「没有 p_skey」就是这个坑。
+ */
+function nodeRequestNoRedirect(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body: string | null,
+): Promise<{ status: number; headers: Record<string, string>; buf: Buffer }> {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith('https:') ? https : http
+    const req = mod.request(url, { method, headers }, upstream => {
+      const chunks: Buffer[] = []
+      upstream.on('data', (c: Buffer) => chunks.push(c))
+      upstream.on('end', () => {
+        const outHeaders: Record<string, string> = {}
+        for (const [key, value] of Object.entries(upstream.headers)) {
+          if (Array.isArray(value)) outHeaders[key.toLowerCase()] = value.join(', ')
+          else if (value !== undefined) outHeaders[key.toLowerCase()] = String(value)
+        }
+        resolve({ status: upstream.statusCode ?? 0, headers: outHeaders, buf: Buffer.concat(chunks) })
+      })
+    })
+    req.on('error', reject)
+    if (body != null && method !== 'GET' && method !== 'HEAD') req.write(body)
+    req.end()
+  })
+}
 
 /**
  * 开发态插件代理中间件：/__n1ko_proxy（POST JSON）。
@@ -37,21 +74,30 @@ function n1koPluginProxyMiddleware(): Plugin {
             res.end('host not allowed')
             return
           }
-          // 服务端 fetch 的 manual redirect 能拿到 3xx 状态与 Location 头
-          // （QQ 登录的 authorize 要从 Location 读 code）；浏览器同源限制不适用
-          const upstream = await fetch(url, {
-            method: method ?? 'GET',
-            headers,
-            redirect: redirect ?? 'follow',
-            ...(body != null && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
-          })
-          const buf = Buffer.from(await upstream.arrayBuffer())
-          const outHeaders: Record<string, string> = {}
-          upstream.headers.forEach((v, k) => { outHeaders[k.toLowerCase()] = v })
+          let status: number
+          let outHeaders: Record<string, string>
+          let buf: Buffer
+          if (redirect === 'manual') {
+            // manual：Node 原生请求，不跟随 3xx（见 nodeRequestNoRedirect 注释）
+            const manual = await nodeRequestNoRedirect(url, method ?? 'GET', headers ?? {}, body ?? null)
+            status = manual.status
+            outHeaders = manual.headers
+            buf = manual.buf
+          } else {
+            const upstream = await fetch(url, {
+              method: method ?? 'GET',
+              headers,
+              ...(body != null && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
+            })
+            status = upstream.status
+            buf = Buffer.from(await upstream.arrayBuffer())
+            outHeaders = {}
+            upstream.headers.forEach((v, k) => { outHeaders[k.toLowerCase()] = v })
+          }
           res.statusCode = 200
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({
-            status: upstream.status,
+            status,
             headers: outHeaders,
             bodyBase64: buf.toString('base64'),
           }))

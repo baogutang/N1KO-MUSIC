@@ -75,3 +75,15 @@
 - 选择：crypto 与请求封装全部内联进 index.js 单文件；`_crypto` 命名空间导出给测试用。
 - 原因：给加载器加相对路径解析要动沙箱运行时与安装校验（多文件代码哈希、入口解析），影响面大于收益；单文件与 Node 测试骨架也天然兼容。
 - 影响：plugins/netease/index.js；将来加载器支持多文件时再拆 lib/。
+
+## 2026-09-03 · 验收反馈 · 内置音源自动安装（N1KO 产品要求）
+- 冲突：PLAN §2.2 说插件经「添加插件」手动安装；N1KO 体验后要求网易云 / QQ 首启即用，且目录里不要出现 Mock。
+- 选择：pluginStore.load 首次加载时（插件列表为空且未种过）自动从目录安装 netease + qqmusic（meta 标记 builtin-seeded，卸载不复活）；plugins/catalog.json 移除 mock 条目（插件本体与测试保留，开发/CI 用 URL 安装）。
+- 原因：两大官方音源是产品主路径，不该藏在安装流程后面；Mock 是开发夹具不该给最终用户看。
+- 影响：pluginStore.ts seedBuiltins、plugins/catalog.json；正式版默认目录为空 → 种子静默跳过（正式分发方案发布流程再定）。
+
+## 2026-09-03 · 验收反馈 · 开发代理 manual redirect 改用 Node 原生 http
+- 冲突：阶段 4 把 redirect:'manual' 交给 fetch 处理，但 undici 实现 Fetch 规范——manual 返回 opaque-redirect（状态 0、头部全空），QQ check_sig 拿不到 p_skey（N1KO 实测报「QQ 授权失败」）。
+- 选择：开发代理对 manual 请求走 node:http/https 原生请求（Node 核心默认不跟随 3xx，状态与 set-cookie/Location 完整可读）。
+- 原因：规范行为与需求冲突时，换实现比绕规范稳。
+- 影响：vite.config.ts nodeRequestNoRedirect；CapacitorHttp 通道仍不支持 manual（QQ 扫码在真机的可用性待真机验证）。

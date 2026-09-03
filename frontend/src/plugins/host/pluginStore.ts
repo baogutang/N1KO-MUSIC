@@ -31,6 +31,9 @@ import {
 import { useServerStore } from '@/store/serverStore'
 
 const CATALOG_URL_META_KEY = 'catalog-url'
+/** 内置音源（网易云 / QQ）首启自动安装的一次性标记（N1KO 2026-09-03 的产品要求） */
+const BUILTIN_SEEDED_META_KEY = 'builtin-seeded'
+const BUILTIN_PLUGIN_IDS = ['netease', 'qqmusic']
 
 /** 开发态默认目录由 Vite 中间件供给；正式版默认空（用户自填） */
 function defaultCatalogUrl(): string {
@@ -54,6 +57,8 @@ interface PluginStoreState {
   catalogUrl: string
   loaded: boolean
   installing: string | null
+  /** 首启内置安装（网易云 / QQ）：load 里触发，幂等（meta 标记） */
+  seedBuiltins: () => Promise<void>
   /** 安装结果里带回「hosts 较上一版有新增」的标记（PROTOCOL §9 更新确认用） */
   install: (manifestUrl: string) => Promise<{ ok: true; hostsAdded: boolean } | { ok: false; error: string }>
   installPasted: (manifestJson: string, code: string) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -76,11 +81,31 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
   load: async () => {
     const stored = await readAllPlugins()
     const savedUrl = (await readMeta(CATALOG_URL_META_KEY)) as string | undefined
+    const seeded = await readMeta(BUILTIN_SEEDED_META_KEY)
     set({
       plugins: stored.map(toSummary),
       catalogUrl: savedUrl ?? defaultCatalogUrl(),
       loaded: true,
     })
+    /* 首启内置：网易云 / QQ 自动安装（一次性标记，卸载不复活）。
+       正式版默认目录为空 → 静默跳过（无目录可拉）。 */
+    if (!seeded && stored.length === 0 && (get().catalogUrl || defaultCatalogUrl())) {
+      void get().seedBuiltins()
+    }
+  },
+
+  seedBuiltins: async () => {
+    const { catalogUrl, installFromCatalog } = get()
+    const url = catalogUrl || defaultCatalogUrl()
+    if (!url) return
+    for (const id of BUILTIN_PLUGIN_IDS) {
+      try {
+        await installFromCatalog(id)
+      } catch {
+        /* 目录不可达或单项失败不阻塞其他项 */
+      }
+    }
+    await writeMeta(BUILTIN_SEEDED_META_KEY, Date.now())
   },
 
   getInstalled: (id) => readPlugin(id),
