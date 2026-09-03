@@ -1112,7 +1112,7 @@ export function useAudioEngine() {
           description: t('player.error.detail', {
             code: rawCode,
             message: err?.message ? ` ${err.message}` : '',
-          }) + `\n${streamUrl.substring(0, 120)}...`,
+          }) + `\n${redactUrl(streamUrl).substring(0, 120)}...`,
           variant: 'destructive',
         })
         usePlayerStore.getState().setStreamBuffering(false)
