@@ -1,25 +1,72 @@
 /**
  * 首页的多源区块（PLAN 2.3）：
+ * - MergedDailyRail：各源每日推荐（网易云每日 / QQ 雷达）交错合并成一张列表
  * - SourceCollections：每个音源的「我的歌单 / 收藏」入口行
  * - SourceTopListsRail：榜单（只对声明 topLists 的音源出现）
- * - SourceRecommendSheetsRail：推荐歌单（只对声明 recommendSheets 的音源出现）
+ * - SourceRecommendSheetsRail：推荐歌单合并网格（各源交错，卡片带音源标识）
  *
- * 三块都是「有内容才渲染」：能力未声明、加载失败、空数据都不占版面。
+ * 四块都是「有内容才渲染」：能力未声明、加载失败、空数据都不占版面。
  */
 
-import { Heart, MusicNotes } from '@phosphor-icons/react'
+import { useMemo } from 'react'
+import { Heart, MusicNotes, Play, Shuffle } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import {
+  interleaveRecommendations,
   useSourcePlaylists,
   useSourceRecommendSheets,
+  useSourceRecommendSongs,
   useSourceTopLists,
 } from '@/hooks/useSourceQueries'
 import { findAdapterFor } from '@/api'
 import type { Playlist } from '@/api/types'
+import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
+
+/** 各源每日推荐合并：轮转交错 + 同名去重，谁也不刷屏（单源退化为截断） */
+export function MergedDailyRail() {
+  const { t } = useT()
+  const groups = useSourceRecommendSongs().filter(g => (g.data?.length ?? 0) > 0)
+  const merged = useMemo(
+    () => interleaveRecommendations(groups.map(g => ({ songs: g.data! })), 20),
+    [groups]
+  )
+  if (!merged.length) return null
+
+  return (
+    <section aria-labelledby="home-dailymix">
+      <div className="section-head">
+        <h2 id="home-dailymix">
+          {t('sources.dailyMix')}<small>DAILY MIX</small>
+        </h2>
+        <div className="flex items-center gap-5">
+          {groups.map(g => (
+            <SourceBadge key={g.serverId} serverId={g.serverId} withName />
+          ))}
+          <button
+            className="more inline-flex items-center gap-1.5"
+            onClick={() => playAllInOrder(merged, 0)}
+          >
+            <Play size={12} />
+            {t('player.playAll')}
+          </button>
+          <button
+            className="more inline-flex items-center gap-1.5"
+            onClick={() => playAllShuffled(merged, 0)}
+          >
+            <Shuffle size={12} />
+            {t('player.shuffle')}
+          </button>
+        </div>
+      </div>
+      <SongList songs={merged} showCover showAlbum showIndex />
+    </section>
+  )
+}
 
 /** 各音源的「我的歌单 / 收藏」入口行（数量为证，入口跳分节页） */
 export function SourceCollections() {
@@ -109,11 +156,28 @@ export function SourceTopListsRail() {
   )
 }
 
-/** 推荐歌单：小封面横排（只显示声明能力的源） */
+/** 推荐歌单：各源交错合并成一张网格，卡片角上带音源标识 */
 export function SourceRecommendSheetsRail() {
   const { t } = useT()
   const groups = useSourceRecommendSheets().filter(g => (g.data?.length ?? 0) > 0)
-  if (!groups.length) return null
+  const merged = useMemo(() => {
+    // 每源取前 6 张，轮转交错成一张网格；歌单不像歌曲那样跨源去重（同名不同源是两张真实的歌单）
+    const queues = groups.map(g => (g.data ?? []).slice(0, 6).map(pl => ({ pl, serverId: g.serverId })))
+    const out: Array<{ pl: Playlist; serverId: string }> = []
+    let progressed = true
+    while (progressed) {
+      progressed = false
+      for (const q of queues) {
+        const head = q.shift()
+        if (head) {
+          out.push(head)
+          progressed = true
+        }
+      }
+    }
+    return out.slice(0, 12)
+  }, [groups])
+  if (!merged.length) return null
 
   return (
     <section aria-labelledby="home-sheets">
@@ -122,26 +186,19 @@ export function SourceRecommendSheetsRail() {
           {t('sources.recommendSheets')}<small>PLAYLISTS FOR YOU</small>
         </h2>
       </div>
-      <div className="border-t border-hair divide-y divide-hair-soft">
-        {groups.map(g => (
-          <div key={g.serverId} className="py-4">
-            <p className="flex items-center gap-2.5 mb-3.5 px-2">
-              <SourceBadge serverId={g.serverId} withName />
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-4">
-              {g.data!.slice(0, 6).map(pl => (
-                <MiniSheetCard key={pl.id} playlist={pl} />
-              ))}
-            </div>
-          </div>
-        ))}
+      <div className="border-t border-hair pt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-4">
+          {merged.map(({ pl, serverId }) => (
+            <MiniSheetCard key={`${serverId}:${pl.id}`} playlist={pl} serverId={serverId} />
+          ))}
+        </div>
       </div>
     </section>
   )
 }
 
-/** 迷你歌单卡：小封面 + 名称 + 曲目数（首页推荐位专用，比歌单页的卡紧凑） */
-function MiniSheetCard({ playlist }: { playlist: Playlist }) {
+/** 迷你歌单卡：小封面（角上音源标识）+ 名称 + 曲目数（首页推荐位专用） */
+function MiniSheetCard({ playlist, serverId }: { playlist: Playlist; serverId: string }) {
   const { t } = useT()
   const navigate = useNavigate()
   const cover = playlist.coverArt
@@ -152,13 +209,16 @@ function MiniSheetCard({ playlist }: { playlist: Playlist }) {
       className="group text-left min-w-0"
       onClick={() => navigate(`/playlists/${playlist.id}?src=${encodeURIComponent(playlist.serverId)}`)}
     >
-      <div className="aspect-square rounded-sm overflow-hidden ring-1 ring-hair-soft mb-2 transition-transform duration-300 group-hover:scale-[1.03] pop:border pop:border-hair pop:ring-0">
+      <div className="relative aspect-square rounded-sm overflow-hidden ring-1 ring-hair-soft mb-2 transition-transform duration-300 group-hover:scale-[1.03] pop:border pop:border-hair pop:ring-0">
         <ImageWithFallback
           src={cover}
           alt={playlist.name}
           fallbackType="album"
           className={cn('w-full h-full object-cover')}
         />
+        <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-sm bg-paper/85 backdrop-blur-sm px-1.5 py-0.5">
+          <SourceBadge serverId={serverId} />
+        </span>
       </div>
       <p className="text-[13px] font-serif font-semibold line-clamp-1 group-hover:text-primary transition-colors">
         {playlist.name}

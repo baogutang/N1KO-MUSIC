@@ -1,7 +1,7 @@
 {
   "id": "netease",
   "name": "网易云音乐",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "protocol": 1,
   "platform": "netease",
   "entry": "index.js",
@@ -25,6 +25,7 @@
     "importMusicSheet",
     "importMusicItem",
     "topLists",
+    "recommendSongs",
     "recommendSheets",
     "userPlaylists",
     "favorites",

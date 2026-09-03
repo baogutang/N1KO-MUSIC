@@ -38,8 +38,8 @@ export interface ClientCapabilities extends SourceCapabilities {
 const NONE: ClientCapabilities = {
   search: false, album: false, artist: false, lyrics: false,
   userPlaylists: false, favorites: false, playlistWrite: false,
-  topLists: false, recommendSheets: false, importSheet: false,
-  libraryBrowse: false, radio: false,
+  topLists: false, recommendSheets: false, recommendSongs: false,
+  importSheet: false, libraryBrowse: false, radio: false,
   shares: false, rating: false, bookmarks: false, nowPlaying: false,
   musicFolders: false, scan: false, playQueue: false,
 }
@@ -74,6 +74,7 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
       playlistWrite: declared?.playlistWrite ?? typeof a.createPlaylist === 'function',
       topLists: declared?.topLists ?? typeof a.getTopLists === 'function',
       recommendSheets: declared?.recommendSheets ?? typeof a.getRecommendSheets === 'function',
+      recommendSongs: declared?.recommendSongs ?? typeof a.getRecommendSongs === 'function',
       importSheet: declared?.importSheet ?? false,
       libraryBrowse: declared?.libraryBrowse ?? true,
       radio: declared?.radio

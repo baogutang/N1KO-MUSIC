@@ -32,7 +32,7 @@
   "capabilities": [
     "search", "album", "artist", "lyrics",
     "userPlaylists", "favorites", "playlistWrite",
-    "topLists", "recommendSheets", "importSheet"
+    "topLists", "recommendSheets", "recommendSongs", "importSheet"
   ],
   "qualities": ["low", "medium", "high", "lossless"],
   "userVariables": [
@@ -100,6 +100,7 @@ module.exports = {
       async createPlaylist(name) {},                 // -> SheetItem
       async addToPlaylist(sheetItem, musicItems) {},
       async removeFromPlaylist(sheetItem, musicItems) {},
+      async getRecommendSongs() {},                  // -> MusicItem[]（登录态每日推荐；未登录抛 unauthorized）
     },
     async getMediaSource(musicItem, quality) {},     // 有则优先于顶层同名方法；-> { url, expiresAt?, headers?, mimeType? }
   },

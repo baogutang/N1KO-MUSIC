@@ -768,6 +768,7 @@
   "sources.topListDetail": "Chart",
   "sources.sheetCount": "{count} lists",
   "sources.recommendSheets": "Recommended playlists",
+  "sources.dailyMix": "Daily Mix · picked for you",
   "sources.noBrowseTitle": "No browsable source",
   "sources.noBrowseDesc": "Album and artist browsing needs a NAS-type source; explore streaming sources via search and charts",
   "sources.loadError": "Failed to load on this source",

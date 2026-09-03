@@ -768,6 +768,7 @@
   "sources.topListDetail": "榜单",
   "sources.sheetCount": "{count} 张",
   "sources.recommendSheets": "推荐歌单",
+  "sources.dailyMix": "今日推荐 · 各音源为你挑的",
   "sources.noBrowseTitle": "没有可浏览的音源",
   "sources.noBrowseDesc": "专辑与歌手浏览需要接 NAS 类音源；流媒体音源用搜索与榜单探索",
   "sources.loadError": "此音源加载失败",

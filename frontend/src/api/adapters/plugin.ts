@@ -74,6 +74,7 @@ export class PluginAdapter implements MusicServerAdapter {
   getTopLists?: MusicServerAdapter['getTopLists']
   getTopListDetail?: MusicServerAdapter['getTopListDetail']
   getRecommendSheets?: MusicServerAdapter['getRecommendSheets']
+  getRecommendSongs?: MusicServerAdapter['getRecommendSongs']
 
   constructor(config: PluginAdapterConfig) {
     this.serverId = config.serverId
@@ -326,6 +327,7 @@ export class PluginAdapter implements MusicServerAdapter {
       playlistWrite: has('playlistWrite'),
       topLists: has('topLists'),
       recommendSheets: has('recommendSheets'),
+      recommendSongs: has('recommendSongs'),
       importSheet: has('importSheet'),
       libraryBrowse: false,
       radio: has('radio'),
@@ -344,6 +346,7 @@ export class PluginAdapter implements MusicServerAdapter {
       case 'playlistWrite': return this.host.hasMethod('n1ko.user.createPlaylist')
       case 'topLists': return this.host.hasMethod('getTopLists')
       case 'recommendSheets': return this.host.hasMethod('getRecommendSheetsByTag')
+      case 'recommendSongs': return this.host.hasMethod('n1ko.user.getRecommendSongs')
       case 'importSheet': return this.host.hasMethod('importMusicSheet')
       case 'radio': return this.host.hasMethod('getSimilarSongs')
       default: return false
@@ -386,6 +389,14 @@ export class PluginAdapter implements MusicServerAdapter {
       this.getRecommendSheets = async (page: number) => {
         const paged = await this.host.call<Paged<SheetItem>>('getRecommendSheetsByTag', '', page)
         return { isEnd: paged.isEnd, items: (paged.data ?? []).map(s => mapSheetItem(s, this.serverId)) }
+      }
+    }
+
+    // 每日推荐（登录态）：n1ko.user.getRecommendSongs 返回整页 MusicItem[]
+    if (this.capability('recommendSongs') && this.host.hasMethod('n1ko.user.getRecommendSongs')) {
+      this.getRecommendSongs = async () => {
+        const items = await this.host.call<MusicItem[]>('n1ko.user.getRecommendSongs')
+        return (items ?? []).map(m => mapMusicItem(m, this.serverId))
       }
     }
   }

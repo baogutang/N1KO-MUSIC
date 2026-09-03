@@ -5,10 +5,11 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { ServerConfig } from '@/api/types'
+import type { ServerConfig, Song } from '@/api/types'
 import {
   collectSourceRefs,
   defaultPriorityOrder,
+  interleaveRecommendations,
   resolveSourceOrder,
   zipQueryResults,
   type SourceRef,
@@ -113,5 +114,40 @@ describe('zipQueryResults', () => {
       { isPending: false, isSuccess: false, error: 'raw string' },
     ])
     expect(zipped[1].error).toBe('raw string')
+  })
+})
+
+describe('interleaveRecommendations（今日推荐合并）', () => {
+  const song = (id: string, title: string, artist: string): Song => ({
+    id, title, artist,
+    album: '', duration: 200, serverId: 'x', contentType: 'audio',
+  } as unknown as Song)
+
+  it('两源轮转交错，谁也不刷屏', () => {
+    const a = [song('a1', 'A1', 'X'), song('a2', 'A2', 'X'), song('a3', 'A3', 'X')]
+    const b = [song('b1', 'B1', 'Y'), song('b2', 'B2', 'Y')]
+    const out = interleaveRecommendations([{ songs: a }, { songs: b }], 10)
+    expect(out.map(s => s.id)).toEqual(['a1', 'b1', 'a2', 'b2', 'a3'])
+  })
+
+  it('跨源同名曲只留先出现的那条（标题+歌手归一）', () => {
+    const a = [song('a1', '晴天', '周杰伦')]
+    const b = [song('b1', '晴天 ', '周杰伦'), song('b2', '夜曲', '周杰伦')]
+    const out = interleaveRecommendations([{ songs: a }, { songs: b }], 10)
+    expect(out.map(s => s.id)).toEqual(['a1', 'b2'])
+  })
+
+  it('括号后缀不影响去重（Live / 重制）', () => {
+    const a = [song('a1', '搁浅（Live）', '周杰伦')]
+    const b = [song('b1', '搁浅', '周杰伦')]
+    const out = interleaveRecommendations([{ songs: a }, { songs: b }], 10)
+    expect(out.map(s => s.id)).toEqual(['a1'])
+  })
+
+  it('尊重上限；单源退化为截断；空组不出场', () => {
+    const a = [song('a1', 'A1', 'X'), song('a2', 'A2', 'X'), song('a3', 'A3', 'X')]
+    expect(interleaveRecommendations([{ songs: a }], 2).map(s => s.id)).toEqual(['a1', 'a2'])
+    expect(interleaveRecommendations([], 5)).toEqual([])
+    expect(interleaveRecommendations([{ songs: [] }, { songs: a }], 5).map(s => s.id)).toEqual(['a1', 'a2', 'a3'])
   })
 })

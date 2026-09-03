@@ -1,7 +1,7 @@
 {
   "id": "qqmusic",
   "name": "QQ 音乐",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "protocol": 1,
   "platform": "qqmusic",
   "entry": "index.js",
@@ -30,6 +30,7 @@
     "importMusicSheet",
     "importMusicItem",
     "topLists",
+    "recommendSongs",
     "recommendSheets",
     "userPlaylists"
   ],

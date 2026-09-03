@@ -95,6 +95,18 @@ function requireLogin() {
   return cred
 }
 
+/** 雷达推荐（modules/recommend.py GetRadarSong）：响应字段是 tracks，需登录 */
+async function fetchRadarSongs() {
+  requireLogin()
+  var radar = await cgi('music.recommend.TrackRelationServer', 'GetRadarSong', {
+    Page: 1,
+    ReqType: 0,
+    FavSongs: [],
+    EntranceSongs: [],
+  })
+  return ((radar && radar.tracks) || []).map(mapSong)
+}
+
 /* ============================================================
  * CGI 请求封装（core/api_context.py build_api_kwargs 的 web 平台移植）
  * ============================================================ */
@@ -821,14 +833,7 @@ module.exports = {
   async getTopListDetail(topListItem) {
     var id = String(topListItem.id)
     if (id === '__radar__') {
-      /* 雷达推荐（modules/recommend.py GetRadarSong）：响应字段是 tracks */
-      var radar = await cgi('music.recommend.TrackRelationServer', 'GetRadarSong', {
-        Page: 1,
-        ReqType: 0,
-        FavSongs: [],
-        EntranceSongs: [],
-      })
-      return { musicList: ((radar && radar.tracks) || []).map(mapSong) }
+      return { musicList: await fetchRadarSongs() }
     }
     var data = await cgi('music.musicToplist.Toplist', 'GetDetail', {
       topId: Number(id),
@@ -916,6 +921,8 @@ module.exports = {
     user: {
       getPlaylists() { return module.exports.user.getPlaylists() },
       getUser() { return module.exports.user.getUser() },
+      /** 雷达推荐（宿主首页「今日推荐」合并区；未登录抛 unauthorized 由宿主降级为空） */
+      getRecommendSongs() { return fetchRadarSongs() },
     },
     getMediaSource(item, quality) { return module.exports.getMediaSource(item, quality) },
   },

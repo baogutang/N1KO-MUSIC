@@ -819,6 +819,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       playlistWrite: true,
       topLists: false,
       recommendSheets: false,
+      recommendSongs: false,
       importSheet: false,
       libraryBrowse: true,
       radio: true,

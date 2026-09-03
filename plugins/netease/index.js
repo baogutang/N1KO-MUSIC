@@ -385,6 +385,14 @@ async function fetchTracksByIds(env, deviceId, trackIds) {
   return (res.body.songs || []).map(mapSong)
 }
 
+/** 每日推荐（api-enhanced recommend_songs：weapi v3/discovery/recommend/songs，需登录） */
+async function fetchDailyRecommend(env, deviceId) {
+  var daily = await weapiRequest(env, '/api/v3/discovery/recommend/songs', {}, deviceId)
+  var data = daily.body.data || {}
+  var songs = data.dailySongs || data.songs || []
+  return songs.map(mapSong)
+}
+
 /** 当前登录 uid（缓存进私有存储，账号横幅/收藏都要用） */
 async function currentUid(env, deviceId) {
   var cached = await env.storage.get('uid')
@@ -557,10 +565,7 @@ module.exports = {
   async getTopListDetail(topListItem) {
     var deviceId = await ensureDeviceId(env)
     if (String(topListItem.id) === '__daily__') {
-      /* 每日推荐（api-enhanced recommend_songs：weapi v3/discovery/recommend/songs） */
-      var daily = await weapiRequest(env, '/api/v3/discovery/recommend/songs', {}, deviceId)
-      var dailySongs = (daily.body.data && (daily.body.data.dailySongs || daily.body.data.songs)) || []
-      return { musicList: dailySongs.map(mapSong) }
+      return { musicList: await fetchDailyRecommend(env, deviceId) }
     }
     var detail = await eapiRequest(env, '/api/v6/playlist/detail', {
       id: topListItem.id,
@@ -761,6 +766,12 @@ module.exports = {
     user: {
       getPlaylists() { return module.exports.user.getPlaylists() },
       getUser() { return module.exports.user.getUser() },
+      /** 每日推荐（宿主首页「今日推荐」合并区；未登录抛 unauthorized 由宿主降级为空） */
+      async getRecommendSongs() {
+        module.exports.requireLogin()
+        var deviceId = await ensureDeviceId(env)
+        return fetchDailyRecommend(env, deviceId)
+      },
       async getFavorites(page) {
         module.exports.requireLogin()
         var deviceId = await ensureDeviceId(env)

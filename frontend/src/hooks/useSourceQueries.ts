@@ -89,8 +89,8 @@ function capabilitiesOf(serverId: string): SourceCapabilities {
     return {
       search: false, album: false, artist: false, lyrics: false,
       userPlaylists: false, favorites: false, playlistWrite: false,
-      topLists: false, recommendSheets: false, importSheet: false,
-      libraryBrowse: false, radio: false,
+      topLists: false, recommendSheets: false, recommendSongs: false,
+      importSheet: false, libraryBrowse: false, radio: false,
     }
   }
   const declared = a.getSourceCapabilities?.()
@@ -104,6 +104,7 @@ function capabilitiesOf(serverId: string): SourceCapabilities {
     playlistWrite: declared?.playlistWrite ?? typeof a.createPlaylist === 'function',
     topLists: declared?.topLists ?? typeof a.getTopLists === 'function',
     recommendSheets: declared?.recommendSheets ?? typeof a.getRecommendSheets === 'function',
+    recommendSongs: declared?.recommendSongs ?? typeof a.getRecommendSongs === 'function',
     importSheet: declared?.importSheet ?? false,
     libraryBrowse: declared?.libraryBrowse ?? true,
     radio: declared?.radio
@@ -248,6 +249,67 @@ export function useSourceRecommendSheets(): SourceQueryGroup<Playlist[]>[] {
     })),
   })
   return zipQueryResults<Playlist[]>(eligible, results)
+}
+
+// ===================================================
+// 今日推荐合并（多源每日推荐交错去重）
+// ===================================================
+
+/** 跨源去重 key：小写、去空白、去括号后缀（Live/重制版等标记保留主体） */
+function recommendDedupKey(song: Song): string {
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '').replace(/[（(].*?[)）]/g, '')
+  return `${norm(song.title)}|${norm(song.artist)}`
+}
+
+/**
+ * 各源每日推荐合并成一张列表（纯函数，测试覆盖）：
+ * 按源顺序轮转交错（排前面的源先出第一首，谁也不刷屏），
+ * 同名曲（标题+歌手归一后相等）只保留先出现的那条，上限 limit。
+ */
+export function interleaveRecommendations(
+  groups: Array<{ songs: Song[] }>,
+  limit: number
+): Song[] {
+  const queues = groups.map(g => [...g.songs])
+  const seen = new Set<string>()
+  const out: Song[] = []
+  let progressed = true
+  while (out.length < limit && progressed) {
+    progressed = false
+    for (const queue of queues) {
+      if (out.length >= limit) break
+      while (queue.length) {
+        const song = queue.shift()!
+        const key = recommendDedupKey(song)
+        if (seen.has(key)) continue
+        seen.add(key)
+        out.push(song)
+        progressed = true
+        break
+      }
+    }
+  }
+  return out
+}
+
+/** 各源每日推荐（声明 recommendSongs 且已登录的源；未登录的插件一般返回空） */
+export function useSourceRecommendSongs(): SourceQueryGroup<Song[]>[] {
+  const sources = useConnectedSources()
+  const caps = useSourceCapabilities()
+  const eligible = useMemo(
+    () => sources.filter(s => caps[s.serverId]?.recommendSongs && hasAdapterFor(s.serverId)),
+    [sources, caps]
+  )
+  const results = useQueries({
+    queries: eligible.map(s => ({
+      queryKey: [s.serverId, 'recommend-songs'] as const,
+      queryFn: async () => (await getAdapterFor(s.serverId).getRecommendSongs!()) ?? [],
+      // 未登录 / 风控失败的源不该反复打：只重试一次
+      retry: 1,
+      staleTime: 10 * 60 * 1000,
+    })),
+  })
+  return zipQueryResults<Song[]>(eligible, results)
 }
 
 /** 榜单详情（TopListDetail 页用；key 按来源分域） */

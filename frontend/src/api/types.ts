@@ -487,6 +487,8 @@ export interface MusicServerAdapter {
   getTopListDetail?(topListId: string, page: number): Promise<{ isEnd: boolean; songs: Song[] }>
   /** 推荐歌单，分页（插件音源）*/
   getRecommendSheets?(page: number): Promise<{ isEnd: boolean; items: Playlist[] }>
+  /** 登录态每日推荐曲目（插件音源；网易云每日 / QQ 雷达），聚合「今日推荐」用 */
+  getRecommendSongs?(): Promise<Song[]>
 }
 
 /**
@@ -512,6 +514,8 @@ export interface SourceCapabilities {
   topLists: boolean
   /** 有推荐歌单 */
   recommendSheets: boolean
+  /** 有登录态每日推荐曲目（聚合「今日推荐」用） */
+  recommendSongs: boolean
   /** 支持粘贴链接导入歌单 */
   importSheet: boolean
   /** 出现在专辑 / 歌手 / 流派浏览页（流媒体音源一般不声明）*/

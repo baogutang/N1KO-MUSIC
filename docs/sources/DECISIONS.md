@@ -93,3 +93,9 @@
 - 选择：load() 时对内置音源（netease/qqmusic）静默自动更新：目录版本 ≠ 已装版本且 hosts 无新增（有新增留给手动更新走确认，PROTOCOL §9）。
 - 原因：官方一等音源是产品主路径，更新不该是用户任务。
 - 影响：pluginStore.ts autoUpdateBuiltins。
+
+## 2026-09-03 · 验收反馈 · 多源推荐合并进首页（今日推荐）
+- 冲突：各源的每日推荐（网易云「每日推荐」、QQ「雷达推荐」）原先只能藏在各自榜单分组里逐个点开，N1KO 要求「多音源如何合并下推荐」。
+- 选择：协议新增可选方法 `n1ko.user.getRecommendSongs()` 与能力 `recommendSongs`；首页新增「今日推荐」合并区——各源轮转交错 + 标题/歌手归一去重（上限 20），推荐歌单横栏同样合并成一张交错网格（卡片带音源标识）。榜单保持各源分组（榜单本质是平台各自的）。
+- 原因：合并区把「今天听什么」变成一个入口；交错而非拼接保证单一音源不刷屏；未登录的源查询失败降级为不出场，不拖垮整页。
+- 影响：plugins/netease 0.1.6、plugins/qqmusic 0.1.4（fetchDailyRecommend / fetchRadarSongs 抽出复用）；plugin.ts 挂 getRecommendSongs；useSourceQueries.interleaveRecommendations（纯函数有单测）。
