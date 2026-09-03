@@ -31,6 +31,8 @@ import { redactUrl } from '@/utils/redactUrl'
 import { useServerStore } from '@/store/serverStore'
 import { useSettingsStore, QUALITY_MAX_BITRATE, type AudioQuality } from '@/store/settingsStore'
 import { getAdapterFor, hasAdapterFor } from '@/api'
+import { collectSourceRefs, resolveSourceOrder } from '@/hooks/useSourceQueries'
+import { bestMatchFor } from '@/plugins/match'
 import { toast } from '@/components/ui/use-toast'
 import type { Song } from '@/api/types'
 import { computeReplayGainScalar } from '@/utils/replayGain'
@@ -148,6 +150,38 @@ async function resolveStream(
  * 晚到的结果（含它要写的 audio.src）必须作废。
  */
 let loadSeq = 0
+
+/**
+ * 单轨失败的播放韧性（PLAN 验收第二轮）：
+ * - 跨源降级：插件源上无权/失效的曲子，按播放优先序问其它已连接源要同曲，
+ *   只认 isrc/exact 档（fuzzy 容易放错歌，宁可直接跳过）。
+ * - 自动跳歌：降级也找不到时前进到下一首，而不是把整条队列停在原地；
+ *   连续 MAX_AUTO_SKIPS 次失败则停下（坏队列不该无限空转）。
+ */
+async function tryFallbackSource(failed: Song): Promise<Song | null> {
+  const st = useServerStore.getState()
+  const refs = collectSourceRefs(st.servers, st.connectedServerIds, st.activeServerId)
+  const order = resolveSourceOrder(refs, useSettingsStore.getState().playbackPriority)
+  const query = `${failed.title} ${failed.artist}`.trim()
+  if (!query) return null
+  for (const ref of order) {
+    if (ref.serverId === failed.serverId) continue
+    if (!hasAdapterFor(ref.serverId)) continue
+    const adapter = getAdapterFor(ref.serverId)
+    if (typeof adapter.searchAll !== 'function') continue
+    try {
+      const res = await adapter.searchAll(query)
+      const best = bestMatchFor(failed, res.songs ?? [])
+      if (best && best.tier !== 'fuzzy') return best.song
+    } catch { /* 这个源搜失败就试下一家 */ }
+  }
+  return null
+}
+
+let consecutiveResolveFailures = 0
+const MAX_AUTO_SKIPS = 5
+/** 已为这个加载 key 尝试过一次跨源降级（换源后的新 key 是另一首歌，可再试） */
+let fallbackAttemptedKey: string | null = null
 
 /**
  * 在不改变任何状态的前提下算出「下一首是谁」。
@@ -559,9 +593,10 @@ export function useAudioEngine() {
       return
     }
 
-    // 队列允许混源：加载只看这首歌自己的来源是否连着，不看主库是谁
+    // 队列允许混源：加载只看这首歌自己的来源是否连着，不看主库是谁。
+    // 主库（isConnected）断开不能连坐——正在放的插件源歌曲适配器还活着就该继续放
     const songServer = songServerId(activeSong)
-    if (!isConnected || !hasAdapterFor(songServer)) {
+    if (!hasAdapterFor(songServer)) {
       persistListeningSession()
       resetListeningSession()
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
@@ -612,9 +647,41 @@ export function useAudioEngine() {
           description: /forbidden|无权|VIP|付费/.test(detail) ? detail : undefined,
           variant: 'destructive',
         })
+        // 音质切换途中失败不算跳歌场景：保持停在原处的原语义
+        if (qualitySwitchResumeAt !== null) return
+        // 跨源降级：这一首歌（这个加载 key）只试一次，避免环形换源
+        if (fallbackAttemptedKey !== capturedKey
+            && /forbidden|无权|VIP|付费|not.?found|unauthorized/i.test(detail)) {
+          fallbackAttemptedKey = capturedKey
+          const alt = await tryFallbackSource(capturedSong)
+          if (alt) {
+            const altSourceName = useServerStore.getState().servers
+              .find(s => s.id === alt.serverId)?.name ?? alt.serverId
+            toast({ title: t('player.fallbackSource', { source: altSourceName }) })
+            // 原位替换后 currentSong.id 变化 → 加载 effect 重新跑，接着放新源的版本
+            usePlayerStore.getState().replaceCurrentSong(alt)
+            return
+          }
+        }
+        // 自动跳歌：单轨失败不再停住整条队列
+        consecutiveResolveFailures += 1
+        if (consecutiveResolveFailures >= MAX_AUTO_SKIPS) {
+          consecutiveResolveFailures = 0
+          toast({ title: t('player.queueHalted'), variant: 'destructive' })
+          return
+        }
+        setTimeout(() => {
+          const st = usePlayerStore.getState()
+          // 稍等片刻给失败提示留出可读时间；期间用户手动切了歌就不抢方向盘
+          if (st.currentSong?.id === capturedSongId) {
+            st.advanceOnEnded()
+          }
+        }, 900)
         return
       }
       if (seq !== loadSeq || usePlayerStore.getState().currentSong?.id !== capturedSongId) return
+      // 取到流即视为这次连续失败被打断
+      consecutiveResolveFailures = 0
       const streamUrl = resolved.url
       // 取到流才认领这个加载 key：被作废的加载不能抢走属于别人的 key
       loadedKey = capturedKey
