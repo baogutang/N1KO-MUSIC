@@ -30,6 +30,8 @@ export interface LocalPlaylist {
 interface LocalPlaylistState {
   playlists: LocalPlaylist[]
   loaded: boolean
+  /** IndexedDB 打开失败的原因；歌单页据此显示错误行而不是静默消失 */
+  loadError: string | null
   load: () => Promise<void>
   create: (name: string, songs?: Song[]) => Promise<LocalPlaylist>
   addSongs: (id: string, songs: Song[]) => Promise<void>
@@ -101,11 +103,17 @@ function toEntries(songs: Song[]): LocalPlaylistEntry[] {
 export const useLocalPlaylistStore = create<LocalPlaylistState>()((set, get) => ({
   playlists: [],
   loaded: false,
+  loadError: null,
 
   load: async () => {
     if (get().loaded) return
-    const all = await readAll()
-    set({ playlists: all.sort((a, b) => b.createdAt - a.createdAt), loaded: true })
+    try {
+      const all = await readAll()
+      set({ playlists: all.sort((a, b) => b.createdAt - a.createdAt), loaded: true, loadError: null })
+    } catch (e) {
+      // 存储损坏/无痕模式配额：置错误态让歌单页解释，而不是分区无声消失
+      set({ loadError: e instanceof Error ? e.message : String(e), loaded: true })
+    }
   },
 
   create: async (name, songs) => {

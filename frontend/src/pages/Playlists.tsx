@@ -45,6 +45,7 @@ export default function Playlists() {
   const localPlaylists = useLocalPlaylistStore(s => s.playlists)
   const localLoad = useLocalPlaylistStore(s => s.load)
   const localRemove = useLocalPlaylistStore(s => s.remove)
+  const localLoadError = useLocalPlaylistStore(s => s.loadError)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
@@ -185,7 +186,14 @@ export default function Playlists() {
         />
       ) : (
         <>
-        {/* 本地混合歌单（阶段 5）：跨源曲目快照，不同步 backend */}
+        {/* 本地歌单存储打不开（无痕模式/配额/损坏）：明说，而不是分区无声消失 */}
+      {localLoadError && (
+        <p className="mt-6 border-l-2 border-destructive pl-3 text-[13px] leading-relaxed text-destructive">
+          {t('sources.import.localStoreError')}
+        </p>
+      )}
+
+      {/* 本地混合歌单（阶段 5）：跨源曲目快照，不同步 backend */}
         {localPlaylists.length > 0 && (
           <section className="mt-10">
             <div className="section-head">
