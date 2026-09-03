@@ -159,3 +159,14 @@
 3. 真机（iOS/Android）与桌面（Tauri）安装真实插件后取流通畅（CapacitorHttp / tauri-plugin-http 通道，代码就绪未真机验证）
 4. 双源同时连接的日常使用：搜索聚合 / 播放 / 歌词 / 过期重取（开发态 E2E 已覆盖，真机复验）
 5. 跨源导入：Mock NAS ↔ Mock 插件互导 + 本地混合歌单
+
+## 2026-09-03 · 验收反馈第二轮（QQ 搜索 / 推荐合并 / 官方 logo / 全局修复）
+
+| 事项 | 提交 | 说明 |
+| --- | --- | --- |
+| QQ 搜索崩溃（item_song 非数组） | a498658 | 2026-09 起 do_search_v2 各分节改为 {items:[...]} 对象；sectionItems 兼容双形态，封面优先 pmid（0.1.3） |
+| 首页「今日推荐」多源合并 | 63748e5 | 协议新增 n1ko.user.getRecommendSongs + recommendSongs 能力（netease 0.1.6 / qqmusic 0.1.4）；interleaveRecommendations 轮转交错去重；推荐歌单合并网格 |
+| 音源标识官方 logo | — | public/logos 打包两家的 App Store 官方 512px 图标；SourceBadge 内置源渲染 logo，第三方回退色块 |
+| 全局体验修复 | 5a34eb1 / 252c309 | 详情页跳转 14 处补 ?src=（混合列表跳主库落空）；SongList 标 VIP；fetchAllDetailPages 防呆；专辑详情补 isEnd（netease 0.1.7 / qqmusic 0.1.5） |
+
+无头探针（scripts/tmp/probe-sweep.mjs）全绿：NAS + 双流媒体匿名 → 聚合搜索 46 行无失败 → 非 VIP 曲播放时间码前进 → 首页合并网格/官方 logo → QQ 歌手页 25 曲、专辑页有曲目 → 收藏页无异常，console 零报错。
