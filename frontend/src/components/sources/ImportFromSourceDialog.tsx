@@ -6,7 +6,7 @@
  * 声明 userPlaylists 的已连接音源。
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import {
@@ -59,6 +59,9 @@ export function ImportFromSourceDialog({
   const [targetMode, setTargetMode] = useState<'new' | 'append'>('new')
   const [targetId, setTargetId] = useState('')
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState({ done: 0, total: 0 })
+  /** 取消导入：关对话框或点取消时 abort，worker 全体停下 */
+  const cancelRef = useRef<AbortController | null>(null)
 
   useEffect(() => { void loadLocal() }, [loadLocal])
 
@@ -66,6 +69,8 @@ export function ImportFromSourceDialog({
   const sourceGroup = groups.find(g => g.serverId === sourceId)
 
   const reset = useCallback(() => {
+    cancelRef.current?.abort()
+    cancelRef.current = null
     setStage('pick')
     setSheet(null)
     setMatched([])
@@ -73,32 +78,55 @@ export function ImportFromSourceDialog({
     setTargetMode('new')
     setTargetId('')
     setBusy(false)
+    setProgress({ done: 0, total: 0 })
   }, [])
 
   const runImport = useCallback(async () => {
     if (!sheet || !activeSource) return
     setStage('importing')
+    const ctrl = new AbortController()
+    cancelRef.current = ctrl
     try {
       const detail = await getAdapterFor(activeSource.serverId).getPlaylistDetail(sheet.id)
-      const rows: MatchRow[] = []
-      const missing: Song[] = []
-      for (const song of detail.songs) {
-        // 主库检索（标题 + 歌手），候选交给三级匹配
-        const query = `${song.title} ${song.artist}`.trim()
-        let found: Song[] = []
-        try {
-          const result = await getAdapter().searchAll(query)
-          found = result.songs ?? []
-        } catch { /* 主库搜索失败按未匹配处理 */ }
-        const hit = bestMatchFor(song, found)
-        if (hit) {
-          rows.push({ song: hit.song, tier: hit.tier })
-        } else {
-          missing.push(song)
+      // 0 首：QQ 私有歌单匿名取回就是空——静默进 review 只会让用户对着 0/0 猜
+      if (!detail.songs.length) {
+        toast({ title: t('sources.import.emptySheet') })
+        reset()
+        return
+      }
+      const total = detail.songs.length
+      setProgress({ done: 0, total })
+      // 并发池：串行 500 首 = 500 个请求排长队，分钟级；6 路并发分钟变秒级。
+      // 结果按原歌单下标落位，完成顺序不定也不打乱 review 列表
+      const results: Array<MatchRow | null> = new Array(total).fill(null)
+      const missingFlag = new Array<boolean>(total).fill(false)
+      let cursor = 0
+      let done = 0
+      const CONCURRENCY = 6
+      const worker = async () => {
+        for (;;) {
+          if (ctrl.signal.aborted) return
+          const i = cursor++
+          if (i >= total) return
+          const song = detail.songs[i]
+          // 主库检索（标题 + 歌手），候选交给三级匹配
+          const query = `${song.title} ${song.artist}`.trim()
+          let found: Song[] = []
+          try {
+            const result = await getAdapter().searchAll(query)
+            found = result.songs ?? []
+          } catch { /* 主库搜索失败按未匹配处理 */ }
+          const hit = bestMatchFor(song, found)
+          if (hit) results[i] = { song: hit.song, tier: hit.tier }
+          else missingFlag[i] = true
+          done += 1
+          setProgress(p => (p.total === total ? { ...p, done } : p))
         }
       }
-      setMatched(rows)
-      setUnmatched(missing)
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker))
+      if (ctrl.signal.aborted) return
+      setMatched(results.filter((r): r is MatchRow => r !== null))
+      setUnmatched(detail.songs.filter((_, i) => missingFlag[i]))
       setStage('review')
     } catch (err) {
       toast({
@@ -154,6 +182,8 @@ export function ImportFromSourceDialog({
     <Dialog
       open={open}
       onOpenChange={next => {
+        // 导入进行中关对话框 = 取消：不 abort 的话闭包会把整个歌单跑完
+        if (!next) cancelRef.current?.abort()
         onOpenChange(next)
         if (!next) reset()
       }}
@@ -221,7 +251,25 @@ export function ImportFromSourceDialog({
         )}
 
         {stage === 'importing' && (
-          <p className="py-10 text-center text-[13px] text-ink-faint">{t('sources.import.running')}</p>
+          <div className="py-8 space-y-3 text-center">
+            <p className="text-[13px] text-ink-faint">
+              {t('sources.import.running')}
+              <span className="num ml-2 text-[12px]">
+                {t('sources.import.progress', { done: progress.done, total: progress.total })}
+              </span>
+            </p>
+            {/* 发丝线进度条：无动画库依赖，纯宽度过渡 */}
+            <div className="mx-auto h-[3px] w-48 bg-hair overflow-hidden" role="progressbar"
+              aria-valuenow={progress.done} aria-valuemin={0} aria-valuemax={progress.total}>
+              <div
+                className="h-full bg-primary transition-[width] duration-300"
+                style={{ width: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 0}%` }}
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={() => reset()}>
+              {t('action.cancel')}
+            </Button>
+          </div>
         )}
 
         {stage === 'review' && (

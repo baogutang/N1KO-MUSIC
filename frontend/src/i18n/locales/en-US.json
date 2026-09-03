@@ -791,6 +791,8 @@
   "sources.import.pickSheet": "Pick playlist",
   "sources.import.start": "Start matching",
   "sources.import.running": "Matching…",
+  "sources.import.progress": "{done} / {total}",
+  "sources.import.emptySheet": "Playlist came back empty — it may be private; sign in to that source and retry",
   "sources.import.review": "Matched {matched} ({fuzzy} need confirmation), unmatched {unmatched}",
   "sources.import.tierIsrc": "ISRC",
   "sources.import.tierExact": "Exact",

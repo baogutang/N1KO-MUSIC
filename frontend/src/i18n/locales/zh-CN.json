@@ -791,6 +791,8 @@
   "sources.import.pickSheet": "选择歌单",
   "sources.import.start": "开始匹配",
   "sources.import.running": "正在匹配……",
+  "sources.import.progress": "{done} / {total}",
+  "sources.import.emptySheet": "取回的歌单是空的——可能是私有歌单，登录该音源后重试",
   "sources.import.review": "匹配到 {matched} 首（其中 {fuzzy} 首待确认），未匹配 {unmatched} 首",
   "sources.import.tierIsrc": "ISRC",
   "sources.import.tierExact": "精确",
