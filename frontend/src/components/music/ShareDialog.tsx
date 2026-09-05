@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Copy, Check, Trash, LinkSimple } from '@phosphor-icons/react'
-import { getAdapter, hasAdapter } from '@/api'
+import { findAdapterFor } from '@/api'
 import { toast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +25,14 @@ interface ShareTarget {
   /** 展示用的名字 */
   label: string
   kind: 'song' | 'album' | 'playlist'
+  /**
+   * 条目所属音源；缺省回落主库（旧的单源调用方）。
+   *
+   * 分享链接由**存着这首歌的那台服务器**托管，id 也只在它那儿有意义。
+   * 写死主库时，分享一首网易云的歌等于拿它的 id 去 NAS 上建分享：
+   * 要么报错，要么建出一条指向别的曲子的链接——后者更糟，因为它看起来成功了。
+   */
+  serverId?: string
 }
 
 const KIND_TITLE_KEYS: Record<ShareTarget['kind'], string> = {
@@ -79,11 +87,14 @@ export function ShareDialog({
   const [copied, setCopied] = useState(false)
   const [existing, setExisting] = useState<ShareRecord[]>([])
 
+  /** 分享全程只跟一个适配器打交道：目标条目自己那个源 */
+  const targetServerId = target?.serverId
   const loadExisting = useCallback(async () => {
-    if (!hasAdapter()) return
-    const list = await getAdapter().getShares?.().catch(() => [])
+    const adapter = findAdapterFor(targetServerId)
+    if (!adapter) return
+    const list = await adapter.getShares?.().catch(() => [])
     setExisting(list ?? [])
-  }, [])
+  }, [targetServerId])
 
   useEffect(() => {
     if (!open) {
@@ -97,10 +108,11 @@ export function ShareDialog({
   }, [open, loadExisting])
 
   async function handleCreate() {
-    if (!target || creating || !hasAdapter()) return
+    const adapter = findAdapterFor(target?.serverId)
+    if (!target || creating || !adapter) return
     setCreating(true)
     try {
-      const share = await getAdapter().createShare?.(target.ids, {
+      const share = await adapter.createShare?.(target.ids, {
         description: description.trim() || undefined,
         expiresAt: expiryDays > 0 ? Date.now() + expiryDays * 86_400_000 : undefined,
       })
@@ -133,7 +145,8 @@ export function ShareDialog({
 
   async function revoke(id: string) {
     try {
-      await getAdapter().deleteShare?.(id)
+      // 撤销要打建它的那台服务器，否则「撤销成功」而链接照样能开
+      await findAdapterFor(targetServerId)?.deleteShare?.(id)
       setExisting(list => list.filter(s => s.id !== id))
       if (created?.id === id) setCreated(null)
     } catch {

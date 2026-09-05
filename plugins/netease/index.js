@@ -77,7 +77,14 @@ function rsaEncryptHex(text) {
   var bytes = new TextEncoder().encode(text)
   var m = 0n
   for (var i = 0; i < bytes.length; i++) m = (m << 8n) | BigInt(bytes[i])
-  return modPow(m, RSA_EXPONENT, RSA_MODULUS).toString(16)
+  /*
+   * 必须左补零到 128 字节（256 个 hex 字符）。裸 RSA 的密文是定长的，
+   * 但 toString(16) 会把高位的零字节直接吃掉——随机密钥里约 1/16 会撞上
+   * 至少一个前导零字节，服务端解不开 encSecKey 就回空体。表现出来是
+   * 「搜索/榜单偶尔一次什么都没有，刷新一下又好了」这种查不出规律的
+   * 间歇故障，而不是稳定报错，所以极难归因。
+   */
+  return modPow(m, RSA_EXPONENT, RSA_MODULUS).toString(16).padStart(256, '0')
 }
 
 /**
@@ -122,6 +129,70 @@ function pluginError(code, message) {
   err.name = 'PluginError'
   err.code = code
   return err
+}
+
+/**
+ * 出网错误 → 协议错误码（PROTOCOL §7）。
+ *
+ * 宿主通道失败时 axios shim 抛的是 AxiosLikeError（isAxiosError + code），
+ * 插件不翻译的话到宿主一律成 unknown：界面既不说「网络问题可重试」，
+ * 429 也不会触发 rate-limited 的 60 秒退避，用户只看到「未知错误」。
+ */
+function toPluginError(err) {
+  if (err && err.name === 'PluginError') return err
+  var status = (err && err.response && err.response.status) || 0
+  if (status === 429) return pluginError('rate-limited', '网易云限流，请稍后再试')
+  if (status >= 500) return pluginError('network', '网易云服务端错误（HTTP ' + status + '）')
+  if (err && err.isAxiosError) {
+    /* 宿主拒绝（hosts 白名单外等）把协议码放在 err.code 上，原样保留 */
+    if (err.code === 'forbidden' || err.code === 'unauthorized' || err.code === 'rate-limited') {
+      return pluginError(err.code, err.message)
+    }
+    return pluginError('network', err.message || '网络请求失败')
+  }
+  return err
+}
+
+/** 唯一的出网入口（见 toPluginError） */
+function httpPost(url, body, config) {
+  return axios.post(url, body, config).catch(function (err) { throw toPluginError(err) })
+}
+
+/**
+ * 凭据 / 风控业务码 → 协议错误码。
+ *
+ * 网易云对失效 cookie 的回法是 HTTP 200 + body.code 301，于是
+ * `res.body.playlist || []` 这种写法把「登录过期」吞成「你一个歌单都没有」——
+ * 用户看到的是空列表而不是「请重新登录」，还以为是 App 丢了数据。
+ * 放在请求封装里统一判，省得每个方法各写一遍又各漏一遍。
+ * 其余业务码（取流的 -110 之类）留给各方法自己解释。
+ */
+function assertNotDenied(body, apiPath) {
+  var code = body && body.code
+  if (code === 301 || code === 302) {
+    throw pluginError('unauthorized', '网易云登录已失效，请重新扫码（' + apiPath + ' code ' + code + '）')
+  }
+  /* -460「Cheating」与 405「操作过于频繁」都是风控，宿主据此退避 */
+  if (code === -460 || code === 405) {
+    throw pluginError('rate-limited', '网易云风控拦截，请稍后再试（' + apiPath + ' code ' + code + '）')
+  }
+  return body
+}
+
+/**
+ * 用户域方法的登录门。
+ *
+ * 必须是模块作用域的函数，不能只挂在 module.exports 上：
+ * 沙箱运行时是以 `method(...args)` 的形式**非绑定**调用插件方法的（见
+ * frontend/src/plugins/sandbox/runtime.ts），`this` 并不指向导出对象，
+ * 所以 user.* 里那些裸 `requireLogin()` 在模块作用域里必须找得到这个名字，
+ * 否则一进用户域就是 ReferenceError——扫码明明成功了，昵称、我的歌单、
+ * 收藏却全部当场抛错，而首页只取成功的源，于是整个音源静默消失。
+ */
+function requireLogin() {
+  if (!env || !env.credentials) {
+    throw pluginError('unauthorized', '请先扫码登录网易云音乐')
+  }
 }
 
 function cookieToObj(cookieStr) {
@@ -268,7 +339,7 @@ async function weapiRequest(env, apiPath, data, deviceId, cookieOverride) {
     osver: jar.osver || 'Microsoft-Windows-10-Professional-build-19045-64bit',
     channel: jar.channel || 'netease',
   })
-  var res = await axios.post(
+  var res = await httpPost(
     DOMAIN + '/weapi/' + apiPath.replace(/^\/api\//, ''),
     formEncode(encrypted),
     {
@@ -281,7 +352,7 @@ async function weapiRequest(env, apiPath, data, deviceId, cookieOverride) {
       responseType: 'json',
     }
   )
-  return { body: res.data, setCookies: parseSetCookie(res.headers['set-cookie']) }
+  return { body: assertNotDenied(res.data, apiPath), setCookies: parseSetCookie(res.headers['set-cookie']) }
 }
 
 /** eapi 请求（interfacepc.music.163.com/eapi/...，header cookie 全量自拼）。
@@ -309,7 +380,7 @@ async function eapiRequest(env, apiPath, data, deviceIdOverride, cookieOverride)
   if (jar.MUSIC_A) header.MUSIC_A = jar.MUSIC_A
   var payload = Object.assign({}, data, { header: header, e_r: false })
   var encrypted = eapi(apiPath, payload)
-  var res = await axios.post(
+  var res = await httpPost(
     EAPI_DOMAIN + '/eapi/' + apiPath.replace(/^\/api\//, ''),
     formEncode(encrypted),
     {
@@ -321,7 +392,7 @@ async function eapiRequest(env, apiPath, data, deviceIdOverride, cookieOverride)
       responseType: 'json',
     }
   )
-  return { body: res.data, setCookies: parseSetCookie(res.headers['set-cookie']) }
+  return { body: assertNotDenied(res.data, apiPath), setCookies: parseSetCookie(res.headers['set-cookie']) }
 }
 
 /* ============================================================
@@ -342,7 +413,8 @@ function mapSong(raw) {
     duration: Math.round((raw.dt || raw.duration || 0) / 1000),
     /* fee: 0 免费曲 1 VIP 4 购买专辑 8 非会员可听低音质 */
     vip: raw.fee === 1 || raw.fee === 4,
-    isrc: raw.isrc ? [raw.isrc] : undefined,
+    /* isrc 不给：协议要求字符串，而这两个接口本来就不回 ISRC，
+       给个数组只会让跨源同曲匹配拿到坏形状 */
   }
 }
 
@@ -372,21 +444,87 @@ function mapSheet(raw) {
   }
 }
 
+/** 本地切页（一次性返回全量的接口用，例如 artist/top/song） */
 function paged(list, page, size) {
   var start = (page - 1) * size
   return { data: list.slice(start, start + size), isEnd: start + size >= list.length }
 }
 
-/** 榜单/歌单详情：trackIds → v3/song/detail 拉全曲目（上限 200，与宿主 FETCH_ALL_CAP 对齐） */
+/** 搜索每页条数（cloudsearch limit） */
+var SEARCH_LIMIT = 30
+/** 歌单 / 榜单详情每页曲目数（宿主拉全循环上限 2000，即 20 页） */
+var SHEET_PAGE_SIZE = 100
+/** v3/song/detail 单次请求的 id 数上限（再多服务端会截断） */
+var DETAIL_CHUNK = 100
+
+/**
+ * 末页判定：优先信接口给的总数，没有总数就看这一页有没有取满。
+ * 恒 true 的 isEnd 会让宿主的「加载更多」当场失效，恒 false 则会
+ * 让拉全循环一直转到 2000 条上限，两头都不能拍脑袋。
+ */
+function isEndByTotal(offset, got, limit, total) {
+  if (typeof total === 'number' && total > 0) return offset + limit >= total
+  return got < limit
+}
+
+/** trackIds → v3/song/detail 详情（按 DETAIL_CHUNK 分块；调用方先切好页） */
 async function fetchTracksByIds(env, deviceId, trackIds) {
-  var wanted = trackIds.slice(0, 200).map(function (t) { return '{"id":' + t.id + '}' })
-  if (!wanted.length) return []
-  var res = await eapiRequest(env, '/api/v3/song/detail', { c: '[' + wanted.join(',') + ']' }, deviceId)
-  return (res.body.songs || []).map(mapSong)
+  var songs = []
+  for (var i = 0; i < trackIds.length; i += DETAIL_CHUNK) {
+    var chunk = trackIds.slice(i, i + DETAIL_CHUNK).map(function (t) { return '{"id":' + t.id + '}' })
+    if (!chunk.length) continue
+    var res = await eapiRequest(env, '/api/v3/song/detail', { c: '[' + chunk.join(',') + ']' }, deviceId)
+    songs = songs.concat((res.body.songs || []).map(mapSong))
+  }
+  return songs
+}
+
+/**
+ * 歌单 trackIds 的短缓存。
+ *
+ * v6/playlist/detail 一次回全量 trackIds（几千首的歌单响应几百 KB），
+ * 而宿主是按页反复调 getMusicSheetInfo 把歌单拉全的——不缓存的话
+ * 20 页就要重拉 20 次同一份大响应。60 秒够一轮拉全用，又不至于让
+ * 用户刚加进歌单的歌长时间看不到。
+ */
+var trackIdsCache = { key: '', at: 0, ids: [], title: '' }
+var TRACK_IDS_TTL_MS = 60 * 1000
+
+async function fetchSheetTrackIds(env, deviceId, sheetId) {
+  var key = String((env && env.credentials) || '') + '\n' + String(sheetId)
+  if (trackIdsCache.key === key && Date.now() - trackIdsCache.at < TRACK_IDS_TTL_MS) {
+    return trackIdsCache
+  }
+  var detail = await eapiRequest(env, '/api/v6/playlist/detail', {
+    id: sheetId,
+    n: 100000,
+    s: 8,
+  }, deviceId)
+  var playlist = detail.body.playlist || {}
+  trackIdsCache = {
+    key: key,
+    at: Date.now(),
+    ids: playlist.trackIds || [],
+    title: playlist.name || '',
+  }
+  return trackIdsCache
+}
+
+/** 歌单 / 榜单详情的一页（每页 SHEET_PAGE_SIZE 首，isEnd 按 trackIds 总数给） */
+async function fetchSheetPage(env, deviceId, sheetId, page) {
+  var cached = await fetchSheetTrackIds(env, deviceId, sheetId)
+  var start = ((page || 1) - 1) * SHEET_PAGE_SIZE
+  var slice = cached.ids.slice(start, start + SHEET_PAGE_SIZE)
+  return {
+    title: cached.title,
+    musicList: await fetchTracksByIds(env, deviceId, slice),
+    isEnd: start + SHEET_PAGE_SIZE >= cached.ids.length,
+  }
 }
 
 /** 每日推荐（api-enhanced recommend_songs：weapi v3/discovery/recommend/songs，需登录） */
 async function fetchDailyRecommend(env, deviceId) {
+  requireLogin()
   var daily = await weapiRequest(env, '/api/v3/discovery/recommend/songs', {}, deviceId)
   var data = daily.body.data || {}
   var songs = data.dailySongs || data.songs || []
@@ -438,7 +576,8 @@ var STREAM_TTL_MS = 20 * 60 * 1000
 
 module.exports = {
   platform: 'netease',
-  version: '0.1.0',
+  /* 版本号的唯一真源是 manifest.json：这里再写一份就必然漂（曾经代码里
+     还挂着 0.1.0，manifest 已经到 0.1.8），而宿主展示的一直是 manifest 的那个 */
   author: 'N1KO',
   description: '网易云音乐（用自己的账号听自己有权听的）',
 
@@ -448,27 +587,33 @@ module.exports = {
   async search(query, page, type) {
     var deviceId = await ensureDeviceId(env)
     var typeMap = { music: 1, album: 10, artist: 100, sheet: 1000 }
+    var offset = ((page || 1) - 1) * SEARCH_LIMIT
     var res = await eapiRequest(env, '/api/cloudsearch/pc', {
       s: String(query || ''),
       type: typeMap[type] || 1,
-      limit: 30,
-      offset: ((page || 1) - 1) * 30,
+      limit: SEARCH_LIMIT,
+      offset: offset,
       total: true,
     }, deviceId)
     if (res.body.code !== 200 && res.body.code !== undefined) {
       throw pluginError('unknown', 'cloudsearch code ' + res.body.code)
     }
+    /*
+     * 服务端已经按 offset/limit 切好页了，这里只能原样返回。
+     * 早先这里又用 paged() 在本机对这 30 条再切一次页——第 2 页 slice(30,60)
+     * 恒为空，而 isEnd 又恒为 true，于是「搜索只有 30 条」看起来像是
+     * 网易云的限制，实际是插件自己把后面的页全丢了。
+     */
     var result = res.body.result || {}
-    if (type === 'album') {
-      return paged((result.albums || []).map(mapAlbum), page || 1, 30)
-    }
-    if (type === 'artist') {
-      return paged((result.artists || []).map(mapArtist), page || 1, 30)
-    }
-    if (type === 'sheet') {
-      return paged((result.playlists || []).map(mapSheet), page || 1, 30)
-    }
-    return paged((result.songs || []).map(mapSong), page || 1, 30)
+    var picked = type === 'album'
+      ? { list: result.albums, map: mapAlbum, total: result.albumCount }
+      : type === 'artist'
+        ? { list: result.artists, map: mapArtist, total: result.artistCount }
+        : type === 'sheet'
+          ? { list: result.playlists, map: mapSheet, total: result.playlistCount }
+          : { list: result.songs, map: mapSong, total: result.songCount }
+    var data = (picked.list || []).map(picked.map)
+    return { data: data, isEnd: isEndByTotal(offset, data.length, SEARCH_LIMIT, picked.total) }
   },
 
   /* ---------- 取流：eapi player/url/v1，失败回落 download/url/v1 ---------- */
@@ -498,7 +643,9 @@ module.exports = {
       return {
         url: info.url,
         type: info.type || '',
-        expiresIn: Math.floor(STREAM_TTL_MS / 1000),
+        /* 协议要的是 expiresAt（毫秒时间戳）；给 expiresIn 的话适配器读不到，
+           一律按默认 20 分钟处理 */
+        expiresAt: Date.now() + STREAM_TTL_MS,
       }
     }
     /* fee: 1 VIP 4 购买专辑；code -110 无权 */
@@ -565,18 +712,13 @@ module.exports = {
     return groups
   },
 
-  async getTopListDetail(topListItem) {
+  async getTopListDetail(topListItem, page) {
     var deviceId = await ensureDeviceId(env)
     if (String(topListItem.id) === '__daily__') {
-      return { musicList: await fetchDailyRecommend(env, deviceId) }
+      /* 每日推荐是固定的一份（30 首左右），没有分页 */
+      return { musicList: await fetchDailyRecommend(env, deviceId), isEnd: true }
     }
-    var detail = await eapiRequest(env, '/api/v6/playlist/detail', {
-      id: topListItem.id,
-      n: 100000,
-      s: 8,
-    }, deviceId)
-    var playlist = detail.body.playlist || {}
-    return { musicList: await fetchTracksByIds(env, deviceId, playlist.trackIds || []) }
+    return fetchSheetPage(env, deviceId, topListItem.id, page)
   },
 
   /* ---------- 推荐歌单（top_playlist） ---------- */
@@ -604,22 +746,26 @@ module.exports = {
   },
 
   /* ---------- 歌单详情 / 导入 ---------- */
-  async getMusicSheetInfo(musicSheet) {
+  /* 按页取（每页 SHEET_PAGE_SIZE 首）：先前无视 page 参数、只回前 200 首，
+     宿主拉全循环靠「首项 id 与上页相同」止损，于是 200 首以上的歌单
+     永远只有前 200 首，而且看不出被截断过 */
+  async getMusicSheetInfo(musicSheet, page) {
     var deviceId = await ensureDeviceId(env)
-    var detail = await eapiRequest(env, '/api/v6/playlist/detail', {
-      id: musicSheet.id,
-      n: 100000,
-      s: 8,
-    }, deviceId)
-    var playlist = detail.body.playlist || {}
-    return { musicList: await fetchTracksByIds(env, deviceId, playlist.trackIds || []), isEnd: true }
+    return fetchSheetPage(env, deviceId, musicSheet.id, page)
   },
 
   async importMusicSheet(urlLike) {
     var id = numericIdFrom(urlLike)
     if (!id) throw pluginError('not-found', '链接里没有歌单 id')
-    var imported = await this.getMusicSheetInfo({ id: id })
-    return imported.musicList
+    var deviceId = await ensureDeviceId(env)
+    /* 导入要的是整份歌单，这里自己把页翻完（上限与宿主 FETCH_ALL_CAP 一致） */
+    var songs = []
+    for (var page = 1; songs.length < 2000; page++) {
+      var chunk = await fetchSheetPage(env, deviceId, id, page)
+      songs = songs.concat(chunk.musicList)
+      if (chunk.isEnd || !chunk.musicList.length) break
+    }
+    return songs.slice(0, 2000)
   },
 
   async importMusicItem(urlLike) {
@@ -634,12 +780,10 @@ module.exports = {
     return mapSong(song)
   },
 
-  /* ---------- 用户域（需要登录） ---------- */
-  requireLogin() {
-    if (!env || !env.credentials) {
-      throw pluginError('unauthorized', '请先扫码登录网易云音乐')
-    }
-  },
+  /* ---------- 用户域（需要登录） ----------
+     导出这一份只是为了让 module.exports.requireLogin() 那几处调用继续可用；
+     实现在模块作用域，见文件上方。 */
+  requireLogin: requireLogin,
 
   user: {
     async getPlaylists() {
@@ -667,7 +811,14 @@ module.exports = {
       var res = await weapiRequest(env, '/api/nuser/account/get', {}, deviceId)
       var profile = res.body.profile
       if (!profile) throw pluginError('unauthorized', '凭据已失效，请重新扫码')
-      return { name: profile.nickname, avatar: profile.avatarUrl }
+      var account = res.body.account || {}
+      return {
+        /* id 是协议必填：宿主拿它区分「同一插件的两个账号」 */
+        id: String(profile.userId !== undefined ? profile.userId : (account.id || '')),
+        name: profile.nickname,
+        avatar: profile.avatarUrl,
+        vip: (profile.vipType || 0) > 0,
+      }
     },
 
     async createPlaylist(name) {
@@ -756,11 +907,22 @@ module.exports = {
         /* Cookie 登录：绕过扫码风控（出口 IP 被标记时唯一稳妥路径）。
            用传入的 cookie 直接调 user_account 验证有效性 */
         var deviceId = await ensureDeviceId(env)
-        var res = await weapiRequest(env, '/api/nuser/account/get', {}, deviceId, String(text || '').trim())
+        var cookie = String(text || '').trim()
+        var res
+        try {
+          res = await weapiRequest(env, '/api/nuser/account/get', {}, deviceId, cookie)
+        } catch (err) {
+          /* 无效 cookie 也会撞上 code 301 的统一判定；这里的用户正在
+             「粘贴 Cookie」，要的是这句具体的话而不是「请重新扫码」 */
+          if (err && err.code === 'unauthorized') {
+            throw pluginError('unauthorized', 'Cookie 无效或已过期（需要包含 MUSIC_U 的完整 Cookie）')
+          }
+          throw err
+        }
         if (!res.body.profile) {
           throw pluginError('unauthorized', 'Cookie 无效或已过期（需要包含 MUSIC_U 的完整 Cookie）')
         }
-        return { credentials: String(text || '').trim() }
+        return { credentials: cookie }
       },
       getUser() {
         return module.exports.user.getUser()

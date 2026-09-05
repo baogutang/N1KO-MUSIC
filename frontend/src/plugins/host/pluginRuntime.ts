@@ -65,10 +65,33 @@ export async function ensurePluginHost(config: ServerConfig): Promise<PluginHost
   if (existing && existing.credentials === (config.credentials ?? null)) {
     return existing.host
   }
+  /*
+   * 同一个源并发进来（启动自动连接还没完成，用户又在登录页点了快速连接）：
+   * 不合并的话会建两个沙箱，后者覆盖登记、前者永远拆不掉——多一个能替插件
+   * 出网的孤儿。同凭据的在途装载直接复用。
+   */
+  const inflight = inflightHosts.get(config.id)
+  if (inflight && inflight.credentials === (config.credentials ?? null)) {
+    return inflight.promise
+  }
   if (existing) {
     existing.host.dispose()
     liveHosts.delete(config.id)
   }
+  const promise = buildPluginHost(config)
+  inflightHosts.set(config.id, { promise, credentials: config.credentials ?? null })
+  try {
+    return await promise
+  } finally {
+    if (inflightHosts.get(config.id)?.promise === promise) inflightHosts.delete(config.id)
+  }
+}
+
+/** 装载中的沙箱（serverId → 在途 promise），见 ensurePluginHost 的并发说明 */
+const inflightHosts = new Map<string, { promise: Promise<PluginHost>; credentials: string | null }>()
+
+async function buildPluginHost(config: ServerConfig): Promise<PluginHost> {
+  if (!config.pluginId) throw new Error(`Server ${config.id} has no pluginId`)
 
   const installed = await usePluginStore.getState().getInstalled(config.pluginId)
   if (!installed) throw new Error(`插件未安装或已卸载：${config.pluginId}`)
@@ -87,8 +110,20 @@ export async function ensurePluginHost(config: ServerConfig): Promise<PluginHost
       // 插件回写的新凭据立即落 serverStore（加密清单），下次启动直接可用
       useServerStore.getState().updateServerCredentials(config.id, next)
     },
+    /*
+     * 沙箱越界（ready 之后自己导航走，那一跳的 URL 里可能带着凭据）。
+     * PluginHost 侦测到就自拆了沙箱，但此前这个回调没人接：登记处还留着一个
+     * 死 host，serverStore 还以为这个源连着，界面上一个字也不说——用户看到的
+     * 只是「这个音源忽然什么都搜不到」。这里把它接上：摘掉登记、置停用状态。
+     */
+    onCompromised: reason => {
+      liveHosts.delete(config.id)
+      useServerStore.getState().markServerCompromised(config.id, reason)
+    },
   })
   await host.init(installed.code)
+  // ready 与登记之间越界的极小窗口：别把一个已经拆掉的沙箱登记进来当好的用
+  if (host.compromised) throw new Error(`插件沙箱越界，已停用：${config.pluginId}`)
   liveHosts.set(config.id, { host, credentials: config.credentials ?? null })
   return host
 }

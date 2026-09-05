@@ -149,7 +149,10 @@ export default function ArtistDetailPage() {
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">{t('artist.eyebrow')}</p>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">
+            {t('artist.eyebrow')}
+            <span className="latin-tag"> · ARTIST</span>
+          </p>
           <h1 className="mt-3 font-serif text-4xl font-black tracking-[-0.01em] text-ink text-balance lg:text-5xl">
             {spaceCJK(artist.name)}
           </h1>

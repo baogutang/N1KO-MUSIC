@@ -214,10 +214,22 @@ function dedupeByEventId(groups: ListeningEvent[][]): ListeningEvent[] {
   return Array.from(merged.values())
 }
 
-export function readListeningEvents(serverId?: string): ListeningEvent[] {
-  const events = currentEvents(serverId || 'legacy')
-  if (!serverId) return events
-  return events.filter(event => event.serverId === serverId)
+/**
+ * 读收听事件。
+ *
+ * `serverId` 可以是一个来源，也可以是一组——多音源下「最近播放」「统计」
+ * 「本期」「推荐画像」要看的是**所有已连接音源**的收听行为，而不只是主库那一份。
+ * 只传主库时，在网易云和 QQ 上听的每一首对这些页面都不存在，
+ * 主库是 NAS 的用户会发现三分之二的收听记录凭空消失。
+ * 不传则返回全部（不过滤）。
+ */
+export function readListeningEvents(serverId?: string | readonly string[]): ListeningEvent[] {
+  const ids = typeof serverId === 'string' ? [serverId] : serverId
+  const events = currentEvents(ids?.[0] || 'legacy')
+  if (!ids || !ids.length) return events
+  if (ids.length === 1) return events.filter(event => event.serverId === ids[0])
+  const set = new Set(ids)
+  return events.filter(event => set.has(event.serverId))
 }
 
 export function upsertListeningEvent(event: ListeningEvent): void {

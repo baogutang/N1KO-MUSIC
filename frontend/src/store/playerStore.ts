@@ -193,6 +193,14 @@ interface PlayerState {
   setSleepTimer: (minutes: number | null, mode?: 'duration' | 'endOfTrack') => void
   addToQueue: (songs: Song[], position?: 'next' | 'last') => void
   removeFromQueue: (index: number) => void
+  /**
+   * 断开某个音源时，把它的曲目从队列与历史里摘掉（PLAN §4.4）。
+   *
+   * 队列允许混源，所以断开一个源既不能清空整条队列（那会连坐别的源），
+   * 也不能什么都不做（那些歌已经取不到流，播到就是一次静默的死机）。
+   * 当前曲被摘掉时沿播放顺序前进到下一首；一首不剩才停。
+   */
+  removeSongsFromServer: (serverId: string) => void
   reorderQueue: (fromIndex: number, toIndex: number) => void
   /** 按「播放顺序」上的位置重排（随机开启时队列面板拖拽走这条） */
   reorderPlayOrder: (fromPos: number, toPos: number) => void
@@ -633,6 +641,82 @@ export const usePlayerStore = create<PlayerState>()(
             : queue.map((_, i) => i)
 
           return { queue, queueIndex, shuffledIndexes, shuffleCursor: shiftedCursor }
+        })
+      },
+
+      removeSongsFromServer: (serverId) => {
+        set(state => {
+          if (!serverId) return {}
+          const keep = state.queue.map(s => s.serverId !== serverId)
+          const currentIsGone = state.currentSong?.serverId === serverId
+          const historyHasGone = state.history.some(s => s.serverId === serverId)
+          // 这个源在队列/历史里根本没歌：不动任何状态，免得断开一个闲置音源
+          // 也把整棵播放器状态树刷一遍（长队列下那是一次全量重渲染）
+          if (keep.every(Boolean) && !currentIsGone && !historyHasGone) return {}
+
+          const history = state.history.filter(s => s.serverId !== serverId)
+          const queue = state.queue.filter((_, i) => keep[i])
+
+          if (!queue.length) {
+            return {
+              queue: [],
+              queueIndex: -1,
+              currentSong: null,
+              isPlaying: false,
+              currentTime: 0,
+              history,
+              shuffledIndexes: [],
+              shuffleCursor: -1,
+              playVersion: state.playVersion + 1,
+            }
+          }
+
+          // 旧下标 → 新下标；随机顺序跟着裁剪而不是重洗（与 removeFromQueue 同一约定：
+          // 重洗会把已播过的曲目送回未播池，断一次源等于「随机重来一遍」）
+          const remap: number[] = []
+          let next = 0
+          for (let i = 0; i < state.queue.length; i++) remap[i] = keep[i] ? next++ : -1
+
+          const oldOrder = state.shuffle && state.shuffledIndexes.length === state.queue.length
+            ? state.shuffledIndexes
+            : state.queue.map((_, i) => i)
+          const newOrder = oldOrder.filter(i => keep[i]).map(i => remap[i])
+          const shuffledIndexes = state.shuffle ? newOrder : queue.map((_, i) => i)
+
+          if (!currentIsGone) {
+            const queueIndex = state.queueIndex >= 0 ? (remap[state.queueIndex] ?? -1) : -1
+            return {
+              queue,
+              queueIndex,
+              history,
+              shuffledIndexes,
+              shuffleCursor: state.shuffle ? shuffledIndexes.indexOf(queueIndex) : -1,
+            }
+          }
+
+          /*
+           * 正在放的这首被摘掉了：沿**播放顺序**（随机时即随机序列）前进到
+           * 下一个幸存者。按队列下标取会在随机模式下跳到序列更后面的位置，
+           * 把中间还没播的一段永久跳过。没有后继时退到最后一首，语义与
+           * removeFromQueue 删掉队尾当前曲时一致。
+           */
+          const pos = oldOrder.indexOf(state.queueIndex)
+          const survivorsBefore = pos > 0
+            ? oldOrder.slice(0, pos).filter(i => keep[i]).length
+            : 0
+          const nextPos = Math.min(survivorsBefore, newOrder.length - 1)
+          const queueIndex = newOrder[nextPos]
+          return {
+            queue,
+            queueIndex,
+            currentSong: queue[queueIndex],
+            history,
+            isPlaying: state.isPlaying,
+            currentTime: 0,
+            shuffledIndexes,
+            shuffleCursor: state.shuffle ? nextPos : -1,
+            playVersion: state.playVersion + 1,
+          }
         })
       },
 

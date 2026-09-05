@@ -36,6 +36,37 @@ test('modPow 与原生 BigInt 幂模一致', async () => {
   assert.match(a.params, /^[0-9A-F]+$/)
 })
 
+/**
+ * encSecKey 的定长性（不依赖参考包）。
+ *
+ * 裸 RSA 的密文恒为 128 字节，但 BigInt.toString(16) 会吃掉高位的零字节。
+ * 随机密钥里约 1/16 会撞上前导零，服务端解不开就回空体——表现为
+ * 「搜索偶尔一次没结果」的间歇故障。所以这里要同时断言两件事：
+ * 1) 任何密钥下 encSecKey 都是 256 个十六进制字符；
+ * 2) 用到的密钥里**确实**出现过前导零（否则这条测试等于没测）。
+ *
+ * 密钥用固定种子的 LCG 生成，结果确定可复现。
+ */
+test('encSecKey 恒为 256 位 hex（前导零必须补齐）', async () => {
+  const { plugin } = await loadPlugin('plugins/netease')
+  const seededRand = (seed) => {
+    let state = seed >>> 0
+    return () => {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0
+      return state % 62
+    }
+  }
+
+  let leadingZero = 0
+  for (let seed = 1; seed <= 200; seed++) {
+    const { encSecKey } = plugin._crypto.weapi({ s: 'test', type: 1 }, seededRand(seed))
+    assert.equal(encSecKey.length, 256, `seed ${seed} 的 encSecKey 不是 256 位：${encSecKey.length}`)
+    assert.match(encSecKey, /^[0-9a-f]{256}$/, `seed ${seed} 的 encSecKey 不是小写 hex`)
+    if (encSecKey[0] === '0') leadingZero += 1
+  }
+  assert.ok(leadingZero > 0, '200 个密钥里一个前导零都没撞上——这条测试没有真的覆盖补零')
+})
+
 test('weapi/eapi 与参考实现逐字段一致', { skip: !hasRef }, async () => {
   const ref = refRequire('@neteasecloudmusicapienhanced/api/util/crypto.js')
   const forge = refRequire('node-forge')

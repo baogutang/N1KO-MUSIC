@@ -1,6 +1,6 @@
 /**
  * 首页的多源区块（PLAN 2.3）：
- * - MergedDailyRail：各源每日推荐（网易云每日 / QQ 雷达）交错合并成一张列表
+ * - MergedDailyRail：「今天听什么」——把所有来源的推荐合成一条
  * - SourceCollections：每个音源的「我的歌单 / 收藏」入口行
  * - SourceTopListsRail：榜单（只对声明 topLists 的音源出现）
  * - SourceRecommendSheetsRail：推荐歌单合并网格（各源交错，卡片带音源标识）
@@ -14,6 +14,8 @@ import { useNavigate } from 'react-router-dom'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
+import { SourceGroupState } from '@/components/sources/SourceGroupState'
+import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
 import {
   interleaveRecommendations,
   useSourcePlaylists,
@@ -27,24 +29,42 @@ import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 
-/** 各源每日推荐合并：轮转交错 + 同名去重，谁也不刷屏（单源退化为截断） */
+/**
+ * 「今天听什么」——首页唯一的一条推荐。
+ *
+ * 此前这里是三条并排的东西：本区块（各插件的每日推荐）、首页另一处
+ * 「为你推荐」（主库画像算出来的）、以及推荐页的「每日精选」。
+ * 三者回答的是同一个问题，摆成三处只会让人问「这仨什么关系」。
+ *
+ * 现在合成一条：**平台算的**（网易云每日推荐、QQ 雷达）与**本地画像算的**
+ * （主库的个性化候选）进同一个轮转交错，按标题+歌手去重。用户不需要知道
+ * 某一首是谁算出来的——那是实现细节；他要的只是「现在放什么」。
+ * 想看更多就点右上角进推荐页，那里是同一条的展开版。
+ */
 export function MergedDailyRail() {
   const { t } = useT()
-  const groups = useSourceRecommendSongs().filter(g => (g.data?.length ?? 0) > 0)
-  const merged = useMemo(
-    () => interleaveRecommendations(groups.map(g => ({ songs: g.data! })), 20),
-    [groups]
-  )
+  const navigate = useNavigate()
+  const sourceGroups = useSourceRecommendSongs().filter(g => (g.data?.length ?? 0) > 0)
+  // 主库（NAS 等）没有 recommendSongs 这个插件扩展，它的那一份来自本地画像。
+  // 不把它算进来的话，只连 NAS 的用户在这条里永远看不到自己的歌。
+  const { data: librarySongs } = usePersonalizedRecommendations(20)
+
+  const merged = useMemo(() => {
+    const groups = sourceGroups.map(g => ({ songs: g.data! }))
+    if (librarySongs?.length) groups.unshift({ songs: librarySongs })
+    return interleaveRecommendations(groups, 20)
+  }, [sourceGroups, librarySongs])
+
   if (!merged.length) return null
 
   return (
-    <section aria-labelledby="home-dailymix">
+    <section aria-labelledby="home-dailymix" data-clay-span="full">
       <div className="section-head">
         <h2 id="home-dailymix">
           {t('sources.dailyMix')}<small>DAILY MIX</small>
         </h2>
         <div className="flex items-center gap-5">
-          {groups.map(g => (
+          {sourceGroups.map(g => (
             <SourceBadge key={g.serverId} serverId={g.serverId} withName />
           ))}
           <button
@@ -61,9 +81,13 @@ export function MergedDailyRail() {
             <Shuffle size={12} />
             {t('player.shuffle')}
           </button>
+          {/* 展开版在推荐页：同一条，只是更多、可换一批、可按来源看 */}
+          <button className="more" onClick={() => navigate('/recommendations')}>
+            {t('action.viewAll')} →
+          </button>
         </div>
       </div>
-      <SongList songs={merged} showCover showAlbum showIndex />
+      <SongList songs={merged} showCover showAlbum showIndex sourceBadge />
     </section>
   )
 }
@@ -72,7 +96,9 @@ export function MergedDailyRail() {
 export function SourceCollections() {
   const { t } = useT()
   const navigate = useNavigate()
-  const groups = useSourcePlaylists().filter(g => g.status === 'success')
+  /* 不再 filter 掉非成功的分组：音源失败时要看得见一行说明，
+     而不是让它从「我的音乐库」里凭空消失（见 SourceGroupState 的文件头）*/
+  const groups = useSourcePlaylists()
   if (!groups.length) return null
 
   return (
@@ -84,6 +110,11 @@ export function SourceCollections() {
       </div>
       <div className="border-t border-hair divide-y divide-hair-soft">
         {groups.map(g => (
+          g.status !== 'success' ? (
+            <div key={g.serverId} className="px-2">
+              <SourceGroupState serverId={g.serverId} status={g.status} error={g.error} />
+            </div>
+          ) : (
           <div key={g.serverId} className="flex items-center gap-4 px-2 py-3">
             <SourceBadge serverId={g.serverId} withName />
             <span className="num flex-1 text-[11.5px] tracking-[0.12em] text-ink-faint">
@@ -104,18 +135,32 @@ export function SourceCollections() {
               {t('nav.favorites')}
             </button>
           </div>
+          )
         ))}
       </div>
     </section>
   )
 }
 
-/** 榜单：每个声明的源一组，榜单名做行式 chip，点击进榜单详情 */
+/**
+ * 榜单：每个声明的源一组，榜单名做行式 chip，点击进榜单详情。
+ *
+ * 首页上**只给摘要**：每个源最多两组、每组最多六个。
+ * 两个平台加起来有近百个榜，全列出来这张卡会长到七百多像素，
+ * 把同一行的其它卡衬成两条小纸片——「首页很割裂」正是这么来的。
+ * 仪表盘的卡片是一眼扫完的摘要，要全部就点「全部榜单」。
+ */
+const HOME_TOPLIST_GROUPS = 2
+const HOME_TOPLIST_ITEMS = 6
+
 export function SourceTopListsRail() {
   const { t } = useT()
   const navigate = useNavigate()
   const groups = useSourceTopLists().filter(g => g.status === 'success' && g.data?.groups.length)
   if (!groups.length) return null
+
+  const total = groups.reduce((sum, g) => sum + g.data!.groups.length, 0)
+  const truncated = total > groups.length * HOME_TOPLIST_GROUPS
 
   return (
     <section aria-labelledby="home-toplists">
@@ -123,10 +168,15 @@ export function SourceTopListsRail() {
         <h2 id="home-toplists">
           {t('sources.topLists')}<small>CHARTS</small>
         </h2>
+        {truncated && (
+          <button className="more" onClick={() => navigate('/recommendations')}>
+            {t('action.viewAll')} →
+          </button>
+        )}
       </div>
       <div className="border-t border-hair divide-y divide-hair-soft">
         {groups.map(g =>
-          g.data!.groups.map(group => (
+          g.data!.groups.slice(0, HOME_TOPLIST_GROUPS).map(group => (
             <div key={`${g.serverId}:${group.title}`} className="px-2 py-3">
               <p className="flex items-center gap-2.5 mb-2.5">
                 <SourceBadge serverId={g.serverId} />
@@ -136,7 +186,7 @@ export function SourceTopListsRail() {
                 </span>
               </p>
               <p className="flex flex-wrap gap-x-5 gap-y-1.5">
-                {group.items.slice(0, 8).map(item => (
+                {group.items.slice(0, HOME_TOPLIST_ITEMS).map(item => (
                   <button
                     key={item.id}
                     onClick={() =>

@@ -12,13 +12,14 @@
   var BG = {
     pop: { light: '#fbf1e3', dark: '#101016' },
     editorial: { light: '#f4efe3', dark: '#1a1712' },
+    clay: { light: '#eee2d1', dark: '#1b1714' },
   }
   try {
     var s = JSON.parse(localStorage.getItem('msp-theme-store') || '{}')
     var st = (s && s.state) || {}
     var d = st.theme === 'dark' || (st.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
-    // 1.9.2 之前存下来的数据没有 skin 字段；默认皮肤是糖果·波普
-    var skin = st.skin === 'editorial' ? 'editorial' : 'pop'
+    // 老版本存下来的数据可能没有 skin 字段；未知值一律兜到默认皮肤奶油·软陶
+    var skin = BG[st.skin] ? st.skin : 'clay'
     document.documentElement.classList.toggle('dark', d)
     document.documentElement.setAttribute('data-skin', skin)
     document.documentElement.style.background = BG[skin][d ? 'dark' : 'light']

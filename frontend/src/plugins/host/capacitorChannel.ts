@@ -1,28 +1,45 @@
 /**
  * Capacitor 原生通道（iOS / Android）：CapacitorHttp 绕开 WebView 的 CORS。
  * 入口强制白名单 + 私网拒绝（whitelist.ts），只请求经 rebuildAllowedUrl
- * 重建的地址。响应归一化与其它通道一致。
+ * 重建的地址，且一律不跟随 3xx（跟随交给 hostFetch 逐跳复检）。
+ * 响应归一化与其它通道一致。
  */
 
 import { CapacitorHttp } from '@capacitor/core'
 import type { HostFetchResult, HostFetchRequest } from '../types'
 import { isHostAllowed } from './whitelist'
 
-export async function capacitorChannel(request: HostFetchRequest, allow: readonly string[], target: string): Promise<HostFetchResult> {
+export async function capacitorChannel(
+  request: HostFetchRequest,
+  allow: readonly string[],
+  target: string,
+  signal?: AbortSignal,
+): Promise<HostFetchResult> {
   if (!isHostAllowed(request.url, allow)) {
     return { ok: false, error: { code: 'forbidden', message: `Host not in plugin allowlist: ${request.url}` } }
   }
-  const res = await CapacitorHttp.request({
+  const requestPromise = CapacitorHttp.request({
     url: target,
     method: request.method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'HEAD' | 'PATCH',
     headers: request.headers,
     data: request.body ?? undefined,
     responseType: request.responseType === 'arraybuffer' ? 'arraybuffer' : 'text',
-    // manual redirect 的原生对应物是不跟随 302（QQ 登录要从 Location 读 code）；
-    // 目标 URL 已在上方经 isHostAllowed 白名单 + 私网拒绝校验
-    ...(request.redirect === 'manual' ? { disableRedirects: true } : {}),
+    // 一律不跟随 3xx：跟随由 hostFetch 的 followRedirects 逐跳复检白名单后自己
+    // 走（此前只有 redirect==='manual' 才关，等于白名单只在第一跳生效——白名单
+    // 主机上的开放重定向能把请求带进内网）。QQ 登录读 Location 的链路照旧。
+    disableRedirects: true,
     // 原生实现读不到 set-cookie 时拿不到就拿不到（协议约定给空），不在这层补
   })
+  // CapacitorHttp 没有 signal：中止时不再等它的结果（原生请求仍会跑完，
+  // 但宿主侧已经不认这个响应了）
+  const res = signal
+    ? await Promise.race([
+        requestPromise,
+        new Promise<never>((_, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason ?? new Error('Request aborted')), { once: true })
+        }),
+      ])
+    : await requestPromise
 
   const headers = Object.fromEntries(
     Object.entries(res.headers ?? {}).map(([k, v]) => [k.toLowerCase(), String(v)])

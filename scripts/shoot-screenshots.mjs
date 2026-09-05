@@ -19,8 +19,9 @@
  *   --app=<url>       前端地址（默认 http://localhost:5173）
  *   --server=<url>    mock 服务器地址（默认 http://localhost:4533）
  *   --out=<dir>       输出目录（默认 docs/screenshots/v3）
- *   --skin=pop|editorial   皮肤（默认 pop）
+ *   --skin=pop|editorial|clay   皮肤（默认 pop）
  *   --dark            拍深色
+ *   --mobile          375×812 窄视口（应用会切到移动端布局外壳）
  *   --no-gif          跳过正在播放的 GIF（GIF 需要 ffmpeg）
  *   --chrome=<path>   Chrome 可执行文件路径
  */
@@ -43,14 +44,23 @@ const argv = Object.fromEntries(
 const APP = argv.app || 'http://localhost:5173'
 const SERVER = argv.server || 'http://localhost:4533'
 const OUT = path.resolve(argv.out || 'docs/screenshots/v3')
-const SKIN = argv.skin === 'editorial' ? 'editorial' : 'pop'
+const SKINS = ['pop', 'editorial', 'clay']
+const SKIN = SKINS.includes(argv.skin) ? argv.skin : 'pop'
 const DARK = !!argv.dark
+/**
+ * 窄视口档。
+ *
+ * 应用在 max-width:767px 时换成移动端布局外壳（useIsMobileLayout），
+ * 所以这一档拍到的不是「桌面版被压窄」，而是真正会发给手机的那份界面。
+ * 换皮的 CSS 有一半是给桌面版面写的，窄屏下会不会塌，只能这样看。
+ */
+const MOBILE = !!argv.mobile
 const WANT_GIF = !argv['no-gif']
 const CHROME =
   argv.chrome || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
-const WIDTH = 1440
-const HEIGHT = 900
+const WIDTH = MOBILE ? 375 : 1440
+const HEIGHT = MOBILE ? 812 : 900
 /** 2 倍图：README 在高分屏上不糊 */
 const SCALE = 2
 
@@ -184,7 +194,10 @@ async function waitForText(cdp, text, timeout = 15000) {
 
 async function main() {
   await mkdir(OUT, { recursive: true })
-  console.log(`拍摄 ${SKIN} / ${DARK ? 'dark' : 'light'} → ${path.relative(process.cwd(), OUT)}`)
+  console.log(
+    `拍摄 ${SKIN} / ${DARK ? 'dark' : 'light'} / ${MOBILE ? '375×812' : '1440×900'}` +
+    ` → ${path.relative(process.cwd(), OUT)}`
+  )
 
   const { child, profile, wsUrl } = await launchChrome()
   let cdp
@@ -203,7 +216,7 @@ async function main() {
       width: WIDTH,
       height: HEIGHT,
       deviceScaleFactor: SCALE,
-      mobile: false,
+      mobile: MOBILE,
     })
 
     /* --- 1. 连接服务器（顺手就是「连接」那张图） --- */
@@ -294,10 +307,16 @@ async function main() {
       })()
     `)
     await sleep(1500)
+    /*
+     * 进正在播放的门在两套外壳里不是同一个：桌面版是播放条右侧的歌词/全屏键，
+     * 移动端根本没有播放条，只有底部那条迷你播放器——点它本身才展开。
+     * 用同一个选择器去找会在窄屏下拿到 undefined 然后整轮拍摄失败。
+     */
     await cdp.eval(`
       (() => {
-        const b = [...document.querySelectorAll('button')].find(x => /歌词|全屏/.test(x.getAttribute('aria-label') || ''))
-        b.click()
+        const match = ${MOBILE ? '/打开正在播放/' : '/歌词|全屏/'}
+        const b = [...document.querySelectorAll('button')].find(x => match.test(x.getAttribute('aria-label') || ''))
+        if (b) b.click()
       })()
     `)
     await sleep(2500)

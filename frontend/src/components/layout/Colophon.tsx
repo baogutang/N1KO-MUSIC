@@ -44,12 +44,15 @@ export function Colophon() {
   const sectionKey = sectionKeyFor(pathname)
 
   return (
-    <footer className="mt-16 border-t border-hair pt-4">
+    <footer className="colophon mt-16 border-t border-hair pt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1.5 text-[10.5px] tracking-[0.18em] text-ink-faint">
         <span className="font-sans font-semibold tracking-[0.3em] text-ink-soft">
           N1KO MUSIC
         </span>
-        <span className="font-num">
+        {/* issue-tag：软陶下不渲染。卷期号 + 栏目名是「翻到第几期第几栏」的
+            指示，对一本刊物有用；软陶的版面是一块块自带标题的面板，
+            这一行在那里只剩下噪声。版本号留着——版记最诚实的一句就是它。 */}
+        <span className="issue-tag font-num">
           {issue.label}
           {sectionKey && <span className="ml-3 tracking-[0.18em]">· {t(sectionKey)}</span>}
         </span>
@@ -75,7 +78,7 @@ export function RunningHead() {
   return (
     <div
       aria-hidden
-      className="flex items-baseline justify-between gap-4 pt-3 text-[10px] tracking-[0.28em] text-ink-faint"
+      className="running-head flex items-baseline justify-between gap-4 pt-3 text-[10px] tracking-[0.28em] text-ink-faint"
     >
       <span>{t(sectionKey)}</span>
       <span className="font-num">{issue.label}</span>

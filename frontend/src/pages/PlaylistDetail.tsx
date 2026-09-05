@@ -7,17 +7,39 @@ import {
 import { downloadTextFile, safeFileName, toM3U, toXSPF } from '@/services/playlistFiles'
 import { toast } from '@/components/ui/use-toast'
 import { usePlaylistDetail, useRemoveSongsFromPlaylist } from '@/hooks/useServerQueries'
+import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { findAdapterFor } from '@/api'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SongList } from '@/components/music/SongList'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
+import type { SourceCapabilities } from '@/api/types'
+
+/**
+ * 这个歌单能不能改（纯函数，测试直接覆盖）。
+ *
+ * 两道门，缺一不可：
+ *  - 歌单所属**音源**声明了 playlistWrite——流媒体插件多半只读，
+ *    对它调 removeSongsFromPlaylist 要么 404 要么静默无效；
+ *  - 歌单自己不是 readonly——Navidrome 的智能歌单由规则生成，
+ *    删掉一行下次刷新它又回来了。
+ *
+ * 此前 onRemove 是无条件传下去的：每一行都挂着「移除」，点了什么也没发生。
+ */
+export function canEditPlaylist(
+  playlist: { serverId: string; readonly?: boolean } | undefined,
+  caps: Record<string, SourceCapabilities>
+): boolean {
+  if (!playlist || playlist.readonly) return false
+  return !!caps[playlist.serverId]?.playlistWrite
+}
 
 export default function PlaylistDetail() {
   const { t } = useT()
@@ -34,6 +56,8 @@ export default function PlaylistDetail() {
   const srcServerId = searchParams.get('src') ?? undefined
   const navigate = useNavigate()
   const { data: playlist, isLoading, error } = usePlaylistDetail(id!, srcServerId)
+  const sourceCaps = useSourceCapabilities()
+  const editable = canEditPlaylist(playlist, sourceCaps)
 
   function handlePlayAll() {
     if (!playlist?.songs.length) return
@@ -124,9 +148,12 @@ export default function PlaylistDetail() {
         </div>
 
         <div className="min-w-0 flex-1 pb-1">
+          {/* 页眉带来源：混源之后「这是谁家的歌单」是理解本页一切行为的前提，
+              包括为什么这里没有「移除」 */}
           <p className="mb-4 flex items-center gap-3 text-[11px] tracking-[0.3em] text-primary">
             {t('playlist.kicker')}
             <span className="h-px w-10 bg-primary" aria-hidden="true" />
+            <SourceBadge serverId={playlist.serverId} withName className="tracking-[0.08em]" />
           </p>
           <h1 className="font-serif text-4xl md:text-5xl font-black leading-[1.1] tracking-[-0.01em] text-balance">
             {spaceCJK(playlist.name)}
@@ -185,7 +212,8 @@ export default function PlaylistDetail() {
 
       {/* 曲目列表：SongList 自带 border-t border-hair，不再加容器边框 */}
       {playlist.songs.length > 0 ? (
-        <SongList songs={playlist.songs} showAlbum onRemove={setPendingRemove} />
+        // 只在真能改的时候才给「移除」：挂一个点了没反应的入口比没有更糟
+        <SongList songs={playlist.songs} showAlbum onRemove={editable ? setPendingRemove : undefined} />
       ) : (
         <EmptyState
           ruled

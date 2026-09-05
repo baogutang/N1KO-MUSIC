@@ -2,22 +2,25 @@
  * 服务器登录页 —— 纸面杂志化（DESIGN v2 §4.4/§4.5）
  * 居中窄栏：品牌报头 + 衬线大标题；服务器类型为发丝线行式单选，
  * 已存服务器为编号行式快速连接；错误直接陈述
- * NAS：Subsonic/Navidrome/Jellyfin/Emby；流媒体音源：已安装插件（PLAN 1.6）
+ * NAS：Subsonic/Navidrome/Jellyfin/Emby；流媒体音源：已安装插件（PLAN 1.6）——
+ * 后者只在有出网通道的壳里给入口，正式版的纯浏览器换成一句说明加下载链接
+ * （见 lib/platform 的 pluginSourcesSupported）
  */
 
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CaretRight, CircleNotch, Eye, EyeSlash, Plus, X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
+import { pluginSourcesSupported } from '@/lib/platform'
 import { createAdapter } from '@/api'
 import type { ServerType } from '@/api/types'
 import { useT } from '@/i18n'
 import { usePluginStore, type InstalledPluginSummary } from '@/plugins/host/pluginStore'
 import { pluginLogoSrc, SourceLogo } from '@/components/sources/SourceBadge'
-import { closeAuthHost, openAuthHost } from '@/plugins/host/pluginRuntime'
+import { closeAuthHost, getPluginHost, openAuthHost } from '@/plugins/host/pluginRuntime'
 import type { PluginHost } from '@/plugins/host/PluginHost'
 import type { PluginManifest, PluginUser } from '@/plugins/types'
 import { PluginDisclaimer } from '@/components/sources/PluginDisclaimer'
@@ -32,6 +35,11 @@ const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string }> 
   { type: 'jellyfin', label: 'Jellyfin', descKey: 'login.type.jellyfin' },
   { type: 'emby', label: 'Emby', descKey: 'login.type.emby' },
 ]
+
+/** 发行页：浏览器版里唯一有意义的下一步就是去拿一个带出网通道的壳。
+ *  音源设置里有同一份文案，但那边不共用常量——登录页的首屏包没有理由
+ *  为了一个字符串把插件宿主、目录、请求日志那一整块拖进来。 */
+const RELEASES_URL = 'https://github.com/baogutang/N1KO-MUSIC/releases/latest'
 
 /** 已确认过声明的插件（卸载或换设备后要重新确认） */
 const DISCLAIMER_KEY = 'n1ko-plugin-disclaimers-confirmed'
@@ -56,7 +64,9 @@ type LoginStep = 'type' | 'credentials' | 'plugin-disclaimer' | 'plugin-auth'
 export default function LoginPage() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { servers, addServer, activateServer, updateServerAuth, updatePluginServer, removeServer } = useServerStore()
+  const [searchParams] = useSearchParams()
+  const { servers, addServer, activateServer, connectServer, setPrimaryServer, updateServerAuth, updatePluginServer, removeServer } = useServerStore()
+  const activeServerId = useServerStore(state => state.activeServerId)
 
   const [step, setStep] = useState<LoginStep>('type')
   const [selectedType, setSelectedType] = useState<ServerType | null>(null)
@@ -67,6 +77,7 @@ export default function LoginPage() {
 
   // 插件音源：选中项 + 完整 manifest + 预登录沙箱
   const plugins = usePluginStore(s => s.plugins)
+  const pluginsLoaded = usePluginStore(s => s.loaded)
   const loadPlugins = usePluginStore(s => s.load)
   const [selectedPlugin, setSelectedPlugin] = useState<InstalledPluginSummary | null>(null)
   const [pluginManifest, setPluginManifest] = useState<PluginManifest | null>(null)
@@ -87,8 +98,13 @@ export default function LoginPage() {
   // 声明文案在选中插件时随 manifest 一起取回
   const disclaimerText = pluginManifest?.disclaimer ?? ''
 
-  const openPluginAuth = async (plugin: InstalledPluginSummary) => {
-    setError('')
+  /**
+   * 进扫码步。notice 是「为什么会到这一步」（重新登录时是「登录已过期」）：
+   * 它必须由调用方带进来——这一步开头要清掉上一次的报错，顺手就会把刚设的
+   * 提示一起清掉，于是用户在扫码页上看不到任何解释。
+   */
+  const openPluginAuth = async (plugin: InstalledPluginSummary, notice = '') => {
+    setError(notice)
     try {
       const installed = await usePluginStore.getState().getInstalled(plugin.id)
       if (!installed) throw new Error(t('sources.errorNotInstalled'))
@@ -103,11 +119,11 @@ export default function LoginPage() {
     }
   }
 
-  const handlePluginSelect = (plugin: InstalledPluginSummary) => {
+  const handlePluginSelect = (plugin: InstalledPluginSummary, notice = '') => {
     setSelectedPlugin(plugin)
     setPluginManifest(null)
     setAuthHost(null)
-    setError('')
+    setError(notice)
     void (async () => {
       const installed = await usePluginStore.getState().getInstalled(plugin.id)
       if (!installed) {
@@ -117,12 +133,38 @@ export default function LoginPage() {
       const manifest = installed.manifest as unknown as PluginManifest
       setPluginManifest(manifest)
       if (isDisclaimerConfirmed(plugin.id)) {
-        await openPluginAuth(plugin)
+        await openPluginAuth(plugin, notice)
       } else {
         setStep('plugin-disclaimer')
       }
     })()
   }
+
+  /*
+   * /login?plugin=<id>&relogin=1 —— 横幅与音源设置的「重新登录」都走这个地址，
+   * 进页直达该插件的扫码步。
+   *
+   * 此前那两处只是 navigate('/login')：用户回到登录页，点自己那一行网易云，
+   * 走的是「快速连接」——而插件的 connectServer 只装载沙箱、从不校验凭据，
+   * 必然成功，于是回到首页、凭据还是坏的、横幅还在。原地打转。
+   */
+  const reloginPluginId = searchParams.get('relogin') === '1' ? searchParams.get('plugin') : null
+  const reloginHandled = useRef(false)
+
+  useEffect(() => {
+    if (!reloginPluginId || reloginHandled.current || !pluginsLoaded) return
+    reloginHandled.current = true
+    const plugin = plugins.find(p => p.id === reloginPluginId)
+    // 插件已被卸载：明说，别把人留在一个什么都没发生的登录页上
+    if (!plugin) {
+      setError(t('sources.errorNotInstalled'))
+      return
+    }
+    handlePluginSelect(plugin, t('sources.expiredRelogin'))
+    // handlePluginSelect 每次渲染都是新的闭包，进依赖数组会让这段反复触发；
+    // 真正的触发条件只有「地址里的插件」与「插件表读完了」这两件事
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloginPluginId, pluginsLoaded, plugins])
 
   /** 扫码 / Cookie / 匿名殊途同归：凭据落 serverStore 并激活。
    *  同插件同账号复用已有条目；仅有的一条旧条目（比如匿名）原地升级 ——
@@ -131,16 +173,32 @@ export default function LoginPage() {
     if (!selectedPlugin) return
     setIsLoading(true)
     try {
+      /*
+       * 昵称是锦上添花，绝不能挡住登录完成。
+       *
+       * getUser 会真的发一次网络请求（网易云要打账号接口）。它慢、被风控、
+       * 或者干脆不返回时，宿主要等满 30 秒的调用超时——用户那边看到的是
+       * 「二维码已确认，然后就没有然后了」。所以这里自己加一道更短的闸：
+       * 到点就带着空昵称继续，音源照常连上，昵称等下次体检时再补。
+       */
+      const NICKNAME_TIMEOUT_MS = 4000
       let nickname: string | null = null
       if (credentials && authHost?.hasMethod('n1ko.auth.getUser')) {
         try {
-          const user = await authHost.call<PluginUser | null>('n1ko.auth.getUser')
+          const user = await Promise.race([
+            authHost.call<PluginUser | null>('n1ko.auth.getUser'),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), NICKNAME_TIMEOUT_MS)),
+          ])
           nickname = user?.name ?? null
         } catch { /* 取不到昵称不拦登录 */ }
       }
       const display = {
         name: nickname ? `${selectedPlugin.name} · ${nickname}` : selectedPlugin.name,
-        username: nickname ?? 'anonymous',
+        // 匿名进入时这一行原来直接写着 'anonymous'——一个没翻译的英文词，
+        // 而且它会作为「用户名」出现在登录页与设置里给人看。
+        // 有凭据但此刻没拿到昵称（预登录沙箱问不到，见 serverStore.refreshPluginProfile）
+        // 先写「已登录」，连上后由 refreshPluginProfile 换成真名。
+        username: nickname ?? (credentials ? t('sources.signedIn') : t('sources.notSignedIn')),
       }
       const pluginRows = servers.filter(s => s.type === 'plugin' && s.pluginId === selectedPlugin.id)
       const matched = pluginRows.find(s => (s.credentials ?? null) === (credentials ?? null))
@@ -163,12 +221,34 @@ export default function LoginPage() {
           isActive: true,
         })
       }
+      /*
+       * 沙箱要留到连接结束之后再拆。
+       *
+       * 这里原本先 setAuthHost(null) 再连接——而 plugin-auth 那一步的渲染
+       * 条件里带着 authHost，一置空，加载指示和错误区就连同整块一起从页面
+       * 消失了。于是「二维码确认成功之后什么也没发生」：连接慢时没有转圈，
+       * 连接失败时错误无处显示，用户只能干等在一个空白的登录页上。
+       */
+      /*
+       * 只**连接**，不夺主库。
+       *
+       * 此前这里走的是 activateServer = connectServer + setPrimaryServer，
+       * 于是「加一个流媒体音源」的副作用是「换掉整个 App」：
+       * setPrimaryServer 会 resetForServerChange（清空队列、当前曲、历史）
+       * 并 queryClient.clear()，而插件不声明 libraryBrowse，
+       * 曲库/专辑/歌手三页当场变成「没有可浏览的音源」。
+       * 用户以为自己加了个音源，实际是音乐停了、首页空了一半。
+       *
+       * 主库只在**一个都还没有**时才由新音源担任（没有 NAS 的用户正是这种）。
+       */
+      const connected = await connectServer(serverId)
       closeAuthHost(selectedPlugin.id)
       setAuthHost(null)
-      if (!(await activateServer(serverId))) {
+      if (!connected) {
         setError(t('login.errorFailed'))
         return
       }
+      if (!activeServerId) setPrimaryServer(serverId)
       navigate('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -177,19 +257,82 @@ export default function LoginPage() {
     }
   }
 
+  /**
+   * 「这份凭据还活着吗」——只在拿到明确否定答复时才拦。
+   *
+   * 用的是该音源自己的沙箱：登录页的预登录沙箱（openAuthHost）是空凭据的，
+   * 拿它问 getUser 只会得到 null，等于把每一次快速连接都判成过期。沙箱还没
+   * 装载时先 connectServer 把它装上——activateServer 本来第一步也是这个。
+   *
+   * 4 秒没答复就放行：getUser 会真打一次网络请求（风控、弱网都可能让它拖到
+   * 宿主那 30 秒的调用超时），慢不等于坏，不能让一次抖动把人挡在自己的音源外。
+   */
+  const pluginCredentialsExpired = async (serverId: string): Promise<boolean> => {
+    const PROBE_TIMEOUT_MS = 4000
+    let host = getPluginHost(serverId)
+    if (!host) {
+      // 连不上是另一回事（插件被卸载等），交给后面的 activateServer 去报
+      if (!(await connectServer(serverId))) return false
+      host = getPluginHost(serverId)
+    }
+    if (!host?.hasMethod('n1ko.auth.getUser')) return false
+    try {
+      const user = await Promise.race([
+        host.call<PluginUser | null>('n1ko.auth.getUser'),
+        new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), PROBE_TIMEOUT_MS)),
+      ])
+      // null = 插件明说「这份凭据没有账号」；'timeout' 是「不知道」，按活的算
+      return user === null
+    } catch (err) {
+      // 协议里 unauthorized 就是「要重新登录」，其它错误码都不是凭据的问题
+      return (err as { code?: string } | null)?.code === 'unauthorized'
+    }
+  }
+
   const handleQuickConnect = async (serverId: string) => {
-    if (await activateServer(serverId)) {
+    /*
+     * 插件音源要先验凭据再连。
+     *
+     * connectServer 对插件只是装载沙箱、从不校验凭据，必然返回 true——
+     * 于是凭据早就过期的网易云也能「连接成功」，用户被送回首页，
+     * 收藏和推荐依旧空着，失效横幅依旧挂着。这里把那一步补上：
+     * 明确失效就直接进扫码，不再假装连上了。
+     */
+    const target = servers.find(s => s.id === serverId)
+    if (target?.type === 'plugin' && target.pluginId && target.credentials) {
+      const plugin = plugins.find(p => p.id === target.pluginId)
+      if (plugin && (await pluginCredentialsExpired(serverId))) {
+        handlePluginSelect(plugin, t('sources.expiredRelogin'))
+        return
+      }
+    }
+
+    /*
+     * 插件行与 finishPluginAuth 同一条规则：只连接、不夺主库（主库只在一个都
+     * 没有时才由它担任）。此前这里仍走 activateServer，已连着 NAS 时点一下
+     * 自己的网易云就会 setPrimaryServer → 清队列、清缓存、曲库三页变空。
+     * NAS 行保持「切换到这台服务器」的老语义——那才是用户点它的目的。
+     */
+    if (target?.type === 'plugin') {
+      if (await connectServer(serverId)) {
+        if (!activeServerId) setPrimaryServer(serverId)
+        navigate('/')
+        return
+      }
+    } else if (await activateServer(serverId)) {
       navigate('/')
       return
     }
     // 旧版 Jellyfin/Emby 凭据已失效：预填表单引导重新登录
-    const server = servers.find(s => s.id === serverId)
-    if (server) {
-      setSelectedType(server.type)
-      setForm({ url: server.url, username: server.username, password: '', name: server.name })
+    if (target && target.type !== 'plugin') {
+      setSelectedType(target.type)
+      setForm({ url: target.url, username: target.username, password: '', name: target.name })
       setStep('credentials')
       setError(t('login.errorCredentialsUpgraded'))
+      return
     }
+    // 插件音源连不上（插件被卸载、沙箱装载失败）：填表单没有意义，直说
+    if (target) setError(t('login.errorFailed'))
   }
 
   const handleTypeSelect = (type: ServerType) => {
@@ -282,6 +425,18 @@ export default function LoginPage() {
                 : t('sources.subtitleAuth', { name: selectedPlugin?.name ?? '' })}
         </p>
 
+        {/*
+          错误区放在所有步骤之外。
+          此前它只写在「填连接信息」和「扫码」两步里，于是类型选择步与声明
+          确认步 setError 之后页面毫无反应——插件登录出问题时用户完全查不出
+          发生了什么（三个阶段的报告里都记着「已记未修」，这里一并解决）。
+        */}
+        {error && (
+          <p className="mb-5 border-l-2 border-destructive pl-3 text-[13px] leading-relaxed text-destructive">
+            {error}
+          </p>
+        )}
+
         {step === 'plugin-disclaimer' && selectedPlugin && (
           <PluginDisclaimer
             pluginName={selectedPlugin.name}
@@ -333,11 +488,20 @@ export default function LoginPage() {
                     {t('sources.authNone')}
                   </p>
                 )}
-                <CookieLogin
-                  host={authHost}
-                  cookieHint={pluginManifest.auth.cookieHint}
-                  onAuthorized={credentials => void finishPluginAuth(credentials)}
-                />
+                {/*
+                  Cookie 登录只在插件真的能收 Cookie 时才摆出来。
+                  此前它是无条件渲染的：auth.kind 为 'none' 的音源、以及没导出
+                  n1ko.auth.loginWithCookie 的插件，页面上照样有一个「高级 ·
+                  用 Cookie 登录」——展开、粘贴、点提交，换来一句
+                  「unsupported」。摆出一个注定失败的入口比没有更糟。
+                */}
+                {pluginManifest.auth.kind !== 'none' && authHost.hasMethod('n1ko.auth.loginWithCookie') && (
+                  <CookieLogin
+                    host={authHost}
+                    cookieHint={pluginManifest.auth.cookieHint}
+                    onAuthorized={credentials => void finishPluginAuth(credentials)}
+                  />
+                )}
                 {pluginManifest.auth.allowAnonymous && (
                   <div className="border-t border-hair-soft pt-4 text-center">
                     <button
@@ -351,11 +515,6 @@ export default function LoginPage() {
               </>
             )}
 
-            {error && (
-              <p className="border-l-2 border-destructive pl-3 text-[13px] leading-relaxed text-destructive">
-                {error}
-              </p>
-            )}
           </div>
         )}
 
@@ -386,7 +545,11 @@ export default function LoginPage() {
                               ? plugins.find(p => p.id === server.pluginId)?.name ?? getServerTypeLabel(server.type)
                               : getServerTypeLabel(server.type)}
                             {' · '}
-                            {server.username}
+                            {/* 早先的匿名条目在盘上存的就是字面量 'anonymous'，
+                                只改新写入的话老用户永远看着那个英文词 */}
+                            {server.username === 'anonymous'
+                              ? (server.credentials ? t('sources.signedIn') : t('sources.notSignedIn'))
+                              : server.username}
                           </span>
                         </span>
                         <span className="num hidden sm:block max-w-[150px] truncate text-[10.5px] text-ink-faint">
@@ -462,52 +625,79 @@ export default function LoginPage() {
             </div>
 
             {/* 流媒体音源：已安装插件 + 添加入口（PLAN 1.6） */}
+            {/* 小标题整句进词条（同 login.savedServers / login.serverType 的写法）：
+                这里原来在 JSX 里拼了一截硬编码的「· STREAMING」——那个后缀是版式的
+                一部分，留在代码里等于把它排除在翻译之外 */}
             <p className="mt-10 mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
-              {t('sources.group')} · STREAMING
+              {t('sources.group')}
             </p>
-            <div className="border-t border-hair">
-              {plugins.map(plugin => (
+            {/*
+              正式版的纯浏览器没有能带 Cookie 的出网通道（见 lib/platform 的
+              pluginSourcesSupported）：登录流程本身走得完，之后每一次取歌、
+              取歌单都会失败。摆出一个注定失败的登录入口比没有更糟——
+              这里换成一句「需要哪个版本」加下载链接。
+            */}
+            {!pluginSourcesSupported ? (
+              <p className="border-t border-hair pt-4 text-[12.5px] leading-relaxed text-ink-soft">
+                {t('sources.needsApp')}{' '}
+                <a
+                  href={RELEASES_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-primary underline decoration-hair underline-offset-[5px] hover:decoration-primary"
+                >
+                  {t('sources.needsAppLink')}
+                </a>
+              </p>
+            ) : (
+              <div className="border-t border-hair">
+                {plugins.map(plugin => (
+                  <button
+                    key={plugin.id}
+                    onClick={() => handlePluginSelect(plugin)}
+                    className="group flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
+                  >
+                    {pluginLogoSrc(plugin.id) ? (
+                      <SourceLogo pluginId={plugin.id} size={22} className="ring-1 ring-hair-soft" />
+                    ) : (
+                      <span
+                        aria-hidden
+                        className="h-[22px] w-[22px] flex-shrink-0 rounded-[5px] border border-hair"
+                        style={plugin.color ? { background: plugin.color } : undefined}
+                      />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-serif text-[15.5px] font-semibold text-foreground transition-colors group-hover:text-primary">
+                        {plugin.name}
+                      </span>
+                      {/* 这里原本写的是 plugin.platform——manifest 里的内部标识
+                          （'netease' / 'qqmusic' 这种），它对用户没有意义，
+                          暴露的只是实现细节。名字在上一行已经有了，这一行
+                          换成「它是什么 + 哪一版」。 */}
+                      <span className="num block text-[12px] text-ink-faint">
+                        {t('sources.typeLabel')} · v{plugin.version}
+                      </span>
+                    </span>
+                    <CaretRight
+                      size={13}
+                      className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary"
+                    />
+                  </button>
+                ))}
                 <button
-                  key={plugin.id}
-                  onClick={() => handlePluginSelect(plugin)}
+                  onClick={() => setAddDialogOpen(true)}
                   className="group flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
                 >
-                  {pluginLogoSrc(plugin.id) ? (
-                    <SourceLogo pluginId={plugin.id} size={22} className="ring-1 ring-hair-soft" />
-                  ) : (
-                    <span
-                      aria-hidden
-                      className="h-[22px] w-[22px] flex-shrink-0 rounded-[5px] border border-hair"
-                      style={plugin.color ? { background: plugin.color } : undefined}
-                    />
-                  )}
+                  <Plus size={15} className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
                   <span className="min-w-0 flex-1">
-                    <span className="block font-serif text-[15.5px] font-semibold text-foreground transition-colors group-hover:text-primary">
-                      {plugin.name}
+                    <span className="block text-[14px] text-ink-soft transition-colors group-hover:text-primary">
+                      {t('sources.addPlugin')}
                     </span>
-                    <span className="num block text-[12px] text-ink-faint">
-                      {plugin.platform} · v{plugin.version}
-                    </span>
+                    <span className="block text-[12px] text-ink-faint">{t('sources.addPluginDesc')}</span>
                   </span>
-                  <CaretRight
-                    size={13}
-                    className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary"
-                  />
                 </button>
-              ))}
-              <button
-                onClick={() => setAddDialogOpen(true)}
-                className="group flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
-              >
-                <Plus size={15} className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[14px] text-ink-soft transition-colors group-hover:text-primary">
-                    {t('sources.addPlugin')}
-                  </span>
-                  <span className="block text-[12px] text-ink-faint">{t('sources.addPluginDesc')}</span>
-                </span>
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         ) : step === 'credentials' ? (
           /* 填写连接信息 */
@@ -613,13 +803,6 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
-
-            {/* 错误提示：直接陈述，左侧 2px 竖线 */}
-            {error && (
-              <p className="border-l-2 border-destructive pl-3 text-[13px] leading-relaxed text-destructive">
-                {error}
-              </p>
-            )}
 
             {/* 连接按钮：文字级主操作 + 下划线（DESIGN §4.1） */}
             <div className="pt-2 text-center">

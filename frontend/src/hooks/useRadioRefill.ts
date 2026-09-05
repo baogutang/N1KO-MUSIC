@@ -35,7 +35,9 @@ export function useRadioRefill() {
     if (remainingUnplayed() > REFILL_THRESHOLD) return
 
     busyRef.current = true
-    refillRadio(activeServerId)
+    // 不再把主库 id 传下去：续播的种子是**当前曲**，候选也来自它那个源，
+    // 主库只是「谁在浏览页当默认」，与这批歌属于谁无关（PLAN §2 决定 1）。
+    refillRadio()
       .then(added => {
         failuresRef.current = added > 0 ? 0 : failuresRef.current + 1
       })

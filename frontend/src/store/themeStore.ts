@@ -2,8 +2,9 @@
  * 主题状态管理
  *
  * 两个正交的维度：
- *   skin  皮肤：'pop'（糖果·波普工坊，默认，DESIGN v3）/ 'editorial'（纸·墨·朱，DESIGN v2）
- *         落到 <html data-skin>，index.css 里两套 token 各自认领。
+ *   skin  皮肤：'clay'（奶油·软陶，默认，DESIGN v4）/ 'pop'（糖果·波普工坊，DESIGN v3）
+ *         / 'editorial'（纸·墨·朱，DESIGN v2）
+ *         落到 <html data-skin>，index.css 里三套 token 各自认领。
  *   theme 明暗：浅色为默认（<html> 无 class），深色为 'dark' class；system 跟随系统。
  *
  * 两者互不干涉——四种组合都成立。切换只改 DOM 属性，不重挂组件树。
@@ -17,10 +18,29 @@ import { STORAGE_KEYS } from '@/services/storageKeys'
 export type Theme = 'dark' | 'light' | 'system'
 
 /** 皮肤。新增皮肤时同步更新 index.css 的 token 块与 theme-preflash.js。 */
-export type Skin = 'pop' | 'editorial'
+export type Skin = 'pop' | 'editorial' | 'clay'
 
-/** 默认皮肤：糖果·波普工坊 */
-export const DEFAULT_SKIN: Skin = 'pop'
+/**
+ * 全部皮肤，顺序即工具条循环切换的顺序，也是设置页分段控件的顺序。
+ * 加皮肤只改这一处，切换逻辑与持久化兜底都从它派生。
+ */
+export const SKINS: readonly Skin[] = ['clay', 'pop', 'editorial'] as const
+
+/**
+ * 皮肤名与说明句的词条 key。
+ *
+ * 刻意写成一张字面量表，而不是在调用方拼 `settings.skin.${skin}`：
+ * i18n 的死条目检查靠源码全文匹配 `'key'`，拼出来的 key 它看不见——
+ * 于是这三张皮的名字会被判成「没有调用方」，译者也就不知道它们还活着。
+ */
+export const SKIN_LABEL_KEYS: Record<Skin, { name: string; desc: string }> = {
+  pop: { name: 'settings.skin.pop', desc: 'settings.skin.popDesc' },
+  editorial: { name: 'settings.skin.editorial', desc: 'settings.skin.editorialDesc' },
+  clay: { name: 'settings.skin.clay', desc: 'settings.skin.clayDesc' },
+}
+
+/** 默认皮肤：奶油·软陶（2026-09-04 起；此前是糖果·波普工坊） */
+export const DEFAULT_SKIN: Skin = 'clay'
 
 /**
  * 首屏底色，供防白闪脚本与主题色 meta 使用。
@@ -29,6 +49,12 @@ export const DEFAULT_SKIN: Skin = 'pop'
 export const SKIN_BACKGROUNDS: Record<Skin, { light: string; dark: string }> = {
   pop: { light: '#fbf1e3', dark: '#101016' },
   editorial: { light: '#f4efe3', dark: '#1a1712' },
+  clay: { light: '#eee2d1', dark: '#1b1714' },
+}
+
+/** 读回来的皮肤字段可能是旧版本没有的、或已删除的值，一律兜到默认皮肤 */
+function normalizeSkin(value: unknown): Skin {
+  return SKINS.includes(value as Skin) ? (value as Skin) : DEFAULT_SKIN
 }
 
 /**
@@ -118,7 +144,8 @@ export const useThemeStore = create<ThemeState>()(
       },
 
       toggleSkin: () => {
-        const next: Skin = get().skin === 'pop' ? 'editorial' : 'pop'
+        // 三张皮循环：工具条那颗键是「换个心情」，不是一个二选一开关
+        const next = SKINS[(SKINS.indexOf(get().skin) + 1) % SKINS.length]
         applySkin(next)
         applyThemeColor(next, get().resolvedTheme)
         set({ skin: next })
@@ -148,8 +175,8 @@ export const useThemeStore = create<ThemeState>()(
             state.theme === 'system' ? getSystemTheme() : state.theme
           // 1.9.2 之前的持久化数据里没有 skin 字段，读回来是 undefined。
           // 不兜底的话 <html data-skin> 会被写成字符串 "undefined"，
-          // 两个皮肤块都不命中，页面落回 :root 的编辑风。
-          const skin: Skin = state.skin === 'editorial' ? 'editorial' : DEFAULT_SKIN
+          // 三个皮肤块都不命中，页面落回 :root 的编辑风。
+          const skin = normalizeSkin(state.skin)
           applyTheme(resolved)
           applySkin(skin)
           applyThemeColor(skin, resolved)

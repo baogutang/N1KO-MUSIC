@@ -23,9 +23,12 @@ import { useRecentAlbums, useArtists, queryKeys } from '@/hooks/useServerQueries
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
 import { pickFeaturedAlbum, rankArtistsByAffinity } from '@/services/recommendationEngine'
 import { usePlayerStore } from '@/store/playerStore'
+import { useThemeStore } from '@/store/themeStore'
+import { Mascot } from '@/components/brand/Mascot'
+import { greetingKey } from '@/components/layout/ClaySidebar'
 import { findAdapterFor, getAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
-import { playAllInOrder, playAllShuffled, playListFrom } from '@/utils/playActions'
+import { playAllInOrder, playAllShuffled, playListFrom, shuffleWholeLibrary } from '@/utils/playActions'
 import type { Album, Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
@@ -36,12 +39,9 @@ export default function HomePage() {
   const queryClient = useQueryClient()
 
   const { data: recentAlbums, isLoading: albumsLoading } = useRecentAlbums(20)
-  const {
-    data: randomSongs,
-    isFetching: songsFetching,
-    refresh: refreshSongs,
-    profile,
-  } = usePersonalizedRecommendations(30)
+  /* 只要画像（给热门歌手排序用）。推荐列表本身由 MergedDailyRail 负责，
+     这里再取一份就是同一份推荐算两遍、发两轮请求。 */
+  const { profile } = usePersonalizedRecommendations(20)
   const { data: artists, isLoading: artistsLoading } = useArtists()
   const recommendedArtists = useMemo(
     () => rankArtistsByAffinity(artists ?? [], profile),
@@ -91,10 +91,23 @@ export default function HomePage() {
   )
 
   return (
-    <div className="animate-fade-in">
+    /*
+      clay-grid：软陶皮下把这一页排成两列卡片网格（见 index.css）。
+      另外两张皮没有这条规则，类名在它们那里是空的，版面一字不变。
+    */
+    <div className="clay-grid animate-fade-in">
+      {/* ============ 问候横幅（仅奶油·软陶）============ */}
+      <ClayGreetingBanner />
+
       {/* ============ 本期封面 · 头条区 ============ */}
       {heroAlbum && (
-        <article className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] items-center gap-10 lg:gap-14 pt-10 pb-12 border-b border-hair pop:border-b-0 pop:pb-8">
+        /*
+          data-clay-span="full"：软陶下这块跨满两列，和其它分区一样是一张
+          普通的网格卡片。它此前挂的是 .clay-hero——一块蜜桃色的暖底面板，
+          整页唯一不是暖白的面。那个位置现在归问候横幅：一页只能有一个
+          「先看这里」，两块暖底并排的结果是两块都不显眼。
+        */
+        <article data-clay-span="full" className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] items-center gap-10 lg:gap-14 pt-10 pb-12 border-b border-hair pop:border-b-0 pop:pb-8">
           <div className="min-w-0">
             <p className="flex items-center gap-3.5 mb-5 text-[11px] tracking-[0.34em] text-primary pop:mb-6">
               <span className="sticker">{t('home.featuredAlbum')}</span>
@@ -163,8 +176,16 @@ export default function HomePage() {
         </article>
       )}
 
+      {/*
+        「今天听什么」紧跟头条。
+        它此前排在整页最底下，三源用户要滑过八块纯主库内容才看得见——
+        而这恰恰是多音源最有价值的一块。上下半页数据来源完全不同，
+        「像拼起来的」有一半是这个顺序造成的。
+      */}
+      <MergedDailyRail />
+
       {/* ============ 最近添加 · 编号行 ============ */}
-      <section aria-labelledby="home-recent">
+      <section aria-labelledby="home-recent" data-clay-span="full">
         <div className="section-head">
           <h2 id="home-recent">
             {t('section.recentlyAdded')}<small>RECENTLY ADDED</small>
@@ -239,59 +260,56 @@ export default function HomePage() {
       <AlbumShelf type="frequent" label={t('section.mostPlayed')} tag="MOST PLAYED" limit={6} />
       <AlbumShelf type="recent" label={t('nav.history')} tag="RECENTLY PLAYED" limit={6} />
 
-      {/* ============ 多源区块（PLAN 2.3）：今日推荐合并 / 各源歌单入口 / 榜单 / 推荐歌单 ============ */}
-      {/* 四块都是「有内容才渲染」：单源用户看不到任何变化 */}
-      <MergedDailyRail />
+      {/* ============ 多源区块（PLAN 2.3）：各源歌单入口 / 榜单 / 推荐歌单 ============ */}
+      {/* 三块都是「有内容才渲染」：单源用户看不到任何变化 */}
       <SourceCollections />
       <SourceTopListsRail />
       <SourceRecommendSheetsRail />
 
-      {/*
-        ============ 为你推荐 · 编号列表 ============
-        门只看「有没有数据」，不看「是不是在加载」：否则点「换一批」时
-        整个区块连同按钮自己一起被卸载，加载完再整块闪回。
-      */}
-      {randomSongs && randomSongs.length > 0 && (
-        <section aria-labelledby="home-for-you">
-          <div className="section-head">
-            <h2 id="home-for-you">
-              {t('section.forYou')}<small>FOR YOU</small>
-            </h2>
-            <div className="flex items-baseline gap-7">
-              <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-                {t('song.trackCountDuration', {
-                  count: randomSongs.length,
-                  duration: formatDuration(randomSongs.reduce((s, r) => s + r.duration, 0)),
-                })}
-              </span>
-              <button
-                className="more inline-flex items-center gap-1.5"
-                onClick={() => playAllInOrder(randomSongs, 0)}
-              >
-                <Play size={12} />
-                {t('player.playAll')}
-              </button>
-              <button
-                className="more inline-flex items-center gap-1.5"
-                onClick={() => playAllShuffled(randomSongs, 0)}
-              >
-                <Shuffle size={12} />
-                {t('player.shuffle')}
-              </button>
-              <button
-                className="more inline-flex items-center gap-1.5"
-                onClick={refreshSongs}
-                disabled={songsFetching}
-              >
-                <ArrowsClockwise size={12} className={songsFetching ? 'animate-spin' : undefined} />
-                {t('action.newBatch')}
-              </button>
-            </div>
-          </div>
-          <SongList songs={randomSongs.slice(0, 15)} showCover showAlbum showIndex />
-        </section>
-      )}
     </div>
+  )
+}
+
+/**
+ * 首页问候横幅（只在奶油·软陶下渲染）。
+ *
+ * 这是**全站第二处按皮肤分叉**的组件（第一处是 MainLayout 里横导航 / 竖侧栏
+ * 那一分支）。为什么它值得再破一次例：
+ *
+ *   · 它不是「同一块内容换个样子」，而是软陶专属的一块版面。杂志的封面页
+ *     开头是头条，不是一句「早上好」——把问候横幅塞进编辑风或波普，
+ *     等于在一本刊物的封面上印一条仪表盘欢迎语，两边都不成立。
+ *   · 反过来，用 CSS 在另外两张皮下把它 display:none，是让它们白付一份
+ *     渲染：一只 120px 的内联 SVG 吉祥物 + 一次订阅播放状态，
+ *     只为了永远不出现在屏幕上。
+ *
+ * 姿势跟着播放状态走：在放 = 听歌，停了 = 挥手打招呼。右边那颗
+ * 「随便听听」走的是全库随机（服务端取样，不是对首屏那一页洗牌）。
+ */
+function ClayGreetingBanner() {
+  const { t } = useT()
+  const isClay = useThemeStore(state => state.skin === 'clay')
+  const isPlaying = usePlayerStore(state => state.isPlaying)
+  if (!isClay) return null
+
+  return (
+    <section className="clay-banner" data-clay-span="full" aria-labelledby="home-greeting">
+      <span aria-hidden className="clay-banner-mascot">
+        <Mascot size={120} pose={isPlaying ? 'listening' : 'wave'} />
+      </span>
+      <div className="clay-banner-copy">
+        <h2 id="home-greeting" className="clay-banner-title">{t(greetingKey())}</h2>
+        <p className="clay-banner-sub">{t('mascot.tagline')}</p>
+      </div>
+      <button
+        type="button"
+        className="clay-banner-cta press-pop"
+        onClick={() => void shuffleWholeLibrary()}
+      >
+        <Shuffle size={17} weight="bold" />
+        {t('home.shuffleAll')}
+      </button>
+    </section>
   )
 }
 

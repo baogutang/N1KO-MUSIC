@@ -28,7 +28,7 @@ export function TopNav() {
 
   return (
     <nav
-      className="flex-shrink-0 border-b border-hair select-none"
+      className="main-nav flex-shrink-0 border-b border-hair select-none"
       aria-label={t('nav.main')}
       data-tauri-drag-region
     >

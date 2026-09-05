@@ -61,42 +61,83 @@ function isrcOf(song: Song): string | undefined {
 }
 
 /**
+ * 相关度档位（越小越靠前）：标题精确 > 标题前缀 > 标题包含 > 歌手/专辑沾边 > 其他。
+ *
+ * 比较前两边都过 normalizeText，与同曲匹配用的是同一把尺——用户搜「Ｓｕｍｍｅｒ」
+ * 和搜「summer」，得到的排序不该不一样。
+ */
+export function relevanceRank(song: Song, query: string): number {
+  const q = normalizeText(query)
+  if (!q) return 0
+  const title = titleOf(song)
+  if (title && title === q) return 0
+  if (title.startsWith(q)) return 1
+  if (title.includes(q)) return 2
+  const artist = normalizeText(song.artist)
+  if (artist.includes(q) || normalizeText(song.album ?? '').includes(q)) return 3
+  return 4
+}
+
+/**
  * 把各来源的歌曲列表合并成 MergedSong 列表。
  *
  * `sourceOrder` 是来源优先序（serverId 数组，最前最优先）：决定代表曲目
  * 与合并组的稳定顺序；缺省按输入顺序。
- * 输出顺序：按代表曲目在（优先序）输入中的首次出现位置。
+ *
+ * `query` 给出时，输出按相关度混排（见 relevanceRank），同分再按来源优先级、
+ * 源内原始次序。不给时保持旧语义：按代表曲目在（优先序）输入中的首次出现位置。
+ *
+ * 为什么要混排：不排的话「全部」视图就是**按源拼接**——第一个源几十条只沾边的
+ * 结果排在前面，第二个源里那条完全同名的命中被压到屏幕外。聚合是这一页的主张，
+ * 拼接不是聚合。
  */
 export function mergeSongs(
   groups: Array<{ serverId: string; songs: Song[] }>,
-  sourceOrder?: string[]
+  sourceOrder?: string[],
+  query?: string
 ): MergedSong[] {
   const order = sourceOrder ?? groups.map(g => g.serverId)
   const rankOf = new Map(order.map((id, i) => [id, i]))
   const rank = (serverId: string) => rankOf.get(serverId) ?? order.length
 
-  type Entry = { song: Song; srcRank: number; idx: number }
+  // 归一化只算一次：normalizeText 是 NFKC + Unicode 属性正则，放进 O(n²) 的比较里
+  // 每次重算，1200 首要半秒；「加载更多」每翻一页都把累计结果整个重并，会卡住主线程
+  type Entry = { song: Song; srcRank: number; idx: number; title: string; artists: Set<string> }
   const flat: Entry[] = []
   for (const g of groups) {
-    g.songs.forEach((song, idx) => flat.push({ song, srcRank: rank(g.serverId), idx }))
+    g.songs.forEach((song, idx) => flat.push({
+      song, srcRank: rank(g.serverId), idx,
+      title: titleOf(song), artists: artistSet(song.artist),
+    }))
   }
   flat.sort((a, b) => a.srcRank - b.srcRank || a.idx - b.idx)
 
-  // 并查集式分组合并：isrc 命中、exact、fuzzy 依次归拢
+  // 并查集式分组合并：isrc 命中、exact、fuzzy 依次归拢。
+  // 候选桶按归一标题索引：同曲匹配的两条规则都以「标题归一相等」为前提，
+  // 所以只需在同标题的桶里比歌手与时长，不必扫全部桶。
   const buckets: Entry[][] = []
   const isrcBuckets = new Map<string, number>()
+  const bucketsByTitle = new Map<string, number[]>()
 
-  const findBucket = (entry: Entry, match: (other: Entry) => MatchTier | null): number | null => {
-    // 扫描全部桶取最优档（exact 优先于 fuzzy），同档取更早的桶，保证结果稳定
+  const findBucket = (entry: Entry): number | null => {
+    if (!entry.title) return null
+    const candidates = bucketsByTitle.get(entry.title)
+    if (!candidates) return null
+    // 候选按建桶先后排列：取最优档（exact 优先于 fuzzy），同档取更早的桶，保证结果稳定
     let best: number | null = null
     let bestTier: MatchTier | null = null
-    for (let i = 0; i < buckets.length; i++) {
-      // 一个桶内只需和代表（第一个）比：桶内成员已经互相同曲
-      const tier = match(buckets[i][0])
-      if (tier === null) continue
+    for (const i of candidates) {
+      const other = buckets[i][0]  // 一个桶内只需和代表（第一个）比：桶内成员已经互相同曲
+      let overlap = false
+      for (const a of entry.artists) if (other.artists.has(a)) { overlap = true; break }
+      if (!overlap) continue
+      const tier: MatchTier =
+        setsEqual(entry.artists, other.artists) && durationClose(entry.song, other.song, DURATION_TOLERANCE_SEC)
+          ? 'exact' : 'fuzzy'
       if (bestTier === null || tierRank(tier) < tierRank(bestTier)) {
         best = i
         bestTier = tier
+        if (tier === 'exact') break
       }
     }
     if (best !== null) buckets[best].push(entry)
@@ -112,36 +153,43 @@ export function mergeSongs(
         continue
       }
     }
-    const title = titleOf(entry.song)
-    const artists = artistSet(entry.song.artist)
 
-    const joined = findBucket(entry, other => {
-      if (!titleOf(other.song) || titleOf(other.song) !== title) return null
-      const otherArtists = artistSet(other.song.artist)
-      const overlap = [...artists].some(a => otherArtists.has(a))
-      if (!overlap) return null
-      if (setsEqual(artists, otherArtists) && durationClose(entry.song, other.song, DURATION_TOLERANCE_SEC)) {
-        return 'exact'
-      }
-      return 'fuzzy'
-    })
+    const joined = findBucket(entry)
 
     if (joined === null) {
       buckets.push([entry])
-      if (isrc) isrcBuckets.set(isrc, buckets.length - 1)
+      const index = buckets.length - 1
+      if (entry.title) {
+        const list = bucketsByTitle.get(entry.title)
+        if (list) list.push(index)
+        else bucketsByTitle.set(entry.title, [index])
+      }
+      if (isrc) isrcBuckets.set(isrc, index)
     } else if (isrc && !isrcBuckets.has(isrc)) {
       isrcBuckets.set(isrc, joined)
     }
   }
 
-  return buckets.map(entries => {
+  const ranked = buckets.map(entries => {
     const sources = entries.map(e => e.song)
     // 代表曲目 = 桶内来源优先序最前（flat 已按序入桶，桶首即代表）
     const song = entries[0].song
     const tier: MatchTier =
       sources.length === 1 ? 'single' : isrcMatched(entries) ? 'isrc' : tierOf(entries)
-    return { song, sources, tier }
+    return {
+      merged: { song, sources, tier } satisfies MergedSong,
+      // 同分时的稳定次序：代表曲目所在源的优先级，再是它在该源结果里的位置
+      srcRank: entries[0].srcRank,
+      idx: entries[0].idx,
+      // 一个桶里各版本标题可能不完全相同（ISRC 档就允许标题不同），取最相关的那条算分
+      score: query ? Math.min(...sources.map(s => relevanceRank(s, query))) : 0,
+    }
   })
+
+  if (!query?.trim()) return ranked.map(r => r.merged)
+  return [...ranked]
+    .sort((a, b) => a.score - b.score || a.srcRank - b.srcRank || a.idx - b.idx)
+    .map(r => r.merged)
 }
 
 function setsEqual(a: Set<string>, b: Set<string>): boolean {

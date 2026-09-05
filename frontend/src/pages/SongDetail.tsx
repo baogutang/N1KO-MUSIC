@@ -1,12 +1,15 @@
 /**
  * 歌曲详情页
- * - 通过 router state 传入 Song 对象（navigate('/songs/detail', { state: { song } })）
+ * - 地址是 `/songs/:id?src=<serverId>`：`?src=` 指明这首歌属于**哪个音源**
+ *   （SongList 的「查看详情」已经带上）。router state 里的 Song 只是首屏加速，
+ *   直接刷新或从分享链接进来时没有 state，这一页要靠 `?src=` 自己查得回来。
  * - 展示歌曲元信息；仅允许操作歌词（搜索/保存），其余信息只读
  * 杂志编辑风（DESIGN v2）：「档案表」范式——衬线曲名 + 分组发丝线 definition rows。
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   MusicNote, ArrowRight, MagnifyingGlass,
   X, FloppyDisk, ArrowsClockwise,
@@ -24,8 +27,10 @@ import { SongCredits } from '@/components/music/LinerNotes'
 import { buildSpecLine } from '@/utils/audioSpec'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
 import { usePinnedCover } from '@/hooks/useCoverUrl'
-import { useSongDetail } from '@/hooks/useServerQueries'
-import { findAdapterFor } from '@/api'
+import { useSourceCapabilities } from '@/hooks/useSourceQueries'
+import { useServerStore } from '@/store/serverStore'
+import { SourceBadge } from '@/components/sources/SourceBadge'
+import { findAdapterFor, getAdapterFor, hasAdapterFor } from '@/api'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { formatDuration, formatFileSize } from '@/utils/formatters'
 import type { Song } from '@/api/types'
@@ -654,10 +659,36 @@ function CoverPickerDialog({ open, onClose, song, pinnedUrl, onSave, onClear }: 
 export default function SongDetailPage() {
   const { t } = useT()
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
   const stateSong = location.state?.song as Song | undefined
-  const { data: fetchedSong, isLoading, isError } = useSongDetail(id ?? '', stateSong)
+  const activeServerId = useServerStore(s => s.activeServerId)
+
+  /*
+   * 这一页展示的是「**某个音源上**的那首歌」，不是「主库上的那首歌」。
+   *
+   * 混源列表里的 id 只在它自己的来源里有意义：不看 ?src= 就照主库去查，
+   * 网易云的一首歌会拿着网易云的 id 去问 NAS——查不到，页面直接落到
+   * 「找不到这首歌」，而 state 里明明有它。三级回落：
+   * 地址栏 ?src=（刷新后唯一还在的线索）> state 里那首歌自己的来源 > 主库。
+   */
+  const srcParam = searchParams.get('src') ?? ''
+  const serverId = srcParam || stateSong?.serverId || activeServerId || ''
+
+  /*
+   * 详情查询按 serverId 路由。这里没走 useSongDetail：那个 hook 写死
+   * getAdapter()（主库），而它同时还是别处单源调用方的入口，不在这条改动的
+   * 范围里。缓存键的形状与 useServerQueries 的约定一致（[来源, 'songs', …]），
+   * 键首位带来源，两个音源出现同 id 的歌时不会互相串。
+   */
+  const { data: fetchedSong, isLoading, isError } = useQuery({
+    queryKey: [serverId || 'no-server', 'songs', 'detail', id ?? ''] as const,
+    queryFn: () => getAdapterFor(serverId).getSong(id ?? ''),
+    enabled: !!id && hasAdapterFor(serverId),
+    initialData: stateSong,
+    staleTime: 10 * 60 * 1000,
+  })
   const song = fetchedSong ?? stateSong
   const setFullscreen = usePlayerStore(s => s.setFullscreen)
   const { saveLyrics } = useLyricCacheStore()
@@ -668,6 +699,19 @@ export default function SongDetailPage() {
   const [lyricsSearchOpen, setLyricsSearchOpen] = useState(false)
   const [coverPickerOpen, setCoverPickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+
+  /*
+   * 能力有两级，和 SongList 的行级门控同一套规矩：
+   *
+   * - `sourceCaps[serverId]`：**这首歌的来源**声明了什么（PROTOCOL §6）。
+   *   取不到（来源已断开、或老地址没带 ?src=）时不擅自藏入口，
+   *   回落成改动前的行为，免得单源用户的入口凭空消失。
+   * - `capabilities`：**主库**的客户端能力。分享要真的问一次服务器，
+   *   而 ShareDialog 写回走 getAdapter()——非主库的歌给了入口也只会写错地方。
+   */
+  const sourceCaps = useSourceCapabilities()
+  const rowCaps = sourceCaps[serverId]
+  const isPrimarySource = !!serverId && serverId === activeServerId
   const capabilities = useServerCapabilities()
 
   if (isLoading && !song) {
@@ -737,7 +781,15 @@ export default function SongDetailPage() {
             />
           </div>
           <div className="min-w-0 pt-1">
-            <p className="text-[11px] tracking-[0.3em] text-ink-faint mb-2.5">{t('song.eyebrow')}</p>
+            {/* 报头第一行就回答「这一版来自哪儿」：同一首歌在两个音源上的
+                时长、码率、专辑归属都可能不一样，不说明来源这一整页都读不准 */}
+            <div className="mb-2.5 flex items-center gap-2.5">
+              <p className="text-[11px] tracking-[0.3em] text-ink-faint">
+                {t('song.eyebrow')}
+                <span className="latin-tag"> · TRACK</span>
+              </p>
+              <SourceBadge serverId={serverId} withName />
+            </div>
             <h1 className="font-serif text-4xl font-black tracking-tight leading-tight text-balance">{spaceCJK(song.title)}</h1>
             <p className="text-sm text-ink-soft mt-3 truncate">
               {spaceCJK(song.artist)}
@@ -767,12 +819,17 @@ export default function SongDetailPage() {
             linkable={!!song.artistId}
           />
 
-          <Row
-            label={t('song.field.lyrics')}
-            value={t('lyrics.viewOrSearch')}
-            onClick={() => { navigate(-1); setTimeout(() => setFullscreen(true), 50) }}
-            linkable
-          />
+          {/* 来源不提供歌词就没有可看的：入口整个不出现，
+              而不是让人点进播放器再看到一句「暂无歌词」。
+              本机的「歌词搜索」不受影响——那一条走的是自定义接口，与来源无关 */}
+          {(rowCaps ? rowCaps.lyrics : true) && (
+            <Row
+              label={t('song.field.lyrics')}
+              value={t('lyrics.viewOrSearch')}
+              onClick={() => { navigate(-1); setTimeout(() => setFullscreen(true), 50) }}
+              linkable
+            />
+          )}
 
           <Row
             label={t('lyrics.search')}
@@ -788,8 +845,10 @@ export default function SongDetailPage() {
             linkable
           />
 
-          {/* 只有服务器真的开着分享才出现——见 useServerCapabilities */}
-          {capabilities.shares && (
+          {/* 只有主库服务器真的开着分享才出现（见 useServerCapabilities）。
+              ShareDialog 的写回打的是主库适配器：给一首网易云的歌摆出这个入口，
+              点下去只会拿它的 id 去让 NAS 建分享 */}
+          {isPrimarySource && capabilities.shares && (
             <Row
               label={t('share.link')}
               value={t('share.createHint')}

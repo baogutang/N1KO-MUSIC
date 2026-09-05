@@ -38,6 +38,7 @@ import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useToggleStar } from '@/hooks/useServerQueries'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
+import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import { ShareDialog } from '@/components/music/ShareDialog'
 import { StarRating } from '@/components/music/StarRating'
 import { startRadio } from '@/services/radio'
@@ -176,7 +177,26 @@ export function SongList({
 
   // 分享对话框与收藏 mutation 一样提升到列表层，保持 SongRow 的 memo 结构
   const [shareSong, setShareSong] = React.useState<Song | null>(null)
-  const caps = useServerCapabilities()
+  /**
+   * 能力有两级，混源列表里必须分开看：
+   *
+   * - `sourceCaps`：**按行的来源**（PROTOCOL §6）。同一张列表里网易云那行和
+   *   NAS 那行来自两个音源，套主库的一份快照就会长出对方才有的入口——
+   *   网易云行冒出 NAS 的「分享」，不声明 favorites 的 QQ 行冒出心形，
+   *   点下去只抛一句英文。
+   * - `caps`：**主库**的客户端能力（分享要探测服务器、评分写回走 getAdapter()）。
+   *   这两项没有按源的探测通路，因此只对主库那些行开放。
+   */
+  const sourceCaps = useSourceCapabilities()
+  const activeServerId = useServerStore(s => s.activeServerId)
+  // 只解构出用得着的几个布尔量。useServerCapabilities 每次渲染都返回新对象，
+  // 整个对象进 renderRow 的依赖会让它每次重建，SongRow 的 memo 就全废了
+  const {
+    shares: primaryShares,
+    rating: primaryRating,
+    favorites: primaryFavorites,
+    radio: primaryRadio,
+  } = useServerCapabilities()
   const handleShare = useCallback((song: Song) => setShareSong(song), [])
   const handleRadio = useCallback(async (song: Song) => {
     const ok = await startRadio({ kind: 'song', id: song.id, name: song.title, serverId: song.serverId })
@@ -260,9 +280,30 @@ export function SongList({
             toast({ title: t('song.allFavorited') })
             return
           }
-          for (const song of list) {
-            toggleStarRef.current.mutate({ id: song.id, type: 'song', isStarred: false, song })
+          /*
+           * 批量收藏同样按**每首歌自己的来源**发。
+           *
+           * 行级早就按能力藏掉了心形，但多选条是一个按钮打一整批：选区里混着
+           * 不声明 favorites 的音源时，那几首会拿着插件的 id 去调另一个服务器的
+           * star——请求发错地方，而用户看到的只是一片红心里少了几颗，说不出
+           * 是哪几首没成。这里先按来源筛一遍，跳过了几首就明说几首。
+           */
+          const supported = list.filter(
+            song => sourceCaps[song.serverId]?.favorites ?? primaryFavorites
+          )
+          const skipped = list.length - supported.length
+          if (!supported.length) {
+            // 一首都发不出去时不清选区：用户还可以改选，或者去那几个音源里手动收藏
+            toast({ title: t('song.favoriteSkipped', { count: skipped }) })
+            return
           }
+          for (const song of supported) {
+            toggleStarRef.current.mutate({
+              id: song.id, type: 'song', isStarred: false, song, serverId: song.serverId,
+            })
+          }
+          // 没跳过就什么也不说：一句「已跳过 0 首」只会让人以为出了事
+          if (skipped > 0) toast({ title: t('song.favoriteSkipped', { count: skipped }) })
           clearSelection()
         },
       },
@@ -272,35 +313,48 @@ export function SongList({
       },
     ]
     // t 的引用随语言变（见 i18n/useT），因此它本身就是这里需要的那个依赖
-  }, [clearSelection, t])
+  }, [clearSelection, t, sourceCaps, primaryFavorites])
 
-  const renderRow = useCallback((song: Song, index: number) => (
-    <SongRow
-      key={song.id + '-' + index}
-      song={song}
-      index={index}
-      isCurrentSong={currentSongId === song.id}
-      isPlaying={isPlaying && currentSongId === song.id}
-      showCover={showCover}
-      showAlbum={showAlbum}
-      showIndex={showIndex}
-      sourceBadge={sourceBadge}
-      alternates={getAlternates?.(index)}
-      onReplace={onReplace}
-      onPlayIndex={handlePlayIndex}
-      onPlaylistAdd={handlePlaylistAdd}
-      onToggleStar={handleToggleStar}
-      onShare={caps.shares ? handleShare : undefined}
-      onRemove={onRemove ? () => onRemove(index) : undefined}
-      onRadio={caps.radio ? handleRadio : undefined}
-      canRate={caps.rating}
-      selected={isSelected(songIdentity(song, index))}
-      selectionActive={selectionActive}
-      onRowClick={selectable ? handleRowClick : undefined}
-      onLongPress={selectable ? handleRowLongPress : undefined}
-    />
-  ), [currentSongId, isPlaying, showCover, showAlbum, showIndex, sourceBadge, getAlternates, onReplace, handlePlayIndex,
-      handlePlaylistAdd, handleToggleStar, caps.shares, caps.radio, caps.rating,
+  const renderRow = useCallback((song: Song, index: number) => {
+    /**
+     * 这一行来源的能力快照。取不到时（歌曲来自已断开的源、或者根本没跑聚合
+     * 链路的旧调用方）回落主库那几项——那正是改动前的行为，不因为多源改造
+     * 让单源用户的入口凭空消失。
+     */
+    const rowCaps = sourceCaps[song.serverId]
+    // 分享与评分的写回都打主库适配器（ShareDialog / StarRating 用 getAdapter()），
+    // 非主库的行给了入口也只会写错服务器
+    const isPrimaryRow = song.serverId === activeServerId
+    return (
+      <SongRow
+        key={song.id + '-' + index}
+        song={song}
+        index={index}
+        isCurrentSong={currentSongId === song.id}
+        isPlaying={isPlaying && currentSongId === song.id}
+        showCover={showCover}
+        showAlbum={showAlbum}
+        showIndex={showIndex}
+        sourceBadge={sourceBadge}
+        alternates={getAlternates?.(index)}
+        onReplace={onReplace}
+        onPlayIndex={handlePlayIndex}
+        onPlaylistAdd={handlePlaylistAdd}
+        onToggleStar={handleToggleStar}
+        canFavorite={rowCaps ? rowCaps.favorites : primaryFavorites}
+        onShare={isPrimaryRow && primaryShares ? handleShare : undefined}
+        onRemove={onRemove ? () => onRemove(index) : undefined}
+        onRadio={(rowCaps ? rowCaps.radio : primaryRadio) ? handleRadio : undefined}
+        canRate={isPrimaryRow && primaryRating}
+        selected={isSelected(songIdentity(song, index))}
+        selectionActive={selectionActive}
+        onRowClick={selectable ? handleRowClick : undefined}
+        onLongPress={selectable ? handleRowLongPress : undefined}
+      />
+    )
+  }, [currentSongId, isPlaying, showCover, showAlbum, showIndex, sourceBadge, getAlternates, onReplace, handlePlayIndex,
+      handlePlaylistAdd, handleToggleStar, sourceCaps, activeServerId,
+      primaryShares, primaryRating, primaryFavorites, primaryRadio,
       handleShare, handleRadio, isSelected, selectionActive, selectable,
       handleRowClick, handleRowLongPress, onRemove])
 
@@ -309,7 +363,7 @@ export function SongList({
       {songs.length > VIRTUALIZE_THRESHOLD ? (
         <VirtualSongRows songs={songs} className={className} renderRow={renderRow} />
       ) : (
-        <div className={cn('border-t border-hair divide-y divide-hair-soft', className)}>
+        <div className={cn('song-list border-t border-hair divide-y divide-hair-soft', className)}>
           {songs.map(renderRow)}
         </div>
       )}
@@ -455,7 +509,7 @@ function VirtualSongRows({
       <div
         ref={containerRef}
         data-size-epoch={sizeEpoch}
-        className={cn('border-t border-hair divide-y divide-hair-soft', className)}
+        className={cn('song-list border-t border-hair divide-y divide-hair-soft', className)}
       >
         {songs.slice(0, VIRTUALIZE_THRESHOLD).map(renderRow)}
       </div>
@@ -500,6 +554,8 @@ interface SongRowProps {
   onPlayIndex: (index: number) => void
   onPlaylistAdd?: (song: Song) => void
   onToggleStar: (song: Song, nextStarred: boolean) => void
+  /** 该行来源声明了 favorites 才渲染心形（PROTOCOL §6：缺失时入口不出现） */
+  canFavorite?: boolean
   /** 服务器不支持时为 undefined，对应菜单项直接不出现 */
   onShare?: (song: Song) => void
   onRemove?: () => void
@@ -527,6 +583,7 @@ const SongRow = React.memo(function SongRow({
   onPlayIndex,
   onPlaylistAdd,
   onToggleStar,
+  canFavorite = true,
   onShare,
   onRemove,
   onRadio,
@@ -749,24 +806,26 @@ const SongRow = React.memo(function SongRow({
         </div>
       )}
 
-      {/* 收藏（CSS hover 控制显隐）*/}
-      <button
-        onClick={handleToggleStar}
-        className={cn(
-          'transition-all duration-200 p-1.5 active:scale-[0.94] flex-shrink-0',
-          localStarred
-            ? 'opacity-100 text-primary'
-            // 触屏没有 hover：这里若保持 opacity-0，未收藏的歌在手机上
-            // 根本没有收藏入口（已收藏的是实心常显，所以只有这一支有问题）
-            : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 text-ink-faint hover:text-primary'
-        )}
-        aria-label={localStarred ? t('player.unfavorite') : t('player.favorite')}
-      >
-        <Heart
-          className="w-4 h-4"
-          weight={localStarred ? 'fill' : 'regular'}
-        />
-      </button>
+      {/* 收藏（CSS hover 控制显隐）；来源不声明 favorites 时整个按钮不出现 */}
+      {canFavorite && (
+        <button
+          onClick={handleToggleStar}
+          className={cn(
+            'transition-all duration-200 p-1.5 active:scale-[0.94] flex-shrink-0',
+            localStarred
+              ? 'opacity-100 text-primary'
+              // 触屏没有 hover：这里若保持 opacity-0，未收藏的歌在手机上
+              // 根本没有收藏入口（已收藏的是实心常显，所以只有这一支有问题）
+              : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 text-ink-faint hover:text-primary'
+          )}
+          aria-label={localStarred ? t('player.unfavorite') : t('player.favorite')}
+        >
+          <Heart
+            className="w-4 h-4"
+            weight={localStarred ? 'fill' : 'regular'}
+          />
+        </button>
+      )}
 
       {/* 时长：mono tabular */}
       <span className="text-xs text-ink-faint font-num w-12 text-right flex-shrink-0">
@@ -812,10 +871,12 @@ const SongRow = React.memo(function SongRow({
           </DropdownMenuItem>
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem onClick={handleToggleStar} className="gap-2">
-            <Heart className={cn('w-4 h-4', localStarred ? 'text-primary' : '')} weight={localStarred ? 'fill' : 'regular'} />
-            {localStarred ? t('player.unfavorite') : t('player.favorite')}
-          </DropdownMenuItem>
+          {canFavorite && (
+            <DropdownMenuItem onClick={handleToggleStar} className="gap-2">
+              <Heart className={cn('w-4 h-4', localStarred ? 'text-primary' : '')} weight={localStarred ? 'fill' : 'regular'} />
+              {localStarred ? t('player.unfavorite') : t('player.favorite')}
+            </DropdownMenuItem>
+          )}
 
           {onRadio && (
             <DropdownMenuItem
@@ -849,7 +910,12 @@ const SongRow = React.memo(function SongRow({
 
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={(e) => { e.stopPropagation(); navigate(`/songs/${song.id}`, { state: { song } }) }}
+            /* 与上面的专辑/歌手跳转同理：混源列表里 id 只在 song.serverId 那个源
+               里有意义，不带 ?src= 的话详情页按主库去查，一查一个空 */
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/songs/${song.id}?src=${encodeURIComponent(song.serverId)}`, { state: { song } })
+            }}
             className="gap-2"
           >
             <FileText className="w-4 h-4" />

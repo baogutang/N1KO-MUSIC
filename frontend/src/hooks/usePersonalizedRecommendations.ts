@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
-import { useServerStore } from '@/store/serverStore'
+import { useServerStore , useHistoryScope } from '@/store/serverStore'
 import { useRecommendationCursorStore } from '@/store/recommendationCursorStore'
 import { readMutedSets } from '@/store/tasteStore'
 import { readListeningEvents } from '@/services/listeningHistory'
@@ -79,8 +79,9 @@ async function fetchDirectedCandidates(
   return results.flatMap(result => (result.status === 'fulfilled' ? result.value : []))
 }
 
-function readHistorySnapshot(serverId: string | null, _revision: number) {
-  return serverId ? readListeningEvents(serverId) : []
+/** 画像基于**所有已连接音源**的收听行为，不是只看主库那一份 */
+function readHistorySnapshot(scopeIds: readonly string[], _revision: number) {
+  return readListeningEvents(scopeIds)
 }
 
 /**
@@ -164,9 +165,10 @@ export function usePersonalizedRecommendations(size = 30) {
     }
   }, [serverId])
 
+  const historyScope = useHistoryScope()
   const events = useMemo(
-    () => readHistorySnapshot(serverId, historyRevision),
-    [serverId, historyRevision]
+    () => readHistorySnapshot(historyScope, historyRevision),
+    [historyScope, historyRevision]
   )
   const profile = useMemo(() => buildRecommendationProfile(events), [events])
 

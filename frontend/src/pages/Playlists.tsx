@@ -34,8 +34,10 @@ export default function Playlists() {
   const srcFilter = searchParams.get('src') ?? undefined
   const sources = useConnectedSources()
   const multi = sources.length > 1 && !srcFilter
-  // 多源：每源一节（主库节带新建/导入与删除）；单源/?src=：一条查询，行为同旧版
-  const primary = usePlaylists()
+  // 多源：每源一节（主库节带新建/导入与删除）；单源/?src=：一条查询，行为同旧版。
+  // ?src= 时这条查询必须打那个源：不传来源等于在「网易云」这一节里摆主库的歌单，
+  // 点进去还会跳到一个不存在的歌单详情。
+  const primary = usePlaylists(srcFilter)
   const grouped = useSourcePlaylists()
   const deletePlaylist = useDeletePlaylist()
   const [showCreate, setShowCreate] = useState(false)
@@ -48,12 +50,25 @@ export default function Playlists() {
   const localLoadError = useLocalPlaylistStore(s => s.loadError)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; serverId: string } | null>(null)
 
   useEffect(() => { void localLoad() }, [localLoad])
 
   const activeServerId = useServerStore(s => s.activeServerId)
-  const isLoading = multi ? grouped.some(g => g.status === 'loading') : primary.isLoading
+  /*
+   * 多源下**不等最慢的那个**：NAS 秒回却要陪网易云一起转骨架，是计划里
+   * 明确要避免的。只有一个源都还没结果时才算整页加载中，其余交给分节各自呈现。
+   */
+  const isLoading = multi
+    ? grouped.length > 0 && grouped.every(g => g.status === 'loading')
+    : primary.isLoading
+  /* 全部源都失败 ≠ 你没有歌单。这两件事此前长得一模一样，
+     用户被告知「创建第一个歌单吧」，而真相是三个源都挂了。 */
+  const allSourcesFailed = multi && grouped.length > 0 && grouped.every(g => g.status === 'error')
+  /* 重试按谓词失效：聚合查询的键是 [serverId, 'playlists']，
+     用前缀 ['playlists'] 一个都匹配不上（搜索页那个按钮就是这么失灵的）*/
+  const refetchAll = () =>
+    queryClient.invalidateQueries({ predicate: q => q.queryKey[1] === 'playlists' })
   const sections = multi
     ? grouped.map(g => ({
         serverId: g.serverId,
@@ -67,7 +82,9 @@ export default function Playlists() {
         name: sources.find(s => s.serverId === (srcFilter ?? activeServerId))?.name ?? '',
         status: 'success' as const,
         items: primary.data ?? [],
-        isPrimary: true,
+        // ?src= 指向别的源时这一节不是主库的：删除这类主库动作不在此提供
+        //（外源歌单的删除/退订语义不同），与多源分节的判据保持一致
+        isPrimary: (srcFilter ?? activeServerId) === activeServerId,
       }]
   const totalCount = sections.reduce((sum, s) => sum + s.items.length, 0)
 
@@ -109,7 +126,8 @@ export default function Playlists() {
   async function handleDelete() {
     if (!deleteTarget) return
     try {
-      await deletePlaylist.mutateAsync(deleteTarget.id)
+      // 带上歌单自己的来源：删除请求必须发给它所在的服务器，不是主库
+      await deletePlaylist.mutateAsync({ playlistId: deleteTarget.id, serverId: deleteTarget.serverId })
       toast({ title: t('playlist.deleted', { name: deleteTarget.name }) })
     } catch {
       toast({ title: t('playlist.deleteFailed'), variant: 'destructive' })
@@ -178,6 +196,12 @@ export default function Playlists() {
             </div>
           ))}
         </div>
+      ) : allSourcesFailed && localPlaylists.length === 0 ? (
+        <EmptyState
+          title={t('sources.allFailed.title')}
+          description={t('sources.allFailed.description')}
+          action={{ label: t('action.retry'), onClick: () => void refetchAll() }}
+        />
       ) : totalCount === 0 && localPlaylists.length === 0 ? (
         <EmptyState
           title={t('empty.playlists.title')}
@@ -315,7 +339,7 @@ export default function Playlists() {
                         // 删除走主库适配器；外源歌单的删除/退订语义不同，不在此提供
                         <DropdownMenuItem
                           className="text-destructive gap-2"
-                          onClick={() => setDeleteTarget({ id: pl.id, name: pl.name })}
+                          onClick={() => setDeleteTarget({ id: pl.id, name: pl.name, serverId: pl.serverId })}
                         >
                           <Trash className="w-4 h-4" />
                           {t('playlist.delete')}

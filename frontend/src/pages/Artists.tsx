@@ -91,7 +91,11 @@ export default function ArtistsPage() {
             {available.map(s => (
               <button
                 key={s.serverId}
-                onClick={() => setSearchParams(s.serverId === current.serverId ? {} : { src: s.serverId }, { replace: true })}
+                /* 与专辑页同一处修正：点当前项不做任何事。清空 ?src= 会让
+                   useBrowseSource 回落到「主库或第一个可浏览源」，
+                   点亮着的 chip 反而把你换到别的库去。 */
+                disabled={s.serverId === current.serverId}
+                onClick={() => setSearchParams({ src: s.serverId }, { replace: true })}
                 className={
                   'inline-flex items-center gap-1.5 pb-1 border-b transition-colors ' +
                   (s.serverId === current.serverId

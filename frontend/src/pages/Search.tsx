@@ -31,6 +31,11 @@ import { useT } from '@/i18n'
 
 type SearchView = 'all' | 'grouped'
 
+/** 合并组的稳定标识：代表曲目的「来源 + id」，与结果顺序无关 */
+function mergedKey(song: Song): string {
+  return `${song.serverId}:${song.id}`
+}
+
 export default function SearchPage() {
   const { t } = useT()
   const navigate = useNavigate()
@@ -105,9 +110,15 @@ export default function SearchPage() {
   const groups = useSourceSearch(debouncedQuery, page)
   const caps = useSourceCapabilities()
   const priorityOrder = usePlaybackPriorityOrder()
-  // 用户在「全部」视图手动换过来源的行：mergedIndex → 替换后的曲目；
-  // 换查询词就作废（新结果集的下标对不上）
-  const [swaps, setSwaps] = useState<Record<number, Song>>({})
+  /**
+   * 用户在「全部」视图手动换过来源的行：`serverId:id`（合并组的代表曲目）
+   * → 替换后的曲目。
+   *
+   * 键不能用合并后的下标：结果按相关度混排，新一页到达、某个源迟到、
+   * 甚至换一次视图都会让下标整体位移，于是「我给第 3 行换了来源」变成
+   * 「第 3 行现在是另一首歌，而且它被换成了别人的版本」。
+   */
+  const [swaps, setSwaps] = useState<Record<string, Song>>({})
   useEffect(() => { setSwaps({}); setPage(1); setAcc({}); setAccMeta({ artists: [], albums: [] }) }, [debouncedQuery])
 
   // 各源结果累积（跨页保留、按 id 去重）：page>1 到达时并入已有结果
@@ -143,11 +154,14 @@ export default function SearchPage() {
     const entries = Object.entries(acc)
     if (!entries.length) return null
     const order = priorityOrder.map(s => s.serverId)
+    // 传入查询词 → 合并后按相关度混排（match.ts）。不传就是按源拼接，
+    // 那时候第二个源的完全同名命中会被第一个源的一堆沾边结果压在后面
     return mergeSongs(
       entries.map(([serverId, songs]) => ({ serverId, songs })),
-      order
+      order,
+      debouncedQuery
     )
-  }, [acc, priorityOrder])
+  }, [acc, priorityOrder, debouncedQuery])
 
   /** 歌手 / 专辑跨源去重（归一名相等只留优先序在前的那个）。
    *  数据源是第 1 页结果的累积状态：翻页后 groups 只剩当页数据 */
@@ -307,12 +321,24 @@ export default function SearchPage() {
             {failedGroups.map(g => (
               <p key={g.serverId} className="flex items-center gap-2 text-[12px] text-ink-faint">
                 <SourceBadge serverId={g.serverId} withName />
-                <span className="truncate">{g.error?.slice(0, 120)}</span>
+                {/* 原始异常只给开发态：插件抛的是英文开发者串，正式界面上帮不了任何人 */}
+                {import.meta.env.DEV && (
+                  <span className="truncate font-mono text-[11px] opacity-70">{g.error?.slice(0, 120)}</span>
+                )}
               </p>
             ))}
           </div>
           <div className="mt-4 text-center">
-            <button className="more" onClick={() => void queryClient.invalidateQueries({ queryKey: ['search'] })}>
+            {/* 聚合搜索的键是 [serverId, 'search', q, page]，
+                用前缀 ['search'] 一个都匹配不上——这个按钮此前点了毫无反应 */}
+            <button
+              className="more"
+              onClick={() =>
+                void queryClient.invalidateQueries({
+                  predicate: query => query.queryKey[1] === 'search',
+                })
+              }
+            >
               {t('action.retry')}
             </button>
           </div>
@@ -334,7 +360,19 @@ export default function SearchPage() {
           {failedGroups.map(g => (
             <p key={g.serverId} className="mt-6 flex items-center gap-2 text-[12px] text-ink-faint">
               <SourceBadge serverId={g.serverId} />
-              {g.name}：{t('search.sourceError')}（{g.error?.slice(0, 120)}）
+              {g.name}：{t('search.sourceError')}
+              {import.meta.env.DEV && g.error ? `（${g.error.slice(0, 120)}）` : ''}
+            </p>
+          ))}
+
+          {/* 还在路上的源留一行占位。
+              「全部」是各源到一个合并一个的渐进列表，没有指示的话用户看到的
+              只是一份「就这些了」的结果，而慢的那个源可能正好有他要的那首。
+              全部都还没到时上面已经是骨架，这里不再重复。 */}
+          {!isLoading && groups.filter(g => g.status === 'loading').map(g => (
+            <p key={g.serverId} className="mt-6 flex items-center gap-2 text-[12px] text-ink-faint">
+              <SourceBadge serverId={g.serverId} />
+              <span className="animate-pulse">{g.name}：{t('search.sourcePending')}</span>
             </p>
           ))}
 
@@ -415,13 +453,13 @@ export default function SearchPage() {
                 </span>
               </div>
               <SongList
-                songs={merged.map((m, i) => swaps[i] ?? m.song)}
+                songs={merged.map(m => swaps[mergedKey(m.song)] ?? m.song)}
                 showCover
                 showAlbum
                 showIndex
                 sourceBadge
                 getAlternates={i => (merged[i].sources.length > 1 ? merged[i].sources : undefined)}
-                onReplace={(i, song) => setSwaps(prev => ({ ...prev, [i]: song }))}
+                onReplace={(i, song) => setSwaps(prev => ({ ...prev, [mergedKey(merged[i].song)]: song }))}
               />
               {/* 加载更多：插件源默认页长有限，全部视图不再静默截断在第一页 */}
               {moreAvailable && (
@@ -447,7 +485,10 @@ export default function SearchPage() {
             <div className="section-head">
               <h2 id={`search-${g.serverId}`} className="flex items-center gap-2.5">
                 <SourceBadge serverId={g.serverId} withName />
-                <small>{g.type === 'plugin' ? 'PLUGIN' : 'NAS'}</small>
+                {/* 原来是硬编码的 'PLUGIN' / 'NAS'：既没进词条，说的也是
+                    实现里的类型名。改成界面统一的说法——插件叫「音源」，
+                    NAS 类服务端才叫「服务器」。 */}
+                <small>{g.type === 'plugin' ? t('sources.typeLabel') : t('sources.typeLabelNas')}</small>
               </h2>
               {g.status === 'success' && (
                 <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
@@ -458,7 +499,8 @@ export default function SearchPage() {
             {g.status === 'loading' && <SongRowsSkeleton rows={3} />}
             {g.status === 'error' && (
               <p className="text-[13px] text-ink-faint py-3 border-t border-hair">
-                {t('search.sourceError')}（{g.error?.slice(0, 120)}）
+                {t('search.sourceError')}
+                {import.meta.env.DEV && g.error ? `（${g.error.slice(0, 120)}）` : ''}
               </p>
             )}
             {g.status === 'success' && (acc[g.serverId]?.length ?? g.data?.songs.length ?? 0) > 0 && (

@@ -31,6 +31,35 @@ export interface RemoteQueueOffer {
 /** 位置差异小于这个值就不值得提示「从别处继续」 */
 const MIN_RESUME_POSITION_MS = 10_000
 
+/**
+ * 从（可能混源的）队列里挑出能写回主库的那一段（纯函数，测试覆盖）。
+ *
+ * savePlayQueue 存的是一串**主库自己的曲目 id**。混源之后有两件事必须挡住：
+ *  - 当前曲不属于主库时整轮跳过：把网易云那首歌的 id 写进 NAS 的续播记录，
+ *    换台设备恢复出来的是「NAS 上碰巧同 id 的那首」——一首毫不相干的歌，
+ *    而且看起来完全正常；
+ *  - 队列里别家的曲目要滤掉，它们的 id 在主库那儿不存在。
+ *
+ * 返回 null 表示这一轮不写。
+ */
+export function syncableQueueSlice(
+  state: { queue: Song[]; queueIndex: number; currentSong: Song | null },
+  activeServerId: string | null,
+  maxQueue = MAX_SYNCED_QUEUE
+): { ids: string[]; currentId: string } | null {
+  const { queue, queueIndex, currentSong } = state
+  if (!currentSong || !queue.length || !activeServerId) return null
+  if (currentSong.serverId !== activeServerId) return null
+  // 只上报当前曲附近的一段，长队列没必要整个推上去
+  const start = Math.max(0, queueIndex - 20)
+  const ids = queue
+    .slice(start, start + maxQueue)
+    .filter(s => s.serverId === activeServerId)
+    .map(s => s.id)
+  if (!ids.length) return null
+  return { ids, currentId: currentSong.id }
+}
+
 export function useQueueSync() {
   const activeServerId = useServerStore(s => s.activeServerId)
   const isConnected = useServerStore(s => s.isConnected)
@@ -51,31 +80,29 @@ export function useQueueSync() {
 
   // --- 周期性写入 ---
   useEffect(() => {
-    // TODO(sources): 队列混源后的续播语义（跨源队列存不进单一服务器）需要单独设计；
-    // 当前只把「主库自己的歌」写回主库，语义等同于旧的单服务器行为
+    // 跨源队列存不进单一服务器，所以只把「主库自己的歌」写回主库，
+    // 语义等同于旧的单服务器行为；真正的混源续播需要另一套承载，不在这一批里
     if (!isConnected || !activeServerId || !hasAdapter()) return
     const adapter = getAdapter()
     if (!adapter.savePlayQueue) return
 
     const save = () => {
       const st = usePlayerStore.getState()
-      if (!st.currentSong || !st.queue.length) return
       // 只在本次会话真正播放过之后才上报。
       // 启动时 onRehydrateStorage 会恢复上次的队列并把 currentTime 置 0，
       // 若此时就写回去，等于「在另一台设备上打开一下」就把那边的续播点抹成 0——
       // 而这恰恰是这个功能存在的场景。
       if (!hasPlayedRef.current) return
-      // 只上报当前曲附近的一段，长队列没必要整个推上去
-      const start = Math.max(0, st.queueIndex - 20)
-      const slice = st.queue.slice(start, start + MAX_SYNCED_QUEUE)
-      const ids = slice.map(s => s.id)
-      if (!ids.length) return
+      // 混源队列只有主库那一段存得进主库；当前曲不是主库的则整轮跳过
+      const syncable = syncableQueueSlice(st, activeServerId)
+      if (!syncable) return
+      const { ids, currentId } = syncable
       const positionMs = Math.round((st.currentTime || 0) * 1000)
-      const payload = `${ids.length}:${st.currentSong.id}:${Math.floor(positionMs / 5000)}`
+      const payload = `${ids.length}:${currentId}:${Math.floor(positionMs / 5000)}`
       if (payload === lastPayloadRef.current) return
       lastPayloadRef.current = payload
       lastSavedRef.current = Date.now()
-      adapter.savePlayQueue?.(ids, st.currentSong.id, positionMs).catch(() => {
+      adapter.savePlayQueue?.(ids, currentId, positionMs).catch(() => {
         // 同步失败不该影响播放，也不提示——这是后台行为
       })
     }

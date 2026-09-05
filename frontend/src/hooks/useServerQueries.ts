@@ -14,7 +14,7 @@ import {
   keepPreviousData,
   type QueryClient,
 } from '@tanstack/react-query'
-import { getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
+import { findAdapterFor, getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
 import { useLibraryScopeStore } from '@/store/libraryScopeStore'
@@ -42,6 +42,48 @@ const serverKey = () => {
 /** 当前选定的音乐库，未选时为 undefined（表示全部库） */
 const currentFolderId = () =>
   useLibraryScopeStore.getState().getScope(useServerStore.getState().activeServerId)
+
+/**
+ * 缓存键的第 0 段是否指向这个音源。
+ *
+ * 同一个源在缓存里有**两种**键头：单源页面走 `serverKey()`，设了库范围时它是
+ * `serverId@scope`；按源分节的聚合查询（useSourceQueries）走裸 `serverId`。
+ * 用前缀匹配只能命中其中一种——收藏改完，另一半列表原样不动，看起来就是
+ * 「点了没生效」。这里两种一起认。
+ */
+export function queryKeyBelongsToServer(key: unknown, serverId: string): boolean {
+  if (typeof key !== 'string' || !serverId) return false
+  return key === serverId || key.startsWith(`${serverId}@`)
+}
+
+/** 某个音源下某一族查询的匹配谓词（invalidateQueries / setQueriesData 共用） */
+export function sourceFamilyFilter(serverId: string, family: string) {
+  return (query: { queryKey: readonly unknown[] }) =>
+    query.queryKey[1] === family && queryKeyBelongsToServer(query.queryKey[0], serverId)
+}
+
+/** 某个音源下的全部查询（不限族） */
+export function sourceScopeFilter(serverId: string) {
+  return (query: { queryKey: readonly unknown[] }) =>
+    queryKeyBelongsToServer(query.queryKey[0], serverId)
+}
+
+/** 键头可能是 `serverId@库范围`，取回裸 serverId 用于跨两种键形匹配 */
+function bareServerId(key: string): string {
+  const at = key.indexOf('@')
+  return at >= 0 ? key.slice(0, at) : key
+}
+
+/**
+ * 这条查询该不该真的发出去。
+ *
+ * `option` 缺省 true（旧调用方行为不变）；页面显式传 false 时，无论适配器
+ * 在不在册都不发——曲库页在主库不声明 libraryBrowse 时只渲染一句引导，
+ * 而三条全库枚举查询照样打出去，等的是必然的失败（PROTOCOL §6）。
+ */
+export function queryEnabled(option: boolean | undefined, adapterReady: boolean): boolean {
+  return (option ?? true) && adapterReady
+}
 
 export const queryKeys = {
   songs: (params?: ListParams) => [serverKey(), 'songs', params] as const,
@@ -101,12 +143,13 @@ export function useSongs(params: ListParams = {}) {
   })
 }
 
-/** 无限滚动加载歌曲（音乐库）*/
-export function useSongsInfinite(size = 100) {
+/** 无限滚动加载歌曲（音乐库）；options.enabled 为 false 时一条都不发 */
+export function useSongsInfinite(size = 100, options: { enabled?: boolean } = {}) {
   return useInfiniteQuery({
     queryKey: [serverKey(), 'songs', 'infinite', size] as const,
     queryFn: ({ pageParam = 0, signal }) =>
       getAdapter().getSongs({ size, offset: pageParam as number, musicFolderId: currentFolderId(), signal }),
+    enabled: queryEnabled(options.enabled, hasAdapter()),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -148,7 +191,15 @@ export function useLyricsQuery(
   album?: string,
   path?: string,
   duration?: number,
-  enabled = true
+  enabled = true,
+  /**
+   * 曲目所属音源。缺省回落主库。
+   *
+   * 不传时，播放网易云的歌会拿网易云的 id 去问 NAS——永远「暂无歌词」，
+   * 而插件自己的 getLyric 一次也没被调用过；两个音源出现同 id 时
+   * 还会互相串词（审计里的高-4 以多源形式复发）。
+   */
+  serverId?: string
 ) {
   const { lyricsRemoteTemplate, apiAuthToken, lyricsUseRemote, lyricsPreferRemote } = useSettingsStore()
   const { getLyrics: getCachedLyrics } = useLyricCacheStore()
@@ -167,8 +218,11 @@ export function useLyricsQuery(
 
   // 服务器歌词（有配置时始终并行请求）
   const serverQuery = useQuery({
-    queryKey: queryKeys.lyrics(songId),
-    queryFn: () => getAdapter().getLyrics(songId, title, artist),
+    // 缓存键带上来源，否则两个音源的同 id 歌会共用一份歌词
+    queryKey: [...queryKeys.lyrics(songId), serverId ?? 'primary'],
+    queryFn: () =>
+      (serverId ? (findAdapterFor(serverId) ?? getAdapter()) : getAdapter())
+        .getLyrics(songId, title, artist),
     enabled: fetchEnabled,
     staleTime: 30 * 60 * 1000,
   })
@@ -357,7 +411,12 @@ export function useAlbums(params: ListParams = {}) {
 }
 
 /** 无限滚动加载专辑（serverId 指定时按该源浏览——浏览页源切换用） */
-export function useAlbumsInfinite(size = 50, type = 'newest', serverId?: string) {
+export function useAlbumsInfinite(
+  size = 50,
+  type = 'newest',
+  serverId?: string,
+  options: { enabled?: boolean } = {}
+) {
   return useInfiniteQuery({
     // key 必须含 size：同一 type 不同 size 的两个书架否则会串缓存
     queryKey: [serverId ?? serverKey(), 'albums', 'infinite', type, size],
@@ -366,7 +425,7 @@ export function useAlbumsInfinite(size = 50, type = 'newest', serverId?: string)
     queryFn: ({ pageParam = 0, signal }) =>
       (serverId ? getAdapterFor(serverId) : getAdapter())
         .getAlbums({ size, offset: pageParam as number, type, musicFolderId: serverId ? undefined : currentFolderId(), signal }),
-    enabled: serverId ? hasAdapterFor(serverId) : hasAdapter(),
+    enabled: queryEnabled(options.enabled, serverId ? hasAdapterFor(serverId) : hasAdapter()),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0)
@@ -417,16 +476,19 @@ export function useLibraryScan() {
 export function useSetRating() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, rating, type = 'song' }: {
+    mutationFn: async ({ id, rating, type = 'song', serverId }: {
       id: string; rating: number; type?: 'song' | 'album'
+      /** 条目所属音源；缺省回落主库。与收藏同理，不能写死主库适配器 */
+      serverId?: string
     }) => {
-      const adapter = getAdapter()
+      const adapter = serverId ? (findAdapterFor(serverId) ?? getAdapter()) : getAdapter()
       if (!adapter.setRating) throw new Error(t('error.ratingUnsupported'))
       await adapter.setRating(id, rating, type)
     },
     onSuccess: (_data, variables) => {
-      const sid = serverKey()
-      queryClient.setQueriesData({ queryKey: [sid] }, (old: unknown) =>
+      // 与收藏同一处坑：裸 serverId 与 `serverId@库范围` 是两棵缓存树
+      const sid = bareServerId(variables.serverId ?? serverKey())
+      queryClient.setQueriesData({ predicate: sourceScopeFilter(sid) }, (old: unknown) =>
         patchFieldInCache(old, variables.id, 'userRating', variables.rating)
       )
     },
@@ -458,13 +520,13 @@ export function useRecentAlbums(size = 20) {
 // ===================================================
 
 /** 获取所有歌手（serverId 指定时按该源浏览——浏览页源切换用） */
-export function useArtists(serverId?: string) {
+export function useArtists(serverId?: string, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'artists'] as const,
     queryFn: ({ signal }) =>
       (serverId ? getAdapterFor(serverId) : getAdapter())
         .getArtists(serverId ? undefined : currentFolderId(), signal),
-    enabled: serverId ? hasAdapterFor(serverId) : hasAdapter(),
+    enabled: queryEnabled(options.enabled, serverId ? hasAdapterFor(serverId) : hasAdapter()),
     staleTime: 10 * 60 * 1000,
   })
 }
@@ -484,11 +546,20 @@ export function useArtistDetail(artistId: string, serverId?: string) {
 // 歌单相关 Hooks
 // ===================================================
 
-/** 获取歌单列表 */
-export function usePlaylists() {
+/**
+ * 获取歌单列表。
+ *
+ * `serverId` 指定时按该音源取（歌单页 ?src=… 的单源视图用），缺省主库。
+ * 不接来源时，`?src=wy` 的页面上摆的其实是主库的歌单——地址栏说的是一件事，
+ * 屏幕上是另一件，点进去还会跳到一个不存在的歌单。
+ */
+export function usePlaylists(serverId?: string) {
   return useQuery({
-    queryKey: queryKeys.playlists(),
-    queryFn: ({ signal }) => getAdapter().getPlaylists(signal),
+    queryKey: [serverId ?? serverKey(), 'playlists'] as const,
+    queryFn: ({ signal }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter()).getPlaylists(signal),
+    // 指定了源就要求它真的在册；缺省路径保持旧行为（适配器缺失时由 queryFn 报错）
+    enabled: !serverId || hasAdapterFor(serverId),
     staleTime: 3 * 60 * 1000,
   })
 }
@@ -510,14 +581,21 @@ export function usePlaylistDetail(playlistId: string, serverId?: string) {
   })
 }
 
-/** 创建歌单 */
+/** 创建歌单（serverId 指定时建在该源上，缺省主库——PLAN §2 决定 1） */
 export function useCreatePlaylist() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ name, songIds }: { name: string; songIds?: string[] }) =>
-      getAdapter().createPlaylist(name, songIds),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
+    mutationFn: ({ name, songIds, serverId }: {
+      name: string
+      songIds?: string[]
+      /** 落在哪个音源；缺省主库 */
+      serverId?: string
+    }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter()).createPlaylist(name, songIds),
+    onSuccess: (_data, { serverId }) => {
+      queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists'] })
+      // 聚合视图的键是裸 serverId，与带库范围的 serverKey() 不是同一个前缀
+      if (serverId) queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
     },
   })
 }
@@ -547,25 +625,37 @@ export function useRemoveSongsFromPlaylist() {
   })
 }
 
-/** 删除歌单 */
+/** 删除歌单（serverId 指定时删该源的，缺省主库） */
 export function useDeletePlaylist() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (playlistId: string) => getAdapter().deletePlaylist(playlistId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
+    mutationFn: ({ playlistId, serverId }: {
+      playlistId: string
+      /** 歌单所属音源；缺省主库。写死主库会把「删网易云歌单」发到 NAS 上 */
+      serverId?: string
+    }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter()).deletePlaylist(playlistId),
+    onSuccess: (_data, { serverId }) => {
+      queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists'] })
+      if (serverId) queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
     },
   })
 }
 
-/** 向歌单添加歌曲 */
+/** 向歌单添加歌曲（serverId 指定时打该源，缺省主库） */
 export function useAddToPlaylist() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ playlistId, songIds }: { playlistId: string; songIds: string[] }) =>
-      getAdapter().addSongsToPlaylist(playlistId, songIds),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.playlistDetail(variables.playlistId) })
+    mutationFn: ({ playlistId, songIds, serverId }: {
+      playlistId: string
+      songIds: string[]
+      /** 歌单所属音源；缺省主库。曲目 id 只在自己的源里有意义 */
+      serverId?: string
+    }) =>
+      (serverId ? getAdapterFor(serverId) : getAdapter()).addSongsToPlaylist(playlistId, songIds),
+    onSuccess: (_data, { playlistId, serverId }) => {
+      queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists', playlistId] })
+      queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists'] })
     },
   })
 }
@@ -594,14 +684,27 @@ export function useToggleStar() {
       type,
       isStarred,
       song,
+      serverId,
     }: {
       id: string
       type: 'song' | 'album' | 'artist'
       isStarred: boolean
       /** 传入歌曲对象时会把收藏状态一并镜像到同步服务（可选，缺省则只改音乐服务器）*/
       song?: Song
+      /** 条目所属音源；缺省回落主库（单源调用方无需关心）*/
+      serverId?: string
     }) => {
-      const adapter = getAdapter()
+      /*
+       * 一律按**条目自己的来源**取适配器。
+       *
+       * 此前这里写死 getAdapter()（主库）。主库是 NAS 时，
+       * 在搜索结果或「今天听什么」里给一首网易云的歌点收藏，
+       * 等于拿网易云的 id 去调 NAS 的 star——请求发错服务器，
+       * 而乐观更新已经把心填红了，失败后再悄悄弹回去。
+       * 收藏是全站最高频的动作，这条错得最贵。
+       */
+      const sourceId = serverId ?? song?.serverId
+      const adapter = sourceId ? (findAdapterFor(sourceId) ?? getAdapter()) : getAdapter()
       if (isStarred) await adapter.unstar(id, type)
       else await adapter.star(id, type)
       // 音乐服务器始终是收藏的权威来源，同步服务只做跨设备镜像，失败不影响本次操作
@@ -617,7 +720,8 @@ export function useToggleStar() {
      * 就与观察者无关了，每一次调用各自回滚。
      */
     onMutate: (variables) => {
-      const sid = serverKey()
+      // 乐观更新与回滚都必须打条目自己那棵缓存树，否则「成功了但列表不刷新」
+      const sid = bareServerId(variables.serverId ?? variables.song?.serverId ?? serverKey())
       patchStarredInCache(queryClient, sid, variables.id, !variables.isStarred)
       return { sid, id: variables.id, previous: variables.isStarred }
     },
@@ -626,14 +730,21 @@ export function useToggleStar() {
       patchStarredInCache(queryClient, context.sid, context.id, context.previous)
     },
     onSuccess: (_data, variables) => {
-      const sid = serverKey()
+      /*
+       * 失效的是**条目自己那个源**，而不是主库。
+       *
+       * 而且两种键形都要覆盖：`serverKey()` 在设了库范围时是 `id@scope`，
+       * 收藏页按源分节用的却是裸 `[serverId, 'starred']`。此前用
+       * `queryKey: [serverKey(), …]` 做前缀匹配，分节那份永远没被失效过——
+       * 收藏成功了，列表却不动。谓词一次认两种。
+       */
+      const sid = bareServerId(variables.serverId ?? variables.song?.serverId ?? serverKey())
       // 收藏汇总页本身必须重取（条目会进出列表，不是就地改标记）
-      queryClient.invalidateQueries({ queryKey: [sid, 'starred'] })
+      queryClient.invalidateQueries({ predicate: sourceFamilyFilter(sid, 'starred') })
       // 其余家族标记为过期，但不立即重取：下次真正用到时才刷新
       for (const family of ['songs', 'albums', 'artists', 'search', 'playlists'] as const) {
-        queryClient.invalidateQueries({ queryKey: [sid, family], refetchType: 'none' })
+        queryClient.invalidateQueries({ predicate: sourceFamilyFilter(sid, family), refetchType: 'none' })
       }
-      void variables
     },
   })
 }
@@ -698,7 +809,9 @@ function patchStarredInCache(
     return data
   }
 
-  queryClient.setQueriesData({ queryKey: [sid] }, (old: unknown) => patchAny(old))
+  // 同上：裸 serverId 与 `serverId@库范围` 两棵树都要就地改，
+  // 否则乐观更新只在其中一种视图上看得见
+  queryClient.setQueriesData({ predicate: sourceScopeFilter(sid) }, (old: unknown) => patchAny(old))
 }
 
 // ===================================================

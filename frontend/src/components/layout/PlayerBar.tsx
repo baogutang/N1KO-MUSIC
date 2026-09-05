@@ -19,6 +19,7 @@ import {
   Shuffle, MicrophoneStage, ArrowsOutSimple
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { Mascot } from '@/components/brand/Mascot'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
 import { SleepTimerMenu } from '@/components/player/SleepTimerMenu'
@@ -37,7 +38,7 @@ import { useT } from '@/i18n'
  * docked 外壳：上缘 1px 发丝线 + 纸面底（DESIGN v2 §4.2）；
  * 波普下描边加粗到 2px，底色换成卡面（DESIGN v3 §4.2）。
  */
-const barShell = 'flex-shrink-0 border-t border-hair bg-paper pop:bg-surface'
+const barShell = 'player-bar flex-shrink-0 border-t border-hair bg-paper pop:bg-surface'
 
 /**
  * 图标键。
@@ -276,7 +277,11 @@ export function PlayerBar() {
 
   if (!currentSong) {
     return (
-      <div className={cn(barShell, 'h-[76px] flex items-center justify-center')}>
+      <div className={cn(barShell, 'h-[76px] flex items-center justify-center gap-3')}>
+        {/* 空态是吉祥物唯一常驻的位置：一条什么都没有的播放条，
+            有它在就不像是坏了。软陶以外的皮肤不显示——那两张皮
+            没有给一个插画角色留位置的语汇。 */}
+        <Mascot size={44} pose="sleep" title={t('mascot.idle')} className="hidden clay:block" />
         <p className="font-serif text-[15px] text-ink-faint pop:font-semibold">{t('player.selectToStart')}</p>
       </div>
     )

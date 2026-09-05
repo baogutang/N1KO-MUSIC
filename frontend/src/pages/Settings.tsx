@@ -13,8 +13,9 @@ import {
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { SourcesSettings } from '@/components/settings/SourcesSettings'
+import { SourceBadge } from '@/components/sources/SourceBadge'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
-import { useThemeStore } from '@/store/themeStore'
+import { useThemeStore, SKINS, SKIN_LABEL_KEYS } from '@/store/themeStore'
 import { LOCALES, setLocale, useT } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
 import {
@@ -65,7 +66,7 @@ function Segmented<T extends string>({ value, onChange, options, label }: {
     <div
       role="radiogroup"
       aria-label={label}
-      className="inline-flex rounded-sm border border-hair overflow-hidden divide-x divide-hair-soft pop:rounded-pill pop:divide-x-0 pop:gap-1 pop:p-1 pop:bg-paper-deep pop:shadow-press"
+      className="inline-flex rounded-sm border border-hair overflow-hidden divide-x divide-hair-soft pop:rounded-pill pop:divide-x-0 pop:gap-1 pop:p-1 pop:bg-paper-deep pop:shadow-press clay:border-0"
     >
       {options.map(opt => (
         <button
@@ -302,10 +303,13 @@ export default function Settings() {
     setPlaybackRate, setSmoothTransitions, setPreloadNext, setAutoContinueQueue,
     setNotificationActions, setSeekStepSeconds, setResumeAfterInterruption, setMusicBrainzEnabled,
   } = useSettingsStore()
+  const connectedServerIds = useServerStore(s => s.connectedServerIds)
   const [pinging, setPinging] = useState<string | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
   // 删除服务器会连同 URL、用户名与令牌一起永久抹掉且无法撤销，必须二次确认
   const [pendingRemove, setPendingRemove] = useState<string | null>(null)
+  // 换主库会清空播放队列并清缓存——同样是不可撤销的代价，先说清楚
+  const [pendingPrimary, setPendingPrimary] = useState<string | null>(null)
   const scan = useLibraryScan()
   // 能力探测：不支持的服务器上整个入口不出现，而不是点了没反应
   const supportsScan = hasAdapter() && typeof getAdapter().startScan === 'function'
@@ -366,68 +370,108 @@ export default function Settings() {
           <h1 className="font-serif text-4xl font-bold tracking-tight">{t('nav.settings')}</h1>
         </header>
 
-        {/* 服务器管理 */}
-        <Section title={t('settings.servers')} tag={t('settings.servers.tag')}>
+        {/*
+          音源 —— NAS 类服务器与插件音源同列。
+          在这个 App 里它们是同一种东西：一个能出曲子的来源。此前分成
+          「服务器管理」和「音源」两节，网易云既被当成服务器列在上面，
+          又在下面被管一遍，用户得自己拼出「这两处说的是同一个东西」。
+
+          词汇约定（全站）：界面上「服务器」只用于 NAS 类，「音源」用于插件，
+          「主库」指当前决定浏览页与默认适配器的那一个。
+        */}
+        <Section title={t('settings.sources')} tag={t('settings.sources.tag')}>
           <div>
-            {servers.map(server => (
-              <div
-                key={server.id}
-                className="flex items-stretch justify-between gap-4 py-4 border-b border-hair-soft"
-              >
-                <div className="flex items-stretch gap-3 min-w-0">
-                  {/* 当前服务器：accent 左竖线 */}
-                  <span className={cn('w-[2px] flex-shrink-0', server.id === activeServerId ? 'bg-primary' : 'bg-transparent')} />
-                  <div className="min-w-0 py-0.5">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate">{server.name}</p>
-                      {server.id === activeServerId && (
-                        <span className="text-[11px] text-primary flex items-center gap-1 flex-shrink-0">
-                          <CheckCircle weight="fill" className="w-3 h-3" />
-                          {t('settings.server.current')}
+            {servers.map(server => {
+              const isPlugin = server.type === 'plugin'
+              const isPrimary = server.id === activeServerId
+              const connected = connectedServerIds.includes(server.id)
+              return (
+                <div
+                  key={server.id}
+                  className="flex items-stretch justify-between gap-4 py-4 border-b border-hair-soft"
+                >
+                  <div className="flex items-stretch gap-3 min-w-0">
+                    {/* 主库：accent 左竖线 */}
+                    <span className={cn('w-[2px] flex-shrink-0', isPrimary ? 'bg-primary' : 'bg-transparent')} />
+                    <div className="min-w-0 py-0.5">
+                      <div className="flex items-center gap-2">
+                        <SourceBadge serverId={server.id} />
+                        <p className="text-sm font-medium truncate">{server.name}</p>
+                        {/* 类型徽标：一眼分清这一行是 NAS 服务器还是插件音源。
+                            不要用 .latin-tag——那个类是「双语报头的拉丁半边」，
+                            软陶皮肤与非中文界面下都会被整条 display:none 掉，
+                            而这里的文案是要翻译、要读懂的 */}
+                        <span className="flex-shrink-0 rounded-[2px] border border-hair px-1.5 py-px text-[10px] tracking-[0.08em] text-ink-faint">
+                          {isPlugin ? t('sources.typeLabel') : t('sources.typeLabelNas')}
                         </span>
-                      )}
+                        {isPrimary && (
+                          <span className="text-[11px] text-primary flex items-center gap-1 flex-shrink-0">
+                            <CheckCircle weight="fill" className="w-3 h-3" />
+                            {t('sources.settings.primary')}
+                          </span>
+                        )}
+                      </div>
+                      {/* 地址只有 NAS 有意义：插件的服务端是它自己写死的，用户既填不了也改不了 */}
+                      {!isPlugin && <p className="num text-xs text-ink-faint truncate mt-0.5">{server.url}</p>}
+                      <p className="text-xs text-ink-faint truncate mt-0.5">
+                        {isPlugin ? (server.pluginId ?? t('sources.typeLabel')) : getServerTypeLabel(server.type)}
+                        {/* 早先的插件行在盘上存的账号名是字面量 'anonymous'：按有无凭据翻成人话 */}
+                        {server.username
+                          ? ` · ${server.username === 'anonymous'
+                              ? (server.credentials ? t('sources.signedIn') : t('sources.notSignedIn'))
+                              : server.username}`
+                          : ''}
+                        {' · '}
+                        <span className={connected ? 'text-ink-soft' : undefined}>
+                          {connected ? t('settings.source.connected') : t('settings.server.notConnected')}
+                        </span>
+                      </p>
                     </div>
-                    <p className="num text-xs text-ink-faint truncate mt-0.5">{server.url}</p>
-                    <p className="text-xs text-ink-faint">{getServerTypeLabel(server.type)} · {server.username}</p>
                   </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handlePing(server.id)}
-                    disabled={pinging === server.id}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-foreground transition-colors duration-200 active:scale-95"
-                    title={t('settings.server.ping')}
-                    aria-label={t('settings.server.pingAria', { name: server.name })}
-                  >
-                    {pinging === server.id
-                      ? <ArrowsClockwise className="w-4 h-4 animate-spin" />
-                      : <WifiHigh className="w-4 h-4" />
-                    }
-                  </button>
-                  {server.id !== activeServerId && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* 测试连接只对 NAS 成立：它按 ServerConfig 造一个适配器去 ping，
+                        插件音源根本没有可 ping 的地址，这个按钮此前点了必然报错 */}
+                    {!isPlugin && (
+                      <button
+                        type="button"
+                        onClick={() => handlePing(server.id)}
+                        disabled={pinging === server.id}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-foreground transition-colors duration-200 active:scale-95"
+                        title={t('settings.server.ping')}
+                        aria-label={t('settings.server.pingAria', { name: server.name })}
+                      >
+                        {pinging === server.id
+                          ? <ArrowsClockwise className="w-4 h-4 animate-spin" />
+                          : <WifiHigh className="w-4 h-4" />
+                        }
+                      </button>
+                    )}
+                    {!isPrimary && (
+                      <button
+                        type="button"
+                        /* 换主库会清空播放队列并清缓存（serverStore.setPrimaryServer），
+                           这是个有代价的动作，先说清楚再问 */
+                        onClick={() => setPendingPrimary(server.id)}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-primary transition-colors duration-200 active:scale-95"
+                        title={t('settings.source.setPrimary')}
+                        aria-label={t('settings.source.setPrimaryAria', { name: server.name })}
+                      >
+                        <CaretRight className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => handleSwitch(server.id)}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-primary transition-colors duration-200 active:scale-95"
-                      title={t('settings.server.switch')}
-                      aria-label={t('settings.server.switchAria', { name: server.name })}
+                      onClick={() => setPendingRemove(server.id)}
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-destructive transition-colors duration-200 active:scale-95"
+                      title={t('settings.source.remove')}
+                      aria-label={t('settings.server.removeAria', { name: server.name })}
                     >
-                      <CaretRight className="w-4 h-4" />
+                      <Trash className="w-4 h-4" />
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setPendingRemove(server.id)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-destructive transition-colors duration-200 active:scale-95"
-                    title={t('settings.server.remove')}
-                    aria-label={t('settings.server.removeAria', { name: server.name })}
-                  >
-                    <Trash className="w-4 h-4" />
-                  </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {supportsScan && (
               <Row
@@ -452,12 +496,15 @@ export default function Settings() {
               className="mt-5 gap-1.5"
             >
               <Plus className="w-3.5 h-3.5" />
-              {t('settings.server.add')}
+              {t('settings.source.add')}
             </Button>
           </div>
         </Section>
 
-        {/* 音源（插件）：安装 / 更新 / 卸载 / 请求日志 / 目录地址 */}
+        {/* 插件：安装 / 更新 / 卸载 / 请求日志 / 目录地址 / 播放优先序。
+            这一节管的是插件**代码**和播放顺序；音源本身（含设主库）在上面那一节。
+            设主库只剩上面那一个按钮——它会先说清「队列会清空」再问；
+            这里原来还有一个无声生效的「主库」下拉，同一个动作两种后果 */}
         <SourcesSettings />
 
         {/* 界面语言 */}
@@ -487,9 +534,7 @@ export default function Settings() {
               <>
                 {t('settings.skin.desc')}
                 <br />
-                <span className="text-ink-soft">
-                  {skin === 'pop' ? t('settings.skin.popDesc') : t('settings.skin.editorialDesc')}
-                </span>
+                <span className="text-ink-soft">{t(SKIN_LABEL_KEYS[skin].desc)}</span>
               </>
             }
           >
@@ -497,10 +542,7 @@ export default function Settings() {
               label={t('settings.skin.name')}
               value={skin}
               onChange={setSkin}
-              options={[
-                { value: 'pop' as const, label: t('settings.skin.pop') },
-                { value: 'editorial' as const, label: t('settings.skin.editorial') },
-              ]}
+              options={SKINS.map(value => ({ value, label: t(SKIN_LABEL_KEYS[value].name) }))}
             />
           </Row>
           <Row name={t('settings.theme.name')} desc={t('settings.theme.desc')}>
@@ -1012,6 +1054,34 @@ export default function Settings() {
           </Section>
         )}
       </div>
+
+      {/* 换主库的后果先说清楚：队列会被清空、正在放的那一首会停。
+          此前这个按钮点下去就直接换了，音乐当场没了也没人解释一句 */}
+      <Dialog open={pendingPrimary !== null} onOpenChange={open => { if (!open) setPendingPrimary(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('settings.primaryDialog.title')}</DialogTitle>
+            <DialogDescription>
+              {t('settings.primaryDialog.desc', {
+                name: servers.find(s => s.id === pendingPrimary)?.name ?? '',
+              })}
+              <span className="block mt-2 text-ink-faint">{t('settings.primaryDialog.safe')}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setPendingPrimary(null)}>{t('action.cancel')}</Button>
+            <Button
+              onClick={() => {
+                const id = pendingPrimary
+                setPendingPrimary(null)
+                if (id) void handleSwitch(id)
+              }}
+            >
+              {t('settings.primaryDialog.confirm')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={pendingRemove !== null} onOpenChange={open => { if (!open) setPendingRemove(null) }}>
         <DialogContent className="sm:max-w-md">

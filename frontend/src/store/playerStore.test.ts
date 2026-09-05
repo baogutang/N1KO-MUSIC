@@ -826,3 +826,152 @@ describe('空队列 + 随机开着', () => {
     expect(state().shuffledIndexes).not.toEqual(songs.map((_, i) => i))
   })
 })
+
+// ===================================================
+// B2：断开音源后按来源裁剪队列
+// ===================================================
+
+/** 指定来源的曲目（id 仍与下标对应，便于读断言） */
+function fromServer(id: string, serverId: string): Song {
+  return { ...song(id), serverId }
+}
+
+const NAS = 'nas'
+const WY = 'wy'
+
+/** 交替混源的队列：偶数下标是 NAS，奇数是网易云 */
+function seedMixedQueue(count: number, index: number, patch: Partial<PlayerSnapshot> = {}): Song[] {
+  const queue = Array.from({ length: count }, (_, i) => fromServer(`s${i}`, i % 2 === 0 ? NAS : WY))
+  usePlayerStore.setState({
+    queue,
+    queueIndex: index,
+    currentSong: queue[index] ?? null,
+    isPlaying: true,
+    shuffledIndexes: queue.map((_, i) => i),
+    shuffleCursor: -1,
+    ...patch,
+  })
+  return queue
+}
+
+describe('removeSongsFromServer', () => {
+  it('只摘掉该源的曲目，别的源留在队列里', () => {
+    seedMixedQueue(6, 0)
+
+    state().removeSongsFromServer(WY)
+
+    expect(queueIds()).toEqual(['s0', 's2', 's4'])
+    expect(state().queue.every(s => s.serverId === NAS)).toBe(true)
+  })
+
+  it('当前曲不是被断的源时，播放不中断，下标只是顺移', () => {
+    seedMixedQueue(6, 4) // s4 属于 NAS
+    const version = state().playVersion
+
+    state().removeSongsFromServer(WY)
+
+    expect(currentId()).toBe('s4')
+    expect(state().queueIndex).toBe(2)
+    expect(state().isPlaying).toBe(true)
+    // 没换歌就不该让引擎重新取流
+    expect(state().playVersion).toBe(version)
+  })
+
+  it('当前曲被摘掉时前进到下一首幸存者，而不是停在原地', () => {
+    seedMixedQueue(6, 3) // s3 属于网易云
+    const version = state().playVersion
+
+    state().removeSongsFromServer(WY)
+
+    expect(currentId()).toBe('s4')
+    expect(state().isPlaying).toBe(true)
+    expect(state().queue[state().queueIndex].id).toBe('s4')
+    expect(state().playVersion).toBe(version + 1)
+  })
+
+  it('被摘掉的是最后一首时退到新的队尾，不越界', () => {
+    seedMixedQueue(6, 5) // s5 是队尾，属于网易云
+
+    state().removeSongsFromServer(WY)
+
+    expect(currentId()).toBe('s4')
+    expect(state().queueIndex).toBe(2)
+  })
+
+  it('整条队列都属于那个源时清空并停止播放', () => {
+    const queue = [fromServer('a', WY), fromServer('b', WY)]
+    usePlayerStore.setState({
+      queue, queueIndex: 0, currentSong: queue[0], isPlaying: true,
+      shuffledIndexes: [0, 1], shuffleCursor: -1,
+    })
+
+    state().removeSongsFromServer(WY)
+
+    expect(state().queue).toEqual([])
+    expect(state().queueIndex).toBe(-1)
+    expect(currentId()).toBeNull()
+    expect(state().isPlaying).toBe(false)
+  })
+
+  it('跨列表历史里该源的曲目一并清掉，否则「上一首」会退回一首放不了的歌', () => {
+    seedMixedQueue(4, 0, { history: [fromServer('h1', WY), fromServer('h2', NAS)] })
+
+    state().removeSongsFromServer(WY)
+
+    expect(state().history.map(s => s.id)).toEqual(['h2'])
+  })
+
+  it('随机模式下裁剪是无损的：不重洗，剩下的播放顺序保持原样', () => {
+    const queue = seedMixedQueue(6, 0, {
+      shuffle: true,
+      shuffledIndexes: [0, 3, 1, 4, 2, 5],
+      shuffleCursor: 0,
+    })
+    void queue
+
+    state().removeSongsFromServer(WY)
+
+    // 原顺序里属于 NAS 的是 s0 → s4 → s2，裁完必须还是这个先后
+    expect(shuffleOrderIds()).toEqual(['s0', 's4', 's2'])
+    expect(state().shuffledIndexes).toHaveLength(3)
+    expect([...state().shuffledIndexes].sort((a, b) => a - b)).toEqual([0, 1, 2])
+    // 游标仍对准当前曲
+    expect(state().shuffledIndexes[state().shuffleCursor]).toBe(state().queueIndex)
+  })
+
+  it('随机模式下当前曲被摘掉时，沿随机顺序接着播，不跳过未播的一段', () => {
+    seedMixedQueue(6, 3, {
+      shuffle: true,
+      // 播放顺序：s3(当前) → s5 → s0 → s2 → s4 → s1
+      shuffledIndexes: [3, 5, 0, 2, 4, 1],
+      shuffleCursor: 0,
+    })
+
+    state().removeSongsFromServer(WY)
+
+    // s5、s1 也是网易云的，随机顺序里当前曲之后的第一个幸存者是 s0
+    expect(currentId()).toBe('s0')
+    expect(state().shuffledIndexes[state().shuffleCursor]).toBe(state().queueIndex)
+    expect(shuffleOrderIds()).toEqual(['s0', 's2', 's4'])
+  })
+
+  it('这个源在队列里根本没歌时不动任何状态', () => {
+    seedMixedQueue(4, 1)
+    const before = state()
+
+    state().removeSongsFromServer('never-connected')
+
+    expect(state().queue).toBe(before.queue)
+    expect(state().history).toBe(before.history)
+    expect(state().queueIndex).toBe(before.queueIndex)
+    expect(state().playVersion).toBe(before.playVersion)
+  })
+
+  it('空 serverId 不做任何裁剪——那会把没带来源的旧数据全清掉', () => {
+    seedMixedQueue(4, 0)
+
+    state().removeSongsFromServer('')
+
+    expect(queueIds()).toEqual(['s0', 's1', 's2', 's3'])
+  })
+})

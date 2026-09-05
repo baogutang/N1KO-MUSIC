@@ -8,6 +8,7 @@
 
 连上 Navidrome / Subsonic / Jellyfin / Emby，
 把自己的曲库读成一本排好版的刊物。
+没有 NAS？用自己的网易云音乐 / QQ 音乐账号登录，一样能听。
 
 <br/>
 
@@ -71,39 +72,49 @@ ReplayGain 直接用服务器已经算好的增益。
 
 ### 正在播放
 
-大封面、歌词流，当前行是一支柠檬黄荧光笔——点任意一行即可跳转。
-（切到纸·墨·朱，当前行会换成朱色短划线，背景多一层从封面取色的氛围光。）
+大封面、歌词流，当前行会被高亮——点任意一行即可跳转。
+软陶下它是一块奶油黄的软糖，波普是一支柠檬黄荧光笔，
+纸·墨·朱则换成朱色短划线，背景多一层从封面取色的氛围光。
 
-![正在播放](docs/screenshots/v3/player.gif)
+![正在播放](docs/screenshots/v4/player.gif)
 
 ### 首页 · 封面页
 
 头条专辑、编号排列的最近添加、文字化的歌手索引，
 以及**重听**——三栏全部来自你自己的收听记录。
 
-同一个首页，两张皮。顶部工具条的调色板图标一键切换，
-设置 · 外观里也能选；两者都各有浅色与深色。
+同一个首页，三张皮。顶部工具条的调色板图标一键轮换，
+设置 · 外观里也能选；每一张都各有浅色与深色。
 
-**糖果·波普工坊** · 默认
+**奶油·软陶** · 默认
 
-![首页 · 糖果·波普工坊](docs/screenshots/v3/home.png)
+粉彩黏土质感的仪表盘：通高侧栏、卡片网格、软鼓包的按钮，
+问候横幅里住着吉祥物**阿糯**——在放歌时它戴着耳机听，停下来会朝你挥手，
+侧栏里点它一下会蹦一蹦、说句话。
+
+![首页 · 奶油·软陶](docs/screenshots/v4/home.png)
+
+**糖果·波普工坊**
+
+![首页 · 糖果·波普工坊](docs/screenshots/v4/home-pop.png)
 
 **纸·墨·朱**
 
-![首页 · 纸·墨·朱](docs/screenshots/v3/home-editorial.png)
+![首页 · 纸·墨·朱](docs/screenshots/v4/home-editorial.png)
 
 ### 专辑 · 档案页
 
 超大封面、档案式元数据、曲目表、内页说明，
 以及一块可以写你自己那句话的页边。
 
-![专辑详情](docs/screenshots/v3/album.png)
+![专辑详情](docs/screenshots/v4/album.png)
 
-### 连接服务器
+### 连接服务器，或者登录一个流媒体音源
 
-Navidrome / Subsonic / Jellyfin / Emby，几秒钟连上。
+Navidrome / Subsonic / Jellyfin / Emby，几秒钟连上；
+网易云音乐 / QQ 音乐，用手机 App 扫个码。
 
-![连接](docs/screenshots/v3/login.png)
+![连接](docs/screenshots/v4/login.png)
 
 <br/>
 
@@ -249,8 +260,38 @@ flowchart LR
 
 <details>
 <summary>相关搜索</summary>
-<sub>Navidrome 客户端 · Navidrome 桌面版 · Subsonic 客户端 · Subsonic 音乐播放器 · Jellyfin 音乐播放器 · Emby 音乐播放器 · NAS 音乐播放器 · 自建音乐播放器 · 私有云音乐 · Airsonic 客户端</sub>
+<sub>Navidrome 客户端 · Navidrome 桌面版 · Subsonic 客户端 · Subsonic 音乐播放器 · Jellyfin 音乐播放器 · Emby 音乐播放器 · NAS 音乐播放器 · 自建音乐播放器 · 私有云音乐 · Airsonic 客户端 · 网易云音乐 第三方客户端 · QQ 音乐 桌面客户端</sub>
 </details>
+
+<br/>
+
+## 流媒体音源 · 网易云音乐 / QQ 音乐
+
+没有 NAS，或者 NAS 上没有的歌，用你自己的账号登录就能听——
+**你有权听什么，这里就放什么**。会员曲你的账号没权限，它就标成 VIP 并告诉你原因，
+不做任何「解析」「破解」。
+
+| 音源 | 登录 | 能做什么 |
+|------|------|------|
+| 网易云音乐 | 手机 App 扫码 | 搜索、我的歌单、收藏、每日推荐、榜单、歌词、加入 / 移出歌单 |
+| QQ 音乐 | 手机 QQ 扫码 | 搜索、我的歌单、收藏、雷达推荐、榜单、歌词 |
+
+它们和你的 NAS 是**并列**的，不是二选一：
+
+- **搜索按来源分组**，也能切到「全部」按相关度混排；
+- 首页的**「今天听什么」**把各个音源的每日推荐交错合成一列（推荐页是它的展开版）；
+- 收藏、歌单按来源分节，队列里可以混着放；
+- 登录过期会在顶部提示你重新扫码，而不是让一半的页面无声地消失。
+
+**怎么做到的。** 每个音源是一个插件（[协议文档](docs/sources/PROTOCOL.md)，兼容 MusicFree 插件的写法，加了扫码登录等 `n1ko` 扩展），
+跑在一个只允许执行脚本的沙箱里：不能碰页面，不能自己联网，只能通过宿主访问
+manifest 里白名单列出的域名，重定向每一跳都重新过白名单。
+出厂的两个插件随安装包一起打进去，首次启动自动就绪。
+
+**边界，直接说清楚。** 这些接口来自社区的逆向整理，不是官方开放接口——平台一改，它们可能失效，
+我们会跟着修，但不保证永远可用。凭据用与服务器密码同一套 AES-GCM 加密只存在本机，
+不经过任何第三方服务器。浏览器版（Docker / 静态托管）没有可用的出网通道，
+流媒体音源只在桌面版与 App 里提供。
 
 <br/>
 
@@ -284,9 +325,10 @@ flowchart LR
 | 层 | 技术 |
 |------|-----|
 | 前端 | React 18 · TypeScript · Vite 5 · Tailwind CSS |
-| UI | Radix UI · Phosphor Icons · 自托管字体（Source Serif 4 / Hanken Grotesk / JetBrains Mono） |
+| UI | Radix UI · Phosphor Icons · 自托管字体（Source Serif 4 / Hanken Grotesk / JetBrains Mono / Nunito） |
 | 状态与数据 | Zustand · TanStack Query v5 |
 | 音频引擎 | 原生 HTML5 Audio |
+| 流媒体音源 | 沙箱化插件（MusicFree 兼容协议 + `n1ko` 扩展），宿主按白名单代理出网 |
 | 桌面壳 | Tauri 2（Rust） |
 | 移动壳 | Capacitor 8（Android · iOS） |
 | 可选同步服务 | Node.js 24 · Express · SQLite |
@@ -387,6 +429,7 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 | 收听历史、统计、口味画像 | 这台设备（IndexedDB），以及你自己跑的同步服务（如果有）。 |
 | 边注 | 同上。它是这里唯一无法重建的数据，所以优先同步。 |
 | 服务器凭据 | 用页面脚本取不出来的 AES-GCM 密钥加密落盘。 |
+| 网易云 / QQ 音乐的登录凭据 | 同上。只在本机；插件在沙箱里跑，出网只能到 manifest 白名单里的域名。 |
 | 导出的文件 | 在浏览器里生成，不上传。 |
 | ListenBrainz 打卡 | 只有你填了 token 才发，默认关闭。 |
 | MusicBrainz 歌手档案 | 只发歌手的 MusicBrainz 编号，且只有你打开开关才发，默认关闭。 |

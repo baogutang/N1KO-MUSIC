@@ -103,6 +103,7 @@ module.exports = {
       async getRecommendSongs() {},                  // -> MusicItem[]（登录态每日推荐；未登录抛 unauthorized）
     },
     async getMediaSource(musicItem, quality) {},     // 有则优先于顶层同名方法；-> { url, expiresAt?, headers?, mimeType? }
+    async getSimilarSongs(musicItem, count) {},      // -> MusicItem[]（电台种子的相似曲；声明 capability `radio` 时必须实现）
   },
 }
 ```
@@ -219,6 +220,8 @@ interface MediaSource {
 | `topLists` / `recommendSheets` | 发现区块不出现 |
 | `importSheet` | 「粘贴链接导入」不出现 |
 | `libraryBrowse` | 流媒体音源一般不声明；未声明时该音源不出现在专辑、歌手、流派浏览页 |
+| `recommendSongs` | 首页「今天听什么」与推荐页不合并该音源的每日推荐 |
+| `radio` | 曲目行与歌曲页的「以此开电台」不出现；电台种子来自哪个音源就只在那个音源里找相似（不回落主库） |
 
 ## 7. 错误码
 
@@ -273,10 +276,17 @@ type PluginErrorCode =
 
 宿主对 `fetch` 的处理：
 
-1. 解析 URL，域名不在 manifest `hosts` 内直接回 `ok: false, error: { code: 'forbidden' }`，并写入该插件的请求日志。
-2. 按运行环境选一条通道（见 PLAN.md §4.3）。
+1. 解析 URL，域名不在 manifest `hosts` 内直接回 `ok: false, error: { code: 'forbidden' }`，并写入该插件的请求日志（日志只记 origin + path，查询串一律不落盘——二维码 token、vkey、csrf 都在查询串里）。
+2. 按运行环境选一条通道（见 PLAN.md §4.3）。**每条通道都以「不跟随重定向」发起**，跟随由宿主自己做：最多 5 跳，每一跳重新过 `hosts` 白名单与私网判定，跨主机时剥掉 `Cookie` / `Authorization`，303 与 301/302+POST 按 Fetch 规范改成 GET。插件声明 `redirect: 'manual'` 时原样交回 3xx（QQ 登录要读 `Location`）。
 3. 响应头全部转回；`set-cookie` 有就给，原生通道拿不到时给空。
 4. 二进制响应用 base64。
+5. 每个请求都有超时：插件给的 `timeoutMs` 夹在 (0, 120s]，没给或不合法按 30s；宿主 dispose 时未完成的请求全部中止。
+
+插件**返回**的地址同样过白名单：封面、头像、歌单封面只认 `hosts` 内的 http(s)（另放行 8 KB 以内的内联 `data:image`，给离线占位图用）；流地址与二维码图片额外放行 `data:audio|video|image`；`javascript:`、`file:`、`data:text/html` 一律丢弃，取流时丢弃即 `forbidden`。
+
+沙箱一旦越界（`ready` 之后 iframe 再次触发 `load`，意味着插件让沙箱自导航到了别处）宿主立即把它拆掉、把该音源标为「插件异常，已停用」，父文档的 CSP `frame-src blob:` 是这道防线的第一层。
+
+开发态浏览器通道走 Vite 的 `/__n1ko_proxy`：白名单按 `pluginId` 从仓库 `plugins/<id>/manifest.json` 读盘，不信请求体；请求必须同源、带 `X-N1KO-Proxy: 1` 自定义头且为 JSON，任一不满足 403；目标域名先做 DNS 解析，解到私网即拒。
 
 ## 9. 版本与兼容
 

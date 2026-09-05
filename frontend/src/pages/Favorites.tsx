@@ -12,7 +12,9 @@ import { useConnectedSources, useSourceStarred } from '@/hooks/useSourceQueries'
 import { playAllInOrder } from '@/utils/playActions'
 import { SongList } from '@/components/music/SongList'
 import { AlbumCard } from '@/components/music/AlbumCard'
+import { useQueryClient } from '@tanstack/react-query'
 import { SourceBadge } from '@/components/sources/SourceBadge'
+import { SourceGroupState } from '@/components/sources/SourceGroupState'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
 
@@ -20,6 +22,7 @@ type FavTab = 'songs' | 'albums'
 
 export default function Favorites() {
   const { t } = useT()
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState<FavTab>('songs')
   const [searchParams] = useSearchParams()
   const srcFilter = searchParams.get('src') ?? undefined
@@ -29,7 +32,14 @@ export default function Favorites() {
 
   // 单源 / ?src= 过滤：一条查询；多源：每源一条（失败塌缩成该节错误行）。
   // 多源时单源 hook 关掉，避免设了曲库范围后主库同一请求打两遍
-  const starredGroups = useSourceStarred().filter(g => g.status !== 'loading')
+  /*
+   * 保留加载中的分组。
+   *
+   * 丢掉它们的后果是：慢源返回的那一刻，一整节凭空插进页面中部，
+   * 正在看的内容被顶下去；而且「这个源在转」和「这个源坏了」长得一模一样。
+   * 三态各自呈现，位置从一开始就占住。
+   */
+  const starredGroups = useSourceStarred()
   const single = useStarred(srcFilter, { enabled: !multi })
   const singleSongs = single.data?.songs ?? []
   const singleAlbums = single.data?.albums ?? []
@@ -133,13 +143,23 @@ export default function Favorites() {
                 </h2>
               </div>
             )}
-            {section.status === 'error' && (
-              <p className="py-3 text-[13px] text-ink-faint border-t border-hair">
-                {t('sources.loadError')}
-              </p>
+            {section.status !== 'success' && (
+              <div className="border-t border-hair">
+                <SourceGroupState
+                  serverId={section.serverId}
+                  status={section.status}
+                  onRetry={() =>
+                    queryClient.invalidateQueries({
+                      predicate: query => query.queryKey[1] === 'starred',
+                    })
+                  }
+                />
+              </div>
             )}
             {section.status === 'success' && tab === 'songs' && (
-              songs.length === 0 && !multi ? (
+              songs.length === 0 ? (
+                /* 多源下也要给空态：只留一个孤零零的音源名，
+                   「这个源没有收藏」和「这个源坏了」就分不出来了 */
                 <EmptyState
                   ruled
                   title={t('empty.favoriteSongs.title')}
@@ -150,7 +170,7 @@ export default function Favorites() {
               ) : null
             )}
             {section.status === 'success' && tab === 'albums' && (
-              albums.length === 0 && !multi ? (
+              albums.length === 0 ? (
                 <EmptyState
                   ruled
                   title={t('empty.favoriteAlbums.title')}

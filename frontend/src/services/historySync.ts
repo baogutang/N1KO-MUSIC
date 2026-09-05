@@ -223,7 +223,14 @@ export async function mirrorFavorite(
   song?: Song
 ): Promise<void> {
   const credentials = activeSyncCredentials()
-  const serverId = useServerStore.getState().activeServerId
+  /*
+   * 归属按**这首歌自己的来源**记，主库只是没歌可依时的兜底（取消收藏只传 id）。
+   *
+   * 写死主库的后果是跨设备镜像里所有收藏都挂在 NAS 名下：换台设备拉回来，
+   * 一首网易云的歌会被当成 NAS 的，随后拿它的 id 去 NAS 上找——找不到，
+   * 或者更糟，找到同 id 的另一首。
+   */
+  const serverId = song?.serverId ?? useServerStore.getState().activeServerId
   if (!credentials || !serverId) return
   if (starred && !song) return
 

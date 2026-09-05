@@ -16,6 +16,7 @@ import {
 } from './services/historySync'
 import { syncNotes } from './services/notes'
 import { useSyncStore } from './store/syncStore'
+import { installWindowDrag } from '@/lib/windowDrag'
 
 // 清掉旧版每 30 秒新增一条、从不回收的推荐缓存键：已被撑满配额的用户
 // 加载一次即可自愈。（persist 适配器本身也会在写入失败时回收，此处是提前腾空间。）
@@ -89,6 +90,9 @@ function Bootstrap({ children }: { children: React.ReactNode }) {
   }
   return <>{children}</>
 }
+
+// 桌面版窗口拖拽的可靠实现（原因见 lib/windowDrag.ts）
+installWindowDrag()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>

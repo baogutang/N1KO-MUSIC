@@ -315,7 +315,8 @@ export function FullscreenPlayer() {
     currentSong?.album,
     currentSong?.path,
     currentSong?.duration,
-    !!currentSong  // 组件已由 MainLayout 条件挂载，无需检查 isFullscreen
+    !!currentSong,  // 组件已由 MainLayout 条件挂载，无需检查 isFullscreen
+    currentSong?.serverId  // 歌词要向这首歌自己的音源要，不能问主库
   )
 
   const cycleRepeatMode = () => {

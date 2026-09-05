@@ -48,6 +48,9 @@ export function MobileLayout() {
       <div className="relative flex flex-col h-screen h-[100dvh] bg-background text-foreground overflow-hidden">
         <MobileHeader />
         <UpdatePrompt />
+        {/* 离线 / 音源登录失效 / 插件异常同走这一条。
+            过期提示此前只有桌面那条 SourceAccountBanner 有，手机端从来看不到；
+            那条已并进 ConnectionBanner，两种布局挂的是同一个组件。 */}
         <ConnectionBanner />
         <ResumeOffer />
 

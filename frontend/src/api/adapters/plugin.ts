@@ -46,6 +46,9 @@ import {
   minimalMusicItem,
   type PluginQuality,
 } from '@/plugins/mapping'
+import { safeResourceUrl } from '@/plugins/host/whitelist'
+import { PluginCallError } from '@/plugins/host/PluginHost'
+import { artworkSizeHint } from '@/plugins/artworkSize'
 
 /** 沙箱宿主的最小面：适配器只依赖这两个方法，测试用假实现顶上 */
 export interface PluginHostLike {
@@ -77,6 +80,7 @@ export class PluginAdapter implements MusicServerAdapter {
   getTopListDetail?: MusicServerAdapter['getTopListDetail']
   getRecommendSheets?: MusicServerAdapter['getRecommendSheets']
   getRecommendSongs?: MusicServerAdapter['getRecommendSongs']
+  getSimilarSongs?: MusicServerAdapter['getSimilarSongs']
   searchSongsPage?: MusicServerAdapter['searchSongsPage']
 
   constructor(config: PluginAdapterConfig) {
@@ -84,6 +88,15 @@ export class PluginAdapter implements MusicServerAdapter {
     this.manifest = config.manifest
     this.host = config.host
     this.mountOptionalMethods()
+  }
+
+  /**
+   * 该插件放行的域名（manifest.hosts）。映射层拿它判封面地址、取流判流地址：
+   * 这两处地址都由主窗口自己加载，不经宿主通道，白名单必须在这一层再挡一次
+   * （见 mapping.ts 的 safeArtwork 注释）。
+   */
+  protected get hosts(): readonly string[] {
+    return this.manifest.hosts ?? []
   }
 
   // --- 认证（插件登录走 Login 页的 QR/Cookie 流程，不经过这里） ---
@@ -122,17 +135,31 @@ export class PluginAdapter implements MusicServerAdapter {
   }
 
   async getSong(songId: string): Promise<Song | null> {
-    const raw = this.rawSong({ id: songId })
-    if (!raw) return null
-    // 缓存里只有最小项时无从补全——直接以最小形状返回，调用方按需再取详情
-    return mapMusicItem(raw, this.serverId)
+    const cached = getRawItem<MusicItem>(this.serverId, 'song', songId)
+    if (cached) return mapMusicItem(cached, this.serverId, this.hosts)
+    /*
+     * 原始项缓存只在内存里：刷新 /songs/:id?src=插件 或从分享链接进来时必然未命中。
+     * 插件若实现了 MusicFree 的 getMusicInfo（按 id 补全一条），就去问一次；
+     * 否则老实返回 null，让详情页走「找不到这首歌」——此前这里回落成
+     * title 为空的最小桩，详情页就成了一张没有曲名、没有歌手的空白档案，
+     * 而且这个桩还会被 mapMusicItem 写回缓存，之后起播递给插件的也是它。
+     */
+    if (!this.host.hasMethod('getMusicInfo')) return null
+    try {
+      const info = await this.host.call<MusicItem | null>('getMusicInfo', minimalMusicItem({ id: songId }, this.manifest.platform))
+      if (!info || !isMusicItemShape(info) || !info.title) return null
+      return mapMusicItem({ ...info, id: songId }, this.serverId, this.hosts)
+    } catch {
+      return null
+    }
   }
 
   async searchAll(query: string): Promise<SearchResult> {
     const result: SearchResult = { songs: [], albums: [], artists: [], playlists: [] }
-    if (!this.capability('search')) return result
+    // 与文件里其它可选方法同一约定：manifest 声明了、沙箱也真回报了方法，才调
+    if (!this.capability('search') || !this.host.hasMethod('search')) return result
     const paged = await this.host.call<Paged<MusicItem | AlbumItem | ArtistItem | SheetItem> | null>('search', query, 1, 'music')
-    result.songs = (paged?.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId))
+    result.songs = (paged?.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId, this.hosts))
     result.songsIsEnd = paged?.isEnd ?? true
     if (this.host.hasMethod('search')) {
       const [albums, artists, sheets] = await Promise.allSettled([
@@ -140,10 +167,10 @@ export class PluginAdapter implements MusicServerAdapter {
         this.host.call<Paged<ArtistItem>>('search', query, 1, 'artist'),
         this.host.call<Paged<SheetItem>>('search', query, 1, 'sheet'),
       ])
-      if (albums.status === 'fulfilled') result.albums = (albums.value.data ?? []).map(i => mapAlbumItem(i, this.serverId))
-      if (artists.status === 'fulfilled') result.artists = (artists.value.data ?? []).map(i => mapArtistItem(i, this.serverId))
+      if (albums.status === 'fulfilled') result.albums = (albums.value.data ?? []).map(i => mapAlbumItem(i, this.serverId, this.hosts))
+      if (artists.status === 'fulfilled') result.artists = (artists.value.data ?? []).map(i => mapArtistItem(i, this.serverId, this.hosts))
       if (sheets.status === 'fulfilled' && result.playlists) {
-        result.playlists = (sheets.value.data ?? []).map(i => mapSheetItem(i, this.serverId))
+        result.playlists = (sheets.value.data ?? []).map(i => mapSheetItem(i, this.serverId, this.hosts))
       }
     }
     return result
@@ -180,7 +207,7 @@ export class PluginAdapter implements MusicServerAdapter {
     const { songs, item: albumItem } = await this.fetchAllDetailPages(
       page => this.host.call<MediaDetailResult<AlbumItem>>('getAlbumInfo', rawAlbum, page)
     )
-    const album = mapAlbumItem(albumItem ?? rawAlbum, this.serverId)
+    const album = mapAlbumItem(albumItem ?? rawAlbum, this.serverId, this.hosts)
     return { ...album, songs }
   }
 
@@ -201,7 +228,7 @@ export class PluginAdapter implements MusicServerAdapter {
     if (!this.host.hasMethod('getArtistWorks')) throw new Error('Plugin does not support artist detail')
     const rawArtist = getRawItem<ArtistItem>(this.serverId, 'artist', artistId)
       ?? { platform: this.manifest.platform, id: artistId, name: '' }
-    const artist = mapArtistItem(rawArtist, this.serverId)
+    const artist = mapArtistItem(rawArtist, this.serverId, this.hosts)
     const [works, albumsWorks] = await Promise.allSettled([
       this.host.call<Paged<MusicItem>>('getArtistWorks', rawArtist, 1, 'music'),
       this.host.call<Paged<AlbumItem>>('getArtistWorks', rawArtist, 1, 'album'),
@@ -210,7 +237,7 @@ export class PluginAdapter implements MusicServerAdapter {
       ? await this.fetchMusicPages(1, page => this.host.call<Paged<MusicItem>>('getArtistWorks', rawArtist, page, 'music'), works.value)
       : []
     const albums = albumsWorks.status === 'fulfilled'
-      ? (albumsWorks.value.data ?? []).map(i => mapAlbumItem(i, this.serverId))
+      ? (albumsWorks.value.data ?? []).map(i => mapAlbumItem(i, this.serverId, this.hosts))
       : []
     return { ...artist, albums, songs }
   }
@@ -220,7 +247,7 @@ export class PluginAdapter implements MusicServerAdapter {
   async getPlaylists(): Promise<Playlist[]> {
     if (!this.host.hasMethod('n1ko.user.getPlaylists')) return []
     const res = await this.host.call<{ created?: SheetItem[]; subscribed?: SheetItem[] } | null>('n1ko.user.getPlaylists')
-    return [...(res?.created ?? []), ...(res?.subscribed ?? [])].map(s => mapSheetItem(s, this.serverId))
+    return [...(res?.created ?? []), ...(res?.subscribed ?? [])].map(s => mapSheetItem(s, this.serverId, this.hosts))
   }
 
   async getPlaylistDetail(playlistId: string): Promise<PlaylistDetail> {
@@ -230,14 +257,14 @@ export class PluginAdapter implements MusicServerAdapter {
     const { songs, item: sheetItem } = await this.fetchAllDetailPages(
       page => this.host.call<MediaDetailResult<SheetItem>>('getMusicSheetInfo', rawSheet, page)
     )
-    const playlist = mapSheetItem(sheetItem ?? rawSheet, this.serverId)
+    const playlist = mapSheetItem(sheetItem ?? rawSheet, this.serverId, this.hosts)
     return { ...playlist, songs, songCount: songs.length }
   }
 
   async createPlaylist(name: string, songIds: string[] = []): Promise<Playlist> {
     if (!this.host.hasMethod('n1ko.user.createPlaylist')) throw new Error('Plugin does not support creating playlists')
     const sheet = await this.host.call<SheetItem>('n1ko.user.createPlaylist', name)
-    const playlist = mapSheetItem(sheet, this.serverId)
+    const playlist = mapSheetItem(sheet, this.serverId, this.hosts)
     if (songIds.length && this.host.hasMethod('n1ko.user.addToPlaylist')) {
       await this.host.call('n1ko.user.addToPlaylist', sheet, songIds.map(id => this.rawSong({ id })))
     }
@@ -317,9 +344,13 @@ export class PluginAdapter implements MusicServerAdapter {
     throw new Error('Plugin does not support writing lyrics')
   }
 
-  getCoverUrl(id: string, _size?: number): string {
-    // 插件的 coverArt 本来就是 URL（PROTOCOL §5.2），原样返回
-    return id
+  getCoverUrl(id: string, size?: number): string {
+    // 插件的 coverArt 本来就是 URL（PROTOCOL §5.2）——但仍要过一次白名单：
+    // 映射层之外还有落盘的旧数据（听歌历史、query 持久化缓存）会把早于加固
+    // 写入的地址喂回来。不放行的返回空串（调用方按「没有封面」处理）。
+    // 放行的按调用方要的尺寸加缩略提示（见 artworkSize.ts：网易云原图 4000² 一张 2 MB）
+    const safe = safeResourceUrl(id, this.hosts, { allowSmallDataImage: true })
+    return safe ? artworkSizeHint(safe, size) : ''
   }
 
   async getGenres(): Promise<Array<{ name: string; songCount: number; albumCount: number }>> {
@@ -369,7 +400,7 @@ export class PluginAdapter implements MusicServerAdapter {
       case 'recommendSheets': return this.host.hasMethod('getRecommendSheetsByTag')
       case 'recommendSongs': return this.host.hasMethod('n1ko.user.getRecommendSongs')
       case 'importSheet': return this.host.hasMethod('importMusicSheet')
-      case 'radio': return this.host.hasMethod('getSimilarSongs')
+      case 'radio': return this.host.hasMethod('n1ko.getSimilarSongs')
       default: return false
     }
   }
@@ -385,7 +416,14 @@ export class PluginAdapter implements MusicServerAdapter {
         const quality: PluginQuality = mapQuality(opts.quality, this.manifest.qualities)
         const method = this.host.hasMethod('n1ko.getMediaSource') ? 'n1ko.getMediaSource' : 'getMediaSource'
         const media = await this.host.call<{ url: string; expiresAt?: number; mimeType?: string }>(method, raw, quality)
-        return { url: media.url, expiresAt: media.expiresAt, mimeType: media.mimeType }
+        // 流地址由主窗口的 <audio> 直接加载（不经宿主通道），白名单必须在这里
+        // 再挡一次：否则插件把凭据拼进流地址的 query 就能靠一次播放送出设备。
+        // data: 额外放行——Mock 插件的流是内存里生成的 WAV，不出网。
+        const url = safeResourceUrl(media?.url, this.hosts, { allowDataMedia: true })
+        if (!url) {
+          throw new PluginCallError('forbidden', `Stream URL not in plugin allowlist: ${this.manifest.id}`)
+        }
+        return { url, expiresAt: media.expiresAt, mimeType: media.mimeType }
       }
       this.resolveStreamUrl = resolve
     }
@@ -394,7 +432,7 @@ export class PluginAdapter implements MusicServerAdapter {
     if (this.capability('search') && this.host.hasMethod('search')) {
       this.searchSongsPage = async (query: string, page: number) => {
         const paged = await this.host.call<Paged<MusicItem> | null>('search', query, page, 'music')
-        const songs = (paged?.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId))
+        const songs = (paged?.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId, this.hosts))
         return { songs, isEnd: paged?.isEnd ?? true }
       }
     }
@@ -404,21 +442,33 @@ export class PluginAdapter implements MusicServerAdapter {
         const groups = await this.host.call<TopListGroup[]>('getTopLists')
         return (groups ?? []).map(g => ({
           title: g.title,
-          items: (g.data ?? []).map(s => mapSheetItem(s, this.serverId)),
+          items: (g.data ?? []).map(s => mapSheetItem(s, this.serverId, this.hosts)),
         }))
       }
       this.getTopListDetail = async (topListId: string, page: number) => {
         const raw = getRawItem<SheetItem>(this.serverId, 'sheet', topListId)
           ?? { platform: this.manifest.platform, id: topListId, title: '' }
         const detail = await this.host.call<MediaDetailResult<SheetItem>>('getTopListDetail', raw, page)
-        return { isEnd: detail.isEnd, songs: (detail.musicList ?? []).map(m => mapMusicItem(m, this.serverId)) }
+        return { isEnd: detail.isEnd, songs: (detail.musicList ?? []).map(m => mapMusicItem(m, this.serverId, this.hosts)) }
       }
     }
 
     if (this.capability('recommendSheets') && this.host.hasMethod('getRecommendSheetsByTag')) {
       this.getRecommendSheets = async (page: number) => {
         const paged = await this.host.call<Paged<SheetItem> | null>('getRecommendSheetsByTag', '', page)
-        return { isEnd: paged?.isEnd ?? true, items: (paged?.data ?? []).map(s => mapSheetItem(s, this.serverId)) }
+        return { isEnd: paged?.isEnd ?? true, items: (paged?.data ?? []).map(s => mapSheetItem(s, this.serverId, this.hosts)) }
+      }
+    }
+
+    /*
+     * 电台相似曲：n1ko.getSimilarSongs(musicItem, count) → MusicItem[]。
+     * 此前 capability 探测认 getSimilarSongs、这里却从不挂它——第三方插件
+     * 一声明 radio，曲目行就长出「以此开电台」，点了必然「不支持」。
+     */
+    if (this.capability('radio') && this.host.hasMethod('n1ko.getSimilarSongs')) {
+      this.getSimilarSongs = async (songId: string, count = 20) => {
+        const items = await this.host.call<MusicItem[] | null>('n1ko.getSimilarSongs', this.rawSong({ id: songId }), count)
+        return (items ?? []).filter(isMusicItemShape).map(m => mapMusicItem(m, this.serverId, this.hosts))
       }
     }
 
@@ -426,7 +476,7 @@ export class PluginAdapter implements MusicServerAdapter {
     if (this.capability('recommendSongs') && this.host.hasMethod('n1ko.user.getRecommendSongs')) {
       this.getRecommendSongs = async () => {
         const items = await this.host.call<MusicItem[]>('n1ko.user.getRecommendSongs')
-        return (items ?? []).map(m => mapMusicItem(m, this.serverId))
+        return (items ?? []).map(m => mapMusicItem(m, this.serverId, this.hosts))
       }
     }
   }
@@ -459,7 +509,7 @@ export class PluginAdapter implements MusicServerAdapter {
       if (page > firstPage && firstId !== undefined && firstId === prevFirstId) return songs
       prevFirstId = firstId
       for (const item of current.data ?? []) {
-        songs.push(mapMusicItem(item, this.serverId))
+        songs.push(mapMusicItem(item, this.serverId, this.hosts))
         if (songs.length >= FETCH_ALL_CAP) return songs
       }
       if (current.isEnd || !(current.data ?? []).length) return songs
@@ -487,7 +537,7 @@ export class PluginAdapter implements MusicServerAdapter {
       }
       prevFirstId = firstId
       for (const music of list) {
-        songs.push(mapMusicItem(music, this.serverId))
+        songs.push(mapMusicItem(music, this.serverId, this.hosts))
         if (songs.length >= FETCH_ALL_CAP) return { songs, item }
       }
       if (detail.isEnd || !list.length) return { songs, item }

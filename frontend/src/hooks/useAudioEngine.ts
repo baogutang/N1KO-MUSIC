@@ -182,6 +182,12 @@ let consecutiveResolveFailures = 0
 const MAX_AUTO_SKIPS = 5
 /** 已为这个加载 key 尝试过一次跨源降级（换源后的新 key 是另一首歌，可再试） */
 let fallbackAttemptedKey: string | null = null
+/**
+ * 上一次因「音源已断开」跳过的曲目。
+ * 断开动作本身会裁队列，走到这里的都是漏网的；万一整条队列都属于那个源，
+ * 逐首跳过时不该对每一首各弹一次提示——说一次就够了。
+ */
+let disconnectedNoticeKey: string | null = null
 
 /**
  * 在不改变任何状态的前提下算出「下一首是谁」。
@@ -324,6 +330,7 @@ export function useAudioEngine() {
   const muted       = usePlayerStore(s => s.muted)
   const isConnected = useServerStore(s => s.isConnected)
   const activeServerId = useServerStore(s => s.activeServerId)
+  const startupConnectSettled = useServerStore(s => s.startupConnectSettled)
   const audioQuality = useSettingsStore(s => s.audioQuality)
   const cellularAudioQuality = useSettingsStore(s => s.cellularAudioQuality)
   const adaptiveQuality = useSettingsStore(s => s.adaptiveQuality)
@@ -597,6 +604,19 @@ export function useAudioEngine() {
     // 主库（isConnected）断开不能连坐——正在放的插件源歌曲适配器还活着就该继续放
     const songServer = songServerId(activeSong)
     if (!hasAdapterFor(songServer)) {
+      /*
+       * 冷启动：插件音源的沙箱还在装载，此刻「没适配器」只是「还没连上」。
+       * 什么都不做，等 startupConnectSettled 翻真后本 effect 重跑再判。
+       * 否则每次重启都会把用户上次听的那首当成「源断了」跳掉、还自动开播。
+       */
+      if (!startupConnectSettled) return
+      /*
+       * 这首歌的音源已经断开。
+       *
+       * 原来是静默暂停并清空音频：界面还停在这首歌上、进度条不动、按播放
+       * 没反应，用户看到的是「播放器坏了」，而真相是「这个源没连着」。
+       * 现在说清楚原因并跳到下一首——队列混源，别的源的歌还能放。
+       */
       persistListeningSession()
       resetListeningSession()
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
@@ -604,8 +624,16 @@ export function useAudioEngine() {
       audioEl.src = ''
       loadedKey = null
       usePlayerStore.getState().setStreamBuffering(false)
+      const noticeKey = `${songServer}:${songId}`
+      if (disconnectedNoticeKey !== noticeKey) {
+        disconnectedNoticeKey = noticeKey
+        toast({ title: t('player.sourceDisconnected'), variant: 'destructive' })
+      }
+      // auto:true：到队尾就停下（那是「放完了」），不要在死队列上空转
+      usePlayerStore.getState().next({ auto: true })
       return
     }
+    disconnectedNoticeKey = null
 
     const currentKey = buildLoadedKey(songServer, songId, effectiveQuality, playVersion)
 
@@ -642,16 +670,30 @@ export function useAudioEngine() {
         usePlayerStore.getState().setStreamBuffering(false)
         // 静默失败在用户眼里就是「点了没反应」——VIP/付费曲至少要说明原因
         const detail = e instanceof Error ? e.message : String(e)
+        /**
+         * 「是不是权限问题」按**协议错误码**判（PluginCallError.code，PROTOCOL §7）。
+         *
+         * 原来匹配的是异常文本里的 `forbidden|无权|VIP|付费`：那是插件作者随手写的
+         * 自由文案，换个措辞（「仅限会员」「需要开通」）、换种语言就整条漏判，
+         * 于是既不给原因也不换源。文本只留作兜底——NAS 适配器抛的是 axios 错误，
+         * 身上没有 code。有 code 时它就是权威，不再拿文本去猜。
+         */
+        const code = (e as { code?: string } | null)?.code
+        const denied = code
+          ? code === 'forbidden' || code === 'unauthorized'
+          : /forbidden|无权|VIP|付费/i.test(detail)
         toast({
           title: t('player.streamFailed', { title: capturedSong.title }),
-          description: /forbidden|无权|VIP|付费/.test(detail) ? detail : undefined,
+          description: denied ? detail : undefined,
           variant: 'destructive',
         })
         // 音质切换途中失败不算跳歌场景：保持停在原处的原语义
         if (qualitySwitchResumeAt !== null) return
-        // 跨源降级：这一首歌（这个加载 key）只试一次，避免环形换源
-        if (fallbackAttemptedKey !== capturedKey
-            && /forbidden|无权|VIP|付费|not.?found|unauthorized/i.test(detail)) {
+        // 跨源降级：这一首歌（这个加载 key）只试一次，避免环形换源。
+        // 除权限外，「这个源根本没有这一首」（not-found）同样值得换源再试
+        const worthFallback = denied
+          || (code ? code === 'not-found' : /not.?found/i.test(detail))
+        if (fallbackAttemptedKey !== capturedKey && worthFallback) {
           fallbackAttemptedKey = capturedKey
           const alt = await tryFallbackSource(capturedSong)
           if (alt) {
@@ -1350,7 +1392,7 @@ export function useAudioEngine() {
 
     // 依赖歌曲 id 而非对象引用：updateCurrentSong（如收藏切换）只替换引用不换歌，
     // 不应触发本 effect，否则会 cleanup 后重载导致从头重播
-  }, [currentSongId, playVersion, isConnected, activeServerId, effectiveQuality, queryClient, targetVolume])
+  }, [currentSongId, playVersion, isConnected, activeServerId, startupConnectSettled, effectiveQuality, queryClient, targetVolume])
 
   // MainLayout 卸载（登出/断开连接）时模块级 Audio 仍会存活，必须显式停止。
   useEffect(() => () => {

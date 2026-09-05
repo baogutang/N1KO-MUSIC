@@ -2,10 +2,11 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'node:fs'
+import dns from 'node:dns'
 import http from 'node:http'
 import https from 'node:https'
 import { VitePWA } from 'vite-plugin-pwa'
-import { isHostAllowed } from './src/plugins/host/whitelist'
+import { isHostAllowed, isPrivateHost } from './src/plugins/host/whitelist'
 
 /**
  * 手动重定向请求：Node 原生 http/https 模块（默认就不跟随 3xx，
@@ -47,15 +48,161 @@ function nodeRequestNoRedirect(
   })
 }
 
+/** manifest 的插件 id 形状（PROTOCOL §2）；同时兼作路径穿越防护 */
+const PLUGIN_ID_RE = /^[a-z][a-z0-9-]{1,31}$/
+
+/** 服务端最多跟随几跳（与宿主侧 hostFetch 的 MAX_REDIRECT_HOPS 一致） */
+export const PROXY_MAX_HOPS = 5
+
+/**
+ * 请求本身够不够格进代理（与转发目标无关的那一半校验）。
+ * 通过返回 null，否则返回拒绝原因。中间件与单测共用同一份判断。
+ *
+ * 三条一起看才成立：自定义头强制跨源走预检（这个端点不回 CORS 头，预检必败）；
+ * Origin 必须是本 dev server 自己；Content-Type 限 JSON 顺带排除表单式简单请求。
+ */
+export function proxyRequestGuard(headers: {
+  'x-n1ko-proxy'?: string | string[]
+  origin?: string
+  host?: string
+  'sec-fetch-site'?: string | string[]
+  'content-type'?: string | string[]
+}): string | null {
+  if (headers['x-n1ko-proxy'] !== '1') return 'missing X-N1KO-Proxy header'
+  const origin = headers.origin
+  const selfHost = headers.host
+  if (!origin || !selfHost) return 'missing Origin'
+  try {
+    if (new URL(origin).host !== selfHost) return 'cross-origin request refused'
+  } catch {
+    return 'bad Origin'
+  }
+  const fetchSite = headers['sec-fetch-site']
+  if (typeof fetchSite === 'string' && fetchSite !== 'same-origin') return 'cross-site request refused'
+  if (!String(headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+    return 'expected application/json'
+  }
+  return null
+}
+
+/**
+ * 该插件放行的域名：只认 plugins/<id>/manifest.json 里的 hosts。
+ *
+ * 此前白名单是从请求体里读的——拿调用方给的名单校验调用方给的地址，
+ * 等于没有校验。名单必须来自服务端自己能读到的事实。
+ */
+export function pluginHostsFromDisk(pluginsRoot: string, pluginId: string): string[] {
+  if (!PLUGIN_ID_RE.test(pluginId)) return []
+  const file = path.resolve(pluginsRoot, pluginId, 'manifest.json')
+  // 双保险：id 正则已排除 ../，解析后的路径仍必须落在 plugins/ 内
+  if (!file.startsWith(pluginsRoot + path.sep)) return []
+  try {
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf-8')) as { hosts?: unknown }
+    if (!Array.isArray(manifest.hosts)) return []
+    return manifest.hosts.filter((h): h is string => typeof h === 'string')
+  } catch {
+    return []
+  }
+}
+
+/**
+ * DNS 解析后再判一次私网：hostname 字面判定挡不住「公网域名 A 记录指向
+ * 192.168.x.x」这种写法。dev 代理是本机上唯一能真正打到内网的一环，
+ * 这道必须有。（解析与连接之间的 rebinding 窗口这里不处理——dev-only。）
+ */
+export async function resolvesToPrivateAddress(targetUrl: string): Promise<boolean> {
+  let hostname: string
+  try {
+    hostname = new URL(targetUrl).hostname
+  } catch {
+    return true
+  }
+  const bare = hostname.replace(/^\[/, '').replace(/\]$/, '')
+  try {
+    const addresses = await dns.promises.lookup(bare, { all: true })
+    return addresses.some(a => isPrivateHost(a.address))
+  } catch {
+    // 解析不了就别发：拿不准的目标一律不转
+    return true
+  }
+}
+
+/** 跨主机跳转时必须剥掉的请求头 */
+const CREDENTIAL_HEADERS = ['cookie', 'authorization']
+
+function stripCredentialHeaders(headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(headers).filter(([k]) => !CREDENTIAL_HEADERS.includes(k.toLowerCase()))
+  )
+}
+
+export type ProxyHopResult =
+  | { blocked: string }
+  | { status: number; headers: Record<string, string>; buf: Buffer }
+
+/**
+ * 逐跳转发：一律用 nodeRequestNoRedirect（不跟随 3xx），每一跳先过白名单
+ * 与 DNS 私网判定。fetch 的自动跟随会把校验丢在第一跳——白名单主机上的
+ * 开放重定向由此能把请求带进内网。
+ */
+export async function proxyWithHops(
+  startUrl: string,
+  method: string,
+  headers: Record<string, string>,
+  body: string | null,
+  allowList: readonly string[],
+  follow: boolean,
+  /** 单测替身：默认走 nodeRequestNoRedirect（真的发一跳） */
+  send: typeof nodeRequestNoRedirect = nodeRequestNoRedirect,
+): Promise<ProxyHopResult> {
+  let url = startUrl
+  let currentMethod = method
+  let currentHeaders = headers
+  let currentBody = body
+
+  for (let hop = 0; ; hop++) {
+    if (!isHostAllowed(url, allowList)) return { blocked: 'host not allowed' }
+    if (await resolvesToPrivateAddress(url)) return { blocked: 'target resolves to a private address' }
+
+    const res = await send(url, currentMethod, currentHeaders, currentBody)
+    if (!follow) return res
+    const location = res.headers['location']
+    if (!location || res.status < 300 || res.status >= 400) return res
+    if (hop >= PROXY_MAX_HOPS) return { blocked: 'too many redirects' }
+
+    let next: string
+    try {
+      next = new URL(location, url).toString()
+    } catch {
+      return { blocked: 'bad redirect location' }
+    }
+    if (new URL(next).host !== new URL(url).host) currentHeaders = stripCredentialHeaders(currentHeaders)
+    if (res.status === 303 || ((res.status === 301 || res.status === 302) && currentMethod.toUpperCase() === 'POST')) {
+      currentMethod = 'GET'
+      currentBody = null
+      currentHeaders = Object.fromEntries(
+        Object.entries(currentHeaders).filter(([k]) => !['content-type', 'content-length'].includes(k.toLowerCase()))
+      )
+    }
+    url = next
+  }
+}
+
 /**
  * 开发态插件代理中间件：/__n1ko_proxy（POST JSON）。
  *
- * 浏览器里插件请求被 CORS 拦住，开发态经 dev server 转发。白名单在服务端
- * 再校验一次（规则与宿主共用 src/plugins/host/whitelist.ts）——只转发
- * manifest hosts 允许的公网目标，私网一律拒绝。只存在于 dev server，
- * 不进任何构建产物，也不落盘任何请求内容。
+ * 浏览器里插件请求被 CORS 拦住，开发态经 dev server 转发。这是本机上唯一
+ * 一个「替调用方出网」的端点，所以调用方给的任何东西都不能当凭据用：
+ *  - 白名单按 body 里的 pluginId 从 plugins/<id>/manifest.json 读（不是 body 给的名单）；
+ *  - 必须带自定义头 X-N1KO-Proxy: 1（跨源带它就得先过预检，别的页面发不出来）；
+ *  - Origin 必须是本 dev server 自己（Sec-Fetch-Site 也顺带查一眼）；
+ *  - Content-Type 必须是 application/json（挡掉表单式的简单请求）；
+ *  - 目标 DNS 解析到私网一律拒绝，3xx 逐跳复检（见 proxyWithHops）。
+ *
+ * 只存在于 dev server，不进任何构建产物，也不落盘任何请求内容。
  */
 function n1koPluginProxyMiddleware(): Plugin {
+  const pluginsRoot = path.resolve(__dirname, '../plugins')
   return {
     name: 'n1ko-plugin-proxy',
     configureServer(server) {
@@ -65,46 +212,42 @@ function n1koPluginProxyMiddleware(): Plugin {
           res.end('POST only')
           return
         }
+        const deny = (message: string) => {
+          res.statusCode = 403
+          res.end(message)
+        }
+        const refusal = proxyRequestGuard(req.headers as Parameters<typeof proxyRequestGuard>[0])
+        if (refusal) return deny(refusal)
         try {
           const chunks: Buffer[] = []
           for await (const chunk of req) chunks.push(chunk as Buffer)
-          const { url, allow, method, headers, body, redirect } = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as {
-            url?: string; allow?: string; method?: string
+          const { url, pluginId, method, headers, body, redirect } = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as {
+            url?: string; pluginId?: string; method?: string
             headers?: Record<string, string>; body?: string | null
             redirect?: 'follow' | 'manual'
           }
-          const allowList = (allow ?? '').split(',').map(s => s.trim()).filter(Boolean)
-          if (!url || !isHostAllowed(url, allowList)) {
-            res.statusCode = 403
-            res.end('host not allowed')
-            return
-          }
-          let status: number
-          let outHeaders: Record<string, string>
-          let buf: Buffer
-          if (redirect === 'manual') {
-            // manual：Node 原生请求，不跟随 3xx（见 nodeRequestNoRedirect 注释）
-            const manual = await nodeRequestNoRedirect(url, method ?? 'GET', headers ?? {}, body ?? null)
-            status = manual.status
-            outHeaders = manual.headers
-            buf = manual.buf
-          } else {
-            const upstream = await fetch(url, {
-              method: method ?? 'GET',
-              headers,
-              ...(body != null && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
-            })
-            status = upstream.status
-            buf = Buffer.from(await upstream.arrayBuffer())
-            outHeaders = {}
-            upstream.headers.forEach((v, k) => { outHeaders[k.toLowerCase()] = v })
-          }
+          // 白名单来自磁盘上的 manifest，不是调用方给的名单
+          const allowList = pluginHostsFromDisk(pluginsRoot, pluginId ?? '')
+          if (!allowList.length) return deny('unknown pluginId')
+          if (!url) return deny('missing url')
+
+          const outcome = await proxyWithHops(
+            url,
+            method ?? 'GET',
+            headers ?? {},
+            body ?? null,
+            allowList,
+            // manual：不跟随，3xx 原样回给宿主（QQ 登录读 Location，见 nodeRequestNoRedirect）
+            redirect !== 'manual',
+          )
+          if ('blocked' in outcome) return deny(outcome.blocked)
+
           res.statusCode = 200
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({
-            status,
-            headers: outHeaders,
-            bodyBase64: buf.toString('base64'),
+            status: outcome.status,
+            headers: outcome.headers,
+            bodyBase64: outcome.buf.toString('base64'),
           }))
         } catch (err) {
           res.statusCode = 502
@@ -163,12 +306,55 @@ function n1koPluginCatalogMiddleware(): Plugin {
   }
 }
 
+/**
+ * 正式构建把 plugins/ 随包打进 dist/plugins/，出厂目录就是同源的 /plugins/catalog.json。
+ *
+ * 为什么不指向 GitHub raw：国内网络对 raw.githubusercontent.com 时通时不通，
+ * 离线首启更是一定失败——首启种子只跑一次，失败就意味着装好的 App 里一个
+ * 音源都没有。随包打进去的插件和 App 版本严格一致、离线可用、也不引入
+ * 一个能远程换代码的地址。插件升级随 App 发版，与 `plugins/catalog.json`
+ * 的版本字段一起走内置自动更新（pluginStore.autoUpdateBuiltins）。
+ *
+ * 只打目录里列出的条目（Mock 等开发夹具不在目录里，自然不进包）；
+ * 目录或某个插件文件缺失时直接让构建失败——静默少打一个音源比构建红更糟。
+ */
+function n1koBundlePlugins(): Plugin {
+  const pluginsRoot = path.resolve(__dirname, '../plugins')
+  return {
+    name: 'n1ko-bundle-plugins',
+    apply: 'build',
+    generateBundle() {
+      const catalogPath = path.join(pluginsRoot, 'catalog.json')
+      const catalogText = fs.readFileSync(catalogPath, 'utf-8')
+      const catalog = JSON.parse(catalogText) as Array<{ id: string; manifest: string }>
+      this.emitFile({ type: 'asset', fileName: 'plugins/catalog.json', source: catalogText })
+      for (const entry of catalog) {
+        const manifestRel = entry.manifest.replace(/^\/+/, '')
+        const manifestPath = path.resolve(pluginsRoot, manifestRel)
+        if (!manifestPath.startsWith(pluginsRoot + path.sep)) {
+          throw new Error(`plugins/catalog.json 条目 ${entry.id} 的 manifest 路径越出 plugins/：${entry.manifest}`)
+        }
+        const manifestText = fs.readFileSync(manifestPath, 'utf-8')
+        const manifest = JSON.parse(manifestText) as { entry: string }
+        const codePath = path.resolve(path.dirname(manifestPath), manifest.entry)
+        if (!codePath.startsWith(pluginsRoot + path.sep)) {
+          throw new Error(`插件 ${entry.id} 的 entry 越出 plugins/：${manifest.entry}`)
+        }
+        const toBundlePath = (abs: string) => 'plugins/' + path.relative(pluginsRoot, abs).split(path.sep).join('/')
+        this.emitFile({ type: 'asset', fileName: toBundlePath(manifestPath), source: manifestText })
+        this.emitFile({ type: 'asset', fileName: toBundlePath(codePath), source: fs.readFileSync(codePath, 'utf-8') })
+      }
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => ({
   base: './',
   plugins: [
     react(),
     n1koPluginProxyMiddleware(),
     n1koPluginCatalogMiddleware(),
+    n1koBundlePlugins(),
     // Capacitor 原生壳内禁用 PWA/Service Worker（WebView 内 SW 缓存会导致资源陈旧）
     ...(mode === 'capacitor'
       ? []

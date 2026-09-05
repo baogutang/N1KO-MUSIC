@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { useServerStore } from '@/store/serverStore'
+import { useServerStore , useHistoryScope } from '@/store/serverStore'
 import { playListFrom } from '@/utils/playActions'
 import {
   clearListeningEvents,
@@ -37,28 +37,31 @@ const PAGE_SIZE = 150
 export default function History() {
   const { t } = useT()
   const activeServerId = useServerStore(s => s.activeServerId)
+  const historyScope = useHistoryScope()
   const [history, setHistory] = useState<ListeningEvent[]>(() =>
-    activeServerId ? readListeningEvents(activeServerId) : []
+    readListeningEvents(historyScope)
   )
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [confirmClear, setConfirmClear] = useState(false)
 
   // 进入页面时刷新，并监听音频引擎写入历史后的通知事件
   useEffect(() => {
-    const refresh = () => setHistory(activeServerId ? readListeningEvents(activeServerId) : [])
+    const refresh = () => setHistory(readListeningEvents(historyScope))
     refresh()
     const onUpdate = (event: Event) => {
       const detail = (event as CustomEvent<{ serverId?: string }>).detail
-      if (!detail?.serverId || detail.serverId === activeServerId) refresh()
+      // 任何**在读取范围内**的音源写入历史都要刷新：只认主库的话，
+      // 在网易云听完一首这一页不会动
+      if (!detail?.serverId || historyScope.includes(detail.serverId)) refresh()
     }
     window.addEventListener('msp-history-updated', onUpdate)
     return () => window.removeEventListener('msp-history-updated', onUpdate)
-  }, [activeServerId])
+  }, [historyScope])
 
   // 切换服务器后重新从第一页开始
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [activeServerId])
+  }, [historyScope])
 
   function handleClear() {
     if (activeServerId) clearListeningEvents(activeServerId)

@@ -1,7 +1,7 @@
 {
   "id": "qqmusic",
   "name": "QQ 音乐",
-  "version": "0.1.6",
+  "version": "0.1.9",
   "protocol": 1,
   "platform": "qqmusic",
   "entry": "index.js",
@@ -18,23 +18,26 @@
     "ssl.ptlogin2.graph.qq.com",
     "isure.stream.qqmusic.qq.com",
     "ws.stream.qqmusic.qq.com",
-    "dl.stream.qqmusic.qq.com"
+    "dl.stream.qqmusic.qq.com",
+    "*.gtimg.cn"
   ],
   "capabilities": [
     "search",
-    "musicUrl",
-    "lyric",
     "album",
     "artist",
-    "musicSheet",
-    "importMusicSheet",
-    "importMusicItem",
+    "lyrics",
+    "userPlaylists",
     "topLists",
-    "recommendSongs",
     "recommendSheets",
-    "userPlaylists"
+    "recommendSongs",
+    "importSheet"
   ],
-  "qualities": ["low", "medium", "high", "lossless"],
+  "qualities": [
+    "low",
+    "medium",
+    "high",
+    "lossless"
+  ],
   "disclaimer": "本插件使用你自己的 QQ 音乐账号访问你有权收听的内容。登录凭据只保存在本机，不会上传到任何服务器；VIP / 付费曲目按你的账号权益播放，本插件不提供任何解锁或免费听 VIP 能力。QQ 扫码登录需要在 App 或桌面版使用（浏览器版有跨源限制）。接口为社区逆向实现，可能随官方调整失效。",
   "color": "#31c27c"
 }

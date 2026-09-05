@@ -7,7 +7,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { formatDurationNatural } from '@/utils/formatters'
-import { useServerStore } from '@/store/serverStore'
+import { useServerStore , useHistoryScope } from '@/store/serverStore'
 import { readListeningEvents, type ListeningEvent } from '@/services/listeningHistory'
 import {
   computeListeningStats,
@@ -111,21 +111,24 @@ const RANGE_OPTIONS: Array<{ value: StatsRange; labelKey: string }> = [
 export default function Stats() {
   const { t } = useT()
   const activeServerId = useServerStore(s => s.activeServerId)
+  const historyScope = useHistoryScope()
   // 使用 state 存储历史，进入页面时刷新，并监听实时更新事件
   const [historyData, setHistoryData] = useState<ListeningEvent[]>(() =>
-    activeServerId ? readListeningEvents(activeServerId) : []
+    readListeningEvents(historyScope)
   )
 
   useEffect(() => {
-    const refresh = () => setHistoryData(activeServerId ? readListeningEvents(activeServerId) : [])
+    const refresh = () => setHistoryData(readListeningEvents(historyScope))
     refresh()
     const onUpdate = (event: Event) => {
       const detail = (event as CustomEvent<{ serverId?: string }>).detail
-      if (!detail?.serverId || detail.serverId === activeServerId) refresh()
+      // 任何**在读取范围内**的音源写入历史都要刷新：只认主库的话，
+      // 在网易云听完一首这一页不会动
+      if (!detail?.serverId || historyScope.includes(detail.serverId)) refresh()
     }
     window.addEventListener('msp-history-updated', onUpdate)
     return () => window.removeEventListener('msp-history-updated', onUpdate)
-  }, [activeServerId])
+  }, [historyScope])
 
   const [range, setRange] = useState<StatsRange>(7)
   const stats = useMemo(() => computeListeningStats(historyData, range), [historyData, range])

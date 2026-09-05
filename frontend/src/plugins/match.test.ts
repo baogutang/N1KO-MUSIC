@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { Song } from '@/api/types'
-import { artistSet, bestMatchFor, mergeSongs, normalizeText } from './match'
+import { artistSet, bestMatchFor, mergeSongs, normalizeText, relevanceRank } from './match'
 
 function song(partial: Partial<Song> & { id: string; serverId: string }): Song {
   return {
@@ -112,6 +112,86 @@ describe('mergeSongs 三级匹配', () => {
     ])
     expect(merged).toHaveLength(1)
     expect(merged[0].sources).toHaveLength(2)
+  })
+})
+
+describe('relevanceRank（搜索相关度档位）', () => {
+  it('标题精确 > 前缀 > 包含 > 歌手/专辑沾边 > 其他', () => {
+    const q = 'summer'
+    expect(relevanceRank(song({ id: '1', serverId: 'a', title: 'Summer' }), q)).toBe(0)
+    expect(relevanceRank(song({ id: '2', serverId: 'a', title: 'Summer Rain' }), q)).toBe(1)
+    expect(relevanceRank(song({ id: '3', serverId: 'a', title: 'Endless Summer' }), q)).toBe(2)
+    expect(relevanceRank(song({ id: '4', serverId: 'a', title: 'X', artist: 'Summer Kids' }), q)).toBe(3)
+    expect(relevanceRank(song({ id: '5', serverId: 'a', title: 'X', artist: 'Y', album: 'Summer Days' }), q)).toBe(3)
+    expect(relevanceRank(song({ id: '6', serverId: 'a', title: 'X', artist: 'Y' }), q)).toBe(4)
+  })
+
+  it('归一化后比较：全角、大小写、标点都不算数', () => {
+    expect(relevanceRank(song({ id: '1', serverId: 'a', title: 'Ｓｕｍｍｅｒ！' }), 'summer')).toBe(0)
+  })
+
+  it('空查询一律同分，不参与排序', () => {
+    expect(relevanceRank(song({ id: '1', serverId: 'a', title: '随便' }), '   ')).toBe(0)
+  })
+})
+
+describe('mergeSongs 相关度混排（传 query 时）', () => {
+  const nas = 'nas'
+  const wy = 'wy'
+
+  it('第二个源里的精确命中排到第一个源的沾边结果之前', () => {
+    const merged = mergeSongs(
+      [
+        { serverId: nas, songs: [
+          song({ id: 'n1', serverId: nas, title: 'Endless Summer', artist: 'A' }),
+          song({ id: 'n2', serverId: nas, title: 'Summer Rain', artist: 'B' }),
+        ] },
+        { serverId: wy, songs: [song({ id: 'w1', serverId: wy, title: 'Summer', artist: 'C' })] },
+      ],
+      [nas, wy],
+      'summer'
+    )
+    expect(merged.map(m => m.song.id)).toEqual(['w1', 'n2', 'n1'])
+  })
+
+  it('同分仍按来源优先级、再按源内次序——排序必须稳定', () => {
+    const merged = mergeSongs(
+      [
+        { serverId: wy, songs: [song({ id: 'w1', serverId: wy, title: 'Summer Rain', artist: 'B' })] },
+        { serverId: nas, songs: [
+          song({ id: 'n1', serverId: nas, title: 'Summer Song', artist: 'A' }),
+          song({ id: 'n2', serverId: nas, title: 'Summer Night', artist: 'C' }),
+        ] },
+      ],
+      [nas, wy],
+      'summer'
+    )
+    expect(merged.map(m => m.song.id)).toEqual(['n1', 'n2', 'w1'])
+  })
+
+  it('不传 query 时顺序与从前完全一致（按源拼接）', () => {
+    const groups = [
+      { serverId: wy, songs: [song({ id: 'w1', serverId: wy, title: 'Summer' })] },
+      { serverId: nas, songs: [song({ id: 'n1', serverId: nas, title: 'Endless Summer' })] },
+    ]
+    expect(mergeSongs(groups, [nas, wy]).map(m => m.song.id)).toEqual(['n1', 'w1'])
+  })
+
+  it('合并组按组内最相关的那条算分（ISRC 档标题可以完全不同）', () => {
+    const merged = mergeSongs(
+      [
+        { serverId: nas, songs: [
+          song({ id: 'n-far', serverId: nas, title: '完全无关但歌手叫 Summer', artist: 'Summer' }),
+          song({ id: 'n-isrc', serverId: nas, title: '中文译名', ext: { isrc: ['JPU900123456'] } }),
+        ] },
+        { serverId: wy, songs: [song({ id: 'w-isrc', serverId: wy, title: 'Summer', ext: { isrc: ['jpu900123456'] } })] },
+      ],
+      [nas, wy],
+      'summer'
+    )
+    // 代表是 NAS 那条（标题是中文译名），但同组里网易云那条标题精确命中 → 整组排第一
+    expect(merged[0].song.id).toBe('n-isrc')
+    expect(merged[0].tier).toBe('isrc')
   })
 })
 

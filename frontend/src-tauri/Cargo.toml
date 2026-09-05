@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "1.10.0"
+version = "1.11.0"
 description = "N1KO MUSIC - Modern Music Streaming Desktop App"
 authors = ["N1KO"]
 license = "MIT"
@@ -23,5 +23,18 @@ tauri-plugin-single-instance = "2"
 # n1ko:// 深链接：Windows/Linux 由 single-instance 转发进来，macOS 走系统事件
 tauri-plugin-deep-link = "2"
 # 插件音源的宿主网络通道（沙箱请求经 @tauri-apps/plugin-http 出网，
-# scope 由 capabilities/default.json 限定在 http/https）
-tauri-plugin-http = "2"
+# scope 由 capabilities/default.json 限定在 http/https）。
+#
+# unsafe-headers 必须开：该插件默认按 fetch 规范剥掉 Cookie / Referer 这类
+# 「禁止的请求头」，而网易云与 QQ 插件全靠 Cookie 带凭据、靠 Referer 过风控——
+# 不开的话桌面版上的两个音源等于一直在匿名请求，会员曲拒播、个人数据为空，
+# 且没有任何报错（只有 Rust 侧一行 WARNING）。
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+
+# 窗口拖拽（仅 macOS）：tao 的 drag_window 只在 currentEvent 是鼠标按下时才生效，
+# 异步 IPC 到达时事件多半已变成「拖动中」，AppKit 静默不动。这里自己合成按下事件。
+# 版本与 tauri 2.10 的传递依赖对齐，避免同名双版本。
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSEvent", "NSApplication", "NSResponder", "NSGraphics"] }
+objc2-foundation = { version = "0.3", features = ["NSGeometry", "NSDate"] }

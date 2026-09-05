@@ -178,12 +178,21 @@ export default {
   plugins: [
     require('tailwindcss-animate'),
     /**
-     * 皮肤变体。`pop:` / `editorial:` 让调用方在需要时按皮肤分支，
-     * 而不必在 TSX 里读 store 再拼 className——换皮是纯 CSS 的事，
-     * 组件不应该知道当前是哪张皮。
+     * 皮肤变体。让调用方在需要时按皮肤分支，而不必在 TSX 里读 store 再拼
+     * className——换皮是纯 CSS 的事，组件不应该知道当前是哪张皮。
+     *
+     * `pop:` 的语义是「**实体控件皮肤**」，不是「波普这一张皮」：
+     * 全站 270+ 处 `pop:border pop:bg-surface pop:rounded-pill pop:shadow-press`
+     * 表达的是「这里要一个有底、有形、有投影的控件」，而形状/描边宽度/投影
+     * 全部来自 token——波普解析成 2px 墨边 + 硬投影，软陶解析成极淡边界 +
+     * 软鼓包，各自成立。因此软陶直接复用这批类，一处都不用改。
+     * 编辑风（发丝线体系）不匹配，维持原样。
+     *
+     * 真正只属于某一张皮的分支才用 `clay:` / `editorial:`。
      */
-    plugin(({ addVariant }: { addVariant: (name: string, def: string) => void }) => {
-      addVariant('pop', "html[data-skin='pop'] &")
+    plugin(({ addVariant }: { addVariant: (name: string, def: string | string[]) => void }) => {
+      addVariant('pop', ["html[data-skin='pop'] &", "html[data-skin='clay'] &"])
+      addVariant('clay', "html[data-skin='clay'] &")
       addVariant('editorial', "html[data-skin='editorial'] &")
     }),
   ],

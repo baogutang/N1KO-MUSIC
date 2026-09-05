@@ -26,21 +26,30 @@ const APPEND_SIZE = 20
 /** 未播曲目少于这个数就补给 */
 export const REFILL_THRESHOLD = 8
 
-/** 这台电台是否可用：种子所属音源（缺省任一已连接音源）实现了对应可选能力 */
+/**
+ * 这台电台是否可用：**只看种子自己那个音源**。
+ *
+ * 此前这里把主库也算进候选，于是「主库支持相似曲目」就足以让网易云那首歌
+ * 的电台入口亮起来——回答的是「有没有某个源能起电台」，而用户问的是
+ * 「这首歌能不能起」。真点下去 fetchSeedCandidates 只问种子那个源，空手而归。
+ */
 export function canStartRadio(seed: RadioSeed): boolean {
-  const pick = (serverId?: string) => {
-    if (serverId && hasAdapterFor(serverId)) return getAdapterFor(serverId)
-    return null
-  }
-  const candidates = [pick(seed.serverId), ...(hasAdapter() ? [getAdapter()] : [])]
-  if (seed.kind === 'song') return candidates.some(a => !!a?.getSimilarSongs)
-  if (seed.kind === 'artist') return candidates.some(a => !!a?.getArtistSongs)
-  return candidates.some(a => !!a?.getGenreSongs)
+  const adapter = seedAdapter(seed)
+  if (!adapter) return false
+  if (seed.kind === 'song') return !!adapter.getSimilarSongs
+  if (seed.kind === 'artist') return !!adapter.getArtistSongs
+  return !!adapter.getGenreSongs
 }
 
-/** 种子所属音源的适配器：种子带 serverId 就按它解析，否则回落主库（旧调用方） */
+/**
+ * 种子所属音源的适配器。
+ *
+ * 种子没带 serverId 才回落主库（旧的单源调用方，那时候「主库」就是唯一的源）；
+ * 带了 serverId 但那个源已经断开时返回 null——拿主库去续一台别人的电台，
+ * 放出来的是另一个库的歌，比停下来更让人困惑。
+ */
 function seedAdapter(seed: RadioSeed) {
-  if (seed.serverId && hasAdapterFor(seed.serverId)) return getAdapterFor(seed.serverId)
+  if (seed.serverId) return hasAdapterFor(seed.serverId) ? getAdapterFor(seed.serverId) : null
   return hasAdapter() ? getAdapter() : null
 }
 
@@ -66,16 +75,27 @@ async function fetchSeedCandidates(seed: RadioSeed): Promise<Song[]> {
 /**
  * 按当前队列去重后排序候选。
  * 复用推荐引擎的打分与多样性重排，避免电台连着放同一位歌手。
+ *
+ * `fallbackServerId` **只是兜底**：候选自己没带来源时才补上它。
+ * 此前这里是无条件覆盖，于是主库是 NAS 时，网易云那首歌续上来的候选
+ * 全被打成 NAS 的 serverId 塞进队列——播到它时播放引擎拿 NAS 的适配器
+ * 去取一个网易云的 id，必然失败，而队列里看起来一切正常。
  */
-function rankForRadio(candidates: Song[], exclude: Set<string>, size: number, serverId?: string): Song[] {
+function rankForRadio(
+  candidates: Song[],
+  exclude: Set<string>,
+  size: number,
+  fallbackServerId?: string
+): Song[] {
   const key = (s: Song) => `${s.serverId}:${s.id}`
   const fresh = candidates.filter(s => s?.id && !exclude.has(key(s)))
   if (!fresh.length) return []
-  const events = serverId ? readListeningEvents(serverId) : []
+  const events = fallbackServerId ? readListeningEvents(fallbackServerId) : []
   const profile = buildRecommendationProfile(events)
   return recommendSongs(
-    // serverId 现在必填：候选自带来源；显式传入时（主库电台）覆盖之
-    serverId ? fresh.map(s => ({ ...s, serverId })) : fresh,
+    fallbackServerId
+      ? fresh.map(s => (s.serverId ? s : { ...s, serverId: fallbackServerId }))
+      : fresh,
     events,
     Math.min(size, fresh.length),
     `radio:${Date.now()}`,
@@ -87,11 +107,14 @@ function rankForRadio(candidates: Song[], exclude: Set<string>, size: number, se
   )
 }
 
-/** 从种子起播一台电台 */
+/**
+ * 从种子起播一台电台。
+ * `serverId` 只作候选缺来源时的兜底（旧的单源调用方），不会覆盖候选自带的来源。
+ */
 export async function startRadio(seed: RadioSeed, serverId?: string): Promise<boolean> {
   const candidates = await fetchSeedCandidates(seed)
   if (!candidates.length) return false
-  const ranked = rankForRadio(candidates, new Set(), APPEND_SIZE * 2, serverId)
+  const ranked = rankForRadio(candidates, new Set(), APPEND_SIZE * 2, serverId ?? seed.serverId)
   const queue = ranked.length ? ranked : candidates
   usePlayerStore.getState().playQueue(queue, 0, 'sequential')
   return true
@@ -100,8 +123,11 @@ export async function startRadio(seed: RadioSeed, serverId?: string): Promise<bo
 /**
  * 队列快见底时补给。
  * 种子取当前曲，这样电台会随着播放内容缓慢漂移，而不是死守最初那一首。
+ *
+ * 兜底来源取**当前曲自己的源**，而不是主库：候选就是问那个源要来的，
+ * 拿主库 id 去兜底等于给外源候选贴错标签（调用方此前传的正是主库 id）。
  */
-export async function refillRadio(serverId?: string): Promise<number> {
+export async function refillRadio(): Promise<number> {
   const st = usePlayerStore.getState()
   const current = st.currentSong
   if (!current) return 0
@@ -118,7 +144,7 @@ export async function refillRadio(serverId?: string): Promise<number> {
   }
   if (!candidates.length) return 0
 
-  const next = rankForRadio(candidates, exclude, APPEND_SIZE, serverId)
+  const next = rankForRadio(candidates, exclude, APPEND_SIZE, current.serverId)
   if (!next.length) return 0
   usePlayerStore.getState().addToQueue(next, 'last')
   return next.length

@@ -76,6 +76,37 @@ function pluginError(code, message) {
   return err
 }
 
+/**
+ * 出网错误 → 协议错误码（PROTOCOL §7）。
+ *
+ * 宿主通道失败时 axios shim 抛的是 AxiosLikeError（isAxiosError + code），
+ * 插件不翻译的话到宿主一律成 unknown：界面既不说「网络问题可重试」，
+ * 429 也不会触发 rate-limited 的 60 秒退避，用户只看到「未知错误」。
+ */
+function toPluginError(err) {
+  if (err && err.name === 'PluginError') return err
+  var status = (err && err.response && err.response.status) || 0
+  if (status === 429) return pluginError('rate-limited', 'QQ 音乐限流，请稍后再试')
+  if (status >= 500) return pluginError('network', 'QQ 音乐服务端错误（HTTP ' + status + '）')
+  if (err && err.isAxiosError) {
+    /* 宿主拒绝（hosts 白名单外等）把协议码放在 err.code 上，原样保留 */
+    if (err.code === 'forbidden' || err.code === 'unauthorized' || err.code === 'rate-limited') {
+      return pluginError(err.code, err.message)
+    }
+    return pluginError('network', err.message || '网络请求失败')
+  }
+  return err
+}
+
+/** 唯一的出网入口（见 toPluginError） */
+function httpGet(url, config) {
+  return axios.get(url, config).catch(function (err) { throw toPluginError(err) })
+}
+
+function httpPost(url, body, config) {
+  return axios.post(url, body, config).catch(function (err) { throw toPluginError(err) })
+}
+
 /* ============================================================
  * 凭据（JSON 串）
  * ============================================================ */
@@ -118,7 +149,7 @@ var UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, l
 /** web 平台 comm（versioning.py DEFAULT_VERSION_POLICY.web） */
 function buildComm(cred) {
   var gTk = cred && cred.musickey ? hash33(cred.musickey, 5381) : 5381
-  return {
+  var comm = {
     ct: 24,
     cv: 4747474,
     format: 'json',
@@ -131,6 +162,36 @@ function buildComm(cred) {
     g_tk: gTk,
     g_tk_new_20200303: gTk,
   }
+  /*
+   * 登录态鉴权字段。
+   *
+   * 只有 uin + g_tk 时，服务端一律按**匿名**处理：会员曲照样 104003，
+   * 雷达推荐与我的歌单要么空要么报错——首页「今日推荐」因此只剩网易云一家。
+   * 上游（luren-dc/QQMusicApi）的两种鉴权方式二选一：comm 里带
+   * qq / authst / tmeLoginType，或者带 Cookie 罐。这里走前者，
+   * 与 QQLogin 存下来的凭据字段一一对应。
+   */
+  if (cred && cred.musickey) {
+    comm.qq = String(cred.str_musicid || cred.musicid || '')
+    comm.authst = cred.musickey
+    comm.tmeLoginType = Number(cred.loginType || 2)
+  }
+  return comm
+}
+
+/**
+ * CGI 业务码 → 协议错误码（上游 QQMusicApi 的 ResponseCode 语义）。
+ *
+ * 全按 unknown 报的话，musickey 过期时宿主既不标记「需要重新登录」，
+ * 频控时也不退避——用户看到的只是「我的歌单打不开」。
+ */
+var CGI_ERROR_CODE = {
+  1000: 'unauthorized',   // 未登录 / 凭据缺失
+  104400: 'unauthorized', // musickey 失效
+  104401: 'unauthorized', // musickey 过期
+  2001: 'rate-limited',   // 频控（非中国大陆出口 IP 的搜索也回这个）
+  104003: 'forbidden',    // 无权（VIP / 付费）
+  104013: 'forbidden',    // 设备受限
 }
 
 /** 单条 CGI 调用（musicu.fcg，req_0 形态） */
@@ -140,14 +201,17 @@ async function cgi(module, method, param, commExtra) {
   if (commExtra) {
     Object.keys(commExtra).forEach(function (k) { comm[k] = commExtra[k] })
   }
-  var res = await axios.post(MUSICU_URL, { comm: comm, req_0: { module: module, method: method, param: param } }, {
+  var res = await httpPost(MUSICU_URL, { comm: comm, req_0: { module: module, method: method, param: param } }, {
     headers: { 'Content-Type': 'application/json', Referer: REFERER, 'User-Agent': UA, Origin: REFERER.slice(0, -1) },
     responseType: 'json',
   })
   var body = res.data || {}
   var req0 = body.req_0 || {}
   if (req0.code !== 0) {
-    throw pluginError('unknown', 'CGI ' + module + '.' + method + ' code ' + req0.code)
+    throw pluginError(
+      CGI_ERROR_CODE[req0.code] || 'unknown',
+      'CGI ' + module + '.' + method + ' code ' + req0.code
+    )
   }
   return req0.data
 }
@@ -206,7 +270,7 @@ var CHECK_SIG = 'https://ssl.ptlogin2.graph.qq.com/check_sig'
 var AUTHORIZE = 'https://graph.qq.com/oauth2.0/authorize'
 
 async function getQrCode() {
-  var res = await axios.get(withParams(PT_SHOW, {
+  var res = await httpGet(withParams(PT_SHOW, {
     appid: '716027609',
     e: '2',
     l: 'M',
@@ -250,7 +314,7 @@ function parsePtuiArgs(text) {
 }
 
 async function checkQrCode(qrsig) {
-  var res = await axios.get(withParams(PT_LOGIN, {
+  var res = await httpGet(withParams(PT_LOGIN, {
     u1: 'https://graph.qq.com/oauth2.0/login_jump',
     ptqrtoken: String(hash33(qrsig)),
     ptredirect: '0',
@@ -288,7 +352,7 @@ async function checkQrCode(qrsig) {
 
 /** check_sig（拿 p_skey）→ authorize（Location 里取 code）→ QQLogin CGI */
 async function authorizeQq(uin, sigx) {
-  var checkRes = await axios.get(withParams(CHECK_SIG, {
+  var checkRes = await httpGet(withParams(CHECK_SIG, {
     uin: uin,
     pttype: '1',
     service: 'ptqrlogin',
@@ -333,7 +397,7 @@ async function authorizeQq(uin, sigx) {
     auth_time: String(Date.now()),
     ui: 'n1ko-' + Date.now(),
   })
-  var authRes = await axios.post(AUTHORIZE, authBody, {
+  var authRes = await httpPost(AUTHORIZE, authBody, {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Referer: 'https://xui.ptlogin2.qq.com/',
@@ -384,7 +448,8 @@ function mapSong(raw) {
     duration: raw.interval || 0,
     /* pay.pay_play: 1 = VIP */
     vip: pay.pay_play === 1,
-    isrc: raw.isrc ? [raw.isrc] : undefined,
+    /* isrc 不给：协议要求字符串，而这些接口本来就不回 ISRC，
+       给个数组只会让跨源同曲匹配拿到坏形状 */
     _mediaMid: file.media_mid || raw.mid,
   }
 }
@@ -646,6 +711,9 @@ function qrcTripleCrypt(hexText, key24) {
 async function qrcDecrypt(hexText) {
   if (!hexText) return ''
   try {
+    /* 解不出来时返回 null（不是 ''）：吞成空串的话「歌词功能坏了」
+       和「这首歌本来就没有歌词」在界面上长得一模一样，QRC 格式一变
+       就是全平台歌词静默消失而没人报错 */
     var keyBytes = new TextEncoder().encode(['!@#)(*$%123ZXC!@', '!@#)(NHL'].join(''))
     var bytes = qrcTripleCrypt(hexText, keyBytes)
     var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'))
@@ -663,6 +731,8 @@ async function qrcDecrypt(hexText) {
     }
     var total = 0
     for (var ci = 0; ci < chunks.length; ci++) total += chunks[ci].length
+    /* 有密文却一个字节都没解出来 = 第一次 read 就抛了，同样算失败 */
+    if (!total) return null
     var out = new Uint8Array(total)
     var offset = 0
     for (var cj = 0; cj < chunks.length; cj++) {
@@ -671,7 +741,7 @@ async function qrcDecrypt(hexText) {
     }
     return new TextDecoder().decode(out)
   } catch (e) {
-    return ''
+    return null
   }
 }
 
@@ -683,13 +753,47 @@ function sectionItems(v) {
   return []
 }
 
+/**
+ * searchid 缓存（按「类型 + 关键词」）。
+ *
+ * searchid 标识的是一次搜索会话，不是一次请求：连续翻页必须沿用第一页
+ * 返回的那个（上游 QQMusicApi 就是这么做的）。每页现算一个新的，服务端
+ * 就当成三次独立的新搜索各自重排——于是第 1、2、3 页返回的是同一批歌，
+ * 「加载更多」看着在转，列表却一条新的都不出。
+ */
+var SEARCH_ID_CACHE = new Map()
+var SEARCH_ID_CACHE_MAX = 16
+
+/** 大整数字符串形态的新 searchid（utils/common.py get_searchID） */
+function newSearchId() {
+  return String(
+    18014398509481984 * (1 + secureRandInt(20)) +
+    4294967296 * secureRandInt(4194304) +
+    (Date.now() % 86400000)
+  )
+}
+
+function rememberSearchId(key, id) {
+  if (!id) return
+  SEARCH_ID_CACHE.delete(key)
+  SEARCH_ID_CACHE.set(key, String(id))
+  /* 插入序即淘汰序（Map 保序）：只留最近 16 次搜索 */
+  while (SEARCH_ID_CACHE.size > SEARCH_ID_CACHE_MAX) {
+    SEARCH_ID_CACHE.delete(SEARCH_ID_CACHE.keys().next().value)
+  }
+}
+
+/** 歌单 / 榜单详情每页曲目数（宿主拉全循环上限 2000，即 20 页） */
+var SHEET_PAGE_SIZE = 100
+
 /* ============================================================
  * 插件主体
  * ============================================================ */
 
 module.exports = {
   platform: 'qqmusic',
-  version: '0.1.6',
+  /* 版本号的唯一真源是 manifest.json：这里再写一份就必然漂（代码里曾停在
+     0.1.6，manifest 已经到 0.1.7），而宿主展示的一直是 manifest 的那个 */
   author: 'N1KO',
   description: 'QQ 音乐（用自己的账号听自己有权听的）',
 
@@ -700,19 +804,24 @@ module.exports = {
     /* search_type 必须按类型给：100 歌曲 / 10 专辑 / 200 歌手 / 3000 歌单。
        全按 100 查的话新版响应里非歌曲分节恒为空（推荐歌单就是这么哑掉的） */
     var typeMap = { music: 100, album: 10, artist: 200, sheet: 3000 }
-    /* searchid 是大整数字符串（utils/common.py get_searchID 的形态）；
-       布尔值按服务端约定转 0/1（QQMusicApi 的 bool_to_int 默认转换） */
+    var pageNum = page || 1
+    /* 第 2 页起复用第一页的 searchid（见 SEARCH_ID_CACHE） */
+    var cacheKey = (typeMap[type] || 100) + '\n' + String(query || '')
+    var searchId = (pageNum > 1 && SEARCH_ID_CACHE.get(cacheKey)) || newSearchId()
+    /* 布尔值按服务端约定转 0/1（QQMusicApi 的 bool_to_int 默认转换） */
     var data = await cgi('music.adaptor.SearchAdaptor', 'do_search_v2', {
-      searchid: String(18014398509481984 * (1 + secureRandInt(20)) + 4294967296 * secureRandInt(4194304) + (Date.now() % 86400000)),
+      searchid: searchId,
       search_type: typeMap[type] || 100,
       page_num: 30,
       query: String(query || ''),
-      page_id: page || 1,
+      page_id: pageNum,
       highlight: 0,
       grp: 1,
     })
     var body = (data && data.body) || {}
     var meta = (data && data.meta) || {}
+    /* 服务端可能回一个自己的 searchid，以它为准 */
+    rememberSearchId(cacheKey, meta.searchid || searchId)
     var isEnd = meta.nextpage === undefined ? true : meta.nextpage === -1
     if (type === 'album') return { data: sectionItems(body.item_album).map(mapAlbum), isEnd: isEnd }
     if (type === 'artist') return { data: sectionItems(body.singer).map(mapSinger), isEnd: isEnd }
@@ -745,7 +854,9 @@ module.exports = {
     }
     return {
       url: (await cdnBase(guid)) + info.purl,
-      expiresIn: Math.floor(STREAM_TTL_MS / 1000),
+      /* 协议要的是 expiresAt（毫秒时间戳）；给 expiresIn 的话适配器读不到，
+         一律按默认 20 分钟处理——vkey 其实能撑 1 小时，白白多取几次流 */
+      expiresAt: Date.now() + STREAM_TTL_MS,
     }
   },
 
@@ -763,9 +874,14 @@ module.exports = {
       type: 1,
       songMid: musicItem.id,
     })
+    var rawLrc = await qrcDecrypt(data && data.lyric)
+    /* null = 解密失败（区别于 '' 的「这首歌没有歌词」）：明确报 not-found，
+       让宿主显示「取不到歌词」而不是一片空白 */
+    if (rawLrc === null) throw pluginError('not-found', '歌词解密失败（QRC 格式可能已变）')
+    var translation = await qrcDecrypt(data && data.trans)
     return {
-      rawLrc: await qrcDecrypt(data && data.lyric),
-      translation: await qrcDecrypt(data && data.trans),
+      rawLrc: rawLrc,
+      translation: translation || '',
     }
   },
 
@@ -785,7 +901,15 @@ module.exports = {
       num: 200,
       order: 2,
     })
-    var metaSingers = (meta && meta.singer) || []
+    /*
+     * GetAlbumDetail 的 singer 是 { singerList: [...] } 这个形状，不是数组
+     * （上游 models/album.py 取的就是 $.singer.singerList）。当成数组直接 .map
+     * 会当场抛 TypeError，专辑详情页必崩。两种形状都收一下。
+     */
+    var singerField = (meta && meta.singer) || []
+    var metaSingers = Array.isArray(singerField)
+      ? singerField
+      : (singerField.singerList || [])
     return {
       /* 本方法一次拉全（num 200），isEnd 必须给 true，否则宿主拉全循环会重拉 */
       isEnd: true,
@@ -835,19 +959,32 @@ module.exports = {
     return mapped
   },
 
-  async getTopListDetail(topListItem) {
+  async getTopListDetail(topListItem, page) {
     var id = String(topListItem.id)
     if (id === '__radar__') {
-      return { musicList: await fetchRadarSongs() }
+      /* 雷达推荐是固定的一份，没有分页 */
+      return { musicList: await fetchRadarSongs(), isEnd: true }
     }
+    var pageNum = page || 1
+    var offset = (pageNum - 1) * SHEET_PAGE_SIZE
     var data = await cgi('music.musicToplist.Toplist', 'GetDetail', {
       topId: Number(id),
-      offset: 0,
-      num: 100,
+      offset: offset,
+      num: SHEET_PAGE_SIZE,
       withTags: false,
     })
     /* 歌曲在 data.songInfoList（data.song 是同长度占位数组），标题在 data.data */
-    return { musicList: ((data && data.songInfoList) || []).map(mapSong) }
+    var songs = ((data && data.songInfoList) || []).map(mapSong)
+    /* 总数在 data.data.totalNum；没有就按「这页没取满」判末页。
+       先前 offset 恒为 0、num 恒 100 且不给 isEnd，超过 100 首的榜单
+       后面的全看不到，而宿主拉全循环只能靠「首项 id 重复」空转一轮止损 */
+    var total = data && data.data ? data.data.totalNum : undefined
+    return {
+      musicList: songs,
+      isEnd: typeof total === 'number' && total > 0
+        ? offset + SHEET_PAGE_SIZE >= total
+        : songs.length < SHEET_PAGE_SIZE,
+    }
   },
 
   /* ---------- 推荐歌单：do_search_v2 搜热门歌单（web 端没有直接的推荐歌单端点） ---------- */
@@ -856,35 +993,52 @@ module.exports = {
   },
 
   async getRecommendSheetsByTag(tag, page) {
-    return this.search((tag && tag.title) || '热门歌单', page || 1, 'sheet')
+    // 不能用 this：沙箱是非绑定调用（见 plugins/test/sandbox-call.test.mjs）
+    return module.exports.search((tag && tag.title) || '热门歌单', page || 1, 'sheet')
   },
 
   /* ---------- 歌单详情 / 导入 ---------- */
-  async getMusicSheetInfo(musicSheet) {
+  /* 按 page 走 song_begin/song_num：先前恒取前 200 首且 isEnd 恒 true，
+     大歌单被静默截断，用户以为歌单本来就这么长 */
+  async getMusicSheetInfo(musicSheet, page) {
+    var pageNum = page || 1
+    var begin = (pageNum - 1) * SHEET_PAGE_SIZE
     var data = await cgi('music.srfDissInfo.DissInfo', 'CgiGetDiss', {
       disstid: Number(musicSheet.id),
       dirid: 0,
       tag: 1,
-      song_begin: 0,
-      song_num: 200,
+      song_begin: begin,
+      song_num: SHEET_PAGE_SIZE,
       userinfo: 1,
       orderlist: true,
       onlysonglist: 0,
     })
     var dirinfo = (data && data.dirinfo) || {}
     var songs = (data && data.songlist) || []
+    /* 歌单总曲数在 dirinfo.songnum（老字段 song_cnt 也见过） */
+    var total = dirinfo.songnum !== undefined ? dirinfo.songnum : dirinfo.song_cnt
     return {
       title: dirinfo.title || musicSheet.title,
       musicList: songs.map(mapSong),
-      isEnd: true,
+      isEnd: typeof total === 'number' && total > 0
+        ? begin + SHEET_PAGE_SIZE >= total
+        : songs.length < SHEET_PAGE_SIZE,
     }
   },
 
   async importMusicSheet(urlLike) {
     var runs = String(urlLike || '').split(/[^0-9]+/).filter(Boolean)
     if (!runs.length) throw pluginError('not-found', '链接里没有歌单 id')
-    var imported = await this.getMusicSheetInfo({ id: runs[runs.length - 1] })
-    return imported.musicList
+    var id = runs[runs.length - 1]
+    /* 导入要的是整份歌单，这里自己把页翻完（上限与宿主 FETCH_ALL_CAP 一致） */
+    var songs = []
+    for (var page = 1; songs.length < 2000; page++) {
+      // 不能用 this：沙箱是非绑定调用（见 plugins/test/sandbox-call.test.mjs）
+      var chunk = await module.exports.getMusicSheetInfo({ id: id }, page)
+      songs = songs.concat(chunk.musicList)
+      if (chunk.isEnd || !chunk.musicList.length) break
+    }
+    return songs.slice(0, 2000)
   },
 
   async importMusicItem(urlLike) {
@@ -892,7 +1046,8 @@ module.exports = {
     var tokens = String(urlLike || '').split(/[^A-Za-z0-9]+/).filter(function (t) { return t.length === 14 })
     if (!tokens.length) throw pluginError('not-found', '链接里没有歌曲 mid')
     var mid = tokens[0]
-    var result = await this.search(mid, 1, 'music')
+    // 不能用 this：沙箱是非绑定调用（见 plugins/test/sandbox-call.test.mjs）
+    var result = await module.exports.search(mid, 1, 'music')
     var hit = result.data.find(function (s) { return s.id === mid })
     if (!hit) throw pluginError('not-found', '歌曲不存在')
     return hit
@@ -910,9 +1065,22 @@ module.exports = {
 
     async getUser() {
       var cred = requireLogin()
-      /* 昵称/头像在登录时已存进凭据（见 authorizeQq）；
-         GetHomepageHeader 需要 euin 加密链路，不值得为个昵称走一遍 */
-      return { name: cred.nick || 'QQ 音乐用户', avatar: cred.avatar || '' }
+      var uin = String(cred.str_musicid || cred.musicid || '')
+      /*
+       * 昵称/头像在登录时就存进凭据了（见 authorizeQq），但这里必须
+       * 真发一次请求：getUser 同时是宿主 diagnose() 的唯一探针，只读凭据
+       * 的话 musickey 过期永远发现不了——界面显示「已登录」，我的歌单、
+       * 雷达推荐却全空，用户完全看不出该去重新扫码。
+       * GetPlaylistByUin 是登录态里最轻的一个（只回自己的歌单清单），
+       * 凭据失效时 CGI 回 1000 / 104401，由 cgi() 翻成 unauthorized。
+       */
+      await cgi('music.musicasset.PlaylistBaseRead', 'GetPlaylistByUin', { uin: uin })
+      return {
+        /* id 是协议必填：宿主拿它区分「同一插件的两个账号」 */
+        id: uin,
+        name: cred.nick || 'QQ 音乐用户',
+        avatar: cred.avatar || '',
+      }
     },
   },
 

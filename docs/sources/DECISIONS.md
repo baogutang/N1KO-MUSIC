@@ -104,3 +104,26 @@
 - 冲突：do_search_v2 的 search_type 此前硬编码 100，歌单/专辑/歌手搜索全按歌查；改为按类型映射（100/10/200/3000）后，实测匿名态新版响应里非歌曲分节（item_songlist/singer/item_album）依旧为空——QQ 侧歌单广场、soso 老 CGI、PlayListPlazaServer 全部 500003 或空（IP 区域限制，与当初搜索被封同源）。
 - 选择：保留类型映射（方向正确、登录态下才可能点亮、对歌曲搜索零影响），QQ 匿名不向「推荐歌单」合并区贡献内容，网格由网易云撑起；不做假数据。
 - 影响：plugins/qqmusic 0.1.6；等有登录凭据或端点恢复后再实测点亮。
+
+## 2026-09-05 · 发版前收口 · 正式版出厂插件目录随包打进 dist
+- 冲突：此前正式版 `defaultCatalogUrl()` 为空串——装好的 App 一个音源都没有，只能自己去设置里填地址；「没有 NAS 的人也能用」在正式版上等于没实现。先考虑过指向本仓库版本标签的 GitHub raw 地址，但国内网络对 raw.githubusercontent.com 时通时不通，首启种子只跑一次，拉不到就等于永远没有音源。
+- 选择：正式构建把 `plugins/catalog.json` 及目录里列出的插件（manifest + 代码）原样打进 `dist/plugins/`（vite.config.ts `n1koBundlePlugins`，缺文件即构建失败）；出厂目录 = 同源的 `/plugins/catalog.json`。`VITE_PLUGIN_CATALOG_URL` 可整体覆盖（自托管用）。「内置」判定改为按出厂目录**所在目录树**的前缀（而不是 origin——Tauri / Capacitor 的自定义 scheme 下 origin 序列化为 "null"，raw.githubusercontent.com 那种 origin 下又住着所有人的仓库）；安装地址的同源放行同样改为按 protocol + host 比。
+- 原因：离线可用、与 App 版本严格一致、不引入一个能远程换代码的地址；插件升级随 App 发版，版本号变了就走既有的内置静默更新（hosts 有新增仍扣下等确认）。
+- 影响：vite.config.ts、pluginStore.ts defaultCatalogUrl/isFactoryUrl、catalog.ts assertSafeInstallUrl；新增 catalog.test.ts 与 pluginStore 两段式安装 / 出厂判定用例。Mock 不在目录里，自然不进包。
+
+## 2026-09-05 · 发版前收口 · 插件返回的地址同样过白名单
+- 冲突：`hosts` 只管沙箱**发出**的请求；插件**返回**的封面 / 流地址 / 二维码图原样进了 `<img>` 与 `<audio>`——`javascript:`、`file:`、拼了凭据的第三方地址都能进界面。
+- 选择：封面、头像、歌单封面只认 `hosts` 内的 http(s)，另放行 8 KB 以内的内联 `data:image`（离线 Mock 的占位 SVG）；流地址与二维码图额外放行 `data:audio|video|image`；不通过的封面即空（走占位图），不通过的流地址即 `forbidden`。
+- 原因：封面会随歌曲落进听歌历史，几 MB 的 data: 串能把存储撑爆，所以封面这一档不能全放；几 KB 的上限装得下占位图、装不下真照片。
+- 影响：whitelist.ts safeResourceUrl、mapping.ts safeArtwork、plugin.ts resolveStreamUrl/getCoverUrl、QrLogin.tsx。
+
+## 2026-09-05 · 发版前收口 · 重定向逐跳复检、沙箱越界即停用、开发代理不再盲信请求体
+- 冲突：四条网络通道都让底层自动跟随 3xx，白名单只在第一跳生效；沙箱若自导航到别处宿主毫无察觉；开发代理的白名单来自请求体、任何同机页面都能借它出网。
+- 选择：通道一律不跟随，宿主自己最多跟 5 跳、每跳复检白名单与私网、跨主机剥 Cookie/Authorization；父文档 CSP `frame-src blob:` + `ready` 后二次 `load` 即 dispose 并把音源标为「插件异常，已停用」；开发代理按 pluginId 读盘取白名单，强制同源 + 自定义头 + JSON，DNS 解到私网即拒。
+- 原因：白名单是这套插件体系唯一的出网边界，任何一处绕过都等于没有边界。
+- 影响：hostFetch.ts followRedirects、vite.config.ts proxyRequestGuard/pluginHostsFromDisk、PluginHost.ts markCompromised、index.html CSP；浏览器正式版通道对跨源 3xx 会拿到 opaqueredirect（本就因 CORS 走不通插件音源，无实际损失）。
+
+## 2026-09-05 · 发版前收口 · 软陶皮肤的杂志语汇
+- 冲突：`专辑 · ALBUM`、`TRACKS`、`VOL.3 NO.36` 这类双语报头的拉丁半边在编辑风与波普里是排印语汇，在软陶（仪表盘）里读作没翻译的碎片。
+- 选择：眉批的拉丁半边拆成独立 `.latin-tag` 节点（i18n 只留中文/英文半边），软陶与非中文界面下由既有 CSS 规则收掉；`.sticker` 保留（内容是正常文案）。
+- 影响：AlbumDetail / ArtistDetail / SongDetail 眉批与专辑页 tab；两份 i18n 的三个 eyebrow 值。

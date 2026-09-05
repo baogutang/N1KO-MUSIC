@@ -21,7 +21,7 @@
 ## 2. 已经拍板的设计决定
 
 1. **产品形态是聚合**，不是「一次只连一个源」。多源同时连接；`activeServerId` 语义改为「主库」，只影响默认浏览页与新建歌单落在哪。没有 NAS 的用户主库可以是一个插件音源。
-2. **音源即插件**。协议兼容 MusicFree，加 `n1ko` 扩展。插件开发期放本仓库 `plugins/`，App 内有「插件目录地址」设置，默认在开发态指向本地目录，正式版默认为空。
+2. **音源即插件**。协议兼容 MusicFree，加 `n1ko` 扩展。插件开发期放本仓库 `plugins/`，App 内有「插件目录地址」设置，开发态默认指向本地目录，正式版默认指向随包打进 dist 的 `/plugins/catalog.json`（见 DECISIONS 2026-09-05）。
 3. **沙箱**：opaque-origin iframe + 自带 CSP，插件不能直连网络，只能经宿主转发，宿主按 manifest 域名白名单放行并记录。
 4. **宿主网络**：Capacitor 用 `CapacitorHttp.request()` 显式调用，不开全局补丁；Tauri 加 `tauri-plugin-http`；浏览器开发态走 Vite 中间件代理；其余环境退回原生 `fetch` 并把 CORS 失败翻译成可读提示。
 5. **取流**：适配器新增可选异步方法 `resolveStreamUrl`，返回地址与过期时间；播放引擎按歌曲的 `serverId` 找适配器；出错或过期时重取一次。播放引擎不支持自定义请求头，协议里保留字段但宿主忽略。
@@ -181,7 +181,7 @@ plugins/
 **1.4 插件安装与目录**
 - `pluginStore`：从 URL、从粘贴文本、从目录安装；代码哈希；更新检查；卸载清理凭据与私有存储。
 - Vite 开发态中间件：`/__n1ko_plugins/catalog.json` 与 `/__n1ko_plugins/<id>/…` 直接读 `plugins/`。
-- 设置里「插件目录地址」，开发态默认 `/__n1ko_plugins/catalog.json`，正式版默认为空。
+- 设置里「插件目录地址」，开发态默认 `/__n1ko_plugins/catalog.json`，正式版默认 `/plugins/catalog.json`（构建时从 `plugins/` 随包打入）。
 - 验收：`pluginStore.test.ts`；浏览器里从本地目录安装 Mock 插件。
 
 **1.5 Mock 插件**

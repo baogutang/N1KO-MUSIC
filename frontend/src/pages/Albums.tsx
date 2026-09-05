@@ -54,7 +54,11 @@ export default function AlbumsPage() {
             {available.map(s => (
               <button
                 key={s.serverId}
-                onClick={() => setSearchParams(s.serverId === current.serverId ? {} : { src: s.serverId }, { replace: true })}
+                /* 点当前项什么都不做。原来这里清空 ?src=，而 useBrowseSource 在没有
+                   ?src= 时会回落「主库或第一个可浏览源」——于是点亮着的那个 chip，
+                   浏览的库会跳到另一个源去。 */
+                disabled={s.serverId === current.serverId}
+                onClick={() => setSearchParams({ src: s.serverId }, { replace: true })}
                 className={
                   'inline-flex items-center gap-1.5 pb-1 border-b transition-colors ' +
                   (s.serverId === current.serverId

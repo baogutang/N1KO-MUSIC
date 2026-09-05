@@ -44,7 +44,7 @@ export function Masthead() {
 
   return (
     <div
-      className="flex-shrink-0 border-b-[3px] border-double border-hair select-none pop:border-b-2 pop:border-solid"
+      className="masthead flex-shrink-0 border-b-[3px] border-double border-hair select-none pop:border-b-2 pop:border-solid"
       data-tauri-drag-region
     >
       <div
@@ -55,7 +55,10 @@ export function Masthead() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="group flex items-baseline gap-3 text-left pop:items-center" aria-label={t('settings.server.menu')}>
-              <span className="font-sans font-bold text-[15px] tracking-[0.3em] text-foreground pop:font-extrabold pop:tracking-[0.22em] pop:text-[17px]">
+              {/* masthead-brand：软陶把报头压进顶栏那条定宽栏杆里，
+                  窗口窄到装不下时要按「先撤落款、再撤字标、最后才是服务器」
+                  的顺序退让，字标得有个抓手（见 index.css） */}
+              <span className="masthead-brand font-sans font-bold text-[15px] tracking-[0.3em] text-foreground pop:font-extrabold pop:tracking-[0.22em] pop:text-[17px]">
                 N1KO MUSIC
               </span>
               <span className="press-pop flex items-center gap-1.5 text-[11px] tracking-[0.18em] text-ink-soft group-hover:text-foreground transition-colors duration-200 pop:rounded-pill pop:border pop:border-hair pop:bg-candy-ok-soft pop:px-3 pop:py-1.5 pop:text-[12px] pop:tracking-normal pop:font-semibold pop:text-foreground pop:shadow-press">
@@ -121,7 +124,11 @@ export function Masthead() {
         {/* 刊号 + 日期（数字等宽 tabular）。刊号在前：它是这本刊物的编号，
             日期只是这一期的落款。 */}
         <p className="num flex flex-shrink-0 items-baseline gap-3 text-[12px] tracking-[0.14em] text-ink-soft pop:items-center">
-          <span className="text-primary pop:rounded-sm pop:border pop:border-hair pop:bg-primary pop:px-2.5 pop:py-1 pop:text-primary-foreground pop:shadow-press pop:-rotate-2">
+          {/* issue-tag：软陶下整枚不渲染（见 index.css）。
+              卷期号是杂志的语汇——它回答「这是第几期」，而软陶这张皮
+              没有「期」的概念，它是一块仪表盘。日期就在右边，卷期号在这里
+              既不解释什么也不指向什么，只是一枚看不懂的红牌子。 */}
+          <span className="issue-tag text-primary pop:rounded-sm pop:border pop:border-hair pop:bg-primary pop:px-2.5 pop:py-1 pop:text-primary-foreground pop:shadow-press pop:-rotate-2">
             {issue.label}
           </span>
           <span className="hidden sm:inline">{dateLabel} {weekLabel}</span>

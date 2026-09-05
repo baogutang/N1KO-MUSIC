@@ -7,11 +7,15 @@ import { describe, expect, it } from 'vitest'
 import { PluginAdapter, type PluginHostLike } from './plugin'
 import type { PluginManifest, Paged, MediaDetailResult, SheetItem, MusicItem, TopListGroup } from '@/plugins/types'
 import { PluginCallError } from '@/plugins/host/PluginHost'
+import { getRawItem, putRawItem } from '@/plugins/mapping'
 
 function makeManifest(overrides: Partial<PluginManifest> = {}): PluginManifest {
   return {
     id: 'mock', name: 'Mock', version: '0.1.0', protocol: 1, platform: 'mock',
-    entry: 'index.js', auth: { kind: 'qr' }, hosts: ['mock.test'],
+    // 白名单要覆盖各用例里的封面 / 流地址：映射与取流现在都按 manifest hosts
+    // 判一次（插件给的地址由主窗口直接加载，白名单必须在那一层也生效）
+    entry: 'index.js', auth: { kind: 'qr' },
+    hosts: ['mock.test', 'cdn.test', 'n1ko.test', 'top.test', 'x.test', 'p.me'],
     capabilities: ['search', 'lyrics', 'userPlaylists', 'favorites', 'playlistWrite', 'topLists', 'recommendSheets'],
     disclaimer: 'x',
     ...overrides,
@@ -311,5 +315,93 @@ describe('封面与能力声明', () => {
   it('getCoverUrl 原样返回 URL（插件的 coverArt 本来就是地址）', () => {
     const adapter = new PluginAdapter({ serverId: 'srv', manifest: makeManifest(), host: makeFakeHost() })
     expect(adapter.getCoverUrl('https://p.me/cover.jpg', 300)).toBe('https://p.me/cover.jpg')
+  })
+
+  it('getCoverUrl 对白名单外的地址返回空串（落盘旧数据也挡一道）', () => {
+    const adapter = new PluginAdapter({ serverId: 'srv', manifest: makeManifest(), host: makeFakeHost() })
+    expect(adapter.getCoverUrl('https://evil.example.com/c.jpg?c=secret', 300)).toBe('')
+    expect(adapter.getCoverUrl('javascript:alert(1)')).toBe('')
+  })
+})
+
+describe('取流地址过白名单', () => {
+  it('白名单外的流地址抛 forbidden，不交给播放引擎', async () => {
+    const adapter = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({
+        getMediaSource: async () => ({ url: 'https://evil.example.com/a.mp3?c=MUSIC_U%3Dsecret' }),
+      }),
+    })
+    const err = await adapter.resolveStreamUrl!('s1', { maxBitrate: 0, quality: 'high' }).catch(e => e)
+    expect(err).toBeInstanceOf(PluginCallError)
+    expect((err as PluginCallError).code).toBe('forbidden')
+  })
+
+  it('data: 流地址放行（Mock 插件的内存 WAV，不出网）', async () => {
+    const adapter = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({ getMediaSource: async () => ({ url: 'data:audio/wav;base64,AAAA' }) }),
+    })
+    const resolved = await adapter.resolveStreamUrl!('s1', { maxBitrate: 0, quality: 'high' })
+    expect(resolved.url).toBe('data:audio/wav;base64,AAAA')
+  })
+
+  it('javascript: 流地址一律拒绝', async () => {
+    const adapter = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({ getMediaSource: async () => ({ url: 'javascript:alert(1)' }) }),
+    })
+    await expect(adapter.resolveStreamUrl!('s1', { maxBitrate: 0, quality: 'high' })).rejects.toThrow(/allowlist/)
+  })
+
+  it('插件不给 url（或给了非字符串）时同样拒绝，不把 undefined 交给播放器', async () => {
+    const adapter = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({ getMediaSource: async () => ({}) as { url: string } }),
+    })
+    await expect(adapter.resolveStreamUrl!('s1', { maxBitrate: 0, quality: 'high' })).rejects.toThrow(/allowlist/)
+  })
+})
+
+describe('getSong（详情页刷新 / 分享链接进来的路径）', () => {
+  it('缓存命中直接映射；未命中且插件没有 getMusicInfo → null，不造空标题的桩', async () => {
+    const adapter = new PluginAdapter({ serverId: 'srv-gs', manifest: makeManifest(), host: makeFakeHost({}) })
+    putRawItem('srv-gs', 'song', 'hit', music('hit', '命中'))
+    expect((await adapter.getSong('hit'))?.title).toBe('命中')
+    expect(await adapter.getSong('miss')).toBeNull()
+    // 没有把桩写回缓存
+    expect(getRawItem('srv-gs', 'song', 'miss')).toBeNull()
+  })
+
+  it('未命中但插件实现了 getMusicInfo → 用它补全；补不出标题同样算找不到', async () => {
+    const adapter = new PluginAdapter({
+      serverId: 'srv-gs2', manifest: makeManifest(),
+      host: makeFakeHost({
+        getMusicInfo: async item => {
+          const { id } = item as MusicItem
+          return id === 'known' ? music('known', '补全的歌') : { platform: 'mock', id, title: '', artist: '' }
+        },
+      }),
+    })
+    expect((await adapter.getSong('known'))?.title).toBe('补全的歌')
+    expect(await adapter.getSong('unknown')).toBeNull()
+  })
+})
+
+describe('电台（radio）', () => {
+  it('声明 radio 且沙箱有 n1ko.getSimilarSongs 才挂 getSimilarSongs，并按来源映射', async () => {
+    const without = new PluginAdapter({ serverId: 'srv-r0', manifest: makeManifest({ capabilities: ['radio'] }), host: makeFakeHost({}) })
+    expect(without.getSimilarSongs).toBeUndefined()
+    expect(without.getSourceCapabilities().radio).toBe(false)
+
+    const adapter = new PluginAdapter({
+      serverId: 'srv-r1', manifest: makeManifest({ capabilities: ['radio'] }),
+      host: makeFakeHost({
+        'n1ko.getSimilarSongs': async (_seed, count) => [music('s1', '相似一'), music('s2', '相似二')].slice(0, count as number),
+      }),
+    })
+    expect(adapter.getSourceCapabilities().radio).toBe(true)
+    const songs = await adapter.getSimilarSongs!('seed', 1)
+    expect(songs.map(s => [s.title, s.serverId])).toEqual([['相似一', 'srv-r1']])
   })
 })

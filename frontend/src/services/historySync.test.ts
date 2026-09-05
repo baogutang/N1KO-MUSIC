@@ -13,11 +13,12 @@ vi.mock('@/api/syncClient', () => ({
   describeSyncError: (error: unknown) => String(error),
 }))
 
-import { fetchRemoteHistory, pushScrobble } from '@/api/syncClient'
+import { fetchRemoteHistory, pushFavorite, pushScrobble, removeFavorite } from '@/api/syncClient'
 import {
   backfillPendingScrobbles,
   enqueueLocalBacklog,
   flushOutbox,
+  mirrorFavorite,
   pendingScrobbleCount,
   pullRemoteHistory,
   queueScrobble,
@@ -355,5 +356,55 @@ describe('拉取远端历史', () => {
 
     expect(await pullRemoteHistory()).toBe(700)
     expect(fetchRemoteHistory).toHaveBeenCalledTimes(2)
+  })
+})
+
+// ===================================================
+// B6：收藏镜像按曲目自己的来源记
+// ===================================================
+
+describe('mirrorFavorite 的音源归属', () => {
+  const OTHER = 'wy'
+
+  it('按曲目自己的来源上报，而不是主库', async () => {
+    enableSync()
+    // 主库是 server-a，收藏的却是网易云那首歌
+    await mirrorFavorite('w1', true, song('w1', { serverId: OTHER }))
+
+    expect(pushFavorite).toHaveBeenCalledTimes(1)
+    const call = vi.mocked(pushFavorite).mock.calls[0]
+    expect(call[3]).toBe(OTHER)
+    expect(call[2].serverId).toBe(OTHER)
+  })
+
+  it('主库自己的歌照旧记主库——单源行为不变', async () => {
+    enableSync()
+    await mirrorFavorite('song-1', true, song('song-1'))
+
+    expect(vi.mocked(pushFavorite).mock.calls[0][3]).toBe(SERVER_ID)
+  })
+
+  it('取消收藏没有 song 时回落主库（只传得到 id）', async () => {
+    enableSync()
+    await mirrorFavorite('song-1', false)
+
+    expect(removeFavorite).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(removeFavorite).mock.calls[0][3]).toBe(SERVER_ID)
+  })
+
+  it('取消收藏带上 song 时按它的来源', async () => {
+    enableSync()
+    await mirrorFavorite('w1', false, song('w1', { serverId: OTHER }))
+
+    expect(vi.mocked(removeFavorite).mock.calls[0][3]).toBe(OTHER)
+  })
+
+  it('没连主库、曲目也没带来源时不发请求', async () => {
+    enableSync()
+    useServerStore.setState({ activeServerId: null })
+
+    await mirrorFavorite('x', false)
+
+    expect(removeFavorite).not.toHaveBeenCalled()
   })
 })

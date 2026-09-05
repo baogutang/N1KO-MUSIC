@@ -93,6 +93,15 @@ export function diffUpdates(
  * 拒绝私网/回环主机，拒绝带 userinfo 的地址。插件 API 流量另有 hosts 白名单
  * （hostFetch），这里是「从哪装」而不是「往哪请求」。
  */
+function safeParse(href: string | undefined): URL | null {
+  if (!href) return null
+  try {
+    return new URL(href)
+  } catch {
+    return null
+  }
+}
+
 export function assertSafeInstallUrl(rawUrl: string): void {
   let u: URL
   try {
@@ -100,8 +109,12 @@ export function assertSafeInstallUrl(rawUrl: string): void {
   } catch {
     throw new Error(`安装地址无法解析：${rawUrl}`)
   }
-  const sameOrigin = typeof location !== 'undefined' && u.origin === location.origin
-  // 同源地址（开发态本地目录 /__n1ko_plugins）放行：dev server 本来就在 localhost
+  /* 同源地址放行：开发态的 /__n1ko_plugins 与正式版随包的 /plugins 都是同源。
+     不能比 origin——Tauri（tauri://localhost）与 Capacitor iOS（capacitor://localhost）
+     是自定义 scheme，URL 规范下它们的 origin 序列化成 "null"，两边一比全相等，
+     连 data: 都会被当成同源；按 protocol + host 逐项比才是「同一个壳」。 */
+  const here = safeParse(typeof location !== 'undefined' ? location.href : undefined)
+  const sameOrigin = !!here && u.host !== '' && u.protocol === here.protocol && u.host === here.host
   if (sameOrigin) return
   if (u.protocol !== 'https:') {
     throw new Error('插件安装地址只支持 https')
@@ -118,6 +131,20 @@ export function assertSafeInstallUrl(rawUrl: string): void {
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{1,31}$/
 
+/**
+ * 协议认识的 capability（PROTOCOL §6，与 PluginAdapter.methodExistsForCapability 一一对应）。
+ *
+ * 不认识的名字必须当场报错而不是静默忽略：写成 MusicFree 的 `lyric`、
+ * `importMusicSheet` 时宿主只会当「没声明」，歌词面板、导入入口直接消失，
+ * 而插件作者看到的是安装成功、毫无提示——出厂的两个插件就这么错了一版。
+ */
+const KNOWN_CAPABILITIES = new Set([
+  'search', 'album', 'artist', 'lyrics',
+  'userPlaylists', 'favorites', 'playlistWrite',
+  'topLists', 'recommendSheets', 'recommendSongs',
+  'importSheet', 'libraryBrowse', 'radio',
+])
+
 /** 安装前校验 manifest 形状；不合法直接抛错并给出人话原因 */
 export function validateManifest(raw: unknown): PluginManifest {
   const m = raw as Record<string, unknown>
@@ -129,6 +156,10 @@ export function validateManifest(raw: unknown): PluginManifest {
   if (typeof m.entry !== 'string' || !m.entry) fail('缺少 entry')
   if (!Array.isArray(m.hosts) || !m.hosts.length || !m.hosts.every(h => typeof h === 'string')) fail('hosts 必须是非空字符串数组')
   if (!Array.isArray(m.capabilities) || !m.capabilities.every(c => typeof c === 'string')) fail('capabilities 必须是字符串数组')
+  const unknownCaps = (m.capabilities as string[]).filter(c => !KNOWN_CAPABILITIES.has(c))
+  if (unknownCaps.length) {
+    fail(`capabilities 里有协议不认识的名字：${unknownCaps.join('、')}（可用：${[...KNOWN_CAPABILITIES].join('、')}）`)
+  }
   if (!m.auth || typeof m.auth !== 'object' || !['qr', 'cookie', 'none'].includes(String((m.auth as Record<string, unknown>).kind))) fail('auth.kind 必须是 qr / cookie / none')
   if (typeof m.disclaimer !== 'string' || !m.disclaimer) fail('缺少 disclaimer')
   if (typeof m.name !== 'string' || !m.name) fail('缺少 name')

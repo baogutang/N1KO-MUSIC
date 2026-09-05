@@ -8,6 +8,7 @@
 
 Point it at Navidrome / Subsonic / Jellyfin / Emby and read your own library
 like a beautifully typeset issue.
+No NAS? Sign in with your own NetEase Cloud Music or QQ Music account and listen anyway.
 
 <br/>
 
@@ -74,40 +75,49 @@ Fully free, fully open source, no accounts, no telemetry, no upsell.
 
 ### Now playing
 
-An oversized cover and a lyric stream, with the current line under a lemon highlighter —
-tap any line to seek. (Switch to Paper & Ink and that line becomes a vermilion rule,
-over a wash of colour lifted from the artwork.)
+An oversized cover and a lyric stream with the current line picked out — tap any line to seek.
+In Soft Clay the line sits on a cream-yellow pillow; in Candy Pop it is under a lemon highlighter;
+in Paper & Ink it becomes a vermilion rule over a wash of colour lifted from the artwork.
 
-![Now playing](docs/screenshots/v3/player.gif)
+![Now playing](docs/screenshots/v4/player.gif)
 
 ### Home · the cover page
 
 A featured-album headline, a numbered recently-added list, a typographic artist index,
 and **Rediscover** — three columns pulled from your own history.
 
-The same page in both skins. Flip between them with the palette button in the toolbar,
-or from Settings · Appearance; each one has its own light and dark.
+The same page in three skins. Cycle through them with the palette button in the toolbar,
+or pick one from Settings · Appearance; each has its own light and dark.
 
-**Candy Pop Workshop** · default
+**Soft Clay** · default
 
-![Home · Candy Pop Workshop](docs/screenshots/v3/home.png)
+A pastel claymorphism dashboard: a full-height sidebar, a card grid, puffy buttons,
+and a greeting banner that is home to **Nuo**, the mascot — headphones on while music
+plays, a wave when it stops, and a hop and a line of small talk when you poke it in the sidebar.
+
+![Home · Soft Clay](docs/screenshots/v4/home.png)
+
+**Candy Pop Workshop**
+
+![Home · Candy Pop Workshop](docs/screenshots/v4/home-pop.png)
 
 **Paper & Ink**
 
-![Home · Paper and Ink](docs/screenshots/v3/home-editorial.png)
+![Home · Paper and Ink](docs/screenshots/v4/home-editorial.png)
 
 ### Album · the dossier page
 
 Oversized cover, archival metadata, a tracklist, liner notes, and a margin where you can
 write your own.
 
-![Album detail](docs/screenshots/v3/album.png)
+![Album detail](docs/screenshots/v4/album.png)
 
-### Connect your server
+### Connect your server — or sign in to a streaming source
 
-Navidrome / Subsonic / Jellyfin / Emby, connected in seconds.
+Navidrome / Subsonic / Jellyfin / Emby connect in seconds;
+NetEase Cloud Music / QQ Music sign in with a QR scan from the phone app.
 
-![Connect](docs/screenshots/v3/login.png)
+![Connect](docs/screenshots/v4/login.png)
 
 <br/>
 
@@ -272,8 +282,39 @@ entry does not appear at all rather than failing when tapped.
 
 <details>
 <summary>Related searches</summary>
-<sub>Navidrome client · Navidrome desktop app · Subsonic client · Subsonic music player · Jellyfin music player · Emby music player · NAS music player · self-hosted music player · music streaming client · Airsonic client</sub>
+<sub>Navidrome client · Navidrome desktop app · Subsonic client · Subsonic music player · Jellyfin music player · Emby music player · NAS music player · self-hosted music player · music streaming client · Airsonic client · NetEase Cloud Music desktop client · QQ Music desktop client</sub>
 </details>
+
+<br/>
+
+## Streaming sources · NetEase Cloud Music / QQ Music
+
+No NAS, or a song your NAS does not have? Sign in with your own account and listen —
+**whatever your account is entitled to, and nothing more**. A track your subscription does
+not cover is marked VIP with the reason spelled out; there is no "unlocking" of any kind.
+
+| Source | Sign-in | What works |
+|------|------|------|
+| NetEase Cloud Music | QR scan from the phone app | Search, your playlists, favourites, daily picks, charts, lyrics, add to / remove from playlists |
+| QQ Music | QR scan from the QQ app | Search, your playlists, favourites, radar picks, charts, lyrics |
+
+They sit **alongside** your NAS rather than replacing it:
+
+- **Search is grouped by source**, with an "All" view merged by relevance;
+- the home page's **"What to play today"** interleaves each source's daily picks into one rail (the Recommendations page is its expanded form);
+- favourites and playlists are sectioned by source, and the queue can mix them freely;
+- an expired sign-in shows a banner asking you to scan again, instead of half the page quietly going blank.
+
+**How it works.** Each source is a plugin ([protocol](docs/sources/PROTOCOL.md) — MusicFree-compatible, with `n1ko`
+extensions such as QR sign-in) running in a scripts-only sandbox: it cannot touch the page or open
+its own connections, and every request goes through the host, which enforces the manifest's host
+allow-list on every redirect hop. The two stock plugins ship inside the installer and are ready on first launch.
+
+**The boundary, stated plainly.** These endpoints are community reverse-engineering work, not official APIs —
+a platform change can break them; we will follow along, but availability is not guaranteed. Credentials are
+encrypted with the same AES-GCM key as your server passwords and never leave the device. The browser build
+(Docker / static hosting) has no usable network channel for this, so streaming sources are offered in the
+desktop and mobile apps only.
 
 <br/>
 
@@ -308,9 +349,10 @@ Grab the installer for your platform from **[Releases](https://github.com/baogut
 | Layer | Technology |
 |------|-----|
 | Frontend | React 18 · TypeScript · Vite 5 · Tailwind CSS |
-| UI | Radix UI · Phosphor Icons · self-hosted fonts (Source Serif 4 / Hanken Grotesk / JetBrains Mono) |
+| UI | Radix UI · Phosphor Icons · self-hosted fonts (Source Serif 4 / Hanken Grotesk / JetBrains Mono / Nunito) |
 | State and data | Zustand · TanStack Query v5 |
 | Audio engine | Native HTML5 Audio |
+| Streaming sources | Sandboxed plugins (MusicFree-compatible protocol + `n1ko` extensions); the host proxies network access through an allow-list |
 | Desktop shell | Tauri 2 (Rust) |
 | Mobile shell | Capacitor 8 (Android · iOS) |
 | Optional sync service | Node.js 24 · Express · SQLite |
@@ -419,6 +461,7 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 | Listening history, statistics, taste profile | This device (IndexedDB), plus your own sync service if you run one. |
 | Marginalia | Same. It is the only irreplaceable data here, so it syncs first. |
 | Server credentials | Encrypted at rest with an AES-GCM key that page script cannot extract. |
+| NetEase / QQ Music sign-in credentials | Same. Device-only; plugins run sandboxed and can only reach the hosts on their manifest allow-list. |
 | Exports | Generated in the browser. Never uploaded. |
 | ListenBrainz scrobbles | Only if you enter a token. Off by default. |
 | MusicBrainz artist dossiers | Only the artist's MusicBrainz id, only if you switch it on. Off by default. |

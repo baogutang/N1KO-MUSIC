@@ -9,7 +9,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CaretLeft, CaretRight, Play } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
-import { useServerStore } from '@/store/serverStore'
+import { useServerStore , useHistoryScope } from '@/store/serverStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import {
   buildIssue, monthPeriod, shiftPeriod, yearPeriod, MIN_PLAYS_FOR_ISSUE,
@@ -33,12 +33,13 @@ export default function IssuePage() {
   const { t, locale } = useT()
   const navigate = useNavigate()
   const serverId = useServerStore(s => s.activeServerId)
+  const historyScope = useHistoryScope()
   const [kind, setKind] = useState<'month' | 'year'>('month')
   const [offset, setOffset] = useState(0)
 
   const events = useMemo(
-    () => (serverId ? readListeningEvents(serverId) : []),
-    [serverId]
+    () => readListeningEvents(historyScope),
+    [historyScope]
   )
 
   const period: IssuePeriod = useMemo(() => {

@@ -93,7 +93,11 @@ export default function AlbumDetailPage() {
 
         {/* 右：元信息 */}
         <div className="min-w-0">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">{t('album.eyebrow')}</p>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">
+            {t('album.eyebrow')}
+            {/* 拉丁半边单独成节点：软陶与非中文界面下由 .latin-tag 规则收掉 */}
+            <span className="latin-tag"> · ALBUM</span>
+          </p>
           <h1 className="mt-3 font-serif text-[40px] font-black leading-[1.1] tracking-[-0.01em] text-ink text-balance lg:text-[52px]">
             {spaceCJK(album.name)}
           </h1>
@@ -133,7 +137,8 @@ export default function AlbumDetailPage() {
                 const next = !starred
                 setStarred(next)
                 toggleStar.mutate(
-                  { id, type: 'album', isStarred: !next },
+                  // 专辑收藏要按专辑自己的来源走，不能落到主库
+                  { id, type: 'album', isStarred: !next, serverId: album.serverId },
                   { onError: () => setStarred(!next) }
                 )
               }}
@@ -168,7 +173,7 @@ export default function AlbumDetailPage() {
               aria-current={view === tab.id ? 'true' : undefined}
             >
               {tab.label}
-              <span className="ml-2 font-num text-[9.5px] tracking-[0.16em] text-ink-faint">
+              <span className="latin-tag ml-2 font-num text-[9.5px] tracking-[0.16em] text-ink-faint">
                 {tab.tag}
               </span>
               {view === tab.id && (
