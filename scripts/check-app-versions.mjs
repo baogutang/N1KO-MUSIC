@@ -52,7 +52,8 @@ if (androidVersionCode !== expectedVersionCode) {
  */
 const frontendLock = readJson('frontend/package-lock.json')
 const tauriApiVersion = frontendLock.packages?.['node_modules/@tauri-apps/api']?.version
-const tauriCrateVersion = cargoLock.match(/\[\[package\]\]\nname = "tauri"\nversion = "([^"]+)"/)?.[1]
+// \s+ 而不是 \n：Windows runner 检出的 Cargo.lock 是 CRLF，写死 \n 会在那一台上匹配不到
+const tauriCrateVersion = cargoLock.match(/\[\[package\]\]\s+name = "tauri"\s+version = "([^"]+)"/)?.[1]
 const minorOf = v => (v ?? '').split('.').slice(0, 2).join('.')
 if (!tauriApiVersion || !tauriCrateVersion || minorOf(tauriApiVersion) !== minorOf(tauriCrateVersion)) {
   console.error(
