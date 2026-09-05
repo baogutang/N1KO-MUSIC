@@ -43,6 +43,24 @@ if (androidVersionCode !== expectedVersionCode) {
   process.exit(1)
 }
 
+/**
+ * Tauri 的 Rust crate 与 npm 包必须在同一个 major.minor 上：
+ * `tauri build` 开头就会做这道检查，不一致直接退出——v1.11.0 第一次打标签
+ * 就是这么在四个桌面平台上全红的（crate 2.10.3 对 @tauri-apps/api 2.11.1，
+ * 一次 npm install 在 ^ 范围内悄悄漂上去的）。package.json 已改成 ~ 锁住小版本，
+ * 这里再钉一次，让漂移在本地 check:versions 就暴露，而不是等 CI 编到一半。
+ */
+const frontendLock = readJson('frontend/package-lock.json')
+const tauriApiVersion = frontendLock.packages?.['node_modules/@tauri-apps/api']?.version
+const tauriCrateVersion = cargoLock.match(/\[\[package\]\]\nname = "tauri"\nversion = "([^"]+)"/)?.[1]
+const minorOf = v => (v ?? '').split('.').slice(0, 2).join('.')
+if (!tauriApiVersion || !tauriCrateVersion || minorOf(tauriApiVersion) !== minorOf(tauriCrateVersion)) {
+  console.error(
+    `Tauri version mismatch: crate tauri ${tauriCrateVersion} vs @tauri-apps/api ${tauriApiVersion} ` +
+    '(must share major.minor; pin @tauri-apps/api with ~ in frontend/package.json)')
+  process.exit(1)
+}
+
 const versions = {
   rootVersion, frontendVersion, tauriConfigVersion, cargoVersion, lockVersion,
   androidVersion, iosVersion,
