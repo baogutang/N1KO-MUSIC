@@ -68,6 +68,20 @@ function defaultCatalogUrl(): string {
  * 都当成出厂。所以比的是「出厂目录文件所在目录」这个前缀：开发态是
  * `/__n1ko_plugins/`，正式版是随包的 `/plugins/`。
  */
+/**
+ * 出厂目录是不是**随包**的那一份（不是自托管覆盖、也不是远端地址）。
+ *
+ * 「hosts 扩容要人确认」防的是**远端目录**：它能在后台悄悄把插件的可访问域名
+ * 加到任意主机上。而随包目录就在安装包里，和 App 一起签名分发——用户装这个
+ * 版本的时候就已经同意了这份 hosts，再要一次确认只是白挡一道：v1.11.4 给 QQ
+ * 加了取流域名，用户装完却发现还是放不了，因为更新被扣在设置页等确认。
+ */
+function isBundledCatalog(url: string | undefined): boolean {
+  if (import.meta.env.DEV) return false
+  if (import.meta.env.VITE_PLUGIN_CATALOG_URL) return false
+  return !!url && isFactoryUrl(url)
+}
+
 function isFactoryUrl(url: string | undefined): boolean {
   const factory = defaultCatalogUrl()
   if (!factory || !url) return false
@@ -199,10 +213,10 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
 
         const prepared = await get().prepareInstall(manifestUrl)
         if (!prepared.ok) continue
-        if (prepared.pending.addedHosts.length) {
-          /* hosts 扩容一律扣下等人确认（PROTOCOL §9）。静默放行的话，
-             一次自动更新就能把插件的可访问域名加到任意主机上，而这条
-             更新链路整个跑在后台、用户全程看不见。 */
+        if (prepared.pending.addedHosts.length && !isBundledCatalog(catalogUrl)) {
+          /* hosts 扩容扣下等人确认（PROTOCOL §9）。静默放行的话，一次自动更新
+             就能把插件的可访问域名加到任意主机上，而这条更新链路整个跑在后台、
+             用户全程看不见。**随包目录除外**——见 isBundledCatalog。 */
           held.push({
             id: entry.id,
             name: installed.name,

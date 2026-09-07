@@ -291,5 +291,5 @@ type PluginErrorCode =
 ## 9. 版本与兼容
 
 - `protocol` 升版只在破坏兼容时进行。宿主按 manifest 的 `protocol` 选择加载器。
-- 插件通过 `sourceUrl` 更新：宿主重新拉取 manifest 与代码，比对 `version` 与代码哈希；`hosts` 有新增时重新弹一次确认。
+- 插件通过 `sourceUrl` 更新：宿主重新拉取 manifest 与代码，比对 `version` 与代码哈希；`hosts` 有新增时重新弹一次确认。**随包目录除外**——那份目录在安装包里、与 App 一起分发，用户装这个版本时就已经同意了它的 hosts，再确认一次只是白挡一道（自托管覆盖 `VITE_PLUGIN_CATALOG_URL` 与任何远端目录仍要确认）。
 - 卸载插件时删除它的代码、凭据、私有存储与请求日志。

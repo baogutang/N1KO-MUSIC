@@ -127,6 +127,32 @@ function requireLogin() {
 }
 
 /** 雷达推荐（modules/recommend.py GetRadarSong）：响应字段是 tracks，需登录 */
+/* QQ 各接口装歌曲列表的键名并不统一（tracks / v_song / songs / track_list…），
+   而且会变。写死一个键名读错了就是**静默为空**——界面上表现为「这个音源没有
+   推荐」，既不报错也没线索。先认已知键，再按形状找：元素带 mid 的数组就是歌单。 */
+var SONG_LIST_KEYS = ['tracks', 'v_song', 'songs', 'track_list', 'songlist', 'v_track']
+
+function looksLikeSongArray(value) {
+  return Array.isArray(value) && value.length > 0 && value.some(function (x) {
+    return x && typeof x === 'object' && (x.mid || x.songmid)
+  })
+}
+
+function findSongArray(node, depth) {
+  if (!node || typeof node !== 'object' || (depth || 0) > 4) return null
+  for (var i = 0; i < SONG_LIST_KEYS.length; i++) {
+    if (looksLikeSongArray(node[SONG_LIST_KEYS[i]])) return node[SONG_LIST_KEYS[i]]
+  }
+  var keys = Object.keys(node)
+  for (var j = 0; j < keys.length; j++) {
+    var v = node[keys[j]]
+    if (looksLikeSongArray(v)) return v
+    var deeper = findSongArray(v, (depth || 0) + 1)
+    if (deeper) return deeper
+  }
+  return null
+}
+
 async function fetchRadarSongs() {
   requireLogin()
   var radar = await cgi('music.recommend.TrackRelationServer', 'GetRadarSong', {
@@ -135,7 +161,14 @@ async function fetchRadarSongs() {
     FavSongs: [],
     EntranceSongs: [],
   })
-  return ((radar && radar.tracks) || []).map(mapSong)
+  var list = findSongArray(radar, 0)
+  if (!list) {
+    /* 真的一首都没有（新号、当天没算出来）与「键名又改了」是两回事：
+       后者必须说出来，否则只会看到「怎么没有 QQ」而无从查起。 */
+    var keys = radar && typeof radar === 'object' ? Object.keys(radar).slice(0, 8).join(',') : String(radar)
+    throw pluginError('unknown', 'QQ 雷达推荐没有可识别的曲目列表（响应字段：' + keys + '）')
+  }
+  return list.map(mapSong)
 }
 
 /* ============================================================
@@ -1087,12 +1120,45 @@ module.exports = {
        * GetPlaylistByUin 是登录态里最轻的一个（只回自己的歌单清单），
        * 凭据失效时 CGI 回 1000 / 104401，由 cgi() 翻成 unauthorized。
        */
-      await cgi('music.musicasset.PlaylistBaseRead', 'GetPlaylistByUin', { uin: uin })
+      var probe = await cgi('music.musicasset.PlaylistBaseRead', 'GetPlaylistByUin', { uin: uin })
+      /*
+       * 昵称：登录响应里那几个字段名（nick/nickname/user_nick）是按常见名猜的，
+       * QQ 实际并不一定给——结果就是账号列表里永远写着「QQ 音乐用户」。
+       * 这里再从两处捞一次：主页接口（同时带会员标记），以及刚才这条歌单响应
+       * （自建歌单上通常挂着创建者昵称）。都捞不到才退回占位名。
+       */
+      var nick = cred.nick || ''
+      var avatar = cred.avatar || ''
+      var vip
+      try {
+        var home = await cgi('music.UnifiedHomepage.UnifiedHomepageSrv', 'GetHomepageHeader', {
+          uin: uin,
+          IsQueryTabDetail: 1,
+        })
+        var info = (home && (home.Info || home.info)) || {}
+        nick = nick || info.Nick || info.nick || ''
+        avatar = avatar || info.Avatar || info.avatar || ''
+        var vipFlags = [info.IsVip, info.isVip, info.VipFlag, info.green, info.IsGreen]
+        for (var vi = 0; vi < vipFlags.length; vi++) {
+          if (vipFlags[vi] !== undefined && vipFlags[vi] !== null) { vip = !!Number(vipFlags[vi]); break }
+        }
+      } catch (e) {
+        /* 主页接口失败不影响登录判定：上面那条歌单探针才是权威 */
+      }
+      if (!nick) {
+        var lists = (probe && (probe.v_playlist || probe.playlist || probe.v_item)) || []
+        for (var li = 0; li < lists.length; li++) {
+          var owner = lists[li] || {}
+          nick = owner.nickname || owner.nick || (owner.creator && (owner.creator.nick || owner.creator.nickname)) || ''
+          if (nick) break
+        }
+      }
       return {
         /* id 是协议必填：宿主拿它区分「同一插件的两个账号」 */
         id: uin,
-        name: cred.nick || 'QQ 音乐用户',
-        avatar: cred.avatar || '',
+        name: nick || 'QQ 音乐用户',
+        avatar: avatar,
+        ...(vip === undefined ? {} : { vip: vip }),
       }
     },
   },
