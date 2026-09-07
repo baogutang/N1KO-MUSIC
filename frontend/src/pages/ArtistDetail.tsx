@@ -19,6 +19,7 @@ import { isQualifiedListeningEvent, readListeningEvents } from '@/services/liste
 import { cn } from '@/lib/utils'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
+import { sourceParam } from '@/lib/sourceParam'
 
 /** 全部歌曲默认展示数量 */
 const SONGS_INITIAL_SHOW = 20
@@ -30,7 +31,7 @@ export default function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { data: artist, isLoading } = useArtistDetail(id ?? '', searchParams.get('src') ?? undefined)
+  const { data: artist, isLoading } = useArtistDetail(id ?? '', sourceParam(searchParams))
   const [showAllSongs, setShowAllSongs] = useState(false)
   const [bioExpanded, setBioExpanded] = useState(false)
   const [imgError, setImgError] = useState(false)

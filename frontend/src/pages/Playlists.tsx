@@ -25,13 +25,14 @@ import { spaceCJK } from '@/utils/cjkTypography'
 import { ImportPlaylistDialog } from '@/components/music/ImportPlaylistDialog'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
+import { sourceParam } from '@/lib/sourceParam'
 
 export default function Playlists() {
   const { t } = useT()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
-  const srcFilter = searchParams.get('src') ?? undefined
+  const srcFilter = sourceParam(searchParams)
   const sources = useConnectedSources()
   const multi = sources.length > 1 && !srcFilter
   // 多源：每源一节（主库节带新建/导入与删除）；单源/?src=：一条查询，行为同旧版。

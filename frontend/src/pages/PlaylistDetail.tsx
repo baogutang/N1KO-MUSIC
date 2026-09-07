@@ -21,6 +21,7 @@ import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
 import type { SourceCapabilities } from '@/api/types'
+import { sourceParam } from '@/lib/sourceParam'
 
 /**
  * 这个歌单能不能改（纯函数，测试直接覆盖）。
@@ -53,7 +54,7 @@ export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>()
   /** 跨源歌单导航带 ?src=<serverId>；单源/主库歌单没有这个参数 */
   const [searchParams] = useSearchParams()
-  const srcServerId = searchParams.get('src') ?? undefined
+  const srcServerId = sourceParam(searchParams)
   const navigate = useNavigate()
   const { data: playlist, isLoading, error } = usePlaylistDetail(id!, srcServerId)
   const sourceCaps = useSourceCapabilities()

@@ -17,12 +17,13 @@ import { buildIndexBuckets, IndexRail } from '@/components/common/IndexRail'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
+import { sourceParam } from '@/lib/sourceParam'
 
 export default function ArtistsPage() {
   const { t } = useT()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const srcParam = searchParams.get('src') ?? undefined
+  const srcParam = sourceParam(searchParams)
   const { available, current } = useBrowseSource(srcParam)
   const { data: artists, isLoading } = useArtists(current?.serverId)
   const [filter, setFilter] = useState('')

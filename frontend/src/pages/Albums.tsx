@@ -14,13 +14,14 @@ import { useBrowseSource } from '@/hooks/useSourceQueries'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
+import { sourceParam } from '@/lib/sourceParam'
 
 const GRID_CLASS = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-7'
 
 export default function AlbumsPage() {
   const { t } = useT()
   const [searchParams, setSearchParams] = useSearchParams()
-  const srcParam = searchParams.get('src') ?? undefined
+  const srcParam = sourceParam(searchParams)
   const { available, current } = useBrowseSource(srcParam)
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useAlbumsInfinite(50, 'newest', current?.serverId)

@@ -17,6 +17,7 @@ import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SourceGroupState } from '@/components/sources/SourceGroupState'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
+import { sourceParam } from '@/lib/sourceParam'
 
 type FavTab = 'songs' | 'albums'
 
@@ -25,7 +26,7 @@ export default function Favorites() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<FavTab>('songs')
   const [searchParams] = useSearchParams()
-  const srcFilter = searchParams.get('src') ?? undefined
+  const srcFilter = sourceParam(searchParams)
 
   const sources = useConnectedSources()
   const multi = sources.length > 1 && !srcFilter

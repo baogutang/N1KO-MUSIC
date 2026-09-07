@@ -39,6 +39,7 @@ import { MarginNote } from '@/components/music/MarginNote'
 import { ShareDialog } from '@/components/music/ShareDialog'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 import { useT } from '@/i18n'
+import { sourceParam } from '@/lib/sourceParam'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
@@ -673,7 +674,7 @@ export default function SongDetailPage() {
    * 「找不到这首歌」，而 state 里明明有它。三级回落：
    * 地址栏 ?src=（刷新后唯一还在的线索）> state 里那首歌自己的来源 > 主库。
    */
-  const srcParam = searchParams.get('src') ?? ''
+  const srcParam = sourceParam(searchParams) ?? ''
   const serverId = srcParam || stateSong?.serverId || activeServerId || ''
 
   /*

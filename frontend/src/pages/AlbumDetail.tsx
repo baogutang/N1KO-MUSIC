@@ -19,13 +19,14 @@ import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
 import { MarginNote } from '@/components/music/MarginNote'
 import { useT } from '@/i18n'
+import { sourceParam } from '@/lib/sourceParam'
 
 export default function AlbumDetailPage() {
   const { t } = useT()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { data: album, isLoading } = useAlbumDetail(id ?? '', searchParams.get('src') ?? undefined)
+  const { data: album, isLoading } = useAlbumDetail(id ?? '', sourceParam(searchParams))
   const toggleStar = useToggleStar()
   const [starred, setStarred] = useState(false)
   const [view, setView] = useState<'tracks' | 'notes'>('tracks')
