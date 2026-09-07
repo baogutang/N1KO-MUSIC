@@ -127,3 +127,14 @@
 - 冲突：`专辑 · ALBUM`、`TRACKS`、`VOL.3 NO.36` 这类双语报头的拉丁半边在编辑风与波普里是排印语汇，在软陶（仪表盘）里读作没翻译的碎片。
 - 选择：眉批的拉丁半边拆成独立 `.latin-tag` 节点（i18n 只留中文/英文半边），软陶与非中文界面下由既有 CSS 规则收掉；`.sticker` 保留（内容是正常文案）。
 - 影响：AlbumDetail / ArtistDetail / SongDetail 眉批与专辑页 tab；两份 i18n 的三个 eyebrow 值。
+
+## 2026-09-06 · 线上事故 · 桌面通道与开发代理必须发一样的请求
+- 冲突：插件登录只在开发态（浏览器 + Vite 的 Node 代理）验证过；v1.11.1 装到桌面上 QQ 扫码报「没有 p_skey」、网易云登录后所有已授权接口失败（横幅一直说登录失效、曲库那节「此音源加载失败」）。
+- 原因（在真实 Tauri 壳里逐条实测）：`tauri-plugin-http` 与 Node 代理有三处不一样——
+  1. 它**不认** fetch 的 `redirect: 'manual'`（只读自己的 `maxRedirections`），reqwest 默认跟随 10 跳，QQ 要读的 check_sig 那一跳 302 的 `set-cookie` 被跟掉了；
+  2. 它给每个请求补 `Origin: tauri://localhost`（Node 代理不带任何 Origin），网易云 weapi 对 Origin 敏感；
+  3. 插件没设 UA 时它补 `tauri-plugin-http/2.6.0`（QQ 的 check_sig 恰好没设），等于自报是机器人。
+- 选择：通道传 `maxRedirections: 0`；插件没写 Origin 时送空串（crate 见空 Origin 会整个删掉，这是它留的显式出口）；沙箱 axios 在插件没写 UA 时补一个普通桌面 Chrome 的 UA。三条都有单测钉住。
+- 实测方式：临时诊断模块在 `tauri dev` 壳里经 `hostFetch` 打 httpbin 与网易云，把服务端看到的请求头回传到本地日志端口。修复后：无 Origin、`redirect:'manual'` 拿到 302 + Location、UA 是浏览器 UA。
+- 教训：「在开发态验证过」不等于「在用户装的壳里验证过」。凡是宿主替插件发请求的通道，都要按「服务端看到了什么」对齐，而不是按调用方写了什么。
+

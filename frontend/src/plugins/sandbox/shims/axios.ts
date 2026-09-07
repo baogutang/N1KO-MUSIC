@@ -70,6 +70,10 @@ function appendParams(url: string, params: Record<string, unknown>): string {
 
 export type FetchViaHost = (request: HostFetchRequest) => Promise<HostFetchResult>
 
+/** 插件未指定时的默认 UA：一台普通 Mac 上的 Chrome */
+const DEFAULT_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
 export function createAxiosShim(fetchViaHost: FetchViaHost) {
   async function request(config: AxiosLikeConfig): Promise<AxiosLikeResponse> {
     if (!config.url) throw new AxiosLikeError('url is required', undefined, 'ERR_INVALID_URL')
@@ -89,6 +93,17 @@ export function createAxiosShim(fetchViaHost: FetchViaHost) {
       }
       bodyEncoding = 'text'
     }
+
+    /*
+     * 插件没写 User-Agent 时补一个普通桌面浏览器的。
+     *
+     * 不补的话各通道各行其是：开发态的 Node 代理一个 UA 都不发，而桌面版的
+     * tauri-plugin-http 会替你塞上它自己的 `tauri-plugin-http/2.6.0`——把这个
+     * 送到 QQ 的登录服务器（check_sig 这类 GET 恰好没设 UA）等于自报家门是机器人。
+     * 插件自己设了的一律不覆盖（网易云 eapi 要的是客户端 UA）。
+     */
+    const hasUA = Object.keys(headers).some(k => k.toLowerCase() === 'user-agent')
+    if (!hasUA) headers['User-Agent'] = DEFAULT_USER_AGENT
 
     const responseType = config.responseType ?? 'json'
     const result = await fetchViaHost({

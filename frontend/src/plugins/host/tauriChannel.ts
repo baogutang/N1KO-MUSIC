@@ -18,15 +18,35 @@ export async function tauriChannel(
   if (!isHostAllowed(request.url, allow)) {
     throw new Error(`Host not in plugin allowlist: ${request.url}`)
   }
+  /*
+   * `Origin`：插件没写就送一个空串。
+   *
+   * tauri-plugin-http 会给每个请求补 `Origin: tauri://localhost`（见 crate 的
+   * commands.rs），而开发态走 Node 代理时根本没有这个头——两条通道对同一个
+   * 插件发出的请求并不一样，而「能用」只在开发态被验证过。空串是这个 crate
+   * 留的显式出口：开了 unsafe-headers 时它见到空 Origin 会整个删掉，于是桌面版
+   * 发出的头与开发态一致（原生客户端本来也不带 Origin）。
+   */
+  const headers = { ...(request.headers ?? {}) }
+  const hasOrigin = Object.keys(headers).some(k => k.toLowerCase() === 'origin')
+  if (!hasOrigin) headers.Origin = ''
+
   return tauriFetch(target, {
     method: request.method,
-    headers: request.headers,
+    headers,
     body: request.body !== undefined && request.method !== 'GET' && request.method !== 'HEAD'
       ? request.body
       : undefined,
-    // 一律 manual：跟随 3xx 由 hostFetch 的 followRedirects 逐跳复检白名单后
-    // 自己走。通道自己跟随等于只在第一跳校验白名单——开放重定向直通内网。
-    // Rust 侧的 manual redirect 可读 Location（QQ 登录链路本来就要读它）。
+    /*
+     * 不跟随重定向：跟随由 hostFetch 的 followRedirects 逐跳复检白名单后自己走。
+     *
+     * 注意**不能**只写 fetch 的 `redirect: 'manual'`——这个 crate 压根不认它
+     * （它只读自己的 `maxRedirections`，见 commands.rs 里对 Policy 的处理），
+     * 写了等于没写，reqwest 默认会跟随最多 10 跳。后果不只是白名单只在第一跳
+     * 生效：QQ 扫码要读 check_sig 那一跳 302 的 set-cookie 才能拿到 p_skey，
+     * 被跟掉之后就永远是「QQ 授权失败（没有 p_skey）」。
+     */
+    maxRedirections: 0,
     redirect: 'manual',
     ...(signal ? { signal } : {}),
   })
