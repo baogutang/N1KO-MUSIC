@@ -131,8 +131,13 @@ function MascotCard() {
     hopTimer.current = window.setTimeout(() => setHop(false), 620)
   }, [])
 
-  // 说过话就一直显示那句；没戳过就按时段问候
-  const line = chat < 0 ? greetingKey() : CHAT_KEYS[chat]
+  /*
+   * 说过话就一直显示那句；没戳过显示那句「一起听点什么吧」。
+   *
+   * 这里刻意**不**用时段问候、也不用那句副标：首页的问候横幅两句都在说了，
+   * 侧栏再说一遍同屏就是重复。问候归横幅，侧栏这张小卡片只负责邀请你戳它。
+   */
+  const line = chat < 0 ? 'mascot.hint' : CHAT_KEYS[chat]
 
   return (
     <button
