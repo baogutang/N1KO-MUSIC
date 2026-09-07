@@ -16,12 +16,13 @@ import {
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { useSearch } from '@/hooks/useServerQueries'
 import { usePlayerStore } from '@/store/playerStore'
 import { playListFrom, playAllShuffled } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
 import type { Song } from '@/api/types'
+import { useSourceSearch, usePlaybackPriorityOrder } from '@/hooks/useSourceQueries'
+import { mergeSongs } from '@/plugins/match'
 
 interface Command {
   id: string
@@ -72,12 +73,42 @@ export function CommandPalette() {
     return () => clearTimeout(timer)
   }, [trimmed])
 
-  const { data: rawResults } = useSearch(debounced)
-  /**
-   * useSearch 带 keepPreviousData，而查询在空串时是 disabled 的——
-   * 清空输入框后它会继续把上一次的结果端出来。这里显式在无查询时丢弃。
+  /*
+   * ⌘K 也要搜**所有**已连接音源。
+   *
+   * 早先这里只用 useSearch（主库）：连着 NAS + 网易云 + QQ 时，⌘K 静默少两个源，
+   * 而搜索页是聚合的——同一个关键词在两处给出不同结果，用户只会以为「⌘K 搜不到」。
+   * 单源时两条链路的 query key 相同，React Query 去重，不会多打请求。
    */
-  const results = debounced ? rawResults : undefined
+  const sourceGroups = useSourceSearch(debounced)
+  const priorityOrder = usePlaybackPriorityOrder()
+  const results = useMemo(() => {
+    if (!debounced) return undefined
+    const ok = sourceGroups.filter(g => g.status === 'success' && g.data)
+    if (!ok.length) return undefined
+    const order = priorityOrder.map(s => s.serverId)
+    // 与搜索页同一套合并：按相关度混排，而不是按源拼接
+    const merged = mergeSongs(
+      ok.map(g => ({ serverId: g.serverId, songs: g.data!.songs })),
+      order,
+      debounced,
+    )
+    /** 专辑 / 歌手按源轮转取，避免第一个源把面板占满 */
+    const roundRobin = <T,>(lists: T[][]): T[] => {
+      const out: T[] = []
+      for (let i = 0; out.length < MAX_PER_GROUP * 2; i++) {
+        const before = out.length
+        for (const list of lists) if (list[i]) out.push(list[i])
+        if (out.length === before) break
+      }
+      return out
+    }
+    return {
+      songs: merged.map(m => m.song),
+      albums: roundRobin(ok.map(g => g.data!.albums ?? [])),
+      artists: roundRobin(ok.map(g => g.data!.artists ?? [])),
+    }
+  }, [debounced, sourceGroups, priorityOrder])
 
   const close = useCallback(() => setOpen(false), [])
 
