@@ -158,3 +158,14 @@ describe('pinyinInitial', () => {
     expect(pinyinInitial('')).toBe('#')
   })
 })
+
+describe('封面地址升到 https', () => {
+  it('http 封面在映射时就升级（壳里 http 图片会被当混合内容拦掉）', () => {
+    // 网易云返回的正是 http://p1.music.126.net/...，桌面版里整片裂图就是这条
+    const song = mapMusicItem(
+      { platform: 'x', id: 'h1', title: 't', artist: 'a', artwork: 'http://p.me/c.jpg' },
+      'srv', ['p.me'],
+    )
+    expect(song.coverArt).toBe('https://p.me/c.jpg')
+  })
+})

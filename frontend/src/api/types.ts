@@ -33,6 +33,12 @@ export interface ServerConfig {
    * 只经 securePersistStorage 的 collect / apply 加密落盘，不进 sync backend。
    */
   credentials?: string
+  /**
+   * 插件音源当前账号有没有会员（连上后由 n1ko.auth.getUser 回填，见 serverStore）。
+   * 用来判断「这首会员曲你到底放不放得了」：曲目行据此标灰，合并推荐据此不再
+   * 把注定放不了的曲目推给你。未知（还没问到）时按「不清楚」处理，不做任何限制。
+   */
+  accountVip?: boolean
   /** 启动时是否自动连接，默认 true */
   autoConnect?: boolean
   isActive: boolean

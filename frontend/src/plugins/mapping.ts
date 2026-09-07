@@ -9,6 +9,7 @@
 import type { Album, Artist, Playlist, Song } from '@/api/types'
 import { safeResourceUrl } from './host/whitelist'
 import type { AlbumItem, ArtistItem, MusicItem, SheetItem } from './types'
+import { upgradeInsecureUrl } from './httpsUpgrade'
 
 // ===================================================
 // 原始项缓存（LRU，key = serverId:kind:id）
@@ -72,7 +73,10 @@ export function minimalMusicItem(
  * 不在 manifest hosts 内、或不是 http(s) 的一律丢弃：宁可没有封面。
  */
 function safeArtwork(raw: unknown, hosts: readonly string[]): string | undefined {
-  return safeResourceUrl(raw, hosts, { allowSmallDataImage: true }) ?? undefined
+  const safe = safeResourceUrl(raw, hosts, { allowSmallDataImage: true })
+  // 映射时就升到 https：壳里 http 图片会被当混合内容拦掉，而且这个值会落进
+  // 听歌历史与缓存，早升一次省得每个消费方各自记得升（见 httpsUpgrade）
+  return safe ? upgradeInsecureUrl(safe) : undefined
 }
 
 export function mapMusicItem(item: MusicItem, serverId: string, hosts: readonly string[]): Song {

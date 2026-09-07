@@ -325,7 +325,20 @@ export function useSourceRecommendSongs(): SourceQueryGroup<Song[]>[] {
   const results = useQueries({
     queries: eligible.map(s => ({
       queryKey: [s.serverId, 'recommend-songs'] as const,
-      queryFn: async () => (await getAdapterFor(s.serverId).getRecommendSongs!()) ?? [],
+      queryFn: async () => {
+        const songs = (await getAdapterFor(s.serverId).getRecommendSongs!()) ?? []
+        /*
+         * 账号明确没有会员时，把会员曲从推荐里剔掉。
+         *
+         * 推荐位是「现在放什么」，推一首点下去只会弹「试听片段不提供播放」的曲子
+         * 是在浪费这个位置。只在**确知**没有会员时才滤（accountVip === false）：
+         * 还没问到账号信息（undefined）就什么都不做，宁可多推也不要少推。
+         * 曲目本身仍然可搜可看，只是不主动推。
+         */
+        const server = useServerStore.getState().servers.find(x => x.id === s.serverId)
+        if (server?.accountVip === false) return songs.filter(song => !(song.vip || song.ext?.vip))
+        return songs
+      },
       // 未登录 / 风控失败的源不该反复打：只重试一次
       retry: 1,
       staleTime: 10 * 60 * 1000,

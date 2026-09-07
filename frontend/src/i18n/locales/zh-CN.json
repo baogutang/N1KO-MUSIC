@@ -761,6 +761,7 @@
   "section.songs": "歌曲",
   "song.trackCount": "{count} 首",
   "song.vipHint": "会员曲：按你的账号权益播放，未开通可能无法试听",
+  "song.vipBlockedHint": "会员曲：你的账号没有会员权益，多半放不了（可在设置里换成有权益的账号）",
   "song.trackCount_one": "{count} 首",
   "song.trackCountDuration": "{count} 首 · {duration}",
   "song.trackTotal": "共 {count} 首",

@@ -49,6 +49,7 @@ import {
 import { safeResourceUrl } from '@/plugins/host/whitelist'
 import { PluginCallError } from '@/plugins/host/PluginHost'
 import { artworkSizeHint } from '@/plugins/artworkSize'
+import { upgradeInsecureUrl } from '@/plugins/httpsUpgrade'
 
 /** 沙箱宿主的最小面：适配器只依赖这两个方法，测试用假实现顶上 */
 export interface PluginHostLike {
@@ -350,7 +351,7 @@ export class PluginAdapter implements MusicServerAdapter {
     // 写入的地址喂回来。不放行的返回空串（调用方按「没有封面」处理）。
     // 放行的按调用方要的尺寸加缩略提示（见 artworkSize.ts：网易云原图 4000² 一张 2 MB）
     const safe = safeResourceUrl(id, this.hosts, { allowSmallDataImage: true })
-    return safe ? artworkSizeHint(safe, size) : ''
+    return safe ? artworkSizeHint(upgradeInsecureUrl(safe), size) : ''
   }
 
   async getGenres(): Promise<Array<{ name: string; songCount: number; albumCount: number }>> {
@@ -419,9 +420,21 @@ export class PluginAdapter implements MusicServerAdapter {
         // 流地址由主窗口的 <audio> 直接加载（不经宿主通道），白名单必须在这里
         // 再挡一次：否则插件把凭据拼进流地址的 query 就能靠一次播放送出设备。
         // data: 额外放行——Mock 插件的流是内存里生成的 WAV，不出网。
-        const url = safeResourceUrl(media?.url, this.hosts, { allowDataMedia: true })
+        /*
+         * 先升 https 再过白名单：壳里是安全上下文，http 的流会被当混合内容拦掉
+         * （见 httpsUpgrade），而 QQ 的 CDN 派发经常给 http。
+         */
+        const url = safeResourceUrl(
+          typeof media?.url === 'string' ? upgradeInsecureUrl(media.url) : media?.url,
+          this.hosts,
+          { allowDataMedia: true },
+        )
         if (!url) {
-          throw new PluginCallError('forbidden', `Stream URL not in plugin allowlist: ${this.manifest.id}`)
+          const host = (() => {
+            try { return new URL(String(media?.url)).hostname } catch { return String(media?.url ?? '').slice(0, 60) }
+          })()
+          // 报错要说清是哪个域名没在白名单里——只说插件 id 的话没人查得下去
+          throw new PluginCallError('forbidden', `Stream URL not in plugin allowlist: ${this.manifest.id} → ${host}`)
         }
         return { url, expiresAt: media.expiresAt, mimeType: media.mimeType }
       }

@@ -87,7 +87,7 @@ interface ServerState {
   /** 插件音源重复登录时原地更新账号身份与凭据，避免同一插件堆出多行 */
   updatePluginServer: (
     id: string,
-    patch: { name?: string; username?: string; credentials?: string | null }
+    patch: { name?: string; username?: string; credentials?: string | null; accountVip?: boolean }
   ) => void
   /** 获取主库配置 */
   getActiveServer: () => ServerConfig | null
@@ -304,6 +304,7 @@ export const useServerStore = create<ServerState>()(
                   ...(patch.name !== undefined ? { name: patch.name } : {}),
                   ...(patch.username !== undefined ? { username: patch.username } : {}),
                   ...(patch.credentials !== undefined ? { credentials: patch.credentials ?? undefined } : {}),
+                  ...(patch.accountVip !== undefined ? { accountVip: patch.accountVip } : {}),
                 }
               : s
           ),
@@ -399,15 +400,23 @@ async function refreshPluginProfile(id: string, host: PluginHost): Promise<void>
   if (!server?.credentials || !host.hasMethod('n1ko.auth.getUser')) return
   try {
     const user = await Promise.race([
-      host.call<{ name?: string } | null>('n1ko.auth.getUser'),
+      host.call<{ name?: string; vip?: boolean } | null>('n1ko.auth.getUser'),
       new Promise<null>(resolve => setTimeout(() => resolve(null), 6000)),
     ])
-    const nickname = user?.name?.trim()
-    if (!nickname || nickname === server.username) return
-    const pluginName = usePluginStore.getState().plugins.find(p => p.id === server.pluginId)?.name
-    // 名字还是裸的插件名（登录时没拿到昵称）才补上「· 昵称」，用户改过的名字不动
-    const name = pluginName && server.name === pluginName ? `${pluginName} · ${nickname}` : undefined
-    useServerStore.getState().updatePluginServer(id, { username: nickname, ...(name ? { name } : {}) })
+    if (!user) return
+    /* 账号有没有会员：曲目行的 VIP 标记据此决定要不要标灰，
+       合并推荐也据此决定要不要把放不了的会员曲推给你（见 useSourceQueries） */
+    const accountVip = user.vip === true
+    const nickname = user.name?.trim()
+    const patch: { username?: string; name?: string; accountVip: boolean } = { accountVip }
+    if (nickname && nickname !== server.username) {
+      patch.username = nickname
+      const pluginName = usePluginStore.getState().plugins.find(p => p.id === server.pluginId)?.name
+      // 名字还是裸的插件名（登录时没拿到昵称）才补上「· 昵称」，用户改过的名字不动
+      if (pluginName && server.name === pluginName) patch.name = `${pluginName} · ${nickname}`
+    }
+    if (patch.username === undefined && server.accountVip === accountVip) return
+    useServerStore.getState().updatePluginServer(id, patch)
   } catch {
     /* 昵称只是锦上添花 */
   }

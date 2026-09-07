@@ -188,6 +188,14 @@ export function SongList({
    *   这两项没有按源的探测通路，因此只对主库那些行开放。
    */
   const sourceCaps = useSourceCapabilities()
+  /* serverId → 该源账号有没有会员（连上后由 getUser 回填）。
+     用 useMemo 派生成稳定对象：直接在选择器里造对象每次渲染都是新引用，
+     会一路废掉 SongRow 的 memo。 */
+  const servers = useServerStore(s => s.servers)
+  const sourceAccountVip = useMemo(
+    () => Object.fromEntries(servers.map(x => [x.id, x.accountVip])) as Record<string, boolean | undefined>,
+    [servers]
+  )
   const activeServerId = useServerStore(s => s.activeServerId)
   // 只解构出用得着的几个布尔量。useServerCapabilities 每次渲染都返回新对象，
   // 整个对象进 renderRow 的依赖会让它每次重建，SongRow 的 memo 就全废了
@@ -325,9 +333,12 @@ export function SongList({
     // 分享与评分的写回都打主库适配器（ShareDialog / StarRating 用 getAdapter()），
     // 非主库的行给了入口也只会写错服务器
     const isPrimaryRow = song.serverId === activeServerId
+    // 只有**确知**没有会员才标灰：还没问到账号信息时不做任何暗示
+    const accountLacksVip = sourceAccountVip[song.serverId] === false
     return (
       <SongRow
         key={song.id + '-' + index}
+        accountLacksVip={accountLacksVip}
         song={song}
         index={index}
         isCurrentSong={currentSongId === song.id}
@@ -353,7 +364,7 @@ export function SongList({
       />
     )
   }, [currentSongId, isPlaying, showCover, showAlbum, showIndex, sourceBadge, getAlternates, onReplace, handlePlayIndex,
-      handlePlaylistAdd, handleToggleStar, sourceCaps, activeServerId,
+      handlePlaylistAdd, handleToggleStar, sourceCaps, sourceAccountVip, activeServerId,
       primaryShares, primaryRating, primaryFavorites, primaryRadio,
       handleShare, handleRadio, isSelected, selectionActive, selectable,
       handleRowClick, handleRowLongPress, onRemove])
@@ -554,6 +565,8 @@ interface SongRowProps {
   onPlayIndex: (index: number) => void
   onPlaylistAdd?: (song: Song) => void
   onToggleStar: (song: Song, nextStarred: boolean) => void
+  /** 该行来源的账号确知没有会员：VIP 标记标灰并换一句说得更明白的提示 */
+  accountLacksVip?: boolean
   /** 该行来源声明了 favorites 才渲染心形（PROTOCOL §6：缺失时入口不出现） */
   canFavorite?: boolean
   /** 服务器不支持时为 undefined，对应菜单项直接不出现 */
@@ -571,6 +584,7 @@ interface SongRowProps {
 // React.memo：只有 props 变化时才重渲染，播放进度更新不会触发歌曲行重渲染
 const SongRow = React.memo(function SongRow({
   song,
+  accountLacksVip,
   index,
   isCurrentSong,
   isPlaying,
@@ -762,8 +776,15 @@ const SongRow = React.memo(function SongRow({
           {spaceCJK(song.title)}
           {(song.vip || song.ext?.vip) && (
             <span
-              title={t('song.vipHint')}
-              className="ml-1.5 inline-block translate-y-[-1px] rounded-[2px] border border-primary/60 px-1 align-baseline latin-tag text-[9px] font-semibold tracking-[0.08em] text-primary"
+              title={accountLacksVip ? t('song.vipBlockedHint') : t('song.vipHint')}
+              /* 不能用 .latin-tag：那个类是「双语报头的拉丁半边」，软陶皮肤与
+                 非中文界面下整条 display:none——VIP 是有意义的状态标记，不是排印
+                 装饰，被自己的皮肤规则藏起来等于没有 */
+              className={cn(
+                'ml-1.5 inline-block translate-y-[-1px] rounded-[2px] border px-1 align-baseline font-sans text-[9px] font-semibold tracking-[0.08em]',
+                // 账号确知没有会员：这首多半点了也放不了，标记本身就该看起来是「灰的」
+                accountLacksVip ? 'border-ink-faint/50 text-ink-faint' : 'border-primary/60 text-primary'
+              )}
             >
               VIP
             </span>

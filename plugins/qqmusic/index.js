@@ -501,6 +501,19 @@ var STREAM_TTL_MS = 60 * 60 * 1000
 
 /** CDN 域名：GetCdnDispatch 尽力而为（部分网络返回 500003），
  *  失败回落 isure.stream（实测三个 stream 域名对 vkey purl 都返回 206） */
+/* 派发回来的 CDN 只认 *.stream.qqmusic.qq.com（与 manifest hosts 同范围），并强制 https：
+   宿主壳是安全上下文，http 的流会被当混合内容拦掉；域名超出白名单则取流会被宿主拒。
+   不合规就退回已知可用的固定域名，宁可慢一点也不要放不出来。 */
+function safeSip(raw) {
+  var text = String(raw || '').trim()
+  if (!text) return ''
+  text = text.replace(/^http:\/\//i, 'https://')
+  if (!/^https:\/\//i.test(text)) return ''
+  var host = text.slice(8).split('/')[0].toLowerCase()
+  if (!/^[a-z0-9-]+\.stream\.qqmusic\.qq\.com$/.test(host)) return ''
+  return text
+}
+
 async function cdnBase(guid) {
   var cached = cdnBase._cached
   if (cached) return cached
@@ -512,7 +525,7 @@ async function cdnBase(guid) {
       use_new_domain: 1,
       use_ipv6: 1,
     })
-    sip = (data && data.sip && data.sip[0]) || ''
+    sip = safeSip(data && data.sip && data.sip[0])
   } catch (e) {
     sip = ''
   }

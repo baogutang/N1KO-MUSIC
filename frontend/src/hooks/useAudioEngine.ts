@@ -158,7 +158,7 @@ let loadSeq = 0
  * - 自动跳歌：降级也找不到时前进到下一首，而不是把整条队列停在原地；
  *   连续 MAX_AUTO_SKIPS 次失败则停下（坏队列不该无限空转）。
  */
-async function tryFallbackSource(failed: Song): Promise<Song | null> {
+async function tryFallbackSource(failed: Song, tried: ReadonlySet<string>): Promise<Song | null> {
   const st = useServerStore.getState()
   const refs = collectSourceRefs(st.servers, st.connectedServerIds, st.activeServerId)
   const order = resolveSourceOrder(refs, useSettingsStore.getState().playbackPriority)
@@ -166,6 +166,8 @@ async function tryFallbackSource(failed: Song): Promise<Song | null> {
   if (!query) return null
   for (const ref of order) {
     if (ref.serverId === failed.serverId) continue
+    // 这一轮里已经试过（并失败）的源不再回头——否则 A→B→A 无限乒乓
+    if (tried.has(ref.serverId)) continue
     if (!hasAdapterFor(ref.serverId)) continue
     const adapter = getAdapterFor(ref.serverId)
     if (typeof adapter.searchAll !== 'function') continue
@@ -180,8 +182,15 @@ async function tryFallbackSource(failed: Song): Promise<Song | null> {
 
 let consecutiveResolveFailures = 0
 const MAX_AUTO_SKIPS = 5
-/** 已为这个加载 key 尝试过一次跨源降级（换源后的新 key 是另一首歌，可再试） */
-let fallbackAttemptedKey: string | null = null
+/**
+ * 这一首（队列上的这个位置）的换源链：已经试过哪些音源。
+ *
+ * 早先记的是「加载 key」，而 key 里带着 serverId——换源之后 key 就变了，
+ * 守卫等于没有：QQ 放不了 → 换网易云 → 也放不了 → 换回 QQ → …
+ * 无限乒乓，每一轮弹两条提示，看上去就是「报错框永远不消失」。
+ * 按队列位置记，并把试过的源攒起来，每个源在一首歌上只试一次。
+ */
+let fallbackChain: { index: number; tried: Set<string> } | null = null
 /**
  * 上一次因「音源已断开」跳过的曲目。
  * 断开动作本身会裁队列，走到这里的都是漏网的；万一整条队列都属于那个源，
@@ -682,21 +691,35 @@ export function useAudioEngine() {
         const denied = code
           ? code === 'forbidden' || code === 'unauthorized'
           : /forbidden|无权|VIP|付费/i.test(detail)
-        toast({
-          title: t('player.streamFailed', { title: capturedSong.title }),
-          description: denied ? detail : undefined,
-          variant: 'destructive',
-        })
         // 音质切换途中失败不算跳歌场景：保持停在原处的原语义
-        if (qualitySwitchResumeAt !== null) return
-        // 跨源降级：这一首歌（这个加载 key）只试一次，避免环形换源。
-        // 除权限外，「这个源根本没有这一首」（not-found）同样值得换源再试
+        if (qualitySwitchResumeAt !== null) {
+          toast({
+            title: t('player.streamFailed', { title: capturedSong.title }),
+            description: denied ? detail : undefined,
+            variant: 'destructive',
+          })
+          return
+        }
+
+        /*
+         * 先找替代源，找到就只说一句「已切换到 X 继续播放」。
+         *
+         * 早先是「先弹一条失败、再换源、换完再弹一条已切换」，一次成功的降级
+         * 也要弹两条，其中一条还是刺眼的红色——而用户其实什么都没损失。
+         * 报错只在**真的放不了**（所有源都试过）时说一次。
+         * 除权限外，「这个源根本没有这一首」（not-found）同样值得换源再试。
+         */
         const worthFallback = denied
           || (code ? code === 'not-found' : /not.?found/i.test(detail))
-        if (fallbackAttemptedKey !== capturedKey && worthFallback) {
-          fallbackAttemptedKey = capturedKey
-          const alt = await tryFallbackSource(capturedSong)
+        if (worthFallback) {
+          const index = usePlayerStore.getState().queueIndex
+          if (!fallbackChain || fallbackChain.index !== index) {
+            fallbackChain = { index, tried: new Set<string>() }
+          }
+          fallbackChain.tried.add(songServerId(capturedSong))
+          const alt = await tryFallbackSource(capturedSong, fallbackChain.tried)
           if (alt) {
+            fallbackChain.tried.add(alt.serverId)
             const altSourceName = useServerStore.getState().servers
               .find(s => s.id === alt.serverId)?.name ?? alt.serverId
             toast({ title: t('player.fallbackSource', { source: altSourceName }) })
@@ -705,6 +728,12 @@ export function useAudioEngine() {
             return
           }
         }
+
+        toast({
+          title: t('player.streamFailed', { title: capturedSong.title }),
+          description: denied ? detail : undefined,
+          variant: 'destructive',
+        })
         // 自动跳歌：单轨失败不再停住整条队列
         consecutiveResolveFailures += 1
         if (consecutiveResolveFailures >= MAX_AUTO_SKIPS) {
@@ -724,6 +753,8 @@ export function useAudioEngine() {
       if (seq !== loadSeq || usePlayerStore.getState().currentSong?.id !== capturedSongId) return
       // 取到流即视为这次连续失败被打断
       consecutiveResolveFailures = 0
+      // 这一首放成了：换源链作废（重听同一首时应当能重新走一遍降级）
+      fallbackChain = null
       const streamUrl = resolved.url
       // 取到流才认领这个加载 key：被作废的加载不能抢走属于别人的 key
       loadedKey = capturedKey

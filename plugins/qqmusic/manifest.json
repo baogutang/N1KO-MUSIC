@@ -1,7 +1,7 @@
 {
   "id": "qqmusic",
   "name": "QQ 音乐",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "protocol": 1,
   "platform": "qqmusic",
   "entry": "index.js",
@@ -19,7 +19,8 @@
     "isure.stream.qqmusic.qq.com",
     "ws.stream.qqmusic.qq.com",
     "dl.stream.qqmusic.qq.com",
-    "*.gtimg.cn"
+    "*.gtimg.cn",
+    "*.stream.qqmusic.qq.com"
   ],
   "capabilities": [
     "search",
