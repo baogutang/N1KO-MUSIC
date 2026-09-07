@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { followRedirects, hostFetch, MAX_REDIRECT_HOPS, rebuildAllowedUrl } from './hostFetch'
+import { followRedirects, hostFetch, MAX_REDIRECT_HOPS, rebuildAllowedUrl, normalizeFetchResponse } from './hostFetch'
 import type { HostFetchRequest, HostFetchResult } from '../types'
 
 const ALLOW = ['music.163.com', '*.music.126.net']
@@ -200,5 +200,56 @@ describe('followRedirects 逐跳复检白名单', () => {
     const result = await followRedirects(req({ url: 'https://evil.example.com/a' }), ALLOW, send)
     expect(result.ok).toBe(false)
     expect(sent).toHaveLength(0)
+  })
+})
+
+describe('normalizeFetchResponse · 多条 set-cookie', () => {
+  /** 造一个带多条 Set-Cookie 的响应（Headers 允许 append 同名头） */
+  function resWithCookies(values: string[]): Response {
+    const headers = new Headers()
+    headers.append('content-type', 'text/plain')
+    for (const v of values) headers.append('set-cookie', v)
+    return new Response('ok', { status: 302, headers })
+  }
+
+  it('每一条都保留，不是只剩最后一条', async () => {
+    /*
+     * set-cookie 在 Headers 迭代里是逐条产出的（规范对它的特例），
+     * 早先按名字直接赋值等于每来一条覆盖一次——QQ 的 p_skey 与网易云的
+     * MUSIC_U 只要不排在最后就没了，桌面版扫码登录因此一直失败。
+     */
+    const out = await normalizeFetchResponse(
+      resWithCookies(['p_skey=SKEY123; Path=/', 'p_uin=o0001; Path=/', 'pt4_token=TOK; Path=/']),
+      'text',
+    )
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    const cookie = out.headers['set-cookie']
+    expect(cookie).toContain('p_skey=SKEY123')
+    expect(cookie).toContain('p_uin=o0001')
+    expect(cookie).toContain('pt4_token=TOK')
+  })
+
+  it('插件按逗号切分能还原出每一对（含带逗号的 Expires）', async () => {
+    const out = await normalizeFetchResponse(
+      resWithCookies([
+        'MUSIC_U=abc123; Max-Age=15552000; Expires=Sat, 07 Mar 2026 00:00:00 GMT; Path=/',
+        '__csrf=deadbeef; Path=/',
+      ]),
+      'text',
+    )
+    if (!out.ok) return
+    // 插件侧 parseSetCookie 用的同一条正则
+    const pairs = String(out.headers['set-cookie'])
+      .split(/,(?=[^;]*?=[^;])/)
+      .map(one => one.split(';')[0].trim())
+    expect(pairs).toEqual(['MUSIC_U=abc123', '__csrf=deadbeef'])
+  })
+
+  it('单条 set-cookie 与其它头不受影响', async () => {
+    const out = await normalizeFetchResponse(resWithCookies(['only=1; Path=/']), 'text')
+    if (!out.ok) return
+    expect(out.headers['set-cookie']).toBe('only=1; Path=/')
+    expect(out.headers['content-type']).toBe('text/plain')
   })
 })

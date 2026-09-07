@@ -82,13 +82,26 @@ export function rebuildAllowedUrl(rawUrl: string, allow: readonly string[]): str
   return `${scheme}://${host}${port}${u.pathname}${u.search}`
 }
 
-/** fetch 系响应（Tauri / 浏览器）的公共归一化 */
-async function normalizeFetchResponse(res: Response, responseType: HostFetchRequest['responseType']): Promise<HostFetchResult> {
+/** fetch 系响应（Tauri / 浏览器）的公共归一化（导出供测试钉住 set-cookie 的合并） */
+export async function normalizeFetchResponse(res: Response, responseType: HostFetchRequest['responseType']): Promise<HostFetchResult> {
   const headers: Record<string, string> = {}
+  /*
+   * `set-cookie` 在 Headers 迭代里是**逐条**出现的（规范对它有特例：其它多值头
+   * 会被合并成一条，只有 set-cookie 每条单独产出）。直接赋值等于每来一条覆盖
+   * 一次，最后只剩最后一条——QQ 的 p_skey、网易云的 MUSIC_U 只要不排在最后
+   * 就凭空消失了（v1.11.0/1/2 桌面版扫码登录一直失败就是这一行）。
+   * 这里把同名头按 fetch 的合并形态拼起来，插件侧的 parseSetCookie 认这个形状。
+   */
   res.headers.forEach((value, key) => {
-    // 多值头（set-cookie 在 fetch 里是逗号拼接的）保留拼接形态
-    headers[key.toLowerCase()] = value
+    const name = key.toLowerCase()
+    headers[name] = name in headers ? `${headers[name]}, ${value}` : value
   })
+  // 引擎支持时用 getSetCookie() 取权威的逐条值（避免依赖迭代顺序与实现差异）
+  const getSetCookie = (res.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie
+  if (typeof getSetCookie === 'function') {
+    const cookies = getSetCookie.call(res.headers)
+    if (cookies.length) headers['set-cookie'] = cookies.join(', ')
+  }
   const buffer = new Uint8Array(await res.arrayBuffer())
   if (responseType === 'arraybuffer') {
     return { ok: true, status: res.status, headers, body: bytesToBase64(buffer), bodyEncoding: 'base64' }

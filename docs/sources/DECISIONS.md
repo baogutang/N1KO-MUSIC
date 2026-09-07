@@ -138,3 +138,10 @@
 - 实测方式：临时诊断模块在 `tauri dev` 壳里经 `hostFetch` 打 httpbin 与网易云，把服务端看到的请求头回传到本地日志端口。修复后：无 Origin、`redirect:'manual'` 拿到 302 + Location、UA 是浏览器 UA。
 - 教训：「在开发态验证过」不等于「在用户装的壳里验证过」。凡是宿主替插件发请求的通道，都要按「服务端看到了什么」对齐，而不是按调用方写了什么。
 
+## 2026-09-06 · 线上事故（真凶）· 多条 set-cookie 只留下了最后一条
+- 冲突：v1.11.2 修完 Origin / 重定向 / UA 之后，桌面版 QQ 仍报「没有 p_skey」、网易云登录后接口依旧全挂。
+- 原因：`normalizeFetchResponse` 里 `res.headers.forEach((v,k) => headers[k] = v)`。**set-cookie 在 Headers 迭代里是逐条产出的**（规范对它的特例：其它多值头会被合并成一条，只有它每条单独给），于是每来一条覆盖上一条，最后只剩最后一条。QQ 的 check_sig 下发 p_skey / p_uin / pt4_token 三条，p_skey 排在第一条 → 永远拿不到；网易云的 MUSIC_U 同理，凭据是残的，所以「登录成功了但所有要授权的接口都不认账」。
+- 选择：同名头按 fetch 的合并形态拼接（`a, b`），并在引擎支持时用 `getSetCookie()` 取权威的逐条值。插件侧的 `parseSetCookie` 本来就认这个形状（它的正则能躲开 `Expires=Thu, 01 Jan ...` 里的逗号）。
+- 实测（真实 Tauri 壳，httpbin 下发三条 Set-Cookie）：`forEach` 产出 3 条、旧写法只剩 `pt4_token`、`getSetCookie()` 可用且返回全部三条、修复后三条齐全。
+- 教训：前两版都是「看代码推理出一个合理原因就发版」。这一版是先在壳里把**旧行为与新行为同时打印出来**再发。修网络层这种跨实现的东西，没有前后对比就不算定位。
+
