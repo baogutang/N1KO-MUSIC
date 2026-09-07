@@ -371,6 +371,16 @@ export const useServerStore = create<ServerState>()(
             if (state.activeServerId) {
               usePlayerStore.getState().adoptLegacySongSource(state.activeServerId)
             }
+            /*
+             * 插件清单要在连接**之前**载入（顺带跑首启种子与内置更新）。
+             *
+             * 此前 load() 只有登录页与设置页会调：已经登录的用户直接进首页，
+             * 整个会话都不会检查更新——「进设置才提示有新版」就是这么来的，
+             * 而那时连接早就用旧代码建好了。
+             */
+            if (state.servers.some(s => s.type === 'plugin')) {
+              await usePluginStore.getState().load()
+            }
             for (const server of state.servers) {
               if (server.autoConnect === false) continue
               await state.connectServer(server.id)

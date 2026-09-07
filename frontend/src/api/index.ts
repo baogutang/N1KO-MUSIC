@@ -94,6 +94,22 @@ export function findAdapterFor(serverId?: string): MusicServerAdapter | null {
   return adapters.get(primaryServerId) ?? null
 }
 
+/**
+ * 明确指定来源的**写操作**用这个取适配器。
+ *
+ * 不能写成 `findAdapterFor(id) ?? getAdapter()`：那会在「这个源断开了」时
+ * 悄悄回落主库，把外源的条目 id 发给主库——两边 id 撞上就是改错东西。
+ * 没指定来源（单源调用方）才回落主库，那是正常语义。
+ */
+export function adapterForSource(serverId: string | undefined): MusicServerAdapter {
+  if (!serverId) return getAdapter()
+  const adapter = adapters.get(serverId)
+  if (!adapter) {
+    throw new Error(`音源未连接，无法完成操作：${serverId}`)
+  }
+  return adapter
+}
+
 /** 全部已连接音源 */
 export function listAdapters(): Array<{ serverId: string; adapter: MusicServerAdapter }> {
   return Array.from(adapters.entries(), ([serverId, adapter]) => ({ serverId, adapter }))

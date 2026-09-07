@@ -17,6 +17,7 @@ import type { MusicServerAdapter } from '@/api/types'
 import { RECOMMENDATION_CACHE_PREFIX } from '@/services/storageKeys'
 import { pruneRecommendationCache, recommendationDayKey } from '@/services/storageMaintenance'
 import type { Song } from '@/api/types'
+import { filterRecommendable } from '@/services/recommendationFilters'
 
 /** 缓存最长保留一天，跨天后 dayKey 变化自然失效，此处只是兜底 */
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
@@ -193,7 +194,9 @@ export function usePersonalizedRecommendations(size = 30) {
       // 否则按钮就只是在回放当天早些时候算好的结果。
       if (!justAdvancedRef.current) {
         const cached = readCachedRecommendations(cacheKey)
-        if (cached?.length) return cached.slice(0, size)
+        /* 缓存也要过硬约束：刚屏蔽掉的歌手在缓存里原封不动，
+           不滤的话「屏蔽」在下一次重算之前完全不生效（见 recommendationFilters） */
+        if (cached?.length) return filterRecommendable(cached).slice(0, size)
       }
       justAdvancedRef.current = false
       const adapter = getAdapter()
@@ -227,9 +230,13 @@ export function usePersonalizedRecommendations(size = 30) {
       const exclude = batch > 0
         ? new Set(useRecommendationCursorStore.getState().getShownBefore(scope, batch))
         : undefined
-      const recommendations = recommendSongs(
+      let recommendations = recommendSongs(
         candidates, events, size, seed, Date.now(), profile, exclude, readMutedSets()
       )
+      /* 引擎里已经按 muted 过滤过一轮，这里再过一次统一约束：
+         外源候选（其它音源的随机 / 收藏）不经过引擎的会员判断，
+         账号确知无权益的会员曲不该被推出来（见 recommendationFilters） */
+      recommendations = filterRecommendable(recommendations)
       cacheRecommendations(cacheKey, recommendations)
       rememberShown(scope, batch, recommendations.map(song => `${song.serverId ?? ''}:${song.id}`))
       return recommendations

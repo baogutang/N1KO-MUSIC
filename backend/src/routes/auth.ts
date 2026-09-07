@@ -33,6 +33,9 @@ const changePasswordSchema = z.object({
 // Keep the expensive bcrypt path for unknown users to reduce username timing leakage.
 const dummyPasswordHash = bcrypt.hashSync('n1ko-music-dummy-password', BCRYPT_ROUNDS)
 
+/** first-user 名额在写入事务里被别人抢先占掉（并发注册） */
+class RegistrationClosedError extends Error {}
+
 /** 当前是否允许注册。first-user 模式下只在库里还没有用户时放行。 */
 function registrationAllowed(): boolean {
   if (REGISTRATION_MODE === 'open') return true
@@ -59,13 +62,32 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS)
     const userId = randomUUID()
-    db.prepare('INSERT INTO users (id, username, password) VALUES (?, ?, ?)').run(
-      userId, username, hashedPassword
-    )
+    /*
+     * 资格必须在**写入事务里**再判一次。
+     *
+     * 上面那次 registrationAllowed() 发生在 await bcrypt.hash 之前：两个并发请求
+     * 会双双通过检查（实测 first-user 空库下两个不同用户名都拿到 201，库里出现
+     * 两个账号），而 first-user 的语义是「只允许第一个人建号」。
+     * better-sqlite3 的事务是同步的，并且会拿写锁——多进程部署同样成立。
+     */
+    const claimFirstUser = db.transaction(() => {
+      if (REGISTRATION_MODE === 'first-user') {
+        const row = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number }
+        if (row.count > 0) throw new RegistrationClosedError()
+      }
+      db.prepare('INSERT INTO users (id, username, password) VALUES (?, ?, ?)').run(
+        userId, username, hashedPassword
+      )
+    })
+    claimFirstUser()
 
     const token = signToken({ userId, username, tokenVersion: 0 })
     return res.status(201).json({ token, userId, username })
   } catch (err) {
+    // 事务里复核发现名额已被占（并发下的第二个请求）：与首次检查同样回 403
+    if (err instanceof RegistrationClosedError) {
+      return res.status(403).json({ error: 'Registration is disabled on this server' })
+    }
     // 并发注册同名用户时，两个请求可能都通过上面的存在性检查（bcrypt 为异步），
     // 第二个 INSERT 会触发 UNIQUE 约束，此处映射为 409 而非 500
     if ((err as { code?: string })?.code === 'SQLITE_CONSTRAINT_UNIQUE') {

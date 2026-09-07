@@ -14,7 +14,7 @@ import {
   keepPreviousData,
   type QueryClient,
 } from '@tanstack/react-query'
-import { findAdapterFor, getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
+import { findAdapterFor, getAdapter, getAdapterFor, hasAdapter, hasAdapterFor, adapterForSource } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
 import { useLibraryScopeStore } from '@/store/libraryScopeStore'
@@ -221,7 +221,7 @@ export function useLyricsQuery(
     // 缓存键带上来源，否则两个音源的同 id 歌会共用一份歌词
     queryKey: [...queryKeys.lyrics(songId), serverId ?? 'primary'],
     queryFn: () =>
-      (serverId ? (findAdapterFor(serverId) ?? getAdapter()) : getAdapter())
+      adapterForSource(serverId)
         .getLyrics(songId, title, artist),
     enabled: fetchEnabled,
     staleTime: 30 * 60 * 1000,
@@ -481,7 +481,7 @@ export function useSetRating() {
       /** 条目所属音源；缺省回落主库。与收藏同理，不能写死主库适配器 */
       serverId?: string
     }) => {
-      const adapter = serverId ? (findAdapterFor(serverId) ?? getAdapter()) : getAdapter()
+      const adapter = adapterForSource(serverId)
       if (!adapter.setRating) throw new Error(t('error.ratingUnsupported'))
       await adapter.setRating(id, rating, type)
     },
@@ -704,7 +704,7 @@ export function useToggleStar() {
        * 收藏是全站最高频的动作，这条错得最贵。
        */
       const sourceId = serverId ?? song?.serverId
-      const adapter = sourceId ? (findAdapterFor(sourceId) ?? getAdapter()) : getAdapter()
+      const adapter = adapterForSource(sourceId)
       if (isStarred) await adapter.unstar(id, type)
       else await adapter.star(id, type)
       // 音乐服务器始终是收藏的权威来源，同步服务只做跨设备镜像，失败不影响本次操作

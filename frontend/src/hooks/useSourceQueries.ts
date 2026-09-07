@@ -15,6 +15,7 @@ import { getAdapterFor, hasAdapterFor } from '@/api'
 import type { Album, Artist, Playlist, SearchResult, ServerConfig, Song, SourceCapabilities } from '@/api/types'
 import { useServerStore } from '@/store/serverStore'
 import { useSettingsStore } from '@/store/settingsStore'
+import { filterRecommendable } from '@/services/recommendationFilters'
 
 // ===================================================
 // 音源引用与顺序（纯函数，测试直接覆盖）
@@ -328,16 +329,11 @@ export function useSourceRecommendSongs(): SourceQueryGroup<Song[]>[] {
       queryFn: async () => {
         const songs = (await getAdapterFor(s.serverId).getRecommendSongs!()) ?? []
         /*
-         * 账号明确没有会员时，把会员曲从推荐里剔掉。
-         *
-         * 推荐位是「现在放什么」，推一首点下去只会弹「试听片段不提供播放」的曲子
-         * 是在浪费这个位置。只在**确知**没有会员时才滤（accountVip === false）：
-         * 还没问到账号信息（undefined）就什么都不做，宁可多推也不要少推。
+         * 平台每日推荐同样要过统一硬约束：屏蔽过的歌手不该从这条入口漏回来，
+         * 账号确知没有会员时也不推注定放不了的会员曲（见 recommendationFilters）。
          * 曲目本身仍然可搜可看，只是不主动推。
          */
-        const server = useServerStore.getState().servers.find(x => x.id === s.serverId)
-        if (server?.accountVip === false) return songs.filter(song => !(song.vip || song.ext?.vip))
-        return songs
+        return filterRecommendable(songs)
       },
       // 未登录 / 风控失败的源不该反复打：只重试一次
       retry: 1,

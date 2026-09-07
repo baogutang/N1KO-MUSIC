@@ -671,10 +671,27 @@ export function useAudioEngine() {
       const contentType = capturedSong.contentType
       // 异步加载序号：取流 await 期间切了歌，本次加载整体作废
       const seq = ++loadSeq
+      /*
+       * 这次加载是否仍然是「用户现在想听的东西」。
+       *
+       * 成功分支本来就查了，失败分支一路都没查——于是：慢慢失败的 A 在用户已经
+       * 改点 B 之后回来，照样弹提示、照样换源、照样把 B 换成「A 的替代版本」。
+       * 用户选的歌被一个过期请求抢走了。
+       *
+       * 身份要连**来源**一起比：同一首歌在两个音源下 id 可能一样，只比 id 会把
+       * 「从 QQ 切到网易云的同一首」误判成没变过。
+       */
+      const stillCurrent = () => {
+        if (seq !== loadSeq) return false
+        const now = usePlayerStore.getState().currentSong
+        return !!now && now.id === capturedSongId && songServerId(now) === songServerId(capturedSong)
+      }
       let resolved: ResolvedStream
       try {
         resolved = await resolveStream(capturedSong, effectiveQuality)
       } catch (e) {
+        // 过期的失败不该碰任何全局状态：缓冲标记、提示、换源、失败计数都跳过
+        if (!stillCurrent()) return
         console.error('[AudioEngine] resolveStream failed:', e)
         usePlayerStore.getState().setStreamBuffering(false)
         // 静默失败在用户眼里就是「点了没反应」——VIP/付费曲至少要说明原因
@@ -718,6 +735,8 @@ export function useAudioEngine() {
           }
           fallbackChain.tried.add(songServerId(capturedSong))
           const alt = await tryFallbackSource(capturedSong, fallbackChain.tried)
+          // 找替代源要发网络请求，这期间用户完全可能已经改听别的了
+          if (!stillCurrent()) return
           if (alt) {
             fallbackChain.tried.add(alt.serverId)
             const altSourceName = useServerStore.getState().servers
@@ -742,15 +761,14 @@ export function useAudioEngine() {
           return
         }
         setTimeout(() => {
-          const st = usePlayerStore.getState()
-          // 稍等片刻给失败提示留出可读时间；期间用户手动切了歌就不抢方向盘
-          if (st.currentSong?.id === capturedSongId) {
-            st.advanceOnEnded()
-          }
+          // 稍等片刻给失败提示留出可读时间；期间用户手动切了歌就不抢方向盘。
+          // 判据连来源一起比（stillCurrent）：只比 id 的话，用户切到「同名同 id
+          // 的另一个音源版本」时会被误判成没动过，于是照样被自动跳走。
+          if (stillCurrent()) usePlayerStore.getState().advanceOnEnded()
         }, 900)
         return
       }
-      if (seq !== loadSeq || usePlayerStore.getState().currentSong?.id !== capturedSongId) return
+      if (!stillCurrent()) return
       // 取到流即视为这次连续失败被打断
       consecutiveResolveFailures = 0
       // 这一首放成了：换源链作废（重听同一首时应当能重新走一遍降级）

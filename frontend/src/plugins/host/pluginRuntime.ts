@@ -22,6 +22,8 @@ interface LiveHost {
   host: PluginHost
   /** 装载时用的凭据串；不一致时（重新登录后）需要拆掉重建 */
   credentials: string | null
+  /** 装载时那份代码的哈希；插件更新后不一致 → 必须重建，否则跑的还是旧代码 */
+  codeHash: string
 }
 
 const liveHosts = new Map<string, LiveHost>()
@@ -61,8 +63,19 @@ export function disposePluginHost(serverId: string): void {
 export async function ensurePluginHost(config: ServerConfig): Promise<PluginHost> {
   if (!config.pluginId) throw new Error(`Server ${config.id} has no pluginId`)
 
+  /*
+   * 先读安装记录，再决定能不能复用在跑的沙箱。
+   *
+   * 只比凭据是不够的：插件更新之后代码换了，而凭据没变，于是老沙箱一直被复用
+   * ——设置页显示「已更新到 0.1.11」，实际执行的还是 0.1.9，要重启 App 才生效。
+   * 把代码哈希也纳入身份，更新后下一次连接自然重建。
+   */
+  const installed = await usePluginStore.getState().getInstalled(config.pluginId)
+  if (!installed) throw new Error(`插件未安装或已卸载：${config.pluginId}`)
+  const codeHash = installed.codeHash ?? ''
+
   const existing = liveHosts.get(config.id)
-  if (existing && existing.credentials === (config.credentials ?? null)) {
+  if (existing && existing.credentials === (config.credentials ?? null) && existing.codeHash === codeHash) {
     return existing.host
   }
   /*
@@ -71,7 +84,7 @@ export async function ensurePluginHost(config: ServerConfig): Promise<PluginHost
    * 出网的孤儿。同凭据的在途装载直接复用。
    */
   const inflight = inflightHosts.get(config.id)
-  if (inflight && inflight.credentials === (config.credentials ?? null)) {
+  if (inflight && inflight.credentials === (config.credentials ?? null) && inflight.codeHash === codeHash) {
     return inflight.promise
   }
   if (existing) {
@@ -79,7 +92,7 @@ export async function ensurePluginHost(config: ServerConfig): Promise<PluginHost
     liveHosts.delete(config.id)
   }
   const promise = buildPluginHost(config)
-  inflightHosts.set(config.id, { promise, credentials: config.credentials ?? null })
+  inflightHosts.set(config.id, { promise, credentials: config.credentials ?? null, codeHash })
   try {
     return await promise
   } finally {
@@ -88,7 +101,7 @@ export async function ensurePluginHost(config: ServerConfig): Promise<PluginHost
 }
 
 /** 装载中的沙箱（serverId → 在途 promise），见 ensurePluginHost 的并发说明 */
-const inflightHosts = new Map<string, { promise: Promise<PluginHost>; credentials: string | null }>()
+const inflightHosts = new Map<string, { promise: Promise<PluginHost>; credentials: string | null; codeHash: string }>()
 
 async function buildPluginHost(config: ServerConfig): Promise<PluginHost> {
   if (!config.pluginId) throw new Error(`Server ${config.id} has no pluginId`)
@@ -124,7 +137,7 @@ async function buildPluginHost(config: ServerConfig): Promise<PluginHost> {
   await host.init(installed.code)
   // ready 与登记之间越界的极小窗口：别把一个已经拆掉的沙箱登记进来当好的用
   if (host.compromised) throw new Error(`插件沙箱越界，已停用：${config.pluginId}`)
-  liveHosts.set(config.id, { host, credentials: config.credentials ?? null })
+  liveHosts.set(config.id, { host, credentials: config.credentials ?? null, codeHash: installed.codeHash ?? '' })
   return host
 }
 

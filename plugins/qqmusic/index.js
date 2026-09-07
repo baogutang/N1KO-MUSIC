@@ -128,27 +128,39 @@ function requireLogin() {
 
 /** 雷达推荐（modules/recommend.py GetRadarSong）：响应字段是 tracks，需登录 */
 /* QQ 各接口装歌曲列表的键名并不统一（tracks / v_song / songs / track_list…），
-   而且会变。写死一个键名读错了就是**静默为空**——界面上表现为「这个音源没有
-   推荐」，既不报错也没线索。先认已知键，再按形状找：元素带 mid 的数组就是歌单。 */
-var SONG_LIST_KEYS = ['tracks', 'v_song', 'songs', 'track_list', 'songlist', 'v_track']
+   而且会变。写死一个键名读错了就是**静默为空**。但反过来「按形状猜」同样危险：
+   歌手条目也带 mid，v1.11.5 的递归扫描就把 `tracks[].track_info.singer[]` 当成了
+   歌曲列表，推荐里出现一位歌手名、0:00、点了放不出声。
+   现在只做两件确定的事：认已知的列表键、拆已知的包装层；再按**歌曲的形状**
+   （有标题且有时长/文件信息）校验，猜不出来就明说，不往队列里塞可疑条目。 */
+var SONG_LIST_KEYS = ['tracks', 'v_song', 'songs', 'track_list', 'songlist', 'v_track', 'list']
+/** QQ 常见的包装层：真正的歌曲挂在这些键上 */
+var TRACK_WRAPPER_KEYS = ['track_info', 'trackInfo', 'songInfo', 'musicData', 'song_info']
 
-function looksLikeSongArray(value) {
-  return Array.isArray(value) && value.length > 0 && value.some(function (x) {
-    return x && typeof x === 'object' && (x.mid || x.songmid)
-  })
+function unwrapTrack(entry) {
+  if (!entry || typeof entry !== 'object') return null
+  for (var i = 0; i < TRACK_WRAPPER_KEYS.length; i++) {
+    var inner = entry[TRACK_WRAPPER_KEYS[i]]
+    if (inner && typeof inner === 'object') return inner
+  }
+  return entry
 }
 
-function findSongArray(node, depth) {
-  if (!node || typeof node !== 'object' || (depth || 0) > 4) return null
+/** 歌曲的形状：有 mid、有标题，且有时长或文件信息。歌手条目只有 mid + name，过不了 */
+function looksLikeSong(raw) {
+  if (!raw || typeof raw !== 'object') return false
+  if (!raw.mid && !raw.songmid) return false
+  if (!raw.title && !raw.songname) return false
+  return raw.interval !== undefined || raw.duration !== undefined || !!raw.file || !!raw.album
+}
+
+function songArrayFrom(node) {
+  if (!node || typeof node !== 'object') return null
   for (var i = 0; i < SONG_LIST_KEYS.length; i++) {
-    if (looksLikeSongArray(node[SONG_LIST_KEYS[i]])) return node[SONG_LIST_KEYS[i]]
-  }
-  var keys = Object.keys(node)
-  for (var j = 0; j < keys.length; j++) {
-    var v = node[keys[j]]
-    if (looksLikeSongArray(v)) return v
-    var deeper = findSongArray(v, (depth || 0) + 1)
-    if (deeper) return deeper
+    var value = node[SONG_LIST_KEYS[i]]
+    if (!Array.isArray(value) || !value.length) continue
+    var unwrapped = value.map(unwrapTrack)
+    if (unwrapped.some(looksLikeSong)) return unwrapped.filter(looksLikeSong)
   }
   return null
 }
@@ -161,8 +173,10 @@ async function fetchRadarSongs() {
     FavSongs: [],
     EntranceSongs: [],
   })
-  var list = findSongArray(radar, 0)
-  if (!list) {
+  /* 只在响应顶层与 data 这一层找，不递归全树：递归就是「按形状猜」，
+     而歌手、专辑条目的形状与歌曲太像，猜错的代价是往队列里塞假歌。 */
+  var list = songArrayFrom(radar) || songArrayFrom(radar && radar.data)
+  if (!list || !list.length) {
     /* 真的一首都没有（新号、当天没算出来）与「键名又改了」是两回事：
        后者必须说出来，否则只会看到「怎么没有 QQ」而无从查起。 */
     var keys = radar && typeof radar === 'object' ? Object.keys(radar).slice(0, 8).join(',') : String(radar)
