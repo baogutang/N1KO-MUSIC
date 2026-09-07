@@ -68,7 +68,14 @@ export function SourceBadge({
   withName = false,
   className,
 }: {
-  serverId: string
+  /*
+   * 可选，而且必须可选：类型上 Song.serverId 是必填，但**盘上的数据不受类型管**——
+   * v1.10.0 的 Song.serverId 还是可选的、适配器根本没写过它，升级上来的队列、
+   * 当前曲、本地歌单里的每一首都没有来源。徽标只是装饰，缺来源时应当不显示，
+   * 而不是把整个 App 带走：它挂在播放条上，播放条在全局布局里，一崩就是每个
+   * 路由都白屏，连「重新加载」都救不回来（队列还在盘上）。
+   */
+  serverId?: string
   withName?: boolean
   className?: string
 }) {
@@ -76,10 +83,12 @@ export function SourceBadge({
   const pluginColor = usePluginStore(
     s => (server?.pluginId ? s.plugins.find(p => p.id === server?.pluginId)?.color : undefined)
   )
+
+  // 注意先后：paletteClass 要在 server 判空之后算，否则缺来源时它先炸
+  if (!serverId || !server) return null
   const chipClass = cn('src-chip', paletteClass(serverId))
   const chipStyle = pluginColor ? ({ '--chip-bg': pluginColor } as CSSProperties) : undefined
 
-  if (!server) return null
   // 内置音源：官方图标顶替色块（紧凑模式略大于 9px 色块，保证图形可辨）
   const logoSrc = pluginLogoSrc(server.pluginId)
   if (logoSrc) {

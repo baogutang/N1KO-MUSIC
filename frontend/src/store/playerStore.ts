@@ -201,6 +201,11 @@ interface PlayerState {
    * 当前曲被摘掉时沿播放顺序前进到下一首；一首不剩才停。
    */
   removeSongsFromServer: (serverId: string) => void
+  /**
+   * 给盘上恢复出来的、没有来源的旧曲目认领一个来源（升级迁移，见实现处注释）。
+   * 幂等：已经有 serverId 的一律不动。
+   */
+  adoptLegacySongSource: (serverId: string) => void
   reorderQueue: (fromIndex: number, toIndex: number) => void
   /** 按「播放顺序」上的位置重排（随机开启时队列面板拖拽走这条） */
   reorderPlayOrder: (fromPos: number, toPos: number) => void
@@ -641,6 +646,31 @@ export const usePlayerStore = create<PlayerState>()(
             : queue.map((_, i) => i)
 
           return { queue, queueIndex, shuffledIndexes, shuffleCursor: shiftedCursor }
+        })
+      },
+
+      /*
+       * v1.10.0 的 Song.serverId 是可选的，而且当时的适配器根本没写过它——
+       * 单服务器时代不需要。v1.11.0 起它是必填，但**类型管不到已经落盘的数据**：
+       * 升级上来的队列与当前曲，每一首都没有来源。缺来源的后果不只是徽标：
+       * 取流、收藏、电台都要按来源路由，只能靠 activeServerId 兜底。
+       *
+       * 这里在服务器清单恢复之后统一补一次：那个年代只可能有一台服务器，
+       * 补主库就是对的（听歌历史早就是这么补的，见 listeningHistory 的 fallbackServerId）。
+       */
+      adoptLegacySongSource: (serverId) => {
+        if (!serverId) return
+        set(state => {
+          const stamp = (song: Song): Song => (song.serverId ? song : { ...song, serverId })
+          const needsQueue = state.queue.some(s => !s.serverId)
+          const needsCurrent = !!state.currentSong && !state.currentSong.serverId
+          const needsHistory = state.history.some(s => !s.serverId)
+          if (!needsQueue && !needsCurrent && !needsHistory) return {}
+          return {
+            ...(needsQueue ? { queue: state.queue.map(stamp) } : {}),
+            ...(needsCurrent ? { currentSong: stamp(state.currentSong!) } : {}),
+            ...(needsHistory ? { history: state.history.map(stamp) } : {}),
+          }
         })
       },
 

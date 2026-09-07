@@ -362,6 +362,14 @@ export const useServerStore = create<ServerState>()(
         }
         void (async () => {
           try {
+            /*
+             * 先给盘上恢复出来的旧曲目补来源，再连服务器。
+             * v1.10.0 写下的队列里没有 serverId（那时它还是可选的、也没人写），
+             * 而 v1.11.0 起取流、收藏、徽标都按来源路由。
+             */
+            if (state.activeServerId) {
+              usePlayerStore.getState().adoptLegacySongSource(state.activeServerId)
+            }
             for (const server of state.servers) {
               if (server.autoConnect === false) continue
               await state.connectServer(server.id)

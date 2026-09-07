@@ -11,6 +11,9 @@
  * 分布足够均匀（顺序敏感性弱是可接受的：最坏只是换位串同色）。
  */
 export function stablePick(text: string, buckets: number): number {
+  // 装饰用的纯函数，喂进空值只该退回第一档，不该抛——它的调用方是徽标，
+  // 而徽标挂在播放条上，抛出去就是整页白屏（2026-09-06 v1.11.0 线上事故）
+  if (typeof text !== 'string' || !text) return 0
   let total = 0
   for (const ch of text) {
     if (ch < '4') total += 1

@@ -975,3 +975,39 @@ describe('removeSongsFromServer', () => {
     expect(queueIds()).toEqual(['s0', 's1', 's2', 's3'])
   })
 })
+
+describe('adoptLegacySongSource（v1.10.0 队列升级迁移）', () => {
+  /** v1.10.0 写下的曲目：那时 serverId 还是可选的，适配器根本没写过它 */
+  function legacySong(id: string): Song {
+    const { serverId: _drop, ...rest } = song(id)
+    return rest as Song
+  }
+
+  it('给队列 / 当前曲 / 历史里没有来源的曲目补上主库', () => {
+    usePlayerStore.setState({
+      queue: [legacySong('a'), song('b')],
+      queueIndex: 0,
+      currentSong: legacySong('a'),
+      history: [legacySong('h')],
+    })
+    state().adoptLegacySongSource('nas-1')
+    expect(state().queue.map(s => s.serverId)).toEqual(['nas-1', 'srv-test'])
+    expect(state().currentSong?.serverId).toBe('nas-1')
+    expect(state().history[0].serverId).toBe('nas-1')
+  })
+
+  it('已有来源的一律不动；没有缺失时不写状态（幂等）', () => {
+    const queue = makeSongs(3)
+    usePlayerStore.setState({ queue, queueIndex: 0, currentSong: queue[0], history: [] })
+    const before = state().queue
+    state().adoptLegacySongSource('nas-1')
+    expect(state().queue).toBe(before)
+    expect(state().queue.every(s => s.serverId === 'srv-test')).toBe(true)
+  })
+
+  it('主库还不知道时什么也不做（服务器清单尚未恢复）', () => {
+    usePlayerStore.setState({ queue: [legacySong('a')], queueIndex: 0, currentSong: legacySong('a'), history: [] })
+    state().adoptLegacySongSource('')
+    expect(state().queue[0].serverId).toBeUndefined()
+  })
+})

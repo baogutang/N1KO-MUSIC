@@ -24,3 +24,12 @@ describe('stablePick', () => {
     expect(seen.size).toBeGreaterThanOrEqual(3)
   })
 })
+
+describe('stablePick · 空来源不抛（v1.11.0 线上白屏）', () => {
+  it('undefined / null / 空串退回第一档，而不是抛出去', () => {
+    // 徽标挂在播放条上，播放条在全局布局里：这里抛一次就是每个路由都白屏
+    expect(stablePick(undefined as unknown as string, 5)).toBe(0)
+    expect(stablePick(null as unknown as string, 5)).toBe(0)
+    expect(stablePick('', 5)).toBe(0)
+  })
+})
