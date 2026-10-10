@@ -314,9 +314,6 @@ export class PluginAdapter implements MusicServerAdapter {
     return playlist
   }
 
-  async updatePlaylist(_playlistId: string, _name?: string, _comment?: string): Promise<void> {
-    throw new Error('Plugin does not support renaming playlists')
-  }
 
   async deletePlaylist(_playlistId: string): Promise<void> {
     throw new Error('Plugin does not support deleting playlists')
@@ -374,13 +371,7 @@ export class PluginAdapter implements MusicServerAdapter {
 
   // --- 元数据 / 封面 / 流派 ---
 
-  async updateSongMetadata(_songId: string, _metadata: { title?: string; album?: string; artist?: string; year?: number; genre?: string; track?: number }): Promise<void> {
-    throw new Error('Plugin does not support metadata editing')
-  }
 
-  async setLyrics(_songId: string, _lyrics: string): Promise<void> {
-    throw new Error('Plugin does not support writing lyrics')
-  }
 
   getCoverUrl(id: string, size?: number): string {
     // 插件的 coverArt 本来就是 URL（PROTOCOL §5.2）——但仍要过一次白名单：

@@ -215,3 +215,12 @@
 ## 2026-10-10 · 阶段 7 · CoverCard 收敛范围
 - AlbumCard / ArtistCard / MiniSheetCard 已收敛到共享的 CoverCard（.cover-tile 皮肤差异、键盘可达、focus-visible 环全部归一）。
 - Playlists 的本地卡与服务器歌单卡本轮只做键盘可达（role+tabIndex+Enter/Space，原 div+onClick 键盘永远点不进）；它们的浮层差异大（播放组 + 删除菜单 + 智能歌单徽标 + 只读说明），硬塞进 CoverCard 的 slot 回归面大于收益，保留定制浮层，待下一轮浮层 slot 设计后再并。AddToPlaylistDialog 的卡本来就是 button，已可达。
+
+## 2026-10-10 · 阶段 8 · 完成与顺延
+- **已完成**：8.1 死代码（useRandomSongs/useSongs/useAlbums/useGenres 四个零引用 hook、appendToQueue、catalog.diffUpdates 留 pluginStore 一份、updatePlaylist/updateSongMetadata/setLyrics/getServerCapabilities 接口与三适配器实现——reportPlayback 6.3 已接上保留）；8.3 services/errors.ts（pluginErrorCode/httpStatus/describeError 唯一映射 + 三处鸭子判断换用 + QueueDrawer 裸 message 收口）；8.5（locale/musicbrainz/scrollMemory/pluginDisclaimers 四键进 STORAGE_KEYS、HISTORY_UPDATED_EVENT 常量换掉 11 处字面量、IDB_NAMES 四库集中）；8.7 playAlbum 收敛三份（AlbumCard/Home/ArtistDetail 缓存优先策略归一）；8.9 README-TODO 记录（playlists 路由与 favorites since 增量前端零调用，同步章节应如实说明）；8.10（DESIGN.md 顶部过期声明、.workbuddy 出库+gitignore、AndroidManifest allowBackup=false）。
+- **顺延（后续项，不阻塞门禁）**：
+  - 8.2 queryKeys 工厂统一与 invalidateFamily()——34 处手写 queryKey 与 4 页谓词改写需要逐页验证缓存失效语义，单独一轮做；
+  - 8.4 插件共享 helper（plugins/_shared + 构建期内联）——要先决断 formEncode 编不编 key、cookie 解码两处分叉的正确行为并加测试，涉及构建管线改动；
+  - 8.6 十三个本地 format* 收进 formatters——SleepTimerMenu 复制的 formatDuration 起步即可，全部收敛涉及行为比对；toLocaleString 两处已可顺手做但未及；
+  - 8.8 大文件拆分（useAudioEngine/SongList/playerStore/Settings/subsonic）——任务书允许做不完，本轮已在 3.5/6.3/6.12 多处给 useAudioEngine 内聚了注释与模块级状态，完整拆分留待专门一轮；
+  - 8.3 的其余 6 处裸 message toast 逐个换 describeError（映射已就位）。

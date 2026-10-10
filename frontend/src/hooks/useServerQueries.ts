@@ -126,23 +126,6 @@ function bindCustomCoverRevokeOnQueryRemoved(queryClient: QueryClient) {
 // ===================================================
 
 /** 获取随机歌曲（首页推荐使用）*/
-export function useRandomSongs(size = 50) {
-  return useQuery({
-    queryKey: queryKeys.randomSongs(size),
-    queryFn: ({ signal }) => getAdapter().getRandomSongs(size, currentFolderId(), signal),
-    staleTime: 5 * 60 * 1000, // 5 分钟
-  })
-}
-
-/** 获取所有歌曲（音乐库歌曲列表）*/
-export function useSongs(params: ListParams = {}) {
-  return useQuery({
-    queryKey: [serverKey(), 'songs', 'all', params] as const,
-    queryFn: ({ signal }) => getAdapter().getSongs({ musicFolderId: currentFolderId(), ...params, signal }),
-    staleTime: 5 * 60 * 1000,
-  })
-}
-
 /** 无限滚动加载歌曲（音乐库）；options.enabled 为 false 时一条都不发 */
 export function useSongsInfinite(size = 100, options: { enabled?: boolean } = {}) {
   return useInfiniteQuery({
@@ -401,15 +384,6 @@ export function useCustomCoverUrl(params: CustomCoverParams | null) {
 // ===================================================
 // 专辑相关 Hooks
 // ===================================================
-
-/** 获取专辑列表（支持分页）*/
-export function useAlbums(params: ListParams = {}) {
-  return useQuery({
-    queryKey: queryKeys.albums(params),
-    queryFn: ({ signal }) => getAdapter().getAlbums({ ...params, signal }),
-    staleTime: 5 * 60 * 1000,
-  })
-}
 
 /** 无限滚动加载专辑（serverId 指定时按该源浏览——浏览页源切换用） */
 export function useAlbumsInfinite(
@@ -824,10 +798,3 @@ function patchStarredInCache(
 // 流派
 // ===================================================
 
-export function useGenres() {
-  return useQuery({
-    queryKey: queryKeys.genres(),
-    queryFn: ({ signal }) => getAdapter().getGenres(signal),
-    staleTime: 30 * 60 * 1000,
-  })
-}

@@ -9,8 +9,9 @@
 
 import { create } from 'zustand'
 import type { Song } from '@/api/types'
+import { IDB_NAMES } from '@/services/storageKeys'
 
-const DB_NAME = 'n1ko-music-local-playlists'
+const DB_NAME = IDB_NAMES.localPlaylists
 const STORE = 'playlists'
 
 export interface LocalPlaylistEntry {

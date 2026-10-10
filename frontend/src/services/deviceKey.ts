@@ -1,3 +1,4 @@
+import { IDB_NAMES } from '@/services/storageKeys'
 /**
  * 设备密钥：只存在于这台设备上、且**取不出来**的一把 AES-GCM 密钥。
  *
@@ -16,7 +17,7 @@
  * 纯前端应用没有任何办法防住这一点，本文件不假装能防。
  */
 
-const DB_NAME = 'n1ko-music-keys'
+const DB_NAME = IDB_NAMES.deviceKeys
 const DB_VERSION = 1
 const STORE = 'keys'
 const KEY_ID = 'credential-key'

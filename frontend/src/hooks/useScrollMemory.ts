@@ -11,8 +11,9 @@
 
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router-dom'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 
-const STORE_KEY = 'msp-scroll-memory'
+STORAGE_KEYS.scrollMemory
 /** 记住多少个历史条目——远超正常的后退深度，又不至于把 sessionStorage 撑爆 */
 const MAX_ENTRIES = 60
 /** 内容异步到位，还原要在这个窗口内反复守住目标位置 */
@@ -23,7 +24,7 @@ type Positions = Record<string, number>
 
 function readPositions(): Positions {
   try {
-    const raw = sessionStorage.getItem(STORE_KEY)
+    const raw = sessionStorage.getItem(STORAGE_KEYS.scrollMemory)
     return raw ? (JSON.parse(raw) as Positions) : {}
   } catch {
     return {}
@@ -32,7 +33,7 @@ function readPositions(): Positions {
 
 function writePositions(positions: Positions): void {
   try {
-    sessionStorage.setItem(STORE_KEY, JSON.stringify(positions))
+    sessionStorage.setItem(STORAGE_KEYS.scrollMemory, JSON.stringify(positions))
   } catch {
     // 无痕模式 / 配额满：记忆退化成本次会话内存副本，不影响使用
   }

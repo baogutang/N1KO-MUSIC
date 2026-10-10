@@ -519,20 +519,6 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
-  async getServerCapabilities(): Promise<ServerCapabilities> {
-    try {
-      const resp = await this.client.get('/System/Info/Public')
-      const info = resp.data as Record<string, unknown>
-      return {
-        openSubsonic: false,
-        serverVersion: info.Version ? String(info.Version) : undefined,
-        serverType: info.ProductName ? String(info.ProductName) : this.type,
-        extensions: {},
-      }
-    } catch {
-      return { openSubsonic: false, extensions: {} }
-    }
-  }
 
   async getAlbums(params: ListParams = {}): Promise<PageResult<Album>> {
     const resp = await this.client.get('/Items', {
@@ -749,11 +735,6 @@ export class JellyfinAdapter implements MusicServerAdapter {
     return { id: String(resp.data.Id), name, serverId: this.serverId }
   }
 
-  async updatePlaylist(playlistId: string, name?: string): Promise<void> {
-    if (name) {
-      await this.client.post(`/Items/${playlistId}`, { Name: name })
-    }
-  }
 
   async deletePlaylist(playlistId: string): Promise<void> {
     await this.client.delete(`/Items/${playlistId}`)
@@ -840,13 +821,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
     await this.client.delete(`/Users/${this.userId}/FavoriteItems/${id}`)
   }
 
-  async updateSongMetadata(_songId: string, _metadata: { title?: string; album?: string; artist?: string; year?: number; genre?: string; track?: number }): Promise<void> {
-    throw new Error('Jellyfin: updateSongMetadata not implemented')
-  }
 
-  async setLyrics(_songId: string, _lyrics: string): Promise<void> {
-    throw new Error('Jellyfin: setLyrics not implemented')
-  }
 
   async getGenres(): Promise<Array<{ name: string; songCount: number; albumCount: number }>> {
     const resp = await this.client.get('/MusicGenres', {

@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { describeError } from '@/services/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { X, DotsSixVertical, Play, CaretUp, CaretDown, Shuffle, BookmarkSimple } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
@@ -138,7 +139,8 @@ export function QueueDrawer() {
     } catch (err) {
       toast({
         title: t('queue.saveFailed'),
-        description: err instanceof Error ? err.message : undefined,
+        /* 错误文案走唯一映射（阶段 8.3）；翻不出来给通用句，不亮原始 message */
+        description: describeError(err),
         variant: 'destructive',
       })
     }

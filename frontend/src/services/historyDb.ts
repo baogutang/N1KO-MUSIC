@@ -1,3 +1,4 @@
+import { IDB_NAMES } from '@/services/storageKeys'
 /**
  * 收听历史的 IndexedDB 存储层。
  *
@@ -12,7 +13,7 @@
  * 本模块只做存储，不含业务语义；不可用时全部接口安全降级。
  */
 
-const DB_NAME = 'n1ko-music'
+const DB_NAME = IDB_NAMES.history
 const DB_VERSION = 1
 const STORE_NAME = 'listening-events'
 const SERVER_INDEX = 'by-server'

@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { pluginErrorCode } from '@/services/errors'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CaretRight, CircleNotch, Eye, EyeSlash, Plus, X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,7 @@ import { PluginDisclaimer } from '@/components/sources/PluginDisclaimer'
 import { QrLogin } from '@/components/sources/QrLogin'
 import { CookieLogin } from '@/components/sources/CookieLogin'
 import { AddPluginDialog } from '@/components/sources/AddPluginDialog'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 
 // 说明句只存 key：这张表在模块加载时就建好了，直接存译文会把语言钉死在首次加载那一刻
 const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string }> = [
@@ -42,19 +44,19 @@ const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string }> 
 const RELEASES_URL = 'https://github.com/baogutang/N1KO-MUSIC/releases/latest'
 
 /** 已确认过声明的插件（卸载或换设备后要重新确认） */
-const DISCLAIMER_KEY = 'n1ko-plugin-disclaimers-confirmed'
+STORAGE_KEYS.pluginDisclaimers
 function isDisclaimerConfirmed(pluginId: string): boolean {
   try {
-    return JSON.parse(localStorage.getItem(DISCLAIMER_KEY) ?? '[]').includes(pluginId)
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.pluginDisclaimers) ?? '[]').includes(pluginId)
   } catch {
     return false
   }
 }
 function markDisclaimerConfirmed(pluginId: string): void {
   try {
-    const list: string[] = JSON.parse(localStorage.getItem(DISCLAIMER_KEY) ?? '[]')
+    const list: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.pluginDisclaimers) ?? '[]')
     if (!list.includes(pluginId)) {
-      localStorage.setItem(DISCLAIMER_KEY, JSON.stringify([...list, pluginId]))
+      localStorage.setItem(STORAGE_KEYS.pluginDisclaimers, JSON.stringify([...list, pluginId]))
     }
   } catch { /* 存不了就每次重新确认，无害 */ }
 }
@@ -285,7 +287,7 @@ export default function LoginPage() {
       return user === null
     } catch (err) {
       // 协议里 unauthorized 就是「要重新登录」，其它错误码都不是凭据的问题
-      return (err as { code?: string } | null)?.code === 'unauthorized'
+      return pluginErrorCode(err) === 'unauthorized'
     }
   }
 

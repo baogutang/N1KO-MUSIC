@@ -1,5 +1,5 @@
 import type { Song } from '@/api/types'
-import { HISTORY_BYTE_BUDGET, STORAGE_KEYS } from '@/services/storageKeys'
+import { HISTORY_BYTE_BUDGET, STORAGE_KEYS, HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import { reclaimStorage } from '@/services/storageMaintenance'
 import {
   deleteEvents,
@@ -139,7 +139,7 @@ function writeAll(events: ListeningEvent[]) {
  * 已有消费方只读 serverId，多一个字段不影响它们。
  */
 function notifyHistoryUpdated(serverId: string, event?: ListeningEvent) {
-  window.dispatchEvent(new CustomEvent('msp-history-updated', { detail: { serverId, event } }))
+  window.dispatchEvent(new CustomEvent(HISTORY_UPDATED_EVENT, { detail: { serverId, event } }))
 }
 
 /**
@@ -418,6 +418,6 @@ export function subscribeListeningEvents(
     const detail = (raw as CustomEvent<{ event?: ListeningEvent }>).detail
     if (detail?.event) handler(detail.event)
   }
-  window.addEventListener('msp-history-updated', onUpdated)
-  return () => window.removeEventListener('msp-history-updated', onUpdated)
+  window.addEventListener(HISTORY_UPDATED_EVENT, onUpdated)
+  return () => window.removeEventListener(HISTORY_UPDATED_EVENT, onUpdated)
 }

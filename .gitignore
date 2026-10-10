@@ -36,3 +36,6 @@ frontend/public/plugin-sandbox.js
 
 # Mimosa 安全扫描器的本地缓存
 .mimosa/
+
+# 本地助手记忆，不入库
+.workbuddy/

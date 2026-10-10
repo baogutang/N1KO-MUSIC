@@ -5,15 +5,15 @@
  */
 
 import { Play } from '@phosphor-icons/react'
+import { findAdapterFor } from '@/api'
+import { playAlbum } from '@/utils/playActions'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { CoverCard } from '@/components/common/CoverCard'
 import { usePlayerStore } from '@/store/playerStore'
-import { findAdapterFor, getAdapterFor } from '@/api'
 import type { Album, Song } from '@/api/types'
 import { useQueryClient } from '@tanstack/react-query'
-import { playListFrom } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
 
@@ -25,33 +25,15 @@ interface AlbumCardProps {
 export function AlbumCard({ album, className }: AlbumCardProps) {
   const { t } = useT()
   const navigate = useNavigate()
-  const playSong  = usePlayerStore(s => s.playSong)
-  const queryClient = useQueryClient()
 
   const coverUrl = album.coverArt
     ? (findAdapterFor(album.serverId)?.getCoverUrl(album.coverArt, 300) ?? undefined)
     : undefined
 
-  const handlePlay = async (e: React.MouseEvent) => {
+  /* 播整张专辑走共享的 playActions.playAlbum（阶段 8.7） */
+  const handlePlay = (e: React.MouseEvent) => {
     e.stopPropagation()
-    try {
-      // 尝试从缓存获取专辑详情（键带来源，与 useAlbumDetail 一致）
-      const cacheKey = [album.serverId, 'albums', album.id] as const
-      const cached = queryClient.getQueryData(cacheKey)
-      if (cached && (cached as { songs?: unknown[] }).songs) {
-        const detail = cached as { songs: Song[] }
-        playListFrom(detail.songs)
-        return
-      }
-      // 否则先播放第一首
-      const detail = await getAdapterFor(album.serverId).getAlbumDetail(album.id)
-      queryClient.setQueryData(cacheKey, detail)
-      if (detail.songs.length) {
-        playListFrom(detail.songs)
-      }
-    } catch (err) {
-      console.error('Failed to play album:', err)
-    }
+    void playAlbum(album)
   }
 
   // 详情按专辑来源解析（多源下主库路由会打错适配器）；缓存键同样带来源

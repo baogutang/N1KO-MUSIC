@@ -329,7 +329,6 @@ describe('错误码翻译', () => {
     const adapter = new PluginAdapter({ serverId: 'srv', manifest: makeManifest(), host: makeFakeHost() })
     await expect(adapter.getPlaylists()).resolves.toEqual([]) // 没挂 n1ko.user.getPlaylists → 空态
     await expect(adapter.deletePlaylist('x')).rejects.toThrow(/does not support/)
-    await expect(adapter.updateSongMetadata('s1', { title: 'x' })).rejects.toThrow(/does not support/)
   })
 
   it('login 不接受账号密码（插件走 QR / Cookie 流程）', async () => {

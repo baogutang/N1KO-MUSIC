@@ -67,24 +67,6 @@ export interface UpdateCandidate {
  * 对比已安装插件与目录：版本不同即视为有更新（目录版本可回退）。
  * hosts 有新增的更新在安装确认时另行提示（PROTOCOL §9），这里只看版本。
  */
-export function diffUpdates(
-  installed: Array<{ id: string; version: string }>,
-  catalog: CatalogFetchResult
-): UpdateCandidate[] {
-  const out: UpdateCandidate[] = []
-  for (const entry of catalog.entries) {
-    const local = installed.find(p => p.id === entry.id)
-    if (!local) continue
-    if (!entry.version || entry.version === local.version) continue
-    out.push({
-      id: entry.id,
-      currentVersion: local.version,
-      nextVersion: entry.version,
-      manifestUrl: resolveManifestUrl(catalog.baseUrl, entry),
-    })
-  }
-  return out
-}
 
 // ---------------- 安装源 URL 校验 ----------------
 

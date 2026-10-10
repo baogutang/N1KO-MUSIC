@@ -1,3 +1,8 @@
+<!--
+  ⚠️ 本文件已过期（2026-10-10）：这里描述的「深墨画布 + 祖母绿」方向已被推翻。
+  皮肤与 token 的唯一真源是 frontend/src/index.css 的 token 块与 tailwind.config.ts
+  （三张皮：clay 默认 / pop / editorial）。本文件保留作历史参考，不要照着它改样式。
+-->
 # N1KO MUSIC 重构设计规范（实施契约）
 
 > 方向：「现代 Hi-Fi 音响器材」。深墨画布 + 祖母绿单一强调色 + 封面自适应氛围光。

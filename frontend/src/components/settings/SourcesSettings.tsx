@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { pluginErrorCode } from '@/services/errors'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowsClockwise, CaretDown, CaretRight, SignIn, Trash, DownloadSimple,
@@ -108,7 +109,7 @@ export function SourcesSettings() {
         try {
           if ((await adapter.diagnose()) === 'unauthorized') bad.add(server.id)
         } catch (err) {
-          if ((err as { code?: string } | null)?.code === 'unauthorized') bad.add(server.id)
+          if (pluginErrorCode(err) === 'unauthorized') bad.add(server.id)
         }
       }
       if (!cancelled) setAuthExpiredIds(bad)

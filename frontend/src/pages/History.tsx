@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import { Play, Trash } from '@phosphor-icons/react'
 import { usePlayerStore } from '@/store/playerStore'
 import { findAdapterFor } from '@/api'
@@ -54,8 +55,8 @@ export default function History() {
       // 在网易云听完一首这一页不会动
       if (!detail?.serverId || historyScope.includes(detail.serverId)) refresh()
     }
-    window.addEventListener('msp-history-updated', onUpdate)
-    return () => window.removeEventListener('msp-history-updated', onUpdate)
+    window.addEventListener(HISTORY_UPDATED_EVENT, onUpdate)
+    return () => window.removeEventListener(HISTORY_UPDATED_EVENT, onUpdate)
   }, [historyScope])
 
   // 切换服务器后重新从第一页开始

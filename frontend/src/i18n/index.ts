@@ -18,6 +18,7 @@
 import { useSyncExternalStore } from 'react'
 import zhCN from './locales/zh-CN.json'
 import enUS from './locales/en-US.json'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 
 export type Locale = 'zh-CN' | 'en-US'
 export type Catalog = Record<string, string>
@@ -32,13 +33,12 @@ const CATALOGS: Record<Locale, Catalog> = {
   'en-US': enUS as Catalog,
 }
 
-const STORAGE_KEY = 'msp-locale'
 /** 源语言：永远完整，其它语言的回落目标 */
 const SOURCE_LOCALE: Locale = 'zh-CN'
 
 function detectLocale(): Locale {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = localStorage.getItem(STORAGE_KEYS.locale)
     if (saved === 'zh-CN' || saved === 'en-US') return saved
   } catch {
     // 隐私模式：按浏览器语言猜
@@ -63,7 +63,7 @@ export function setLocale(locale: Locale): void {
   if (locale === currentLocale) return
   currentLocale = locale
   try {
-    localStorage.setItem(STORAGE_KEY, locale)
+    localStorage.setItem(STORAGE_KEYS.locale, locale)
   } catch {
     // 存不下就只在本次会话生效
   }

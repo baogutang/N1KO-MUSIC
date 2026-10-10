@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { pluginErrorCode } from '@/services/errors'
 import { useNavigate } from 'react-router-dom'
 import { ArrowsClockwise, WifiSlash, Key, Warning, X } from '@phosphor-icons/react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -201,7 +202,7 @@ export function ConnectionBanner() {
            * 此前这里是个光秃秃的 catch——插件老老实实抛 unauthorized 时横幅
            * 反而不出现，凭据坏了却全站无声，正是这条链路最初要解决的问题。
            */
-          if ((err as { code?: string } | null)?.code === 'unauthorized') {
+          if (pluginErrorCode(err) === 'unauthorized') {
             const found = server()
             bad.push({ id, name: found?.name ?? id, pluginId: found?.pluginId })
           }

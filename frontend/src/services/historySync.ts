@@ -9,6 +9,7 @@
  */
 
 import axios from 'axios'
+import { HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import {
   fetchRemoteHistory,
   pushFavorite,
@@ -278,7 +279,7 @@ export function startHistorySync(): void {
   if (started || typeof window === 'undefined') return
   started = true
 
-  window.addEventListener('msp-history-updated', (raw: Event) => {
+  window.addEventListener(HISTORY_UPDATED_EVENT, (raw: Event) => {
     const detail = (raw as CustomEvent<{ event?: ListeningEvent }>).detail
     if (detail?.event) queueScrobble(detail.event)
   })

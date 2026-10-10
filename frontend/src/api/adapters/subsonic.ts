@@ -753,9 +753,6 @@ export class SubsonicAdapter implements MusicServerAdapter {
     return { id: String(pl.id), name: String(pl.name || name), serverId: this.serverId }
   }
 
-  async updatePlaylist(playlistId: string, name?: string, comment?: string): Promise<void> {
-    await this.postRequest('/updatePlaylist', { playlistId, name, comment })
-  }
 
   async deletePlaylist(playlistId: string): Promise<void> {
     await this.request('/deletePlaylist', { id: playlistId })
@@ -795,42 +792,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
     await this.request('/unstar', { [paramKey]: id })
   }
 
-  async updateSongMetadata(songId: string, metadata: { title?: string; album?: string; artist?: string; year?: number; genre?: string; track?: number }): Promise<void> {
-    const params: Record<string, unknown> = { id: songId }
 
-    // Navidrome /updateMediaAnnotation 对歌曲只支持以下字段：
-    // title（标题）、year（年代）、genre（流派）、track（音轨号）
-    // album / artist 参数会被静默忽略（它们是实体关联，不是元数据），
-    // 若用户确实需要修改专辑/歌手，需通过专辑详情页或歌手详情页操作。
-    if (metadata.title !== undefined) {
-      params.title = metadata.title
-    }
-    if (metadata.year !== undefined) {
-      params.year = metadata.year
-    }
-    if (metadata.genre !== undefined) {
-      params.genre = metadata.genre
-    }
-    if (metadata.track !== undefined) {
-      params.track = metadata.track
-    }
-
-    console.debug('[Subsonic] updateMediaAnnotation params:', params)
-    const result = await this.postRequest('/updateMediaAnnotation', params)
-    console.debug('[Subsonic] updateMediaAnnotation result:', result)
-  }
-
-  async setLyrics(songId: string, lyrics: string): Promise<void> {
-    // 线上参数名必须是 lyrics。此前写成了 o3ics（一次全局替换把 "lyr" 换成了 "o3"
-    // 留下的痕迹，同源问题还有 o3icCacheStore），服务端只会当成未知参数忽略，
-    // 于是「保存歌词」永远静默失败。
-    try {
-      await this.postRequest('/setLyrics', { id: songId, lyrics })
-    } catch (err) {
-      console.error('[Subsonic] setLyrics failed:', err)
-      throw err
-    }
-  }
 
   async getGenres(signal?: AbortSignal): Promise<Array<{ name: string; songCount: number; albumCount: number }>> {
     const data = await this.request<{
@@ -1044,31 +1006,6 @@ export class SubsonicAdapter implements MusicServerAdapter {
    * 能力协商。此前对可选能力是 try/catch-and-hope，
    * 结果是 UI 上摆着一堆点了没反应的入口。
    */
-  async getServerCapabilities(): Promise<ServerCapabilities> {
-    const caps: ServerCapabilities = { openSubsonic: false, extensions: {} }
-    try {
-      const pong = await this.request<Record<string, unknown>>('/ping')
-      caps.openSubsonic = !!pong.openSubsonic
-      caps.serverVersion = pong.serverVersion ? String(pong.serverVersion) : undefined
-      caps.serverType = pong.type ? String(pong.type) : undefined
-    } catch {
-      return caps
-    }
-    if (!caps.openSubsonic) return caps
-    try {
-      const data = await this.request<{ openSubsonicExtensions?: unknown[] }>('/getOpenSubsonicExtensions')
-      for (const raw of (data.openSubsonicExtensions ?? []) as Record<string, unknown>[]) {
-        const name = raw.name ? String(raw.name) : ''
-        if (!name) continue
-        caps.extensions[name] = Array.isArray(raw.versions)
-          ? (raw.versions as unknown[]).map(v => Number(v)).filter(Number.isFinite)
-          : []
-      }
-    } catch {
-      // 扩展清单拿不到不影响 openSubsonic 判定
-    }
-    return caps
-  }
 
   /**
    * 音源级能力：Subsonic 系是完整曲库音源，浏览 / 搜索 / 歌单 / 收藏 / 电台全有；

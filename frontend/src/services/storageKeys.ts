@@ -19,6 +19,26 @@ export const STORAGE_KEYS = {
   scrobbleStore: 'msp-scrobble-store',
   tasteStore: 'msp-taste-store',
   notes: 'msp-notes',
+  /* 以下四个原先散落各文件（阶段 8.5 收口）；分级清理（storageMaintenance）
+     与 musicbrainz 缓存清理从此能看到同一份清单 */
+  locale: 'msp-locale',
+  musicbrainzCache: 'msp-musicbrainz-cache',
+  scrollMemory: 'msp-scroll-memory',
+  pluginDisclaimers: 'n1ko-plugin-disclaimers-confirmed',
+} as const
+
+/**
+ * 「收听历史更新了」的窗口事件名（阶段 8.5：原先 11 处硬编码字符串，
+ * 手滑拼错就是永远收不到通知）。
+ */
+export const HISTORY_UPDATED_EVENT = 'msp-history-updated'
+
+/** IndexedDB 库名集中声明（改库名=数据迁移，必须在这里一眼看到全量） */
+export const IDB_NAMES = {
+  history: 'n1ko-music',
+  libraryCache: 'n1ko-music-library',
+  deviceKeys: 'n1ko-music-keys',
+  localPlaylists: 'n1ko-music-local-playlists',
 } as const
 
 /** 每日推荐结果缓存前缀，实际键形如 `msp-recommendation:{serverId}:{yyyy-mm-dd}:{batch}:{size}` */

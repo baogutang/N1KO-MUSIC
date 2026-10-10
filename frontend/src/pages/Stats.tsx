@@ -5,6 +5,7 @@
  */
 
 import { useMemo, useState, useEffect } from 'react'
+import { HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import { cn } from '@/lib/utils'
 import { formatDurationNatural } from '@/utils/formatters'
 import { useServerStore , useHistoryScope } from '@/store/serverStore'
@@ -126,8 +127,8 @@ export default function Stats() {
       // 在网易云听完一首这一页不会动
       if (!detail?.serverId || historyScope.includes(detail.serverId)) refresh()
     }
-    window.addEventListener('msp-history-updated', onUpdate)
-    return () => window.removeEventListener('msp-history-updated', onUpdate)
+    window.addEventListener(HISTORY_UPDATED_EVENT, onUpdate)
+    return () => window.removeEventListener(HISTORY_UPDATED_EVENT, onUpdate)
   }, [historyScope])
 
   const [range, setRange] = useState<StatsRange>(7)

@@ -399,7 +399,6 @@ export interface MusicServerAdapter {
   getPlaylists(signal?: AbortSignal): Promise<Playlist[]>
   getPlaylistDetail(playlistId: string, signal?: AbortSignal): Promise<PlaylistDetail>
   createPlaylist(name: string, songIds?: string[]): Promise<Playlist>
-  updatePlaylist(playlistId: string, name?: string, comment?: string): Promise<void>
   deletePlaylist(playlistId: string): Promise<void>
   addSongsToPlaylist(playlistId: string, songIds: string[]): Promise<void>
   removeSongsFromPlaylist(playlistId: string, songIndexes: number[]): Promise<void>
@@ -414,8 +413,6 @@ export interface MusicServerAdapter {
   unstar?(id: string, type: 'song' | 'album' | 'artist'): Promise<void>
 
   // --- 元数据编辑 ---
-  updateSongMetadata(songId: string, metadata: { title?: string; album?: string; artist?: string; year?: number; genre?: string; track?: number }): Promise<void>
-  setLyrics(songId: string, lyrics: string): Promise<void>
 
   // --- 封面 ---
   getCoverUrl(id: string, size?: number): string
@@ -482,7 +479,6 @@ export interface MusicServerAdapter {
   getScanStatus?(): Promise<{ scanning: boolean; count?: number; folderCount?: number } | null>
 
   /** 能力协商：OpenSubsonic 扩展与服务器版本 */
-  getServerCapabilities?(): Promise<ServerCapabilities>
 
   /** 精确播放上报（Jellyfin 会话生命周期 / OpenSubsonic reportPlayback）*/
   reportPlayback?(songId: string, state: { positionMs: number; isPaused?: boolean; event: 'start' | 'progress' | 'stop' }): Promise<void>

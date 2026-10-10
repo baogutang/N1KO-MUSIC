@@ -1,3 +1,4 @@
+import { IDB_NAMES } from '@/services/storageKeys'
 /**
  * 曲库元数据的离线缓存。
  *
@@ -12,7 +13,7 @@
  * 存储层不含任何业务语义，不可用时全部接口安全降级为 no-op。
  */
 
-const DB_NAME = 'n1ko-music-library'
+const DB_NAME = IDB_NAMES.libraryCache
 const DB_VERSION = 1
 const STORE_NAME = 'query-cache'
 const UPDATED_INDEX = 'by-updated'

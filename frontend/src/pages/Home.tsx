@@ -28,7 +28,7 @@ import { Mascot } from '@/components/brand/Mascot'
 import { greetingKey } from '@/components/layout/ClaySidebar'
 import { findAdapterFor, getAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
-import { playAllInOrder, playAllShuffled, playListFrom, shuffleWholeLibrary } from '@/utils/playActions'
+import { playAllInOrder, playAllShuffled, playListFrom, shuffleWholeLibrary, playAlbum } from '@/utils/playActions'
 import type { Album, Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
@@ -59,25 +59,6 @@ export default function HomePage() {
   //  只是这里根本用不着 memo。）
   const heroLede = buildHeroLede(heroAlbum, t)
 
-  // 播放整张专辑（先查缓存再拉详情，与 AlbumCard 同一策略）
-  const playAlbum = useCallback(
-    async (album: Album) => {
-      try {
-        const cacheKey = [album.serverId, 'albums', album.id] as const
-        const cached = queryClient.getQueryData(cacheKey)
-        if (cached && (cached as { songs?: unknown[] }).songs) {
-          playListFrom((cached as { songs: Song[] }).songs)
-          return
-        }
-        const detail = await getAdapterFor(album.serverId).getAlbumDetail(album.id)
-        queryClient.setQueryData(cacheKey, detail)
-        if (detail.songs.length) playListFrom(detail.songs)
-      } catch (err) {
-        console.error('Failed to play album:', err)
-      }
-    },
-    [queryClient]
-  )
 
   const handleHeroPlay = (e: React.MouseEvent) => {
     e.stopPropagation()

@@ -16,6 +16,7 @@
  */
 
 import { t } from '@/i18n'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 
 const API_BASE = 'https://musicbrainz.org/ws/2'
 /** MusicBrainz 的匿名限速是 1 req/s，留一点余量 */
@@ -30,7 +31,7 @@ const DEFAULT_MIN_INTERVAL_MS = 1_100
 let minIntervalMs = DEFAULT_MIN_INTERVAL_MS
 /** 档案数据几乎不变，缓存 30 天足够，也避免同一位歌手被反复查询 */
 export const PROFILE_TTL_MS = 30 * 24 * 60 * 60 * 1000
-const CACHE_KEY = 'msp-musicbrainz-cache'
+STORAGE_KEYS.musicbrainzCache
 /** 缓存条目上限：档案不大，但也不该无限长 */
 const MAX_CACHED = 200
 
@@ -57,7 +58,7 @@ interface CacheShape { [mbid: string]: ArtistProfile }
 
 function readCache(): CacheShape {
   try {
-    const raw = localStorage.getItem(CACHE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEYS.musicbrainzCache)
     return raw ? (JSON.parse(raw) as CacheShape) : {}
   } catch {
     return {}
@@ -72,7 +73,7 @@ function writeCache(cache: CacheShape): void {
       : Object.fromEntries(
           entries.sort((a, b) => b[1].fetchedAt - a[1].fetchedAt).slice(0, MAX_CACHED)
         )
-    localStorage.setItem(CACHE_KEY, JSON.stringify(bounded))
+    localStorage.setItem(STORAGE_KEYS.musicbrainzCache, JSON.stringify(bounded))
   } catch {
     // 配额满：档案是锦上添花，写不进去就算了
   }
@@ -212,7 +213,7 @@ export function setMinRequestIntervalForTests(ms: number): void {
 /** 供设置页「清除已缓存的档案」用 */
 export function clearProfileCache(): void {
   try {
-    localStorage.removeItem(CACHE_KEY)
+    localStorage.removeItem(STORAGE_KEYS.musicbrainzCache)
   } catch {
     // 清不掉也无所谓，条目会自然过期
   }

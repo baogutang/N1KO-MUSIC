@@ -14,7 +14,7 @@ import {
 } from '@/services/recommendationEngine'
 import type { ListeningEvent } from '@/services/listeningHistory'
 import type { MusicServerAdapter } from '@/api/types'
-import { RECOMMENDATION_CACHE_PREFIX } from '@/services/storageKeys'
+import { RECOMMENDATION_CACHE_PREFIX, HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import { pruneRecommendationCache, recommendationDayKey } from '@/services/storageMaintenance'
 import type { Song } from '@/api/types'
 import { filterRecommendable } from '@/services/recommendationFilters'
@@ -170,9 +170,9 @@ export function usePersonalizedRecommendations(size = 30) {
       if (!detail?.serverId || detail.serverId === serverId) scheduleRefresh()
     }
 
-    window.addEventListener('msp-history-updated', onHistory)
+    window.addEventListener(HISTORY_UPDATED_EVENT, onHistory)
     return () => {
-      window.removeEventListener('msp-history-updated', onHistory)
+      window.removeEventListener(HISTORY_UPDATED_EVENT, onHistory)
       if (timer !== null) clearTimeout(timer)
     }
   }, [serverId])

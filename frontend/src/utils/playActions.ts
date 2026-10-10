@@ -43,10 +43,6 @@ export function playNextInQueue(songs: Song[]) {
 }
 
 /** 加入队列末尾 */
-export function appendToQueue(songs: Song[]) {
-  if (!songs.length) return
-  usePlayerStore.getState().addToQueue(songs, 'last')
-}
 
 /**
  * 全库随机播放。
@@ -76,4 +72,27 @@ export async function shuffleWholeLibrary(fallback?: Song[]): Promise<boolean> {
     return false
   }
   return false
+}
+
+/**
+ * 播一整张专辑（阶段 8.7 收敛）：缓存优先、未命中拉详情后回填缓存。
+ * 此前 AlbumCard / Home / ArtistDetail 三份各写一遍，细节已经漂移
+ * （有的回填缓存有的不填、有的吞错有的打 log）。
+ */
+export async function playAlbum(album: { id: string; serverId: string }): Promise<void> {
+  const { queryClient } = await import('@/lib/queryClient')
+  const { getAdapterFor } = await import('@/api')
+  try {
+    const cacheKey = [album.serverId, 'albums', album.id] as const
+    const cached = queryClient.getQueryData<{ songs?: unknown[] }>(cacheKey)
+    if (cached?.songs?.length) {
+      playListFrom(cached.songs as Song[])
+      return
+    }
+    const detail = await getAdapterFor(album.serverId).getAlbumDetail(album.id)
+    queryClient.setQueryData(cacheKey, detail)
+    if (detail.songs.length) playListFrom(detail.songs)
+  } catch (err) {
+    console.error('Failed to play album:', err)
+  }
 }

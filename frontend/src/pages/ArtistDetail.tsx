@@ -13,7 +13,7 @@ import { ArtistDossier } from '@/components/music/ArtistDossier'
 import { SongList } from '@/components/music/SongList'
 import { useArtistDetail } from '@/hooks/useServerQueries'
 import { findAdapterFor, getAdapterFor } from '@/api'
-import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { playAllInOrder, playAllShuffled, playAlbum } from '@/utils/playActions'
 import { artistKey } from '@/utils/songIdentity'
 import { ErrorState } from '@/components/common/ErrorState'
 import { useServerStore } from '@/store/serverStore'
@@ -74,14 +74,9 @@ export default function ArtistDetailPage() {
     }
   }, [artist?.name, artist?.albums, serverId])
 
-  const handlePlayAlbum = useCallback(async (album: { id: string; serverId: string }) => {
-    try {
-      const detail = await getAdapterFor(album.serverId).getAlbumDetail(album.id)
-      if (detail.songs.length) playAllInOrder(detail.songs)
-    } catch {
-      // 拉取失败时不做任何事；用户可以点进专辑页再播
-    }
-  }, [])
+  /* 播整张专辑走共享的 playActions.playAlbum（阶段 8.7，缓存优先策略归一） */
+  /* 播整张专辑走共享的 playActions.playAlbum（阶段 8.7，缓存优先策略归一） */
+  const handlePlayAlbum = (album: { id: string; serverId: string }) => { void playAlbum(album) }
 
   const serverImageUrl = artist?.artistImageUrl ||
     (artist?.coverArt ? (findAdapterFor(artist.serverId)?.getCoverUrl(artist.coverArt, 300) ?? undefined) : undefined)
