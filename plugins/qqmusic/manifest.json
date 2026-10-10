@@ -1,14 +1,24 @@
 {
   "id": "qqmusic",
   "name": "QQ 音乐",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "protocol": 1,
   "platform": "qqmusic",
   "entry": "index.js",
   "author": "N1KO",
   "auth": {
     "kind": "qr",
-    "allowAnonymous": true
+    "allowAnonymous": true,
+    "methods": [
+      {
+        "id": "qq",
+        "labelKey": "sources.qr.method.qq"
+      },
+      {
+        "id": "wx",
+        "labelKey": "sources.qr.method.wx"
+      }
+    ]
   },
   "hosts": [
     "y.qq.com",
@@ -20,7 +30,9 @@
     "ws.stream.qqmusic.qq.com",
     "dl.stream.qqmusic.qq.com",
     "*.gtimg.cn",
-    "*.stream.qqmusic.qq.com"
+    "*.stream.qqmusic.qq.com",
+    "open.weixin.qq.com",
+    "lp.open.weixin.qq.com"
   ],
   "capabilities": [
     "search",

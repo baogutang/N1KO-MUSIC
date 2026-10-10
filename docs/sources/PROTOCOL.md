@@ -26,7 +26,11 @@
     "kind": "qr",
     "qrHint": "打开网易云音乐 App，扫描二维码并确认登录",
     "cookieHint": "从浏览器复制 music.163.com 的 Cookie 粘贴到这里",
-    "allowAnonymous": true
+    "allowAnonymous": true,
+    "methods": [
+      { "id": "qq", "labelKey": "sources.qr.method.qq" },
+      { "id": "wx", "labelKey": "sources.qr.method.wx" }
+    ]
   },
   "hosts": ["music.163.com", "interface.music.163.com", "*.music.126.net", "*.music.127.net"],
   "capabilities": [
@@ -53,6 +57,7 @@
 | `entry` | 是 | 相对 manifest 的插件代码路径。 |
 | `auth.kind` | 是 | `qr` / `cookie` / `none`。决定登录页渲染什么。 |
 | `auth.allowAnonymous` | 否 | 为 `true` 时允许不登录就添加音源（搜索、榜单、免费曲）。 |
+| `auth.methods` | 否 | 同一插件的多条扫码链路（如 QQ 音乐的 QQ / 微信）。`id` 传给 `createQr(methodId)` 分派；`labelKey` 是宿主 i18n 词表的键（词表里没有时宿主退回显示 id）。声明多于 1 条时登录页渲染方式切换；缺省或不声明时行为与从前一致（不带参调用 `createQr`）。 |
 | `hosts` | 是 | 宿主放行的域名白名单。支持 `*.` 前缀通配一级子域。不在名单内的请求一律拒绝并记录。另外：localhost / 127.0.0.1 / 私网段（10.、192.168.、172.16-31.）/ 链路本地（169.254.）及 `.local` `.internal` 后缀一律拒绝——即使写进了 `hosts` 也不放行（SSRF 防线，插件音源全部面向公网 API）。 |
 | `capabilities` | 是 | 宿主据此隐藏入口（见 §6）。声明了但方法不存在，宿主按未声明处理并在控制台警告。 |
 | `qualities` | 否 | 插件能提供的音质档位，映射见 §5.3。 |
@@ -87,8 +92,13 @@ module.exports = {
   // ---- N1KO 扩展 ----
   n1ko: {
     auth: {
-      async createQr() {},            // -> { key, content, expiresIn }   content 是二维码里的文本
-      async checkQr(key) {},          // -> { status: 'waiting'|'scanned'|'confirmed'|'expired', credentials? }
+      // methodId 对应 manifest.auth.methods[].id（未声明 methods 的插件不传参）。
+      // 返回的 key 必须自带方法前缀（如 `wx:` + uuid），checkQr(key) 据此分派——
+      // 宿主不解析 key，前缀约定归插件。
+      async createQr(methodId) {},    // -> { key, content, expiresIn, qrImage? }   content 是二维码里的文本
+      async checkQr(key) {},          // -> { status: 'waiting'|'scanned'|'confirmed'|'expired', credentials?, reason? }
+      // reason 是 expired 时的机器码（如 'wx_denied'：用户在手机上拒绝了登录），
+      // 宿主映射成各自的文案；插件不往这里放自由句子。
       async loginWithCookie(text) {}, // -> { credentials }
       async getUser() {},             // -> { id, name, avatar?, vip?: boolean } | null（null 表示凭据无效）
       async logout() {},

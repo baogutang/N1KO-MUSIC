@@ -187,3 +187,10 @@
 - 冲突：任务书第 0 节第 8 条禁止执行方碰 README.md / README_CN.md / website/（Kimi 在并行改写）。执行中途 N1KO 明确：Kimi 额度耗尽，README 优化与官网续作移交本执行方。
 - 选择：更新任务书第 0 节第 8 条（就地改写条款并注明变更原因）；接手 Kimi 的未提交 README 改写与 website/ 半成品，在 8 个整改阶段完成后收尾（README 内容依赖整改结果，如微信登录、macOS 签名说明）。README-TODO.md 中的条目届时直接并入 README 而非留给 N1KO。
 - 影响：提交范围扩大到 README.md / README_CN.md / website/；其余禁令（N1KO-API 推广区块、premium 概念、workflows tag 触发）不变。
+
+## 2026-10-10 · 阶段 2 · QQ 凭据生命周期与微信登录的三个取舍
+- 微信链路与 302：取码页、长轮询、换凭据 CGI 都是直连 GET/POST，不依赖 redirect: manual——Tauri/Capacitor 宿主通道可直接用（QQ 链路在 v1.11.1 踩过的重定向坑在这里不存在）。
+- 沙箱 env.credentials 是 init 快照：setCredentials 回写宿主后字段不更新。插件内加模块级 liveCredentials 缓存，刷新后立即生效；宿主侧 serverStore 更新后下次 ensurePluginHost 重建沙箱，两者最终一致。
+- uuid 提取正则：任务书给的 `uuid=(.+?)"` 会把前引号吃进捕获组（页面是 `uuid="VALUE"` 形态），改为 `uuid="?([^"&\s]+)`，兼容带/不带引号。
+- QQ 扫码（QQConnectLogin）响应不一定回 access_token/refresh_token：自动刷新可能无米下锅，届时按 unauthorized → 重新扫码收口，行为不劣于从前；微信链路（Login CGI）字段齐全。
+- 文案收口范围：动作词条统一为 sources.relogin（原 sources.banner.relogin / empty.offline.reauth / sources.settings.relogin / settings.server.reloginTitle 并入删除）；Masthead/Settings 的「凭据格式已升级」描述（settings.server.reloginDesc）保留其特定语境——它说的是迁移不是过期。Login 的 sources.expiredRelogin 是扫码页的「为什么会到这一步」说明句，不属于动作词条，保留。

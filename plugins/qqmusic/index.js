@@ -120,9 +120,117 @@ function parseCredentials(raw) {
   return null
 }
 
+/*
+ * 沙箱里的 env.credentials 是 init 时的**快照**：env.setCredentials 只回写宿主，
+ * 不会更新这个字段。刷新后的新凭据必须自己在模块里记一份，
+ * 否则同一次会话里后续请求仍拿旧 key 打。
+ */
+var liveCredentials = null
+
+function currentCredentials() {
+  return liveCredentials || parseCredentials(env && env.credentials)
+}
+
 function requireLogin() {
-  var cred = parseCredentials(env && env.credentials)
+  var cred = currentCredentials()
   if (!cred) throw pluginError('unauthorized', '请先扫码登录 QQ 音乐')
+  return cred
+}
+
+/**
+ * 登录 / 刷新响应 → 凭据 JSON（QQ 与微信两条链路共用）。
+ *
+ * 除了第一版就有的 musicid/musickey/refresh_key，补齐上游刷新要用的
+ * openid / unionid / refresh_token / access_token / expired_in；
+ * expiresAt（毫秒）由 expired_in（秒）换算，主动刷新按它排期。
+ * 字段名按上游响应常见名防御式读取，缺失就存空串 / 0（刷新时按缺失处理）。
+ */
+function credentialJsonFromLogin(data, loginType) {
+  var expiredIn = Number(data && (data.expired_in || data.expire_in)) || 0
+  var cred = {
+    musicid: data && data.musicid,
+    str_musicid: String((data && (data.str_musicid || data.musicid)) || ''),
+    musickey: data && data.musickey,
+    refresh_key: (data && data.refresh_key) || '',
+    openid: (data && data.openid) || '',
+    unionid: (data && data.unionid) || '',
+    refresh_token: (data && (data.refresh_token || data.encrypt_refresh_token)) || '',
+    access_token: (data && data.access_token) || '',
+    expired_in: expiredIn,
+    expiresAt: expiredIn > 0 ? Date.now() + expiredIn * 1000 : 0,
+    loginType: loginType,
+    nick: (data && (data.nick || data.nickname || data.user_nick)) || '',
+    avatar: (data && (data.avatar || data.headpic || data.pic)) || '',
+  }
+  return JSON.stringify(cred)
+}
+
+/** 到期前多久开始主动刷新 */
+var REFRESH_AHEAD_MS = 10 * 60 * 1000
+var refreshInflight = null
+
+/**
+ * 用 refresh_key 换新的 musickey（上游 login.py 的 refreshLogin）。
+ * CGI music.login.LoginServer.Login，param 按 loginType 分支，
+ * comm 带 tmeLoginType。只走 cgiOnce——经 cgi() 会再触发刷新，形成递归。
+ */
+async function refreshCredentials(cred) {
+  var loginType = Number(cred.loginType || 2)
+  var param
+  if (loginType === 1) {
+    /* 微信：openid/refresh_token/str_musicid/musickey/unionid/refresh_key */
+    param = {
+      openid: cred.openid || '',
+      refresh_token: cred.refresh_token || '',
+      str_musicid: cred.str_musicid || String(cred.musicid || ''),
+      musickey: cred.musickey || '',
+      unionid: cred.unionid || '',
+      refresh_key: cred.refresh_key || '',
+      loginMode: 2,
+    }
+  } else {
+    /* QQ：openid/access_token/refresh_token/expired_in/musicid/musickey/refresh_key */
+    param = {
+      openid: cred.openid || '',
+      access_token: cred.access_token || '',
+      refresh_token: cred.refresh_token || '',
+      expired_in: Number(cred.expired_in) || 0,
+      musicid: cred.musicid,
+      musickey: cred.musickey || '',
+      refresh_key: cred.refresh_key || '',
+      loginMode: 2,
+    }
+  }
+  var data = await cgiOnce('music.login.LoginServer', 'Login', param, { tmeLoginType: loginType })
+  if (!data || !data.musickey) {
+    throw pluginError('unauthorized', '凭据刷新失败（响应没有 musickey）')
+  }
+  var next = JSON.parse(credentialJsonFromLogin(data, loginType))
+  liveCredentials = next
+  env.setCredentials(JSON.stringify(next))
+  return next
+}
+
+/** 并发去重：多条数据请求同时撞上过期，只发一次刷新 */
+function refreshNow(cred) {
+  if (!refreshInflight) {
+    refreshInflight = refreshCredentials(cred)
+    refreshInflight.then(function () { refreshInflight = null }, function () { refreshInflight = null })
+  }
+  return refreshInflight
+}
+
+/** 到期前主动刷新；刷新不了（没有 refresh_key / 刷新失败）就交由调用方按未登录处理 */
+async function ensureFreshCredentials() {
+  var cred = currentCredentials()
+  if (!cred) return null
+  if (cred.expiresAt && cred.refresh_key && Date.now() >= cred.expiresAt - REFRESH_AHEAD_MS) {
+    try {
+      return await refreshNow(cred)
+    } catch (e) {
+      throw pluginError('unauthorized', '登录已过期且自动续期失败，请重新扫码')
+    }
+  }
   return cred
 }
 
@@ -241,9 +349,9 @@ var CGI_ERROR_CODE = {
   104013: 'forbidden',    // 设备受限
 }
 
-/** 单条 CGI 调用（musicu.fcg，req_0 形态） */
-async function cgi(module, method, param, commExtra) {
-  var cred = parseCredentials(env && env.credentials)
+/** 单条 CGI 调用（musicu.fcg，req_0 形态）。不含凭据刷新——刷新自己也走这里 */
+async function cgiOnce(module, method, param, commExtra) {
+  var cred = currentCredentials()
   var comm = buildComm(cred)
   if (commExtra) {
     Object.keys(commExtra).forEach(function (k) { comm[k] = commExtra[k] })
@@ -261,6 +369,32 @@ async function cgi(module, method, param, commExtra) {
     )
   }
   return req0.data
+}
+
+/**
+ * 带凭据生命周期的 CGI 调用：
+ * 1. 到期前（REFRESH_AHEAD_MS）先主动刷新一次；
+ * 2. 服务端报「凭据失效」（1000/104400/104401 → unauthorized）时，
+ *    还能救的（有 refresh_key）刷新后重试一次；救不回来才把 unauthorized
+ *    抛给宿主——「数据接口抛出的 unauthorized」由此汇入登录状态，
+ *    而不是被分组错误或推荐降级吞掉。
+ */
+async function cgi(module, method, param, commExtra) {
+  await ensureFreshCredentials()
+  try {
+    return await cgiOnce(module, method, param, commExtra)
+  } catch (err) {
+    if (!err || err.name !== 'PluginError' || err.code !== 'unauthorized') throw err
+    var cred = currentCredentials()
+    if (!cred || !cred.refresh_key) throw err
+    try {
+      await refreshNow(cred)
+    } catch (refreshErr) {
+      /* 刷新失败：按「需要重新登录」收口，别把刷新的技术细节盖过原始错误 */
+      throw pluginError('unauthorized', '登录已过期，请重新扫码（' + (refreshErr && refreshErr.message ? refreshErr.message : '刷新失败') + '）')
+    }
+    return await cgiOnce(module, method, param, commExtra)
+  }
 }
 
 /* ============================================================
@@ -458,21 +592,108 @@ async function authorizeQq(uin, sigx) {
   var code = queryValue(location, 'code', null)
   if (!code) throw pluginError('unauthorized', 'QQ 授权失败（Location 没有 code）')
 
-  var data = await cgi('QQConnectLogin.LoginServer', 'QQLogin', { code: code }, { tmeLoginType: 2 })
+  var data = await cgiOnce('QQConnectLogin.LoginServer', 'QQLogin', { code: code }, { tmeLoginType: 2 })
   if (!data || !data.musickey) throw pluginError('unauthorized', 'QQ 音乐登录失败')
-  /* 昵称/头像趁登录响应里有就存进凭据（模型未定义字段按常见名兜底），
-     getUser 不再发请求——euin 链路太重 */
-  var nick = data.nick || data.nickname || data.user_nick || ''
-  var avatar = data.avatar || data.headpic || data.pic || ''
-  return JSON.stringify({
-    musicid: data.musicid,
-    str_musicid: String(data.str_musicid || data.musicid),
-    musickey: data.musickey,
-    refresh_key: data.refresh_key || '',
-    loginType: 2,
-    nick: nick,
-    avatar: avatar,
+  /* 新凭据生效：模块里的 liveCredentials 换血（env.credentials 快照还是旧的） */
+  liveCredentials = null
+  return credentialJsonFromLogin(data, 2)
+}
+
+/* ============================================================
+ * 微信扫码登录（issue #24；上游 luren-dc/QQMusicApi 已核对）
+ *
+ * 链路不依赖 302 跳转（取码页面、轮询接口、换凭据 CGI 都是直连 GET/POST），
+ * Tauri / Capacitor 的宿主通道都能直接用——QQ 链路踩过的 redirect: manual
+ * 坑在这里不存在。
+ * ============================================================ */
+
+var WX_APPID = 'wx48db31d50e334801'
+/* 取码页的完整查询串按上游原样保留：redirect_uri 里的参数没有二次编码，
+   手工拼装容易差一个 %，差了微信就回错误页——直接用字面量最稳。 */
+var WX_QRCONNECT_URL =
+  'https://open.weixin.qq.com/connect/qrconnect?appid=' + WX_APPID +
+  '&redirect_uri=https://y.qq.com/portal/wx_redirect.html?login_type=2&surl=https://y.qq.com/' +
+  '&response_type=code&scope=snsapi_login&state=STATE' +
+  '&href=https://y.qq.com/mediastyle/music_v17/src/css/popup_wechat.css#wechat_redirect'
+
+/** 微信轮询响应：window.wx_errcode=NNN;window.wx_code='…' */
+function parseWxPoll(text) {
+  var raw = String(text || '')
+  var errcode = /wx_errcode=(\d+)/.exec(raw)
+  var code = /wx_code='([^']*)'/.exec(raw)
+  return {
+    errcode: errcode ? Number(errcode[1]) : null,
+    code: code ? code[1] : '',
+  }
+}
+
+async function getWxQrCode() {
+  var pageRes = await httpGet(WX_QRCONNECT_URL, {
+    headers: { Referer: 'https://y.qq.com/' },
+    responseType: 'text',
+    validateStatus: null,
   })
+  var matched = /uuid="?([^"&\s]+)/.exec(String(pageRes.data || ''))
+  if (!matched) throw pluginError('unknown', '微信二维码创建失败（页面里没有 uuid）')
+  var uuid = matched[1]
+  var imgRes = await httpGet('https://open.weixin.qq.com/connect/qrcode/' + uuid, {
+    headers: { Referer: 'https://open.weixin.qq.com/connect/qrconnect' },
+    responseType: 'arraybuffer',
+  })
+  var bytes = new Uint8Array(imgRes.data)
+  var binary = ''
+  for (var i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000))
+  }
+  var b64 = (typeof btoa === 'function' ? btoa(binary) : Buffer.from(bytes).toString('base64'))
+  /* key 带 wx: 前缀：checkQr(key) 据此分派到微信链路（协议 §3 的方法前缀约定） */
+  return {
+    key: 'wx:' + uuid,
+    content: 'https://open.weixin.qq.com/connect/confirm?uuid=' + uuid,
+    qrImage: 'data:image/jpeg;base64,' + b64,
+    expiresIn: 300,
+  }
+}
+
+async function checkWxQrCode(key) {
+  var uuid = String(key || '').slice('wx:'.length)
+  var res
+  try {
+    /* 长轮询可挂 30 秒，宿主单次 RPC 超时也是 30 秒：请求超时压到 20 秒，
+       超时映射成 waiting——轮询超时不是二维码出问题了 */
+    res = await httpGet('https://lp.open.weixin.qq.com/connect/l/qrconnect?uuid=' + encodeURIComponent(uuid) + '&_=' + Date.now(), {
+      headers: { Referer: 'https://open.weixin.qq.com/' },
+      responseType: 'text',
+      validateStatus: null,
+      timeout: 20000,
+    })
+  } catch (err) {
+    if (err && err.name === 'PluginError' && err.code === 'network') return { status: 'waiting' }
+    throw err
+  }
+  var poll = parseWxPoll(res.data)
+  if (poll.errcode === null) return { status: 'waiting' }
+  if (poll.errcode === 408) return { status: 'waiting' }
+  if (poll.errcode === 404) return { status: 'scanned' }
+  if (poll.errcode === 402) return { status: 'expired' }
+  if (poll.errcode === 403) return { status: 'expired', reason: 'wx_denied' }
+  if (poll.errcode === 405) {
+    if (!poll.code) return { status: 'expired', reason: 'wx_no_code' }
+    liveCredentials = null
+    var credentials = await wxLoginWithCode(poll.code)
+    return { status: 'confirmed', credentials: credentials }
+  }
+  return { status: 'waiting' }
+}
+
+/** 授权 code → 凭据（CGI Login，comm tmeLoginType=1，存 loginType 1） */
+async function wxLoginWithCode(code) {
+  var data = await cgiOnce('music.login.LoginServer', 'Login', {
+    code: code,
+    strAppid: WX_APPID,
+  }, { tmeLoginType: 1 })
+  if (!data || !data.musickey) throw pluginError('unauthorized', '微信登录失败（响应没有 musickey）')
+  return credentialJsonFromLogin(data, 1)
 }
 
 /* ============================================================
@@ -857,7 +1078,7 @@ module.exports = {
   author: 'N1KO',
   description: 'QQ 音乐（用自己的账号听自己有权听的）',
 
-  _crypto: { hash33: hash33, zzcSign: zzcSign, parsePtuiArgs: parsePtuiArgs, queryValue: queryValue, qrcDecrypt: qrcDecrypt },
+  _crypto: { hash33: hash33, zzcSign: zzcSign, parsePtuiArgs: parsePtuiArgs, queryValue: queryValue, qrcDecrypt: qrcDecrypt, parseWxPoll: parseWxPoll },
 
   /* ---------- 搜索（music.adaptor.SearchAdaptor.do_search_v2） ---------- */
   async search(query, page, type) {
@@ -895,7 +1116,7 @@ module.exports = {
     var file = QUALITY_FILE[quality] || QUALITY_FILE.medium
     var mediaMid = musicItem._mediaMid || musicItem.id
     var filename = file.s + mediaMid + file.e
-    var cred = parseCredentials(env && env.credentials)
+    var cred = currentCredentials()
     var data = await cgi('music.vkey.GetVkey', 'UrlGetVkey', {
       uin: (cred && cred.str_musicid) || '0',
       filename: [filename],
@@ -1013,7 +1234,7 @@ module.exports = {
       }
     }).filter(function (g) { return g.data.length > 0 })
     /* 登录后置顶「雷达推荐」（每日推荐，GetRadarSong） */
-    if (parseCredentials(env && env.credentials)) {
+    if (currentCredentials()) {
       mapped.unshift({ title: '每日推荐', data: [{ id: '__radar__', title: '雷达推荐 · 猜你喜欢' }] })
     }
     return mapped
@@ -1127,44 +1348,40 @@ module.exports = {
       var cred = requireLogin()
       var uin = String(cred.str_musicid || cred.musicid || '')
       /*
-       * 昵称/头像在登录时就存进凭据了（见 authorizeQq），但这里必须
-       * 真发一次请求：getUser 同时是宿主 diagnose() 的唯一探针，只读凭据
-       * 的话 musickey 过期永远发现不了——界面显示「已登录」，我的歌单、
-       * 雷达推荐却全空，用户完全看不出该去重新扫码。
-       * GetPlaylistByUin 是登录态里最轻的一个（只回自己的歌单清单），
-       * 凭据失效时 CGI 回 1000 / 104401，由 cgi() 翻成 unauthorized。
+       * 探针必须是**要鉴权**的接口（上游 music.UserInfo.userInfoServer.
+       * GetLoginUserInfo）：凭据失效时它回 1000 / 104400 / 104401，cgi() 翻成
+       * unauthorized 并先尝试自动刷新——刷新也失败才报「需要重新登录」。
+       * 只读凭据的话 musickey 过期永远发现不了。
        */
-      var probe = await cgi('music.musicasset.PlaylistBaseRead', 'GetPlaylistByUin', { uin: uin })
+      var probe = await cgi('music.UserInfo.userInfoServer', 'GetLoginUserInfo', {})
+      var info = (probe && (probe.Info || probe.info || probe.data || probe)) || {}
       /*
        * 昵称：登录响应里那几个字段名（nick/nickname/user_nick）是按常见名猜的，
        * QQ 实际并不一定给——结果就是账号列表里永远写着「QQ 音乐用户」。
-       * 这里再从两处捞一次：主页接口（同时带会员标记），以及刚才这条歌单响应
-       * （自建歌单上通常挂着创建者昵称）。都捞不到才退回占位名。
+       * 这里从探针响应与主页接口两处捞，都捞不到才退回占位名。
        */
-      var nick = cred.nick || ''
-      var avatar = cred.avatar || ''
+      var nick = cred.nick || info.Nick || info.nick || info.NickName || info.nickname || ''
+      var avatar = cred.avatar || info.Avatar || info.avatar || info.headpic || ''
       var vip
-      try {
-        var home = await cgi('music.UnifiedHomepage.UnifiedHomepageSrv', 'GetHomepageHeader', {
-          uin: uin,
-          IsQueryTabDetail: 1,
-        })
-        var info = (home && (home.Info || home.info)) || {}
-        nick = nick || info.Nick || info.nick || ''
-        avatar = avatar || info.Avatar || info.avatar || ''
-        var vipFlags = [info.IsVip, info.isVip, info.VipFlag, info.green, info.IsGreen]
-        for (var vi = 0; vi < vipFlags.length; vi++) {
-          if (vipFlags[vi] !== undefined && vipFlags[vi] !== null) { vip = !!Number(vipFlags[vi]); break }
-        }
-      } catch (e) {
-        /* 主页接口失败不影响登录判定：上面那条歌单探针才是权威 */
+      var vipFlags = [info.IsVip, info.isVip, info.VipFlag, info.green, info.IsGreen]
+      for (var vi = 0; vi < vipFlags.length; vi++) {
+        if (vipFlags[vi] !== undefined && vipFlags[vi] !== null) { vip = !!Number(vipFlags[vi]); break }
       }
-      if (!nick) {
-        var lists = (probe && (probe.v_playlist || probe.playlist || probe.v_item)) || []
-        for (var li = 0; li < lists.length; li++) {
-          var owner = lists[li] || {}
-          nick = owner.nickname || owner.nick || (owner.creator && (owner.creator.nick || owner.creator.nickname)) || ''
-          if (nick) break
+      if (!nick || vip === undefined) {
+        try {
+          var home = await cgi('music.UnifiedHomepage.UnifiedHomepageSrv', 'GetHomepageHeader', {
+            uin: uin,
+            IsQueryTabDetail: 1,
+          })
+          var homeInfo = (home && (home.Info || home.info)) || {}
+          nick = nick || homeInfo.Nick || homeInfo.nick || ''
+          avatar = avatar || homeInfo.Avatar || homeInfo.avatar || ''
+          var homeFlags = [homeInfo.IsVip, homeInfo.isVip, homeInfo.VipFlag, homeInfo.green, homeInfo.IsGreen]
+          for (var hi = 0; hi < homeFlags.length; hi++) {
+            if (vip === undefined && homeFlags[hi] !== undefined && homeFlags[hi] !== null) { vip = !!Number(homeFlags[hi]) }
+          }
+        } catch (e) {
+          /* 主页接口失败不影响登录判定：上面的鉴权探针才是权威 */
         }
       }
       return {
@@ -1180,8 +1397,16 @@ module.exports = {
   /* n1ko 扩展：宿主登录页（QrLogin）与账号横幅用 */
   n1ko: {
     auth: {
-      createQr() { return getQrCode() },
-      checkQr(key) { return checkQrCode(key) },
+      /**
+       * methodId 分派（协议 §3）：缺省 / 'qq' 走 QQ 扫码，'wx' 走微信扫码。
+       * checkQr 的 key 自带方法前缀（wx:），据此分派，不认前缀的旧宿主不受影响。
+       */
+      createQr(methodId) {
+        return methodId === 'wx' ? getWxQrCode() : getQrCode()
+      },
+      checkQr(key) {
+        return String(key || '').indexOf('wx:') === 0 ? checkWxQrCode(key) : checkQrCode(key)
+      },
       getUser() { return module.exports.user.getUser() },
     },
     user: {
