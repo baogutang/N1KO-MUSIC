@@ -308,6 +308,12 @@ let recoverSeekAttempts = 0
 const MAX_RECOVER_SEEK_ATTEMPTS = 12
 /** 错误恢复重载次数 — 模块级，防止 reattach 重建闭包后归零造成无限重载 */
 let recoverAttempts = 0
+/**
+ * 单曲循环倒带时的闭包内状态重置入口（阶段 6.12）：
+ * doLoad 里把「归零看门狗/恢复计数」的函数挂上来，repeat effect 调它——
+ * 这些是闭包变量，模块外面够不着。
+ */
+let onRepeatRewind: (() => void) | null = null
 
 /**
  * 当前音频元素的真实播放位置（秒）。
@@ -562,7 +568,19 @@ export function useAudioEngine() {
    */
   const preloadNext = useSettingsStore(s => s.preloadNext)
   useEffect(() => {
-    if (!preloadNext || !isPlaying || metered) return
+    /*
+     * 关闭预热 / 暂停 / 切到蜂窝（阶段 6.13）：清掉预热元素手里的流。
+     * 不清的话它会把「下一首」整首拉完——切蜂窝后用户没点任何东西，
+     * 流量却在一首一首地走。
+     */
+    if (!preloadNext || !isPlaying || metered) {
+      if (preloadEl.getAttribute('src')) {
+        preloadEl.pause()
+        preloadEl.removeAttribute('src')
+        preloadEl.load()
+      }
+      return
+    }
     const timer = setInterval(() => {
       const st = usePlayerStore.getState()
       const remaining = (st.duration || 0) - (st.currentTime || 0)
@@ -1083,6 +1101,24 @@ export function useAudioEngine() {
         }
       }
 
+      /*
+       * 精确播放上报（阶段 6.3）：Jellyfin 的会话生命周期——start 开会话、
+       * progress 喂断点、stop 关会话。有 reportPlayback 的适配器走这条链
+       * （scrobble(false) 的 Sessions/Playing 就不再发，避免开会话两次）；
+       * 没有的照旧只发 now-playing。上报失败不影响播放。
+       */
+      const preciseReporter = getAdapterFor(capturedServerId).reportPlayback
+      const reportPrecise = (
+        event: 'start' | 'progress' | 'stop',
+        positionMs: number,
+        isPaused = false
+      ) => {
+        if (!preciseReporter) return
+        void preciseReporter.call(getAdapterFor(capturedServerId), capturedSongId, {
+          positionMs, isPaused, event,
+        }).catch(() => { /* 会话上报是尽力而为 */ })
+      }
+
       const onPlay = () => {
         usePlayerStore.getState().resume()
         startListeningSession(capturedSong, capturedServerId)
@@ -1090,10 +1126,14 @@ export function useAudioEngine() {
         // （启动时 rehydrate 的歌只加载不播放，不应上报）
         if (!nowPlayingSent && playStatKey === capturedKey) {
           nowPlayingSent = true
-          void getAdapterFor(capturedServerId).scrobble(capturedSongId, false).catch(error => {
-            nowPlayingSent = false
-            console.warn('[AudioEngine] now-playing report failed; will retry:', error)
-          })
+          if (preciseReporter) {
+            reportPrecise('start', 0)
+          } else {
+            void getAdapterFor(capturedServerId).scrobble(capturedSongId, false).catch(error => {
+              nowPlayingSent = false
+              console.warn('[AudioEngine] now-playing report failed; will retry:', error)
+            })
+          }
         }
       }
 
@@ -1107,6 +1147,8 @@ export function useAudioEngine() {
         if (!audio.ended && !isSwitchingSong && usePlayerStore.getState().isPlaying) {
           usePlayerStore.getState().pause()
         }
+        /* 暂停也要上报（6.3）：服务器那边的「正在播放」状态才停得下来 */
+        if (nowPlayingSent) reportPrecise('progress', Math.max(0, audio.currentTime * 1000), true)
       }
 
       /**
@@ -1119,6 +1161,14 @@ export function useAudioEngine() {
       const STALL_ADVANCE_MS = 5000
       /** 中途（非结尾）缓冲耗尽的停滞：多等一会儿再保位重载，给浏览器自愈机会 */
       const MID_STALL_RELOAD_MS = 8000
+
+      /* 倒带重置（6.12）：第二遍起看门狗按新一遍的进度判断 */
+      onRepeatRewind = () => {
+        healthyPlaySec = 0
+        recoverAttempts = 0
+        stallPrevT = -1
+        stallSinceMs = null
+      }
 
       const clearStallWatch = () => {
         if (stallWatchInterval !== null) {
@@ -1147,6 +1197,7 @@ export function useAudioEngine() {
           return
         }
         clearStallWatch()
+        if (nowPlayingSent) reportPrecise('stop', Math.max(0, bestKnownTime() * 1000))
         maybeSubmitPlay()
         persistListeningSession('completed')
         resetListeningSession()
@@ -1418,6 +1469,11 @@ export function useAudioEngine() {
       }
 
       const cleanup = () => {
+        onRepeatRewind = null
+        /* 切歌 / 卸载时关会话（6.3）：只开会话不关，服务器的「播放中」永远挂着 */
+        if (nowPlayingSent && !audio.ended) {
+          reportPrecise('stop', Math.max(0, bestKnownTime() * 1000))
+        }
         clearStallWatch()
         audio.removeEventListener('loadedmetadata', onLoadedMetadata)
         audio.removeEventListener('durationchange', onDurationChange)
@@ -1450,6 +1506,14 @@ export function useAudioEngine() {
     }
 
     const isFirstPlay = loadedKey === null
+
+    // 换歌时清预热（阶段 6.13）：旧歌的「下一首」对新队列没有意义，
+    // 留着它等于后台继续拉一首没人要的流
+    if (!isFirstPlay && preloadEl.getAttribute('src')) {
+      preloadEl.pause()
+      preloadEl.removeAttribute('src')
+      preloadEl.load()
+    }
 
     if (!isFirstPlay && loadedKey) {
       // 识别「同曲同版本、仅音质变化」的重载（loadedKey 格式 songId@quality@version，
@@ -1576,6 +1640,16 @@ export function useAudioEngine() {
   useEffect(() => {
     if (repeatSeekToken === lastRepeatTokenRef.current) return
     lastRepeatTokenRef.current = repeatSeekToken
+    /*
+     * 第二遍起是一条新的收听（阶段 6.12 修正）：
+     * - onEnded 已把上一遍记成 completed 并结算，这里开新会话；
+     * - playSubmitted 复位，scrobble 每一遍都报（原来第二遍起永远不报）；
+     * - 闭包里的看门狗/恢复计数经 onRepeatRewind 归零。
+     */
+    playSubmitted = false
+    onRepeatRewind?.()
+    const song = usePlayerStore.getState().currentSong
+    if (song) startListeningSession(song, songServerId(song))
     audioEl.currentTime = 0
     if (usePlayerStore.getState().isPlaying) {
       void audioEl.play().catch(() => {})

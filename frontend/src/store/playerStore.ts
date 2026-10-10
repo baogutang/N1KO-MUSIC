@@ -449,8 +449,17 @@ export const usePlayerStore = create<PlayerState>()(
 
         if (shuffle) {
           const currentShufflePos = resolveShuffleCursor(shuffledIndexes, queueIndex, state.shuffleCursor)
-          const prevShufflePos =
-            (currentShufflePos - 1 + shuffledIndexes.length) % shuffledIndexes.length
+          /*
+           * 随机序列的头部不回绕到尾部（阶段 6.12）：原先取模回绕，
+           * 「第一首按上一首」会跳到随机序列的最后一首——repeat ≠ all 时
+           * 用户要的是「往回」，不是「跳到某个没听过的位置」。与顺序模式的
+           * clamp 行为对齐：停在第一首。
+           */
+          const prevShufflePos = currentShufflePos > 0
+            ? currentShufflePos - 1
+            : state.repeatMode === 'all'
+              ? shuffledIndexes.length - 1
+              : 0
           prevIndex = shuffledIndexes[prevShufflePos]
           prevCursor = prevShufflePos
         } else if (queueIndex === 0 && state.repeatMode === 'all') {
@@ -574,18 +583,20 @@ export const usePlayerStore = create<PlayerState>()(
           const newQueue = [...state.queue, ...songs]
           let shuffledIndexes = newQueue.map((_, i) => i)
           if (state.shuffle) {
-            // 保留已播放的前缀顺序，仅把新歌随机混入尚未播放的部分
+            /*
+             * 队尾加歌（阶段 6.12 修正）：已有未播顺序**不动**——原先把
+             * 「未播旧歌 + 新歌」整段重洗，用户排好的随机顺序每次加歌都被打散
+             * （插队感）。新歌逐首插进未播段的随机位置：插入不改变既有元素
+             * 的相对顺序，既满足「随机」，又不惊动已排好的队。
+             */
             const currentShufflePos = resolveShuffleCursor(
               state.shuffledIndexes, state.queueIndex, state.shuffleCursor
             )
             const playedPrefix = state.shuffledIndexes.slice(0, currentShufflePos + 1)
-            const upcoming = [
-              ...state.shuffledIndexes.slice(currentShufflePos + 1),
-              ...songs.map((_, i) => state.queue.length + i),
-            ]
-            for (let i = upcoming.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1))
-              ;[upcoming[i], upcoming[j]] = [upcoming[j], upcoming[i]]
+            const upcoming = state.shuffledIndexes.slice(currentShufflePos + 1)
+            for (let n = 0; n < songs.length; n++) {
+              const insertAt = Math.floor(Math.random() * (upcoming.length + 1))
+              upcoming.splice(insertAt, 0, state.queue.length + n)
             }
             shuffledIndexes = [...playedPrefix, ...upcoming]
           }

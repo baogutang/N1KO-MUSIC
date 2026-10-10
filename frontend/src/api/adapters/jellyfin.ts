@@ -242,6 +242,37 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
+  /*
+   * 曲库范围（阶段 6.1）：多库服务器上选了某个库时，查询必须带 ParentId，
+   * 否则结果混着所有库。Subsonic 系走 musicFolderId 参数，Jellyfin 的
+   * 等价物就是 ParentId。
+   */
+  private folderParams(musicFolderId?: string): Record<string, unknown> {
+    return musicFolderId ? { ParentId: musicFolderId } : {}
+  }
+
+  /**
+   * 专辑书架 type → Jellyfin 的 SortBy / Filters（阶段 6.2）。
+   * 原先 type 参数被整个忽略，「最近播放 / 最常播放 / 收藏」全都回落到
+   * DateCreated——书架看着有四个 tab，内容其实是同一个。
+   * 显式传了 sortBy 的调用方优先（那是翻页的确定性排序要求）。
+   */
+  private shelfParams(params: ListParams): Record<string, unknown> {
+    if (params.sortBy) return { SortBy: params.sortBy, SortOrder: params.sortOrder ?? 'Descending' }
+    switch (params.type) {
+      case 'frequent':
+        return { SortBy: 'PlayCount,SortName', SortOrder: 'Descending' }
+      case 'recent':
+        return { SortBy: 'DatePlayed,SortName', SortOrder: 'Descending' }
+      case 'starred':
+        return { SortBy: 'SortName', SortOrder: 'Ascending', Filters: 'IsFavorite' }
+      case 'alphabeticalByName':
+        return { SortBy: 'SortName', SortOrder: 'Ascending' }
+      default:
+        return { SortBy: 'DateCreated', SortOrder: 'Descending' }
+    }
+  }
+
   async getSongs(params: ListParams = {}): Promise<PageResult<Song>> {
     const resp = await this.client.get('/Items', {
       params: this.itemsParams({
@@ -251,6 +282,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
         SortBy: 'SortName',
         Limit: params.size ?? 50,
         StartIndex: params.offset ?? 0,
+        ...this.folderParams(params.musicFolderId),
       }),
     })
     const items = (resp.data.Items ?? []) as Record<string, unknown>[]
@@ -409,21 +441,40 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
+  /**
+   * 写 UserData 的双路由（阶段 6.4）：
+   * Jellyfin 10.9+ 是 `/UserItems/<id>/UserData?userId=`；更早的 Jellyfin 与
+   * Emby 全系是 `/Users/<userId>/Items/<id>/UserData`。Emby 适配器继承本类，
+   * 只认新路由时 Emby 上写评分/断点会 404。新路由 404/400 时回退旧路由，
+   * 两个世代都通，不需要实机探测版本。
+   */
+  private async postUserData(id: string, body: Record<string, unknown>): Promise<void> {
+    const legacy = `/Users/${this.userId}/Items/${id}/UserData`
+    try {
+      await this.client.post(`/UserItems/${id}/UserData`, body, {
+        params: { userId: this.userId },
+      })
+    } catch (err) {
+      const status = (err as { response?: { status?: number } } | null)?.response?.status
+      if (status === 404 || status === 400 || status === 405) {
+        await this.client.post(legacy, body)
+      } else {
+        throw err
+      }
+    }
+  }
+
   /** 五星评分：Jellyfin 用 UserData 的 Rating 字段 */
   async setRating(id: string, rating: number): Promise<void> {
     const clamped = Math.max(0, Math.min(5, Math.round(rating)))
-    await this.client.post(`/UserItems/${id}/UserData`, { Rating: clamped || null }, {
-      params: { userId: this.userId },
-    })
+    await this.postUserData(id, { Rating: clamped || null })
   }
 
   /** 长音轨断点：写回 UserData 的播放位置 */
   async createBookmark(songId: string, positionMs: number): Promise<void> {
-    await this.client.post(
-      `/UserItems/${songId}/UserData`,
-      { PlaybackPositionTicks: Math.max(0, Math.round(positionMs)) * 10_000 },
-      { params: { userId: this.userId } }
-    )
+    await this.postUserData(songId, {
+      PlaybackPositionTicks: Math.max(0, Math.round(positionMs)) * 10_000,
+    })
   }
 
   async deleteBookmark(songId: string): Promise<void> {
@@ -488,11 +539,11 @@ export class JellyfinAdapter implements MusicServerAdapter {
       params: this.itemsParams({
         IncludeItemTypes: 'MusicAlbum',
         Fields: 'RunTimeTicks,UserData,Genres',
-        SortBy: params.sortBy ?? 'DateCreated',
-        SortOrder: 'Descending',
+        ...this.shelfParams(params),
         Limit: params.size ?? 50,
         StartIndex: params.offset ?? 0,
         Genres: params.genre,
+        ...this.folderParams(params.musicFolderId),
       }),
     })
     const items = (resp.data.Items ?? []) as Record<string, unknown>[]
@@ -538,13 +589,14 @@ export class JellyfinAdapter implements MusicServerAdapter {
     return data.items
   }
 
-  async getRandomSongs(size = 50): Promise<Song[]> {
+  async getRandomSongs(size = 50, musicFolderId?: string, _signal?: AbortSignal): Promise<Song[]> {
     const resp = await this.client.get('/Items', {
       params: this.itemsParams({
         IncludeItemTypes: 'Audio',
         Fields: 'MediaStreams,RunTimeTicks,UserData,Genres,ImageTags',
         SortBy: 'Random',
         Limit: size,
+        ...this.folderParams(musicFolderId),
       }),
     })
     return ((resp.data.Items ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this))
@@ -597,13 +649,14 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
-  async getArtists(): Promise<Artist[]> {
+  async getArtists(musicFolderId?: string, _signal?: AbortSignal): Promise<Artist[]> {
     const resp = await this.client.get('/Artists', {
       params: {
         UserId: this.userId,
         Fields: 'UserData',
         Recursive: true,
         Limit: 500,
+        ...this.folderParams(musicFolderId),
       },
     })
     return ((resp.data.Items ?? []) as Record<string, unknown>[]).map(this.mapArtist.bind(this))

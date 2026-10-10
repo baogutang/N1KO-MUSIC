@@ -28,6 +28,7 @@ type QrPhase = 'loading' | 'waiting' | 'scanned' | 'expired' | 'error'
 const EXPIRED_REASONS: Record<string, string> = {
   wx_denied: 'sources.qr.denied',
   wx_no_code: 'sources.qr.noCode',
+  netease_risk: 'sources.qr.risk',
 }
 
 /**

@@ -173,3 +173,15 @@ describe('safeResourceUrl · 封面的内联小图', () => {
     expect(safeResourceUrl(tiny, [])).toBeNull()
   })
 })
+
+describe('通配 IP 域名与降级判定（阶段 6.6）', () => {
+  it('nip.io / sslip.io / localtest.me 及其子域一律拒绝（即使进了 hosts）', () => {
+    const hosts = ['nip.io', '*.nip.io', 'sslip.io', '*.sslip.io', 'localtest.me', 'example.com']
+    expect(isHostAllowed('https://192-168-1-1.nip.io/x', hosts)).toBe(false)
+    expect(isHostAllowed('https://10-0-0-1.sslip.io/x', hosts)).toBe(false)
+    expect(isHostAllowed('https://127.0.0.1.nip.io/x', hosts)).toBe(false)
+    expect(isHostAllowed('https://sub.localtest.me/x', hosts)).toBe(false)
+    // 正常域名不受影响
+    expect(isHostAllowed('https://example.com/x', hosts)).toBe(true)
+  })
+})

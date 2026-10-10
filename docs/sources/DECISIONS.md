@@ -203,3 +203,11 @@
 ## 2026-10-10 · 阶段 5 · 回归测试的口径
 - F07/F09/F14 的修复主体在 hook 的 queryFn/effect 闭包里（固定拉取大小、翻页循环、音质阶梯），node 环境测不了渲染层，纯逻辑部分（常量阶梯）无可断言行为；F13（searchAll 并发/取消/分区失败）与 F10（star 可选挂载）有插件适配器级回归测试钉住。F18 的后端安全测试四条全部落地（security.test.mjs）。
 - F18 的 release/mobile 前置门禁采用「本地复跑关键检查」而不是跨工作流 workflow_run 等待：CI 只挂 push/PR，tag 推送不会触发它，跨 workflow 依赖需要给 CI 加 dispatch + 轮询，脆且费时；复跑 check:versions + 前后端测试 + 插件测试在语义上等价（tag 是人工动作，几分钟的重复可接受）。tag 触发方式本身未动。
+
+## 2026-10-10 · 阶段 6 · 推断项的处置与不做项
+- 6.4 Emby×10.9 路由（推断）：无 Emby 实机可复现，未按「能力探测卸载」而是实现**双路由回退**（/UserItems 404/400/405 时回退 /Users/{uid}/Items）——两个世代的 Jellyfin/Emby 都通，比卸载保守。
+- 6.5 Capacitor base64（推断）：无法在 macOS 上实机复现；按「data 为 string 且形状是纯 base64 字符集时标 base64」实现（可读文本几乎不可能全落在 base64 字符集，误判面极小）；connectTimeout/readTimeout 一并透传。
+- 6.10 CORS 移动壳 origin（推断）：加 capacitor://localhost、https://localhost、http://localhost 三个默认 origin，无副作用。
+- 6.11 SW（推断）：Tauri 壳内 UpdatePrompt 不注册 SW（Capacitor 构建本就没有）；globIgnores plugins/**。无法离线验证 SW 行为，逻辑改动极小。
+- 6.9 的跨 IP 锁测试用 127.0.0.1 与 [::1] 双栈回环构造两个来源地址；无 IPv6 环境自动跳过。
+- **不做（按任务书）**：Tauri Keychain / Capacitor Keystore 存凭据（deviceKey.ts 仍走加密 localStorage）——工作量大、密钥丢失会把所有用户锁在外面，需要单独设计恢复流程，后续项。Jellyfin 限码率走 HLS 而无 hls.js：未验证（无实机），维持现状。

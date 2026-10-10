@@ -443,6 +443,7 @@ describe('prev', () => {
     seedQueue(3, 0, {
       shuffle: true,
       shuffledIndexes: [0, 2, 1],
+      repeatMode: 'all', // 列表循环下才回绕（阶段 6.12 修正）
       history: [song('from-previous-list')],
     })
     passSwitchDebounce()
@@ -1051,5 +1052,60 @@ describe('replaceCurrentSong 的 playVersion（阶段 3.5：同 id 不同源也�
 
     expect(state().playVersion).toBe(versionBefore + 1)
     expect(state().currentSong?.serverId).toBe('other-source')
+  })
+})
+
+describe('随机模式三条（阶段 6.12）', () => {
+  beforeEach(resetStore)
+
+  it('队尾加歌不打散已有未播顺序：新歌插进未播段的随机位置', () => {
+    // 已知随机顺序：s0 s2 s1 s3（洗牌索引手写，避免真随机的不可重复）
+    seedQueue(4, 0, {
+      shuffle: true,
+      shuffledIndexes: [0, 2, 1, 3],
+      shuffleCursor: 0, // 正在播 s0，未播 = s2 s1 s3
+    })
+    const upcomingBefore = shuffleOrderIds().slice(1) // ['s2','s1','s3']
+
+    state().addToQueue([song('n1'), song('n2')], 'last')
+
+    // 不变量是「既有未播歌的相对顺序不变」：新歌可以插在它们之间任何位置
+    const upcomingAfter = shuffleOrderIds().slice(1).filter(id => !id.startsWith('n'))
+    expect(upcomingAfter).toEqual(upcomingBefore)
+    // 新歌确实进了未播段
+    expect(shuffleOrderIds().slice(1)).toEqual(expect.arrayContaining(['n1', 'n2']))
+    // 已播前缀与总数不变
+    expect(shuffleOrderIds()[0]).toBe('s0')
+    expect(state().queue).toHaveLength(6)
+  })
+
+  it('prev 在随机序列头部不回绕到尾部（repeat ≠ all）', () => {
+    seedQueue(3, 0, {
+      shuffle: true,
+      shuffledIndexes: [1, 2, 0],
+      shuffleCursor: 0, // 序列第一首 queue 下标 1 正在播
+      repeatMode: 'none',
+    })
+    // 把 currentSong/queueIndex 对齐到序列头部
+    usePlayerStore.setState({ queueIndex: 1, currentSong: state().queue[1] })
+
+    state().prev()
+
+    // 不回绕：仍停在序列第一首（重播），而不是跳到最后一首
+    expect(state().queueIndex).toBe(1)
+  })
+
+  it('prev 在随机序列头部、列表循环时回绕到尾部', () => {
+    seedQueue(3, 0, {
+      shuffle: true,
+      shuffledIndexes: [1, 2, 0],
+      shuffleCursor: 0,
+      repeatMode: 'all',
+    })
+    usePlayerStore.setState({ queueIndex: 1, currentSong: state().queue[1] })
+
+    state().prev()
+
+    expect(state().queueIndex).toBe(0) // shuffledIndexes 最后一项
   })
 })

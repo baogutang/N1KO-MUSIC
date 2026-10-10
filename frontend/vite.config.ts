@@ -422,6 +422,12 @@ export default defineConfig(({ mode }) => ({
               // 字体是自托管的，必须进预缓存——此前 glob 里没有 woff2，
               // 离线时整套衬线/等宽字体全部退回系统字体。
               globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+              /*
+               * 插件代码与目录走网络优先（阶段 6.11）：插件有 codeHash 校验、
+               * hosts 白名单与版本更新链，预缓存把它们冻在 SW 里一版，
+               * 更新与安全修复都会被旧缓存顶掉。
+               */
+              globIgnores: ['**/plugins/**', 'plugins/**'],
               runtimeCaching: [
                 {
                   // 封面按 URL 缓存：音乐服务器的封面接口稳定且体积可观。

@@ -111,6 +111,7 @@ async function buildPluginHost(config: ServerConfig): Promise<PluginHost> {
   const manifest = installed.manifest as unknown as PluginManifest
 
   const host = new PluginHost(manifest, {
+    serverId: config.id,
     env: {
       appVersion: pkg.version,
       locale: getLocale(),

@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { isTauriShell } from '@/lib/platform'
 import { ArrowsClockwise, X } from '@phosphor-icons/react'
 import { useT } from '@/i18n'
 
@@ -20,6 +21,12 @@ export function UpdatePrompt() {
 
   useEffect(() => {
     let cancelled = false
+    /*
+     * Tauri 壳内不注册 SW（阶段 6.11）：桌面版的更新由安装包分发，
+     * SW 缓存反而会在 App 更新后继续供旧资源（版本错配的模块混跑）。
+     * Capacitor 构建里这个虚拟模块本身就不存在。
+     */
+    if (isTauriShell) return () => { cancelled = true }
     // 动态导入：Capacitor 构建里没有这个虚拟模块
     import('virtual:pwa-register')
       .then(({ registerSW }) => {

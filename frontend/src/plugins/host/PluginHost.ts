@@ -112,10 +112,24 @@ export interface PluginHostStorage {
   set(pluginId: string, key: string, value: string): Promise<void>
 }
 
+/** 每源频控退避到期时刻（serverId → 毫秒时间戳；阶段 6.8） */
+const rateBackoffUntil = new Map<string, number>()
+/** PROTOCOL §7 承诺的宿主退避时长 */
+export const RATE_LIMITED_BACKOFF_MS = 60_000
+
+/** 某个音源当前还剩多少毫秒处于频控退避（0 = 不在退避） */
+export function rateBackoffRemaining(serverId: string | undefined | null): number {
+  if (!serverId) return 0
+  const until = rateBackoffUntil.get(serverId) ?? 0
+  return Math.max(0, until - Date.now())
+}
+
 export interface PluginHostOptions {
   env: Omit<PluginEnvData, 'credentials'>
   credentials: string | null
   storage: PluginHostStorage
+  /** 该宿主服务的音源 id（频控退避按源记账；缺省按插件 id） */
+  serverId?: string
   /** 插件回写凭据（env.setCredentials / 登录流程产生新串）时通知宿主落盘 */
   onCredentialsChange?: (next: string | null) => void
   /** console 转发；缺省打到主控制台并进环形缓冲 */
@@ -246,6 +260,16 @@ export class PluginHost {
   async call<T = unknown>(method: string, ...args: unknown[]): Promise<T> {
     if (this.disposed) throw new PluginCallError('unsupported', 'Plugin host disposed')
     if (!this.iframe?.contentWindow) throw new PluginCallError('unsupported', 'Sandbox not initialized')
+    /*
+     * 频控退避（阶段 6.8，PROTOCOL §7 的「宿主退避 60 秒」承诺）：
+     * 退避期间不再把请求发进沙箱——网上一刀全是 429 的源，继续打只会
+     * 把封禁窗口越打越长。查询层拿到 rate-limited 后会保留已有缓存展示。
+     */
+    const backoffKey = this.options.serverId ?? this.manifest.id
+    const remaining = rateBackoffRemaining(backoffKey)
+    if (remaining > 0) {
+      throw new PluginCallError('rate-limited', `该音源频控退避中，${Math.ceil(remaining / 1000)} 秒后重试`)
+    }
     const id = ++this.rpcSeq
     const promise = new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -257,6 +281,12 @@ export class PluginHost {
         reject,
         timer,
       })
+    })
+    // 撞上 rate-limited 就给这个源记账 60 秒（副作用挂到原 promise 上）
+    void promise.catch(err => {
+      if (err instanceof PluginCallError && err.code === 'rate-limited') {
+        rateBackoffUntil.set(backoffKey, Date.now() + RATE_LIMITED_BACKOFF_MS)
+      }
     })
     this.postToSandbox({ type: 'call', id, method, args })
     return promise

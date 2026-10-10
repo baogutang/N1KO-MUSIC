@@ -29,6 +29,9 @@ export async function capacitorChannel(
     // 主机上的开放重定向能把请求带进内网）。QQ 登录读 Location 的链路照旧。
     disableRedirects: true,
     // 原生实现读不到 set-cookie 时拿不到就拿不到（协议约定给空），不在这层补
+    // 超时透传（阶段 6.5）：微信长轮询 20s 等场景靠它，否则原生层默认可以挂很久
+    connectTimeout: request.timeoutMs ?? 30_000,
+    readTimeout: request.timeoutMs ?? 30_000,
   })
   // CapacitorHttp 没有 signal：中止时不再等它的结果（原生请求仍会跑完，
   // 但宿主侧已经不认这个响应了）
@@ -56,6 +59,15 @@ export async function capacitorChannel(
         binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
       }
       return { ok: true, status: res.status, headers, body: btoa(binary), bodyEncoding: 'base64' }
+    }
+    if (typeof data === 'string' && data.length > 0 && /^[A-Za-z0-9+/=\r\n]+$/.test(data)) {
+      /*
+       * 原生端对 arraybuffer 可能直接回 base64 字符串（阶段 6.5 推断项）：
+       * 当文本标着走，二维码图会变成乱码。形状校验（纯 base64 字符集）后
+       * 按 base64 标注；真回的是可读文本（几乎不可能全落在 base64 字符集）
+       * 才落到 text。
+       */
+      return { ok: true, status: res.status, headers, body: data, bodyEncoding: 'base64' }
     }
     return { ok: true, status: res.status, headers, body: String(res.data ?? ''), bodyEncoding: 'text' }
   }

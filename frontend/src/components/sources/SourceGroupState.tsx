@@ -19,6 +19,7 @@
 import { ArrowsClockwise, Key } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { SourceBadge } from '@/components/sources/SourceBadge'
+import { rateBackoffRemaining } from '@/plugins/host/PluginHost'
 import { useServerStore } from '@/store/serverStore'
 import { useT } from '@/i18n'
 
@@ -67,6 +68,17 @@ export function SourceGroupState({ serverId, status, error, onRetry }: SourceGro
     )
   }
 
+  /* 频控退避中（6.8）：说明剩余时间，不给重试——重试只会把封禁越打越长 */
+  const backoffSec = Math.ceil(rateBackoffRemaining(serverId) / 1000)
+  if (backoffSec > 0) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3" role="status">
+        <SourceBadge serverId={serverId} withName />
+        <span className="text-[13px] text-ink-soft">{t('sources.rateLimited', { seconds: backoffSec })}</span>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3" role="status">
       <SourceBadge serverId={serverId} withName />
@@ -93,4 +105,13 @@ export function groupStateStatus(group: { status: 'loading' | 'success' | 'error
   : 'loading' | 'success' | 'error' | 'auth' {
   if (group.status === 'error' && group.errorCode === 'unauthorized') return 'auth'
   return group.status
+}
+
+/**
+ * 频控退避的剩余秒数（阶段 6.8）：PluginHost 撞上 rate-limited 后按源记账
+ * 60 秒，期间界面要能说清「这不是坏了，是一分钟后再来」。
+ */
+export function rateLimitedSeconds(serverId: string): number {
+  const remaining = rateBackoffRemaining(serverId)
+  return remaining > 0 ? Math.ceil(remaining / 1000) : 0
 }

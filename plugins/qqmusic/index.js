@@ -363,9 +363,12 @@ async function cgiOnce(module, method, param, commExtra) {
   var body = res.data || {}
   var req0 = body.req_0 || {}
   if (req0.code !== 0) {
+    /* 未登记的业务码带原文（阶段 6.7）：一律译成 unauthorized 会把风控、
+       参数错、服务端抖动全部伪装成「登录过期」，把用户赶去重扫一个好好的码 */
+    var raw = req0.message || req0.msg || req0.tip || ''
     throw pluginError(
       CGI_ERROR_CODE[req0.code] || 'unknown',
-      'CGI ' + module + '.' + method + ' code ' + req0.code
+      'CGI ' + module + '.' + method + ' code ' + req0.code + (raw ? '：' + raw : '')
     )
   }
   return req0.data

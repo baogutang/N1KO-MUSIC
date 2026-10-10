@@ -35,6 +35,15 @@ const PRIVATE_HOST_PATTERNS: RegExp[] = [
   /^\[?f[cd][0-9a-f]{2}:/i,
   /\.local$/i,
   /\.internal$/i,
+  /*
+   * 通配 IP 域名（阶段 6.6）：nip.io / sslip.io 把任意 IP 编进子域
+   * （192-168-1-1.nip.io 解析到 192.168.1.1），是绕过字面私网判定的现成工具。
+   * 原生通道（Tauri / Capacitor）拿不到「最终连接 IP」做复检，按域名整段拒绝
+   * 是能落地的最强防线（PROTOCOL §2 已同步说明）。
+   */
+  /(^|\.)nip\.io$/i,
+  /(^|\.)sslip\.io$/i,
+  /(^|\.)localtest\.me$/i,
 ]
 
 /**

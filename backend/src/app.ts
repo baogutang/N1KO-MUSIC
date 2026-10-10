@@ -24,7 +24,24 @@ const app = express()
 const version = readPackageVersion()
 
 app.disable('x-powered-by')
-if (TRUST_PROXY_HOPS > 0) app.set('trust proxy', TRUST_PROXY_HOPS)
+if (TRUST_PROXY_HOPS > 0) {
+  app.set('trust proxy', TRUST_PROXY_HOPS)
+} else {
+  /*
+   * 反代后面跑却没配 TRUST_PROXY_HOPS（阶段 6.9）：req.ip 会取到代理地址，
+   * 登录锁按 IP 记账会把全部用户折进同一个键（限流同理）。
+   * 无法在这里读到未消费的请求头，改在第一笔请求上侦测一次并大声说。
+   */
+  app.use((req, _res, next) => {
+    if (req.headers['x-forwarded-for'] !== undefined) {
+      console.warn(
+        '[config] 收到 X-Forwarded-For 但 TRUST_PROXY_HOPS=0：' +
+        '若服务在反向代理后面，请设置 TRUST_PROXY_HOPS（如 1），否则按 IP 的限流与登录锁会记到代理地址上'
+      )
+    }
+    next()
+  })
+}
 
 app.use(helmet())
 app.use(cors({

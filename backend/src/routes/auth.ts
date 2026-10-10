@@ -99,36 +99,48 @@ router.post('/register', async (req: Request, res: Response) => {
 })
 
 /**
- * 逐账号的登录失败计数。
- * 全局限流按 IP 计，挡不住针对同一个账号从多个出口地址发起的撞库。
- * 放在内存里即可：重启后清零是可接受的，代价远小于引入一张表。
+ * 逐「账号 + 来源 IP」的登录失败计数（阶段 6.9 修正键形）。
+ * 全局限流按 IP 计，挡不住针对同一个账号从多个出口地址发起的撞库；
+ * 只按账号计则反过来——攻击者乱试你的账号名就能把你本人锁在门外
+ * （DoS：正确的口令也进不来）。
+ * 键带上 IP 后：撞库的锁落在「那个 IP 对这个账号」上，本人从自己的
+ * IP 登录不受影响。放在内存里即可：重启清零可接受。
  */
 const loginAttempts = new Map<string, { count: number; firstAt: number }>()
 
-function loginBlocked(username: string): boolean {
-  const entry = loginAttempts.get(username)
+/** 丢弃过期计数（计数表本身不能无限增长） */
+function pruneLoginAttempts(now: number): void {
+  if (loginAttempts.size <= 10_000) return
+  for (const [key, value] of loginAttempts) {
+    if (now - value.firstAt > LOGIN_ATTEMPT_WINDOW_MS) loginAttempts.delete(key)
+  }
+}
+
+function attemptKey(username: string, ip: string): string {
+  return `${username}@${ip}`
+}
+
+function loginBlocked(username: string, ip: string): boolean {
+  const entry = loginAttempts.get(attemptKey(username, ip))
   if (!entry) return false
   if (Date.now() - entry.firstAt > LOGIN_ATTEMPT_WINDOW_MS) {
-    loginAttempts.delete(username)
+    loginAttempts.delete(attemptKey(username, ip))
     return false
   }
   return entry.count >= LOGIN_ATTEMPT_MAX
 }
 
-function recordLoginFailure(username: string): void {
+function recordLoginFailure(username: string, ip: string): void {
   const now = Date.now()
-  const entry = loginAttempts.get(username)
+  const key = attemptKey(username, ip)
+  const entry = loginAttempts.get(key)
   if (!entry || now - entry.firstAt > LOGIN_ATTEMPT_WINDOW_MS) {
-    loginAttempts.set(username, { count: 1, firstAt: now })
+    loginAttempts.set(key, { count: 1, firstAt: now })
+    pruneLoginAttempts(now)
     return
   }
   entry.count += 1
-  // 计数表本身不能无限增长
-  if (loginAttempts.size > 10_000) {
-    for (const [key, value] of loginAttempts) {
-      if (now - value.firstAt > LOGIN_ATTEMPT_WINDOW_MS) loginAttempts.delete(key)
-    }
-  }
+  pruneLoginAttempts(now)
 }
 
 // POST /api/auth/login
@@ -136,8 +148,9 @@ router.post('/login', async (req: Request, res: Response) => {
   const parsed = parseRequest(loginSchema, req.body, res)
   if (!parsed.success) return
   const { username, password } = parsed.data
+  const attemptIp = req.ip ?? 'unknown'
 
-  if (loginBlocked(username)) {
+  if (loginBlocked(username, attemptIp)) {
     return res.status(429).json({ error: 'Too many failed attempts, try again later' })
   }
 
@@ -147,10 +160,10 @@ router.post('/login', async (req: Request, res: Response) => {
 
     const passwordMatches = await bcrypt.compare(password, user?.password ?? dummyPasswordHash)
     if (!user || !passwordMatches) {
-      recordLoginFailure(username)
+      recordLoginFailure(username, attemptIp)
       return res.status(401).json({ error: 'Invalid credentials' })
     }
-    loginAttempts.delete(username)
+    loginAttempts.delete(attemptKey(username, attemptIp))
 
     const token = signToken({ userId: user.id, username: user.username, tokenVersion: user.token_version })
     return res.json({ token, userId: user.id, username: user.username })

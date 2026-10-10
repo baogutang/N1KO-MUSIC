@@ -154,9 +154,14 @@ function absoluteLocation(location: string, base: string): string | null {
   }
 }
 
+/**
+ * 同源判断（阶段 6.6 修正）：比较 origin（协议 + 主机 + 端口），
+ * 不是只比 host——https → http 的降级即使主机没变也算跨站：降级后的明文
+ * 链路上带着 Cookie / Authorization 飞，等于把凭据交给任何一个中间人。
+ */
 function sameHost(a: string, b: string): boolean {
   try {
-    return new URL(a).host === new URL(b).host
+    return new URL(a).origin === new URL(b).origin
   } catch {
     return false
   }
@@ -229,7 +234,7 @@ export async function followRedirects(
     // 每一跳都重判：白名单主机上的开放重定向不能成为进内网的跳板
     const next = absolute ? rebuildAllowedUrl(absolute, allow) : null
     if (!next) return forbidden(absolute ?? location)
-
+    // 协议降级（https → http）按跨主机处理（阶段 6.6）：凭据一律剥
     if (!sameHost(next, target)) headers = stripCredentialHeaders(headers)
     const rewritten = nextMethodAndBody(result.status, method, body, headers)
     method = rewritten.method

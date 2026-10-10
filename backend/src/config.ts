@@ -59,6 +59,12 @@ const DEFAULT_FRONTEND_ORIGINS = [
   'http://tauri.localhost',
   'https://tauri.localhost',
   'tauri://localhost',
+  // Capacitor 壳的 WebView origin（阶段 6.10）：Android 默认 capacitor://localhost，
+  // iOS 8+ 同样；个别配置走 https://localhost。缺了它们，移动端配了同步后端时
+  // 每个 CORS 预检都会失败。
+  'capacitor://localhost',
+  'https://localhost',
+  'http://localhost',
 ]
 
 export const FRONTEND_ORIGINS = new Set([

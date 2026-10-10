@@ -326,6 +326,29 @@ async function currentCookie(env, deviceId) {
  *  凭据/匿名解析（匿名注册自身用，打断 currentCookie 自递归）。 */
 async function weapiRequest(env, apiPath, data, deviceId, cookieOverride) {
   var cookie = cookieOverride !== undefined ? cookieOverride : await currentCookie(env, deviceId)
+  try {
+    return await weapiRequestInner(env, apiPath, data, deviceId, cookie)
+  } catch (err) {
+    /*
+     * 匿名令牌 301：清掉缓存的匿名 cookie 重新注册一次（阶段 6.7——
+     * 原先匿名令牌失效后永远拿旧 cookie 打，未登录的搜索/免费曲整个挂掉，
+     * 且报的还是「请重新登录」，对没登录过的用户完全是谜语）。
+     * 登录凭据的 301 照旧抛 unauthorized（那才是真的要重新扫码）。
+     */
+    if (
+      err && err.name === 'PluginError' && err.code === 'unauthorized'
+      && !env.credentials && cookieOverride === undefined
+    ) {
+      await env.storage.set('anonymous-cookie', '')
+      var fresh = await ensureAnonymousCookie(env, deviceId)
+      if (fresh) return await weapiRequestInner(env, apiPath, data, deviceId, fresh)
+    }
+    throw err
+  }
+}
+
+async function weapiRequestInner(env, apiPath, data, deviceId, cookieOverride) {
+  var cookie = cookieOverride
   var jar = Object.assign(await ensureTrackingCookies(env), cookieToObj(cookie))
   var payload = Object.assign({}, data, {
     csrf_token: jar['__csrf'] || '',
@@ -899,6 +922,9 @@ module.exports = {
     var code = body.code
     var hasLoginCookie = /MUSIC_U=/.test((res.setCookies || []).join('; '))
     if (code === 800) return { status: 'expired' }
+    /* 8821 风控拦截（阶段 6.7）：原先落到底下的 waiting，界面永远
+       「打开网易云音乐 App 扫描二维码」，刷新按钮都不会出现 */
+    if (code === 8821) return { status: 'expired', reason: 'netease_risk' }
     if (code === 802) return { status: 'scanned' }
     if (code === 803 || (hasLoginCookie && code === undefined)) {
       return {
