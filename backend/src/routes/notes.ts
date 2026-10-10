@@ -33,6 +33,12 @@ const noteSchema = z.object({
   targetId: boundedId,
   serverId: serverIdSchema,
   body: z.string().trim().min(1).max(MAX_BODY_LENGTH),
+  /**
+   * 客户端写这条边注的时刻（unix 秒）。带上它，服务端才能拒绝
+   * 「时钟偏快的设备 / 离线攒下的旧编辑」覆盖更新的版本（阶段 1.8）。
+   * 缺省时保持旧语义：服务端时钟说了算。
+   */
+  updatedAt: z.number().int().min(0).max(4_102_444_800).optional(),
 }).strict()
 
 interface NoteRow {
@@ -125,16 +131,29 @@ router.get('/', (req: Request, res: Response) => {
 router.put('/', (req: Request, res: Response) => {
   const parsed = parseRequest(noteSchema, req.body, res)
   if (!parsed.success) return
-  const { targetType, targetId, serverId, body } = parsed.data
+  const { targetType, targetId, serverId, body, updatedAt } = parsed.data
   const userId = req.user!.userId
   const now = Math.floor(Date.now() / 1000)
 
-  const upsert = db.transaction((): boolean => {
+  const upsert = db.transaction(():
+    | { conflict: NoteRow }
+    | { created: boolean; storedUpdatedAt: number } => {
     const existing = db.prepare(`
-      SELECT deleted_at FROM notes
+      SELECT target_type, target_id, server_id, body, created_at, updated_at, deleted_at
+      FROM notes
       WHERE user_id = ? AND server_id = ? AND target_type = ? AND target_id = ?
-    `).get(userId, serverId, targetType, targetId) as { deleted_at: number | null } | undefined
+    `).get(userId, serverId, targetType, targetId) as NoteRow | undefined
 
+    /*
+     * 旧不盖新：带上 updatedAt 的写入若比服务端已有的版本旧（时钟偏快的
+     * 设备、离线期间另一台设备已经改过），拒绝并回服务端版本，
+     * 客户端采信服务端那份。相等放行——同秒内的两次写入分不出先后。
+     */
+    if (existing && updatedAt !== undefined && updatedAt < existing.updated_at) {
+      return { conflict: existing }
+    }
+
+    const storedUpdatedAt = updatedAt ?? now
     // 命中墓碑时复活，并把 created_at 重置为这一次：那是一条新写的边注，
     // 不是旧的那条又回来了
     db.prepare(`
@@ -148,12 +167,34 @@ router.put('/', (req: Request, res: Response) => {
                           THEN notes.created_at
                           ELSE excluded.created_at END,
         deleted_at = NULL
-    `).run(userId, targetType, targetId, serverId, body, now, now)
+    `).run(userId, targetType, targetId, serverId, body, now, storedUpdatedAt)
 
-    return !existing || existing.deleted_at !== null
+    return { created: !existing || existing.deleted_at !== null, storedUpdatedAt }
   })
 
-  return res.status(upsert() ? 201 : 200).json({ message: 'Saved' })
+  const outcome = upsert()
+  if ('conflict' in outcome) {
+    const row = outcome.conflict
+    return res.status(409).json({
+      error: 'Conflict: server has a newer version of this note',
+      note: {
+        targetType: row.target_type,
+        targetId: row.target_id,
+        serverId: row.server_id,
+        // 墓碑不带正文：删掉的东西没有必要再发一遍
+        ...(row.deleted_at !== null
+          ? { deleted: true }
+          : { body: row.body, createdAt: row.created_at }),
+        updatedAt: row.updated_at,
+      },
+    })
+  }
+
+  return res.status(outcome.created ? 201 : 200).json({
+    message: 'Saved',
+    /** 落库后的权威 updated_at（unix 秒）：客户端要采它而不是信自己的时钟 */
+    updatedAt: outcome.storedUpdatedAt,
+  })
 })
 
 router.delete('/', (req: Request, res: Response) => {

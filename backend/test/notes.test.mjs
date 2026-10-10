@@ -184,3 +184,104 @@ test('边注拒绝非法输入', async () => {
   // since 不是时间戳
   assert.equal((await request('/api/notes?since=abc', { headers: auth })).response.status, 400)
 })
+
+test('时钟偏快的设备不能覆盖更新的笔记（阶段 1.8：旧不盖新）', async () => {
+  const auth = await newUser('note-clock')
+
+  // 设备 A 在 t=1000 写下 v1（客户端带 updatedAt）
+  const first = await request('/api/notes', {
+    method: 'PUT', headers: auth,
+    body: JSON.stringify({
+      targetType: 'song', targetId: 'c1', serverId: 'server-a',
+      body: 'v1', updatedAt: 1000,
+    }),
+  })
+  assert.equal(first.response.status, 201)
+  assert.equal(first.body.updatedAt, 1000)
+
+  // 设备 B 在 t=2000 写下 v2
+  await request('/api/notes', {
+    method: 'PUT', headers: auth,
+    body: JSON.stringify({
+      targetType: 'song', targetId: 'c1', serverId: 'server-a',
+      body: 'v2', updatedAt: 2000,
+    }),
+  })
+
+  // 设备 A 离线攒下的旧编辑（t=1500 < 2000）再推：拒绝，回 409 + 服务端版本
+  const stale = await request('/api/notes', {
+    method: 'PUT', headers: auth,
+    body: JSON.stringify({
+      targetType: 'song', targetId: 'c1', serverId: 'server-a',
+      body: 'v1-离线修改', updatedAt: 1500,
+    }),
+  })
+  assert.equal(stale.response.status, 409)
+  assert.equal(stale.body.note.body, 'v2')
+  assert.equal(stale.body.note.updatedAt, 2000)
+
+  // 服务端内容没有被旧版本覆盖
+  const current = await request('/api/notes', { headers: auth })
+  assert.equal(current.body.items[0].body, 'v2')
+  assert.equal(current.body.items[0].updatedAt, 2000)
+
+  // 相等时间戳放行（同秒两次写入分不出先后，后到者胜）
+  const equal = await request('/api/notes', {
+    method: 'PUT', headers: auth,
+    body: JSON.stringify({
+      targetType: 'song', targetId: 'c1', serverId: 'server-a',
+      body: 'v3', updatedAt: 2000,
+    }),
+  })
+  assert.equal(equal.response.status, 200)
+
+  // 更新的时间戳正常写入并回显
+  const newer = await request('/api/notes', {
+    method: 'PUT', headers: auth,
+    body: JSON.stringify({
+      targetType: 'song', targetId: 'c1', serverId: 'server-a',
+      body: 'v4', updatedAt: 3000,
+    }),
+  })
+  assert.equal(newer.response.status, 200)
+  assert.equal(newer.body.updatedAt, 3000)
+})
+
+test('不带孩子 updatedAt 的写入保持旧语义（服务端时钟）', async () => {
+  const auth = await newUser('note-legacy')
+  const legacy = await request('/api/notes', {
+    method: 'PUT', headers: auth,
+    body: JSON.stringify({ targetType: 'song', targetId: 'l1', serverId: 's', body: '旧客户端' }),
+  })
+  assert.equal(legacy.response.status, 201)
+  assert.ok(Number.isInteger(legacy.body.updatedAt))
+  assert.ok(legacy.body.updatedAt > 1_700_000_000)
+})
+
+test('超过 500 条边注能按 offset 翻页拉全（阶段 1.8）', async () => {
+  const auth = await newUser('note-many')
+  // 501 条直插库（PUT 只是这个 upsert 的 HTTP 壳），按 updated_at 升序铺开
+  const db = require('../dist/db/database.js').default
+  const users = db.prepare('SELECT id FROM users WHERE username = ?').get('note-many')
+  const insert = db.prepare(`
+    INSERT INTO notes (user_id, target_type, target_id, server_id, body, created_at, updated_at, deleted_at)
+    VALUES (?, 'song', ?, 'server-a', 'bulk', 1700000000, ?, NULL)
+  `)
+  db.transaction(() => {
+    for (let i = 0; i < 501; i++) {
+      insert.run(users.id, `bulk-${i}`, 1700000000 + i)
+    }
+  })()
+
+  const firstPage = await request('/api/notes?limit=500&since=0', { headers: auth })
+  assert.equal(firstPage.body.items.length, 500)
+  assert.equal(firstPage.body.total, 501)
+  // 第一页没有推进 cursor（还有第二页），提前推进会丢记录
+  assert.equal(firstPage.body.cursor, 0)
+
+  const secondPage = await request('/api/notes?limit=500&since=0&offset=500', { headers: auth })
+  assert.equal(secondPage.body.items.length, 1)
+  assert.equal(secondPage.body.items[0].targetId, 'bulk-500')
+  // 翻完了，cursor 推进到本批最大 updated_at
+  assert.equal(secondPage.body.cursor, 1700000500)
+})

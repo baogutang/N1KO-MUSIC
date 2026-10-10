@@ -50,6 +50,17 @@ function isUnauthorized(error: unknown): boolean {
   return axios.isAxiosError(error) && error.response?.status === 401
 }
 
+/**
+ * 单条被服务端拒绝（校验不过、载荷形状不对等）：
+ * 重试一万次也不会变成合法，留在队头只会把后面所有历史卡死（阶段 1.9）。
+ * 401 走令牌失效；429 是限流，值得整批退避重试；其余 4xx 丢弃该条继续。
+ */
+function isPermanentReject(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false
+  const status = error.response?.status ?? 0
+  return status >= 400 && status < 500 && status !== 401 && status !== 429
+}
+
 function scheduleFlush(delay = FLUSH_DELAY_MS): void {
   if (flushTimer !== null) return
   flushTimer = setTimeout(() => {
@@ -93,6 +104,16 @@ export async function flushOutbox(): Promise<void> {
         useSyncStore.getState().invalidateToken()
         flushing = false
         return
+      }
+      if (isPermanentReject(error)) {
+        // 毒丸：丢弃这一条，继续送上后面的——一条坏记录不该堵住整条队列
+        if (outbox.get(event.eventId) === event) outbox.delete(event.eventId)
+        console.warn(
+          '[Sync] 一条收听记录被服务端拒绝，已丢弃（eventId=%s, song=%s）:',
+          event.eventId, event.song.title,
+          (error as { response?: { status?: number } }).response?.status, error
+        )
+        continue
       }
       failed = true
       break

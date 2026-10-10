@@ -13,6 +13,8 @@ const pushed: Array<Record<string, unknown>> = []
 const removed: string[] = []
 /** fetchRemoteNotes 解析前先跑一次，用来模拟「请求在飞的时候用户动了手」 */
 let duringFetch: (() => void) | null = null
+/** pushNote 的可掂返回：默认什么都不改（服务端只回 message） */
+let pushResult: Record<string, unknown> | null = null
 
 vi.mock('@/api/syncClient', () => ({
   fetchRemoteNotes: vi.fn(async () => {
@@ -22,6 +24,7 @@ vi.mock('@/api/syncClient', () => ({
   }),
   pushNote: vi.fn(async (_url: string, _token: string, note: Record<string, unknown>) => {
     pushed.push(note)
+    return pushResult ?? {}
   }),
   removeRemoteNote: vi.fn(async (
     _url: string, _token: string, type: string, id: string, serverId: string,
@@ -42,6 +45,7 @@ beforeEach(() => {
   pushed.length = 0
   removed.length = 0
   duringFetch = null
+  pushResult = null
 })
 
 describe('时间戳粒度', () => {
@@ -144,5 +148,49 @@ describe('本地优先', () => {
     deleteNote('song', 's1', 'srv', 1_700_000_010_000)
     const revived = saveNote('song', 's1', 'srv', '重新写的', 1_700_000_020_000)!
     expect(revived.createdAt).toBe(1_700_000_020_000)
+  })
+})
+
+describe('服务端权威时钟（阶段 1.8：旧不盖新）', () => {
+  it('推送成功后采服务端返回的 updatedAt，而不是信自己的时钟', async () => {
+    // 本地时钟慢 1 小时的设备：写完推上去，服务端回了权威时刻
+    pushResult = { updatedAt: 1_700_003_600 } // unix 秒
+    saveNote('song', 's1', 'srv', '一句话', 1_700_000_000_000)
+    // pushNote 的 then 是微任务，让它跑完
+    await Promise.resolve()
+    await Promise.resolve()
+    const raw = JSON.parse(store.get('msp-notes')!)
+    expect(raw['srv:song:s1'].updatedAt).toBe(1_700_003_600_000)
+    // 下一轮对账：服务端(此刻同一条)与本地的 updated_at 一致，不会重推
+    remoteNotes.push({
+      targetType: 'song', targetId: 's1', serverId: 'srv',
+      body: '一句话', createdAt: 1_700_000_000_000, updatedAt: 1_700_003_600_000,
+    })
+    pushed.length = 0
+    await syncNotes()
+    expect(pushed).toHaveLength(0)
+  })
+
+  it('推送撞上 409（服务端有更新版本）时采信服务端那份', async () => {
+    // 离线攒下的旧编辑：本地 10:00，服务端已经是 11:00 写的新版本
+    saveNote('song', 's2', 'srv', '旧措辞', 1_700_000_000_000)
+    pushResult = {
+      conflict: {
+        targetType: 'song', targetId: 's2', serverId: 'srv',
+        body: '另一台设备的新措辞', createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_003_600_000,
+      },
+    }
+    await syncNotes()
+    await Promise.resolve()
+    await Promise.resolve()
+    const note = readNote('song', 's2', 'srv')
+    expect(note?.body).toBe('另一台设备的新措辞')
+    expect(note?.updatedAt).toBe(1_700_003_600_000)
+  })
+
+  it('推送带上本地的 updatedAt，服务端才能判新旧（毫秒→秒换算在 syncClient）', () => {
+    saveNote('song', 's3', 'srv', '一句话', 1_700_000_777_777)
+    expect(pushed.at(-1)).toMatchObject({ updatedAt: 1_700_000_777_000 })
   })
 })

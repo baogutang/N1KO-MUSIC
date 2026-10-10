@@ -74,6 +74,16 @@ function listeningEvent(eventId: string, listenedSeconds = 180, endedAt = 1_700_
   }
 }
 
+function rejected(status: number): Error {
+  const error = new Error(`Request failed with status code ${status}`) as Error & {
+    isAxiosError: boolean
+    response: { status: number }
+  }
+  error.isAxiosError = true
+  error.response = { status }
+  return error
+}
+
 function unauthorized(): Error {
   const error = new Error('Unauthorized') as Error & { isAxiosError: boolean; response: { status: number } }
   error.isAxiosError = true
@@ -406,5 +416,54 @@ describe('mirrorFavorite 的音源归属', () => {
     await mirrorFavorite('x', false)
 
     expect(removeFavorite).not.toHaveBeenCalled()
+  })
+})
+
+describe('毒丸记录不再卡死队列（阶段 1.9）', () => {
+  it('单条 4xx 被丢弃，后面的记录照常上报', async () => {
+    enableSync()
+    // 队头一条被服务端 400 拒绝（载荷不合法），后面还有一条好的
+    vi.mocked(pushScrobble)
+      .mockRejectedValueOnce(rejected(400))
+      .mockResolvedValue(undefined)
+    queueScrobble(listeningEvent('bad-event'))
+    queueScrobble(listeningEvent('good-event'))
+
+    await flushOutbox()
+    // 坏的丢弃、好的送达，队列清空——而不是永远停在坏的那条上
+    expect(pendingScrobbleCount()).toBe(0)
+    const pushedIds = vi.mocked(pushScrobble).mock.calls.map(call => call[2].eventId)
+    expect(pushedIds).toEqual(['bad-event', 'good-event'])
+  })
+
+  it('429 限流不丢记录，整批退避重试', async () => {
+    enableSync()
+    vi.mocked(pushScrobble).mockRejectedValueOnce(rejected(429)).mockResolvedValue(undefined)
+    queueScrobble(listeningEvent('event-1'))
+
+    await flushOutbox()
+    expect(pendingScrobbleCount()).toBe(1)
+    expect(useSyncStore.getState().lastSyncedAt).toBeNull()
+
+    await flushOutbox()
+    expect(pendingScrobbleCount()).toBe(0)
+  })
+
+  it('丢弃毒丸时留下可见的 warn，不是静默吞掉', async () => {
+    enableSync()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(pushScrobble).mockRejectedValueOnce(rejected(422))
+    queueScrobble(listeningEvent('bad-event'))
+
+    try {
+      await flushOutbox()
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('[Sync]'),
+        expect.anything(), expect.anything(), expect.anything(), expect.anything()
+      )
+      expect(pendingScrobbleCount()).toBe(0)
+    } finally {
+      warn.mockRestore()
+    }
   })
 })

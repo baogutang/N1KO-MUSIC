@@ -182,17 +182,58 @@ export interface RemoteNote {
   deleted?: boolean
 }
 
+/** pushNote 的结果：服务端说了算的部分要带回来 */
+export interface PushNoteResult {
+  /** 服务端落库后的 updated_at（unix 秒）——权威时钟，客户端要采它 */
+  updatedAt?: number
+  /**
+   * 409：服务端上有更新的版本（可能是墓碑）。本地应采信这一份，
+   * 而不是拿着自己的旧版本反复重推。
+   */
+  conflict?: RemoteNote
+}
+
 export async function pushNote(
   baseUrl: string,
   token: string,
-  note: { targetType: RemoteNote['targetType']; targetId: string; serverId: string; body: string }
-): Promise<void> {
-  await createClient(baseUrl, token).put('/api/notes', {
-    targetType: note.targetType,
-    targetId: note.targetId,
-    serverId: note.serverId,
-    body: note.body,
-  })
+  note: {
+    targetType: RemoteNote['targetType']
+    targetId: string
+    serverId: string
+    body: string
+    /** 本地这条边注的更新时刻（毫秒）；带上它服务端才能拒绝旧盖新 */
+    updatedAt?: number
+  }
+): Promise<PushNoteResult> {
+  try {
+    const response = await createClient(baseUrl, token).put<{ updatedAt?: number }>('/api/notes', {
+      targetType: note.targetType,
+      targetId: note.targetId,
+      serverId: note.serverId,
+      body: note.body,
+      ...(note.updatedAt !== undefined ? { updatedAt: Math.floor(note.updatedAt / 1000) } : {}),
+    })
+    return { updatedAt: response.data?.updatedAt }
+  } catch (error) {
+    // 409 不是失败：是服务端在告诉我们「你手里的版本旧了」
+    if (axios.isAxiosError(error) && error.response?.status === 409) {
+      const raw = (error.response.data as { note?: Partial<RemoteNote> } | undefined)?.note
+      if (raw?.targetType && raw?.targetId && raw?.serverId) {
+        return {
+          conflict: {
+            targetType: raw.targetType,
+            targetId: raw.targetId,
+            serverId: raw.serverId,
+            body: raw.body ?? '',
+            createdAt: Number(raw.createdAt ?? raw.updatedAt ?? 0) * 1000,
+            updatedAt: Number(raw.updatedAt ?? 0) * 1000,
+            ...(raw.deleted ? { deleted: true } : {}),
+          },
+        }
+      }
+    }
+    throw error
+  }
 }
 
 export async function removeRemoteNote(
@@ -207,27 +248,42 @@ export async function removeRemoteNote(
   })
 }
 
-/** 拉全量（含墓碑）。边注体量很小，不做分页游标也不会出问题。 */
+/**
+ * 拉全量（含墓碑）。服务端单页上限 500，超过一页时按 offset 翻完
+ * （阶段 1.8：原先只拉一页，第 501 条边注起永远同步不到）。
+ */
 export async function fetchRemoteNotes(
   baseUrl: string,
   token: string
 ): Promise<RemoteNote[]> {
-  const response = await createClient(baseUrl, token).get<{ items?: unknown[] }>('/api/notes', {
-    params: { limit: 500, since: 0 },
-  })
-  const items = Array.isArray(response.data?.items) ? response.data.items : []
-  return items.flatMap(raw => {
-    const item = raw as Partial<RemoteNote>
-    if (!item.targetType || !item.targetId || !item.serverId) return []
-    return [{
-      targetType: item.targetType,
-      targetId: item.targetId,
-      serverId: item.serverId,
-      body: item.body ?? '',
-      createdAt: Number(item.createdAt ?? item.updatedAt ?? 0) * 1000,
-      // 服务端用秒，本地用毫秒——在边界上换算一次，别让两种单位在内部混着走
-      updatedAt: Number(item.updatedAt ?? 0) * 1000,
-      ...(item.deleted ? { deleted: true } : {}),
-    }]
-  })
+  const client = createClient(baseUrl, token)
+  const out: RemoteNote[] = []
+  let offset = 0
+  for (;;) {
+    const response = await client.get<{
+      items?: unknown[]
+      total?: number
+    }>('/api/notes', {
+      params: { limit: 500, since: 0, offset },
+    })
+    const items = Array.isArray(response.data?.items) ? response.data.items : []
+    out.push(...items.flatMap(raw => {
+      const item = raw as Partial<RemoteNote>
+      if (!item.targetType || !item.targetId || !item.serverId) return []
+      return [{
+        targetType: item.targetType,
+        targetId: item.targetId,
+        serverId: item.serverId,
+        body: item.body ?? '',
+        createdAt: Number(item.createdAt ?? item.updatedAt ?? 0) * 1000,
+        // 服务端用秒，本地用毫秒——在边界上换算一次，别让两种单位在内部混着走
+        updatedAt: Number(item.updatedAt ?? 0) * 1000,
+        ...(item.deleted ? { deleted: true } : {}),
+      }]
+    }))
+    const total = Number(response.data?.total ?? 0)
+    offset += items.length
+    // 翻到最后一页（或服务端已无更多）才收工
+    if (!items.length || offset >= total) return out
+  }
 }

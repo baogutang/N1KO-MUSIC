@@ -89,10 +89,46 @@ function syncTarget(): { baseUrl: string; token: string } | null {
 }
 
 /**
+ * 把服务端版本合并进本地（对账拉回 / 推送 409 都走这里）。
+ * updated_at 更新的那份赢；相等时采信服务端——它是权威时钟。
+ */
+function mergeServerNote(local: NoteMap, incoming: {
+  targetType: NoteTarget
+  targetId: string
+  serverId: string
+  body: string
+  createdAt: number
+  updatedAt: number
+  deleted?: boolean
+}): boolean {
+  const key = noteKey(incoming.targetType, incoming.targetId, incoming.serverId)
+  const mine = local[key]
+  if (!mine || incoming.updatedAt >= mine.updatedAt) {
+    if (mine && incoming.updatedAt === mine.updatedAt && mine.deleted) {
+      // 同秒且本地是墓碑：保留墓碑，别让无正文的冲突体把删掉的复活
+      return false
+    }
+    local[key] = {
+      targetType: incoming.targetType,
+      targetId: incoming.targetId,
+      serverId: incoming.serverId,
+      body: incoming.deleted ? '' : incoming.body,
+      createdAt: incoming.createdAt || (mine?.createdAt ?? 0),
+      updatedAt: incoming.updatedAt,
+      ...(incoming.deleted ? { deleted: true } : {}),
+    }
+    return true
+  }
+  return false
+}
+
+/**
  * 写入。
  *
  * 先落本地再推服务端：推送失败不该让用户刚写的一句话消失。
  * 推失败的那一条会在下次 syncNotes 时靠 updated_at 比对补上去。
+ * 推成功后采服务端返回的 updated_at——两台设备时钟不齐时，
+ * 本地存的必须是服务端认的那个时刻，否则下一轮对账会反复互推。
  */
 export function saveNote(
   target: NoteTarget,
@@ -121,7 +157,21 @@ export function saveNote(
 
   const remote = syncTarget()
   if (remote) {
-    void pushNote(remote.baseUrl, remote.token, note).catch(() => {
+    void pushNote(remote.baseUrl, remote.token, note).then(result => {
+      if (result.conflict) {
+        // 服务端有更新的版本（另一台设备写的）：采信它，别把旧的推回去
+        const current = readAll()
+        if (mergeServerNote(current, result.conflict!)) writeAll(current)
+      } else if (result.updatedAt !== undefined) {
+        const current = readAll()
+        const stored = current[key]
+        // 只在用户没有又改过这一条时回填（in-flight 期间的新编辑保留自己的时间戳）
+        if (stored && !stored.deleted && stored.updatedAt === note.updatedAt) {
+          current[key] = { ...stored, updatedAt: result.updatedAt! * 1000 }
+          writeAll(current)
+        }
+      }
+    }).catch(() => {
       // 静默：本地已经存下了，下次同步会补
     })
   }
@@ -160,6 +210,7 @@ export async function syncNotes(): Promise<{ pulled: number; pushed: number } | 
   let pulled = 0
   let pushed = 0
 
+  // fetchRemoteNotes 内部按 offset 翻完所有页（>500 条也能拉全）
   const page = await fetchRemoteNotes(remote.baseUrl, remote.token)
 
   /**
@@ -171,12 +222,7 @@ export async function syncNotes(): Promise<{ pulled: number; pushed: number } | 
    */
   const local = readAll()
   for (const incoming of page) {
-    const key = noteKey(incoming.targetType, incoming.targetId, incoming.serverId)
-    const mine = local[key]
-    if (!mine || incoming.updatedAt > mine.updatedAt) {
-      local[key] = incoming
-      pulled++
-    }
+    if (mergeServerNote(local, incoming)) pulled++
   }
   writeAll(local)
 
@@ -191,7 +237,21 @@ export async function syncNotes(): Promise<{ pulled: number; pushed: number } | 
       if (mine.deleted) {
         await removeRemoteNote(remote.baseUrl, remote.token, mine.targetType, mine.targetId, mine.serverId)
       } else {
-        await pushNote(remote.baseUrl, remote.token, mine)
+        const result = await pushNote(remote.baseUrl, remote.token, mine)
+        if (result.conflict) {
+          // 服务端比我们新：采信它，这一条不算推上去
+          const current = readAll()
+          if (mergeServerNote(current, result.conflict)) writeAll(current)
+          continue
+        }
+        if (result.updatedAt !== undefined) {
+          const current = readAll()
+          const stored = current[key]
+          if (stored && !stored.deleted && stored.updatedAt === mine.updatedAt) {
+            current[key] = { ...stored, updatedAt: result.updatedAt * 1000 }
+            writeAll(current)
+          }
+        }
       }
       pushed++
     } catch {
