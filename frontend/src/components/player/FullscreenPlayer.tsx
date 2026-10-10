@@ -395,7 +395,7 @@ export function FullscreenPlayer() {
       >
         <Tooltip>
           <TooltipTrigger asChild>
-            <button onClick={toggleFullscreen} className={cn(lineCircleBtn, 'w-9 h-9')}>
+            <button onClick={toggleFullscreen} aria-label={t('player.collapse')} className={cn(lineCircleBtn, 'w-9 h-9')}>
               <CaretDown size={18} />
             </button>
           </TooltipTrigger>
@@ -413,7 +413,7 @@ export function FullscreenPlayer() {
         {/* 右上：更多菜单 */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className={cn(lineCircleBtn, 'w-9 h-9')}>
+            <button aria-label={t('action.more')} className={cn(lineCircleBtn, 'w-9 h-9')}>
               <DotsThree size={20} />
             </button>
           </DropdownMenuTrigger>
@@ -713,7 +713,11 @@ export function FullscreenPlayer() {
             <div className="flex items-center gap-2 flex-none pt-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button onClick={() => setPlaylistSong(currentSong)} className={cn(lineCircleBtn, 'w-8 h-8')}>
+                  <button
+                    onClick={() => setPlaylistSong(currentSong)}
+                    aria-label={t('action.addToPlaylist')}
+                    className={cn(lineCircleBtn, 'w-8 h-8')}
+                  >
                     <Queue size={17} />
                   </button>
                 </TooltipTrigger>
@@ -724,6 +728,7 @@ export function FullscreenPlayer() {
                   <button
                     onClick={handleToggleStar}
                     disabled={toggleStar.isPending}
+                    aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
                     className={cn(
                       lineCircleBtn,
                       'w-8 h-8',
@@ -843,6 +848,7 @@ export function FullscreenPlayer() {
                     />
                     <button
                       onClick={toggleMute}
+                      aria-label={t('player.mute')}
                       className="text-ink-soft hover:text-ink transition-colors active:scale-95"
                     >
                       <VolumeIcon size={16} />
@@ -854,6 +860,8 @@ export function FullscreenPlayer() {
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => setShowVolumePanel(v => !v)}
+                    aria-label={t('player.volume')}
+                    aria-expanded={showVolumePanel}
                     className={cn(
                       lineCircleBtn,
                       'w-9 h-9',
