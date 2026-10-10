@@ -8,13 +8,15 @@
  * 四块都是「有内容才渲染」：能力未声明、加载失败、空数据都不占版面。
  */
 
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { Heart, MusicNotes, Play, Shuffle } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SourceGroupState } from '@/components/sources/SourceGroupState'
+import type { SourceQueryGroup } from '@/hooks/useSourceQueries'
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
 import {
   interleaveRecommendations,
@@ -28,6 +30,66 @@ import type { Playlist } from '@/api/types'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
+
+/**
+ * 单个音源某个区块的重试：失效该源该族 query，TanStack 按挂载状态重取。
+ * 失败的源看得见、点得动，而不是从页面上静默消失（SourceGroupState 头注）。
+ */
+function useRetrySourceGroup() {
+  const queryClient = useQueryClient()
+  return useCallback(
+    (serverId: string, family: string) => {
+      void queryClient.invalidateQueries({ queryKey: [serverId, family] })
+    },
+    [queryClient]
+  )
+}
+
+/**
+ * 把分组拆成「参与合并的成功组」与「要渲染状态行的组」：
+ * - 失败的源永远占一行（带重试）——静默消失比报错更糟；
+ * - 加载中的源只在整节还没有内容时占骨架行，有内容时不打扰（避免布局跳）；
+ * - 成功但数据为空不算问题（未登录的插件音源就是这么表现的）。
+ */
+export function splitGroups<T>(
+  groups: SourceQueryGroup<T>[]
+): { good: Array<SourceQueryGroup<T> & { data: T }>; loading: SourceQueryGroup<T>[]; failed: SourceQueryGroup<T>[] } {
+  const good: Array<SourceQueryGroup<T> & { data: T }> = []
+  const loading: SourceQueryGroup<T>[] = []
+  const failed: SourceQueryGroup<T>[] = []
+  for (const g of groups) {
+    if (g.status === 'error') failed.push(g)
+    else if (g.status === 'loading') loading.push(g)
+    else if (g.data) good.push(g as SourceQueryGroup<T> & { data: T })
+  }
+  return { good, loading, failed }
+}
+
+/** 一节末尾的状态行（失败 + 可选的加载骨架） */
+function GroupStateRows({
+  failed,
+  loading,
+  showLoading,
+  retry,
+  family,
+}: {
+  failed: SourceQueryGroup<unknown>[]
+  loading: SourceQueryGroup<unknown>[]
+  showLoading: boolean
+  retry: (serverId: string, family: string) => void
+  family: string
+}) {
+  const rows = [
+    ...failed.map(g => (
+      <SourceGroupState key={`err-${g.serverId}`} serverId={g.serverId} status="error" error={g.error} onRetry={() => retry(g.serverId, family)} />
+    )),
+    ...(showLoading ? loading.map(g => (
+      <SourceGroupState key={`load-${g.serverId}`} serverId={g.serverId} status="loading" />
+    )) : []),
+  ]
+  if (!rows.length) return null
+  return <div className="border-t border-hair divide-y divide-hair-soft px-2">{rows}</div>
+}
 
 /**
  * 「今天听什么」——首页唯一的一条推荐。
@@ -44,18 +106,20 @@ import { useT } from '@/i18n'
 export function MergedDailyRail() {
   const { t } = useT()
   const navigate = useNavigate()
-  const sourceGroups = useSourceRecommendSongs().filter(g => (g.data?.length ?? 0) > 0)
+  const retry = useRetrySourceGroup()
+  const { good: sourceGroups, loading, failed } = splitGroups(useSourceRecommendSongs())
   // 主库（NAS 等）没有 recommendSongs 这个插件扩展，它的那一份来自本地画像。
   // 不把它算进来的话，只连 NAS 的用户在这条里永远看不到自己的歌。
   const { data: librarySongs } = usePersonalizedRecommendations(20)
 
   const merged = useMemo(() => {
-    const groups = sourceGroups.map(g => ({ songs: g.data! }))
+    const groups = sourceGroups.filter(g => g.data.length > 0).map(g => ({ songs: g.data }))
     if (librarySongs?.length) groups.unshift({ songs: librarySongs })
     return interleaveRecommendations(groups, 20)
   }, [sourceGroups, librarySongs])
 
-  if (!merged.length) return null
+  // 一个源都没成、也没有要说明的失败时才整节不渲染
+  if (!merged.length && !failed.length && !loading.length) return null
 
   return (
     <section aria-labelledby="home-dailymix" data-clay-span="full">
@@ -64,7 +128,7 @@ export function MergedDailyRail() {
           {t('sources.dailyMix')}<small>DAILY MIX</small>
         </h2>
         <div className="flex items-center gap-5">
-          {sourceGroups.map(g => (
+          {sourceGroups.filter(g => g.data.length > 0).map(g => (
             <SourceBadge key={g.serverId} serverId={g.serverId} withName />
           ))}
           <button
@@ -88,6 +152,7 @@ export function MergedDailyRail() {
         </div>
       </div>
       <SongList songs={merged} showCover showAlbum showIndex sourceBadge />
+      <GroupStateRows failed={failed} loading={loading} showLoading={!merged.length} retry={retry} family="recommend-songs" />
     </section>
   )
 }
@@ -96,6 +161,7 @@ export function MergedDailyRail() {
 export function SourceCollections() {
   const { t } = useT()
   const navigate = useNavigate()
+  const retry = useRetrySourceGroup()
   /* 不再 filter 掉非成功的分组：音源失败时要看得见一行说明，
      而不是让它从「我的音乐库」里凭空消失（见 SourceGroupState 的文件头）*/
   const groups = useSourcePlaylists()
@@ -112,7 +178,7 @@ export function SourceCollections() {
         {groups.map(g => (
           g.status !== 'success' ? (
             <div key={g.serverId} className="px-2">
-              <SourceGroupState serverId={g.serverId} status={g.status} error={g.error} />
+              <SourceGroupState serverId={g.serverId} status={g.status} error={g.error} onRetry={() => retry(g.serverId, 'playlists')} />
             </div>
           ) : (
           <div key={g.serverId} className="flex items-center gap-4 px-2 py-3">
@@ -156,8 +222,12 @@ const HOME_TOPLIST_ITEMS = 6
 export function SourceTopListsRail() {
   const { t } = useT()
   const navigate = useNavigate()
-  const groups = useSourceTopLists().filter(g => g.status === 'success' && g.data?.groups.length)
-  if (!groups.length) return null
+  const retry = useRetrySourceGroup()
+  const all = useSourceTopLists()
+  const groups = all.filter(g => g.status === 'success' && g.data?.groups.length)
+  const failed = all.filter(g => g.status === 'error')
+  const loading = all.filter(g => g.status === 'loading')
+  if (!groups.length && !failed.length && !loading.length) return null
 
   const total = groups.reduce((sum, g) => sum + g.data!.groups.length, 0)
   const truncated = total > groups.length * HOME_TOPLIST_GROUPS
@@ -202,6 +272,7 @@ export function SourceTopListsRail() {
           ))
         )}
       </div>
+      <GroupStateRows failed={failed} loading={loading} showLoading={!groups.length} retry={retry} family="toplists" />
     </section>
   )
 }
@@ -209,10 +280,11 @@ export function SourceTopListsRail() {
 /** 推荐歌单：各源交错合并成一张网格，卡片角上带音源标识 */
 export function SourceRecommendSheetsRail() {
   const { t } = useT()
-  const groups = useSourceRecommendSheets().filter(g => (g.data?.length ?? 0) > 0)
+  const retry = useRetrySourceGroup()
+  const { good: groups, loading, failed } = splitGroups(useSourceRecommendSheets())
   const merged = useMemo(() => {
     // 每源取前 6 张，轮转交错成一张网格；歌单不像歌曲那样跨源去重（同名不同源是两张真实的歌单）
-    const queues = groups.map(g => (g.data ?? []).slice(0, 6).map(pl => ({ pl, serverId: g.serverId })))
+    const queues = groups.map(g => g.data.slice(0, 6).map(pl => ({ pl, serverId: g.serverId })))
     const out: Array<{ pl: Playlist; serverId: string }> = []
     let progressed = true
     while (progressed) {
@@ -227,7 +299,7 @@ export function SourceRecommendSheetsRail() {
     }
     return out.slice(0, 12)
   }, [groups])
-  if (!merged.length) return null
+  if (!merged.length && !failed.length && !loading.length) return null
 
   return (
     <section aria-labelledby="home-sheets">
@@ -243,6 +315,7 @@ export function SourceRecommendSheetsRail() {
           ))}
         </div>
       </div>
+      <GroupStateRows failed={failed} loading={loading} showLoading={!merged.length} retry={retry} family="recommend-sheets" />
     </section>
   )
 }

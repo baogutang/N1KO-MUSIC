@@ -75,18 +75,35 @@ function addWeight<K>(map: Map<K, number>, key: K, weight: number) {
  * 旧实现只除以正侧最大值，负值因此完全无界——跳过几首同年代的歌之后
  * decadeAffinity 能到 -1.37，把那整个十年的曲目一起压死，
  * 而各项权重（0.34 / 0.24 / 0.08）都是按 [0,1] 量程设计的。
+ *
+ * 负侧还有第二个问题（阶段 1.6「一次跳过即拉黑」）：除以**观测到的最负值**
+ * 是相对刻度——一位只出现过一次、恰好被跳过的新歌手，-1.25 就是全库最负，
+ * 归一后直接到 -1.0 满额。改为：
+ * - 先验平滑（Laplace 式）：事件少的键向 0 收缩，等效于给每个键预置
+ *   NEGATIVE_PRIOR_EVENTS 次「中性事件」；
+ * - 固定刻度：除以 NEGATIVE_FIXED_SCALE 而不是观测最负值，单次新近跳过
+ *   只把歌手推到约 -0.1（一次 completed 的加分的一半以内），反复跳过
+ *   （约 5 次满额）才会逼近 -1。
+ * 时间衰减在累加时就已乘入（recency）。
  */
-function normalizeMap<K>(map: Map<K, number>) {
+const NEGATIVE_PRIOR_EVENTS = 3
+const NEGATIVE_FIXED_SCALE = 3
+
+function normalizeMap<K>(map: Map<K, number>, eventCounts?: Map<K, number>) {
   let positiveMax = 0
-  let negativeMin = 0
+  let hasNegative = false
   for (const value of map.values()) {
     if (value > positiveMax) positiveMax = value
-    if (value < negativeMin) negativeMin = value
+    if (value < 0) hasNegative = true
   }
-  if (positiveMax <= 0 && negativeMin >= 0) return
+  if (positiveMax <= 0 && !hasNegative) return
   for (const [key, value] of map) {
     if (value > 0) map.set(key, positiveMax > 0 ? value / positiveMax : 0)
-    else if (value < 0) map.set(key, negativeMin < 0 ? -(value / negativeMin) : 0)
+    else if (value < 0) {
+      const n = eventCounts?.get(key) ?? 1
+      const shrunk = value * (n / (n + NEGATIVE_PRIOR_EVENTS))
+      map.set(key, Math.max(-1, shrunk / NEGATIVE_FIXED_SCALE))
+    }
   }
 }
 
@@ -120,6 +137,12 @@ export function buildRecommendationProfile(
     artistIdentity: new Map(),
     genreIdentity: new Map(),
   }
+  /** 每个 key 上过账的事件数：负侧先验平滑要用（事件少的键不该一步到位） */
+  const artistEvents = new Map<string, number>()
+  const genreEvents = new Map<string, number>()
+  const decadeEvents = new Map<number, number>()
+  const songEvents = new Map<string, number>()
+  const bump = <K>(map: Map<K, number>, key: K) => map.set(key, (map.get(key) ?? 0) + 1)
 
   for (const event of events) {
     const ageDays = Math.max(0, (now - event.endedAt) / DAY_MS)
@@ -157,6 +180,7 @@ export function buildRecommendationProfile(
     const genre = normalized(event.song.genre)
     if (artist) {
       addWeight(profile.artistAffinity, artist, weight)
+      bump(artistEvents, artist)
       // 记录一次原始名与 id，后续可直接用于向服务器请求该歌手的曲目
       const known = profile.artistIdentity.get(artist)
       if (!known || (!known.id && event.song.artistId)) {
@@ -168,17 +192,23 @@ export function buildRecommendationProfile(
     }
     if (genre) {
       addWeight(profile.genreAffinity, genre, weight)
+      bump(genreEvents, genre)
       if (!profile.genreIdentity.has(genre)) {
         profile.genreIdentity.set(genre, event.song.genre as string)
       }
     }
-    if (event.song.year) addWeight(profile.decadeAffinity, Math.floor(event.song.year / 10) * 10, weight * 0.6)
+    if (event.song.year) {
+      const decade = Math.floor(event.song.year / 10) * 10
+      addWeight(profile.decadeAffinity, decade, weight * 0.6)
+      bump(decadeEvents, decade)
+    }
+    bump(songEvents, key)
   }
 
-  normalizeMap(profile.artistAffinity)
-  normalizeMap(profile.genreAffinity)
-  normalizeMap(profile.decadeAffinity)
-  normalizeMap(profile.songAffinity)
+  normalizeMap(profile.artistAffinity, artistEvents)
+  normalizeMap(profile.genreAffinity, genreEvents)
+  normalizeMap(profile.decadeAffinity, decadeEvents)
+  normalizeMap(profile.songAffinity, songEvents)
   return profile
 }
 

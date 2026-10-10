@@ -1,0 +1,52 @@
+/**
+ * 阶段 1.4 回归：首页音源失败不再整块静默消失。
+ *
+ * 用户真实路径：一个音源挂了（榜单 / 每日推荐 / 推荐歌单任一区块），
+ * 首页该区块仍应渲染，失败的源给一行带重试的说明，而不是 filter 掉
+ * 之后整节消失（用户看到的是「这个源好像没连过」）。
+ */
+import { describe, expect, it } from 'vitest'
+import { splitGroups } from '@/components/sources/SourceShelves'
+import type { SourceQueryGroup } from '@/hooks/useSourceQueries'
+
+function group(serverId: string, patch: Partial<SourceQueryGroup<string[]>>): SourceQueryGroup<string[]> {
+  return { serverId, status: 'success', ...patch } as SourceQueryGroup<string[]>
+}
+
+describe('splitGroups（阶段 1.4：失败可见）', () => {
+  it('失败的源进 failed：不会被静默 filter 掉', () => {
+    const { good, failed, loading } = splitGroups([
+      group('srv-a', { status: 'error', error: 'boom' }),
+      group('srv-b', { status: 'success', data: ['x'] }),
+    ])
+
+    expect(failed.map(g => g.serverId)).toEqual(['srv-a'])
+    expect(failed[0].error).toBe('boom')
+    expect(good.map(g => g.serverId)).toEqual(['srv-b'])
+    expect(loading).toEqual([])
+  })
+
+  it('加载中的源进 loading：整节无内容时可以占骨架行', () => {
+    const { loading } = splitGroups([group('srv-a', { status: 'loading' })])
+    expect(loading.map(g => g.serverId)).toEqual(['srv-a'])
+  })
+
+  it('成功但数据为空不算失败（未登录的插件音源就是这么表现的）', () => {
+    const { good, failed, loading } = splitGroups([
+      group('srv-a', { status: 'success', data: [] }),
+    ])
+    expect(failed).toEqual([])
+    expect(loading).toEqual([])
+    // 有 data（空数组）仍算 good，由调用方决定要不要展示
+    expect(good.map(g => g.serverId)).toEqual(['srv-a'])
+  })
+
+  it('全部失败时三态仍可分辨：good 空、failed 有货', () => {
+    const { good, failed } = splitGroups([
+      group('srv-a', { status: 'error', error: 'x' }),
+      group('srv-b', { status: 'error', error: 'y' }),
+    ])
+    expect(good).toEqual([])
+    expect(failed).toHaveLength(2)
+  })
+})

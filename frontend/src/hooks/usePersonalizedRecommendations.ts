@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
 import { useServerStore , useHistoryScope } from '@/store/serverStore'
 import { useRecommendationCursorStore } from '@/store/recommendationCursorStore'
-import { readMutedSets } from '@/store/tasteStore'
+import { readMutedSets, useTasteStore } from '@/store/tasteStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import {
   artistSeedCountFor,
@@ -174,6 +174,19 @@ export function usePersonalizedRecommendations(size = 30) {
   const profile = useMemo(() => buildRecommendationProfile(events), [events])
 
   /**
+   * 屏蔽名单要参与缓存作用域（阶段 1.5）：否则屏蔽一位歌手后，
+   * staleTime 的 10 分钟里 query 不会重跑，推荐还是旧一批。
+   * 指纹用与 recommendationFilters 一致的归一化，避免「A」与「a 」
+   * 触发无谓的重取。订阅本身也让组件在 toggle 时重渲染。
+   */
+  const mutedArtists = useTasteStore(s => s.mutedArtists)
+  const mutedGenres = useTasteStore(s => s.mutedGenres)
+  const mutedFingerprint = useMemo(
+    () => [...mutedArtists, ...mutedGenres].map(s => s.trim().toLowerCase()).sort().join('|'),
+    [mutedArtists, mutedGenres]
+  )
+
+  /**
    * seed 同时充当缓存作用域：只随「服务器 / 日期 / 换一批」变化。
    * 旧版把最近一条收听记录的 endedAt 写进了键名，导致播放中每 30 秒就
    * 产生一个新键且从不回收，几天即可撑满 localStorage 配额。
@@ -186,7 +199,7 @@ export function usePersonalizedRecommendations(size = 30) {
     // 节流后仍是每分钟一次；若它参与 key，每分钟都会重跑一整轮定向候选扇出
     // （十几个歌手/流派请求）。画像的细微变化不值这个代价——
     // 它会在下一次「换一批」或自然 refetch 时自然生效。
-    queryKey: [serverId ?? 'no-server', 'personalized-recommendations', size, seed],
+    queryKey: [serverId ?? 'no-server', 'personalized-recommendations', size, seed, mutedFingerprint],
     queryFn: async (): Promise<Song[]> => {
       if (!serverId || !hasAdapter()) return []
       // 缓存键里已经含 batch，读它不会回放到别的批次，因此任何 batch 都可以
@@ -260,8 +273,20 @@ export function usePersonalizedRecommendations(size = 30) {
     advanceBatch(scope)
   }, [advanceBatch, scope])
 
+  /**
+   * 渲染端再过一遍硬约束（阶段 1.5 的第二道闸）：queryFn 里滤过的数据
+   * 在 placeholderData（上一批）或缓存秒开路径上仍可能带着刚屏蔽的歌手，
+   * 这里保证「用户此刻看到的」一定符合「用户此刻的屏蔽名单」。
+   */
+  const visibleData = useMemo(
+    () => (query.data ? filterRecommendable(query.data) : query.data),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 指纹变即重滤，其余依赖都在 data 里
+    [query.data, mutedFingerprint]
+  )
+
   return {
     ...query,
+    data: visibleData,
     refresh,
     profile,
     events,

@@ -395,3 +395,63 @@ describe('skip severity', () => {
     expect(ranked[ranked.length - 1].id).toBe('hated')
   })
 })
+
+describe('负侧先验平滑（阶段 1.6：一次跳过不再拉黑新歌手）', () => {
+  it('单次跳过的新歌手扣分不超过一次 completed 加分的一半', () => {
+    // A 是唯一被跳过的新歌手；B 是唯一听完的新歌手（正侧最大 → 归一后 1.0）
+    const events = [
+      event(song('s1', 'Artist A', 'rock'), 'skipped', 8),
+      event(song('s2', 'Artist B', 'pop'), 'completed', 195),
+    ]
+    const profile = buildRecommendationProfile(events, NOW)
+
+    const skipped = profile.artistAffinity.get('artist a') ?? 0
+    const completed = profile.artistAffinity.get('artist b') ?? 0
+
+    // 旧实现：-1.25 是全库最负 → 相对归一直接 -1.0，「一次跳过即拉黑」
+    expect(skipped).toBeLessThan(0)
+    expect(Math.abs(skipped)).toBeLessThanOrEqual(0.5 * completed)
+    // 且量级确实很小（固定刻度 + 先验收缩：约 -0.1）
+    expect(Math.abs(skipped)).toBeLessThan(0.2)
+  })
+
+  it('反复跳过才会逼近满额负权（约 5 次新近跳过）', () => {
+    const target = song('s1', 'Artist A', 'rock')
+    const events = Array.from({ length: 5 }, (_, i) => event(target, 'skipped', 5, i + 1))
+    const profile = buildRecommendationProfile(events, NOW)
+
+    const affinity = profile.artistAffinity.get('artist a') ?? 0
+    expect(affinity).toBeLessThanOrEqual(-0.5)
+  })
+
+  it('混合行为（听完一次 + 跳过一次）的歌手不该是负的', () => {
+    const target = song('s1', 'Artist A', 'rock')
+    const events = [
+      event(target, 'completed', 195, 2),
+      event(song('s2', 'Artist A', 'rock'), 'skipped', 8, 1),
+    ]
+    const profile = buildRecommendationProfile(events, NOW)
+    // +2 与 -1.25 同乘 recency 后合计为正：好感不该被一次跳过翻转
+    expect(profile.artistAffinity.get('artist a') ?? 0).toBeGreaterThan(0)
+  })
+
+  it('时间衰减仍作用于负侧：一年前的跳过几乎不再压分', () => {
+    const old = buildRecommendationProfile(
+      [event(song('s1', 'Artist A', 'rock'), 'skipped', 8, 365)],
+      NOW
+    )
+    expect(old.artistAffinity.get('artist a') ?? 0).toBeGreaterThan(-0.05)
+  })
+
+  it('口味页读的与引擎用的是同一个值：展示权重来自同一 profile 构建器', () => {
+    // TasteProfile.tsx 直接调 buildRecommendationProfile 后展示 artistAffinity，
+    // 这里钉住「展示的 = 引擎用的」：两者必然同源，权重值不再另算
+    const events = [
+      event(song('s1', 'Artist A', 'rock'), 'completed', 195),
+      event(song('s2', 'Artist B', 'pop'), 'completed', 195),
+    ]
+    const profile = buildRecommendationProfile(events, NOW)
+    expect(profile.artistAffinity.get('artist a')).toBe(1) // 正侧相对刻度保持旧行为
+    expect(profile.artistAffinity.get('artist b')).toBe(1)
+  })
+})
