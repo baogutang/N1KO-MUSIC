@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>N1KO MUSIC · 一本可以播放的音乐杂志</title>
+<meta name="description" content="N1KO MUSIC — 一本可以播放的音乐杂志。连上 Navidrome / Subsonic / Jellyfin / Emby，把自己的曲库读成一本排好版的刊物；没有 NAS，网易云音乐 / QQ 音乐扫码登录一样能听。免费开源，全平台。" />
+<meta property="og:title" content="N1KO MUSIC · 一本可以播放的音乐杂志" />
+<meta property="og:description" content="A music magazine you can play. Navidrome / Subsonic / Jellyfin / Emby + 网易云音乐 / QQ 音乐，macOS · Windows · Linux · Android · iOS · Web。" />
+<meta property="og:image" content="assets/home-pop.png" />
+<meta property="og:type" content="website" />
+<link rel="icon" type="image/png" href="assets/logo.png" />
+<link rel="stylesheet" href="assets/fonts/fonts.css" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ======================= 报头 / Masthead ======================= -->
+<header class="masthead" id="top">
+  <a class="brand" href="#top" aria-label="N1KO MUSIC">
+    <img src="assets/logo.png" alt="" width="34" height="34" />
+    <span class="brand-word">N1KO&nbsp;MUSIC</span>
+  </a>
+
+  <nav class="mastnav" aria-label="Sections">
+    <a href="#gallery"    data-i18n="nav.gallery">界面</a>
+    <a href="#departments" data-i18n="nav.departments">栏目</a>
+    <a href="#sources"    data-i18n="nav.sources">音源</a>
+    <a href="#privacy"    data-i18n="nav.privacy">隐私</a>
+    <a href="#download"   data-i18n="nav.download">下载</a>
+  </nav>
+
+  <div class="mast-actions">
+    <button class="pill pill-ghost lang-toggle" id="langToggle" aria-label="Switch language">
+      <span class="lang-opt" data-lang-opt="zh">中</span><span class="lang-sep">/</span><span class="lang-opt" data-lang-opt="en">EN</span>
+    </button>
+    <a class="pill pill-ink" href="https://github.com/baogutang/N1KO-MUSIC" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      <span data-i18n="nav.github">GitHub</span>
+    </a>
+  </div>
+</header>
+
+<main>
+
+<!-- ======================= 封面故事 / Hero ======================= -->
+<section class="hero">
+  <div class="hero-copy">
+    <p class="tag-capsule"><span class="dot dot-grape" aria-hidden="true"></span><span data-i18n="hero.tag">VOL.3 · NO.36 · 本期封面</span></p>
+    <h1 class="hero-title" data-i18n="hero.title">一本可以播放的<br />音乐杂志</h1>
+    <p class="hero-sub" data-i18n="hero.sub">连上 Navidrome / Subsonic / Jellyfin / Emby，把自己的曲库读成一本排好版的刊物——报头、刊号、封面故事、书眉、版记，一样不少。</p>
+    <div class="hero-ctas">
+      <a class="pill pill-grape pill-lg" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener" data-i18n="hero.cta1">↓ 免费下载</a>
+      <a class="pill pill-ghost pill-lg" href="https://github.com/baogutang/N1KO-MUSIC" target="_blank" rel="noopener" data-i18n="hero.cta2">★ 给个 Star</a>
+    </div>
+    <p class="hero-meta mono" data-i18n="hero.meta">macOS · Windows · Linux · Android · iOS · Web — 免费 · 开源 · 无账号 · 无埋点</p>
+  </div>
+
+  <figure class="hero-figure">
+    <div class="frame frame-hero">
+      <img src="assets/home-pop.png" alt="N1KO MUSIC 首页 · 糖果·波普工坊" width="1600" height="1000" fetchpriority="high" />
+    </div>
+    <figcaption class="mono caption" data-i18n="hero.caption">图 1 — 首页 · 糖果·波普工坊（默认皮肤）</figcaption>
+  </figure>
+</section>
+
+<!-- ======================= 滚动规格条 / Spec ticker ======================= -->
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track">
+    <span class="mono">FLAC · WAV · ALAC 直通 ✦ REPLAYGAIN ✦ MEDIA SESSION ✦ ⌘K ✦ N1KO:// ✦ 车载模式 CAR MODE ✦ 全库随机 TRUE SHUFFLE ✦ 320 / 192 / 128 KBPS ✦ 睡眠定时 SLEEP TIMER ✦ 跨设备续播 RESUME ✦&nbsp;</span>
+    <span class="mono">FLAC · WAV · ALAC 直通 ✦ REPLAYGAIN ✦ MEDIA SESSION ✦ ⌘K ✦ N1KO:// ✦ 车载模式 CAR MODE ✦ 全库随机 TRUE SHUFFLE ✦ 320 / 192 / 128 KBPS ✦ 睡眠定时 SLEEP TIMER ✦ 跨设备续播 RESUME ✦&nbsp;</span>
+  </div>
+</div>
+
+<!-- ======================= 音源 / Sources ======================= -->
+<section class="section" id="sources">
+  <div class="section-head">
+    <h2 data-i18n="sources.title">连上你的曲库</h2>
+    <p class="section-sub" data-i18n="sources.sub">两种来源并排而坐，不是二选一。搜索按来源分组，队列里混着放。</p>
+  </div>
+
+  <div class="source-groups">
+    <div class="source-group">
+      <h3 class="mono group-label" data-i18n="sources.nas">自建服务器 · YOUR SERVER</h3>
+      <ul class="source-pills">
+        <li class="pill src mint"><span class="dot"></span>Navidrome<em class="mono" data-i18n="sources.recommended">推荐</em></li>
+        <li class="pill src"><span class="dot"></span>Subsonic</li>
+        <li class="pill src"><span class="dot"></span>Airsonic</li>
+        <li class="pill src"><span class="dot"></span>Jellyfin</li>
+        <li class="pill src"><span class="dot"></span>Emby</li>
+      </ul>
+    </div>
+    <div class="source-group">
+      <h3 class="mono group-label" data-i18n="sources.streaming">流媒体音源 · STREAMING（扫码登录）</h3>
+      <ul class="source-pills">
+        <li class="pill src lemon"><span class="dot"></span><span data-i18n="sources.netease">网易云音乐</span></li>
+        <li class="pill src lemon"><span class="dot"></span><span data-i18n="sources.qq">QQ 音乐</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="note-line" data-i18n="sources.note">可选能力是<b>探测出来的，不是假设的</b>——服务器没实现哪一项，那个入口就整个不出现。流媒体只放你账号有权听的内容，VIP 曲目会标明原因，不做任何「解析」。</p>
+
+  <div class="sandbox-grid">
+    <div class="mini-card">
+      <span class="mono mini-index">01</span>
+      <h4 data-i18n="sandbox.1t">脚本沙箱</h4>
+      <p data-i18n="sandbox.1b">音源是兼容 MusicFree 协议的插件，不能碰页面，不能自己联网。</p>
+    </div>
+    <div class="mini-card">
+      <span class="mono mini-index">02</span>
+      <h4 data-i18n="sandbox.2t">白名单代理</h4>
+      <p data-i18n="sandbox.2b">一切请求经宿主代理，manifest 列出的域名才放行，重定向逐跳复查。</p>
+    </div>
+    <div class="mini-card">
+      <span class="mono mini-index">03</span>
+      <h4 data-i18n="sandbox.3t">凭据本机加密</h4>
+      <p data-i18n="sandbox.3b">与服务器密码同一把 AES-GCM 设备密钥，只存在本机，不经过第三方。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 界面 / Gallery ======================= -->
+<section class="section" id="gallery">
+  <div class="section-head">
+    <h2 data-i18n="gallery.title">界面</h2>
+    <p class="section-sub" data-i18n="gallery.sub">三张皮肤共用同一套组件，一键切换，各自有浅色与深色。</p>
+  </div>
+
+  <div class="gallery-tabs" role="tablist" aria-label="Screenshots">
+    <button class="pill tab active" role="tab" aria-selected="true"  data-shot="player"    data-i18n="gallery.tab.player">正在播放</button>
+    <button class="pill tab" role="tab" aria-selected="false" data-shot="home-pop"   data-i18n="gallery.tab.pop">首页 · 波普</button>
+    <button class="pill tab" role="tab" aria-selected="false" data-shot="home-editorial" data-i18n="gallery.tab.editorial">首页 · 纸·墨·朱</button>
+    <button class="pill tab" role="tab" aria-selected="false" data-shot="home"       data-i18n="gallery.tab.clay">首页 · 软陶</button>
+    <button class="pill tab" role="tab" aria-selected="false" data-shot="album"      data-i18n="gallery.tab.album">专辑页</button>
+    <button class="pill tab" role="tab" aria-selected="false" data-shot="login"      data-i18n="gallery.tab.login">连接</button>
+  </div>
+
+  <figure class="gallery-stage">
+    <div class="frame frame-gallery">
+      <img id="galleryImg" src="assets/player.gif" alt="N1KO MUSIC 正在播放界面" width="1600" height="1000" />
+    </div>
+    <figcaption class="mono caption" id="galleryCaption" data-i18n="gallery.cap.player">图 2 — 正在播放：当前行被柠檬黄荧光笔高亮，点任意一行跳转</figcaption>
+  </figure>
+</section>
+
+<!-- ======================= 栏目 / Departments ======================= -->
+<section class="section" id="departments">
+  <div class="section-head">
+    <h2 data-i18n="dept.title">栏目</h2>
+    <p class="section-sub" data-i18n="dept.sub">四个常设栏目，像一本杂志的版面分工。</p>
+  </div>
+
+  <div class="dept-grid">
+    <article class="dept-card dept-grape">
+      <header class="dept-head"><span class="dept-glyph" aria-hidden="true">♫</span><h3 data-i18n="dept.playback">播放</h3><span class="mono dept-no">D.01</span></header>
+      <ul>
+        <li data-i18n="dept.playback.1">真正的全库随机——从服务器抽样，队列显示真实顺序</li>
+        <li data-i18n="dept.playback.2">无损直通 + 三档码率，Wi-Fi 与蜂窝分别设置自动切换</li>
+        <li data-i18n="dept.playback.3">ReplayGain 用服务器算好的增益，母带不再忽大忽小</li>
+        <li data-i18n="dept.playback.4">队列不会停：相似曲目自动接，任何种子都能开电台</li>
+        <li data-i18n="dept.playback.5">继续听与跨设备续播，断点取自服务器书签</li>
+      </ul>
+    </article>
+
+    <article class="dept-card dept-mint">
+      <header class="dept-head"><span class="dept-glyph" aria-hidden="true">⌘</span><h3 data-i18n="dept.control">操作</h3><span class="mono dept-no">D.02</span></header>
+      <ul>
+        <li data-i18n="dept.control.1">每个列表都能多选批量操作：点选、连选、长按</li>
+        <li data-i18n="dept.control.2">完整 Media Session：SMTC / Now Playing / MPRIS / 锁屏</li>
+        <li data-i18n="dept.control.3">拔耳机立刻暂停，一分钟内插回接着放</li>
+        <li data-i18n="dept.control.4">车载模式：超大触控目标、滑动切歌、屏幕常亮</li>
+        <li data-i18n="dept.control.5">n1ko:// 深链接、⌘K 面板、全键盘、滚动记忆</li>
+      </ul>
+    </article>
+
+    <article class="dept-card dept-lemon">
+      <header class="dept-head"><span class="dept-glyph" aria-hidden="true">☰</span><h3 data-i18n="dept.library">曲库</h3><span class="mono dept-no">D.03</span></header>
+      <ul>
+        <li data-i18n="dept.library.1">虚拟滚动 + 离线元数据缓存，一万首也不卡</li>
+        <li data-i18n="dept.library.2">内页说明与规格立牌：ISRC、位深、采样率、真实码率</li>
+        <li data-i18n="dept.library.3">唱片目录年份轨——作品读成一条生涯，不是封面墙</li>
+        <li data-i18n="dept.library.4">把队列存成歌单，存的是你刚听到的顺序</li>
+        <li data-i18n="dept.library.5">分享、评分、重扫——只在服务器确实支持时出现</li>
+      </ul>
+    </article>
+
+    <article class="dept-card dept-sky">
+      <header class="dept-head"><span class="dept-glyph" aria-hidden="true">✎</span><h3 data-i18n="dept.yours">你自己的</h3><span class="mono dept-no">D.04</span></header>
+      <ul>
+        <li data-i18n="dept.yours.1">《本期》：每个月自动成为一期，编者按一个字不编</li>
+        <li data-i18n="dept.yours.2">重听——去年今日、久违、只听过一次</li>
+        <li data-i18n="dept.yours.3">边注：唯一不能被重算的数据，优先同步与备份</li>
+        <li data-i18n="dept.yours.4">可改的口味画像：权重摊开看，歌手曲风可永久关掉</li>
+        <li data-i18n="dept.yours.5">导入 ListenBrainz / Last.fm；导出 M3U8 / XSPF / JSON / CSV</li>
+      </ul>
+    </article>
+  </div>
+</section>
+
+<!-- ======================= 隐私 / Privacy ======================= -->
+<section class="section" id="privacy">
+  <div class="section-head">
+    <h2 data-i18n="privacy.title">隐私，直接说清楚</h2>
+  </div>
+
+  <div class="privacy-layout">
+    <div class="privacy-stamp">
+      <p class="mono stamp-line" data-i18n="privacy.stamp1">TELEMETRY: NONE.</p>
+      <p class="stamp-sub" data-i18n="privacy.stamp2">没有埋点，没有崩溃上报——也没有可以发过去的服务器。</p>
+    </div>
+    <dl class="privacy-rows">
+      <div class="prow"><dt data-i18n="privacy.r1k">你的音乐</dt><dd data-i18n="privacy.r1v">你的音乐服务器。没有别处。</dd></div>
+      <div class="prow"><dt data-i18n="privacy.r2k">历史 · 统计 · 口味画像</dt><dd data-i18n="privacy.r2v">这台设备（IndexedDB），以及你自己跑的同步服务（如果有）。</dd></div>
+      <div class="prow"><dt data-i18n="privacy.r3k">凭据</dt><dd data-i18n="privacy.r3v">用页面脚本取不出来的 AES-GCM 密钥加密落盘。</dd></div>
+      <div class="prow"><dt data-i18n="privacy.r4k">导出文件</dt><dd data-i18n="privacy.r4v">在浏览器里生成，不上传。</dd></div>
+      <div class="prow"><dt data-i18n="privacy.r5k">ListenBrainz / MusicBrainz</dt><dd data-i18n="privacy.r5v">可选，默认关闭。后者只发歌手编号。</dd></div>
+    </dl>
+  </div>
+</section>
+
+<!-- ======================= 下载 / Download ======================= -->
+<section class="section" id="download">
+  <div class="section-head">
+    <h2 data-i18n="dl.title">下载</h2>
+    <p class="section-sub" data-i18n="dl.sub">完全免费，完全开源。挑你的平台，几秒钟开始。</p>
+  </div>
+
+  <div class="dl-grid">
+    <a class="dl-card" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
+      <span class="dl-os">macOS</span>
+      <span class="mono dl-pkg">aarch64.dmg</span>
+      <span class="dl-note" data-i18n="dl.macarm">Apple 芯片</span>
+    </a>
+    <a class="dl-card" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
+      <span class="dl-os">macOS</span>
+      <span class="mono dl-pkg">x64.dmg</span>
+      <span class="dl-note" data-i18n="dl.macintel">Intel</span>
+    </a>
+    <a class="dl-card" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
+      <span class="dl-os">Windows</span>
+      <span class="mono dl-pkg">x64-setup.exe / .msi</span>
+      <span class="dl-note" data-i18n="dl.win">安装包或 MSI</span>
+    </a>
+    <a class="dl-card" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
+      <span class="dl-os">Linux</span>
+      <span class="mono dl-pkg">.AppImage / .deb</span>
+      <span class="dl-note" data-i18n="dl.linux">免安装或 DEB 包</span>
+    </a>
+    <a class="dl-card" href="https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml" target="_blank" rel="noopener">
+      <span class="dl-os">Android</span>
+      <span class="mono dl-pkg">app-debug.apk</span>
+      <span class="dl-note" data-i18n="dl.android">工作流 Artifacts 下载</span>
+    </a>
+    <a class="dl-card" href="https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml" target="_blank" rel="noopener">
+      <span class="dl-os">iOS</span>
+      <span class="mono dl-pkg">unsigned .zip</span>
+      <span class="dl-note" data-i18n="dl.ios">AltStore / Sideloadly 侧载</span>
+    </a>
+  </div>
+
+  <p class="note-line" data-i18n="dl.note">macOS 首次打开若提示「无法验证开发者」，到「系统设置 → 隐私与安全性」里允许即可。不想装应用？用 Docker 跑 Web 版，一条命令。</p>
+</section>
+
+</main>
+
+<!-- ======================= 版记 / Colophon ======================= -->
+<footer class="colophon">
+  <p class="colophon-end serif" data-i18n="footer.end">—— 本期完 ——</p>
+
+  <div class="colophon-grid">
+    <div class="colo-block">
+      <h5 class="mono" data-i18n="footer.type">字体 / TYPE</h5>
+      <p>Source Serif 4 · Hanken Grotesk · JetBrains Mono · Nunito<br /><span data-i18n="footer.selfhosted">全部自托管，不走第三方 CDN。</span></p>
+    </div>
+    <div class="colo-block">
+      <h5 class="mono" data-i18n="footer.stack">技术 / STACK</h5>
+      <p>React 18 · Tauri 2 · Capacitor 8<br />MIT License · © 2026 N1KO</p>
+    </div>
+    <div class="colo-block">
+      <h5 class="mono" data-i18n="footer.promo">同作者 / ALSO</h5>
+      <p><a href="https://token.baogutang.top" target="_blank" rel="noopener"><b>N1KO-API</b></a> — <span data-i18n="footer.promo.body">一个 key 打通 Claude / GPT / Gemini，按量计费。</span></p>
+    </div>
+  </div>
+
+  <p class="colophon-star" data-i18n="footer.star">如果 N1KO MUSIC 对你有用，一颗 ★ 意义重大。</p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

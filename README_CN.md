@@ -8,21 +8,21 @@
 
 连上 Navidrome / Subsonic / Jellyfin / Emby，
 把自己的曲库读成一本排好版的刊物。
-没有 NAS？用自己的网易云音乐 / QQ 音乐账号登录，一样能听。
-
-<br/>
+没有 NAS？用自己的网易云音乐 / QQ 音乐账号（QQ 或微信扫码）登录，一样能听。
 
 [![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 [![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
 [![License](https://img.shields.io/github/license/baogutang/N1KO-MUSIC?style=flat-square&color=555)](LICENSE)
 [![Platform](https://img.shields.io/badge/平台-macOS%20·%20Windows%20·%20Linux%20·%20Android%20·%20iOS%20·%20Web-555?style=flat-square)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 
-<br/>
-
+**[🌐 官网](https://baogutang.github.io/N1KO-MUSIC/)** ·
 **[⬇ 下载](https://github.com/baogutang/N1KO-MUSIC/releases/latest)** ·
-**[中文](README_CN.md)** ·
 **[English](README.md)** ·
 **[参与翻译](TRANSLATING.md)**
+
+<br/>
+
+<img src="docs/screenshots/v4/home-pop.png" alt="N1KO MUSIC — 首页 · 糖果·波普工坊" width="860" />
 
 </div>
 
@@ -32,37 +32,30 @@
 
 [![N1KO-API — 一个 key 打通 Claude / GPT / Gemini，OpenAI 兼容，按量计费](docs/n1ko-api-banner.svg)](https://token.baogutang.top)
 
-> 如果你也在用 AI 做东西，这个可能用得上：**[N1KO-API](https://token.baogutang.top)** —— 订阅转 API 中转平台。
-> 一个 key 打通 Claude / GPT / Gemini 旗舰模型，智能路由秒级切换，99.9% SLA，按量计费不玩虚的。技术支持 QQ：783246411。
+> 如果你也在用 AI 做东西：**[N1KO-API](https://token.baogutang.top)** —— 一个 key 打通
+> Claude / GPT / Gemini 旗舰模型，智能路由秒级切换，99.9% SLA，按量计费不玩虚的。
+> 技术支持 QQ：783246411。
 
 <br/>
 
----
+## 为什么是杂志
 
-<div align="center">
-
-### ✦ &nbsp; 第三卷 &nbsp;·&nbsp; 为什么是杂志 &nbsp; ✦
-
-</div>
-
-大多数音乐客户端是加了封面图的后台管理系统。它们按「服务器里有什么」组织：
+大多数音乐客户端是加了封面图的后台管理系统，按「服务器里有什么」组织：
 表格、筛选器、计数。
 
-而一本杂志按「这一期什么值得你看」组织。它有报头、有刊号、有封面故事、有书眉，
-最后一页有版记。它有语气。
-
-N1KO MUSIC 是照这个思路做到底的：
+而一本杂志按「这一期什么值得你看」组织：报头、刊号、封面故事、书眉、版记。
+它有语气。N1KO MUSIC 是照这个思路做到底的：
 
 |  | |
 |---|---|
-| **结构是一本刊物** | 报头、刊号、封面故事、书眉、版记。这套信息架构不随外观变——换皮换的是语气，不是骨架。 |
+| **结构是一本刊物** | 报头、刊号、封面故事、书眉、版记。换皮换的是语气，不是骨架。 |
 | **封面是唯一的颜色** | 专辑封面是版面上唯一的大色块，其余交给皮肤的底色与描边。 |
-| **两张皮，一键切换** | **糖果·波普工坊**（默认）：奶油底 + 2px 墨描边 + 硬投影，全胶囊按钮，糖果色全部绑定语义（葡萄紫＝正在播放，薄荷绿＝已连接，柠檬黄＝收藏，珊瑚红＝错误）。**纸·墨·朱**：暖纸 `#f4efe3`、宋体标题、发丝线、一种朱色 `#b8442a`。两张皮共用同一套组件，切换只改 `<html>` 上的一个属性。 |
+| **三张皮，一键切换** | **糖果·波普工坊**（默认）：奶油底 + 2px 墨描边 + 硬投影，糖果色全部绑定语义。**纸·墨·朱**：暖纸、宋体标题、一种朱色。**奶油·软陶**：粉彩黏土质感，吉祥物阿糯住在问候横幅里。三张皮共用同一套组件，切换只改 `<html>` 上的一个属性。 |
 | **自托管字体** | Source Serif 4 / Hanken Grotesk / JetBrains Mono —— 一切时长、序号、码率一律等宽。 |
 | **一个字都不编** | 应用里所有自动生成的句子——编者按、重听说明、口味权重——全部由真实数字拼成。数据撑不起某一句，那一句就不出现。 |
 
-音质没有为此让步：FLAC / WAV / ALAC 原码直通，带宽紧张时有 320 / 192 / 128kbps 三档，
-ReplayGain 直接用服务器已经算好的增益。
+音质没有为此让步：FLAC / WAV / ALAC 原码直通，带宽紧张时有 320 / 192 / 128kbps
+三档，ReplayGain 直接用服务器已经算好的增益。
 
 完全免费、完全开源，不需要账号，没有埋点，没有增值项。
 
@@ -70,143 +63,213 @@ ReplayGain 直接用服务器已经算好的增益。
 
 ## 界面
 
-### 正在播放
+<table>
+<tr>
+<td width="50%">
 
-大封面、歌词流，当前行会被高亮——点任意一行即可跳转。
-软陶下它是一块奶油黄的软糖，波普是一支柠檬黄荧光笔，
-纸·墨·朱则换成朱色短划线，背景多一层从封面取色的氛围光。
+**正在播放** —— 大封面、歌词流，当前行被高亮，点任意一行即可跳转。
 
-![正在播放](docs/screenshots/v4/player.gif)
+</td>
+<td width="50%">
 
-### 首页 · 封面页
+**专辑 · 档案页** —— 档案式元数据、曲目表、内页说明，以及一块可以写你自己
+那句话的页边。
 
-头条专辑、编号排列的最近添加、文字化的歌手索引，
-以及**重听**——三栏全部来自你自己的收听记录。
+</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/v4/player.gif" alt="正在播放" /></td>
+<td><img src="docs/screenshots/v4/album.png" alt="专辑详情" /></td>
+</tr>
+<tr>
+<td>
 
-同一个首页，三张皮。顶部工具条的调色板图标一键轮换，
-设置 · 外观里也能选；每一张都各有浅色与深色。
+**首页 · 封面页** —— 头条专辑、编号排列的最近添加、文字化的歌手索引，
+以及**重听**。同一个首页，三张皮，每一张都各有浅色与深色。
 
-**奶油·软陶** · 默认
+</td>
+<td>
 
-粉彩黏土质感的仪表盘：通高侧栏、卡片网格、软鼓包的按钮，
-问候横幅里住着吉祥物**阿糯**——在放歌时它戴着耳机听，停下来会朝你挥手，
-侧栏里点它一下会蹦一蹦、说句话。
+**连接服务器，或者登录一个流媒体音源** —— Navidrome / Subsonic / Jellyfin /
+Emby 几秒钟连上；网易云 / QQ 音乐扫个码。
 
-![首页 · 奶油·软陶](docs/screenshots/v4/home.png)
+</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/v4/home.png" alt="首页 · 奶油·软陶" /></td>
+<td><img src="docs/screenshots/v4/login.png" alt="连接" /></td>
+</tr>
+</table>
 
-**糖果·波普工坊**
-
-![首页 · 糖果·波普工坊](docs/screenshots/v4/home-pop.png)
-
-**纸·墨·朱**
-
-![首页 · 纸·墨·朱](docs/screenshots/v4/home-editorial.png)
-
-### 专辑 · 档案页
-
-超大封面、档案式元数据、曲目表、内页说明，
-以及一块可以写你自己那句话的页边。
-
-![专辑详情](docs/screenshots/v4/album.png)
-
-### 连接服务器，或者登录一个流媒体音源
-
-Navidrome / Subsonic / Jellyfin / Emby，几秒钟连上；
-网易云音乐 / QQ 音乐，用手机 App 扫个码。
-
-![连接](docs/screenshots/v4/login.png)
+<sub>更多：[首页 · 糖果·波普工坊](docs/screenshots/v4/home-pop.png) ·
+[首页 · 纸·墨·朱](docs/screenshots/v4/home-editorial.png)</sub>
 
 <br/>
 
----
-
-<div align="center">
-
-### ✦ &nbsp; 栏 目 &nbsp; ✦
-
-</div>
+## 栏目
 
 ### ♫ 播放
 
-- **真正的全库随机**——从服务器抽样，而不是把当前加载的那一页重排一遍。队列面板显示的是
-  **真实播放顺序**，走完一轮会重新洗牌，而不是永远循环同一个排列。
-- **无损直通**（FLAC / WAV / ALAC）加 320 / 192 / 128kbps 三档，**Wi-Fi 与蜂窝分别设置**
-  并自动切换——人在外面不会再把原始文件从家里的上行拽出来。
-  iPhone 上直接读系统网络状态，因为 Safari 根本不把这个信息给网页。
+- **真正的全库随机**——从服务器抽样，而不是把当前加载的那一页重排一遍。
+  队列面板显示**真实播放顺序**，走完一轮重新洗牌。
+- **无损直通**（FLAC / WAV / ALAC）加 320 / 192 / 128kbps 三档，
+  **Wi-Fi 与蜂窝分别设置**并自动切换——人在外面不会再把原始文件从家里的上行拽出来。
 - **ReplayGain** 用服务器已经算好的增益，不同年代的母带不再忽大忽小。
 - **队列不会突然停**——放完自动接相似曲目，任何歌曲、歌手、曲风都能开一台电台。
-- **继续听**——听到一半停下的长音轨（现场全集、讲座、有声书）会回到首页，
-  带着你离开时的位置。断点取自服务器上早就写着的书签，换台设备也在。
-  已经听完的不会再来烦你。
-- **睡眠定时**，按时长或按本曲结束，渐弱而不是硬断。
-- **跨设备续播**——桌面上听到一半，手机接着放。
-- **它会告诉你正在缓冲。** 大文件走手机网络要等几秒，那几秒里播放键会轻轻呼吸，
-  而不是摆出「正在播放」的样子对着一片死寂。
-- 预加载逼近无缝、暂停渐弱、0.5–3 倍速带变调补偿，长音轨断点适合有声书和讲座。
+- **继续听与跨设备续播**——听到一半的长音轨（现场、讲座、有声书）回到首页，
+  带着你离开时的位置，断点取自服务器上早就写着的书签。
+- 睡眠定时渐弱而不是硬断 · 缓冲时播放键会轻轻呼吸 · 预加载逼近无缝 ·
+  0.5–3 倍速带变调补偿。
 
 ### ⌘ 操作
 
-- **每个列表都能多选批量操作**——⌘/Ctrl 点选、Shift 连选、Esc 退出；触摸端长按进入。
+- **每个列表都能多选批量操作**——⌘/Ctrl 点选、Shift 连选、触摸端长按进入。
   播放、插队、加歌单、收藏，一次做完。
-- **完整的 Media Session 集成**，因此它在 **Windows SMTC、macOS Now Playing、Linux MPRIS**
-  以及安卓/iOS 锁屏上都是正常的——有能拖动的进度条、1024px 封面，
-  按键还**可以自己配**（听歌用切歌，听书用 ±15 秒）。
+- **完整的 Media Session 集成**——**Windows SMTC、macOS Now Playing、Linux
+  MPRIS** 和安卓/iOS 锁屏都正常，有能拖动的进度条、1024px 封面，按键还
+  **可以自己配**（听歌用切歌，听书用 ±15 秒）。
 - **拔耳机立刻暂停**，而不是把声音甩到外放；一分钟内插回来接着放。
-- **车载模式**——112–128px 触控目标、滑动切歌、屏幕常亮，仍然是纸和墨。
-- **`n1ko://` 深链接**，Raycast、Alfred、快捷指令，或者笔记里的一行。
-- **标签页会告诉你在哪一页**——标题跟着路由走，正在播放时曲名排在最前。
-- **键盘够得着整个播放器**——空格播放/暂停，←/→ 曲内快退快进 10 秒，
-  ⌘←/⌘→ 上下一首，⌘↑/⌘↓ 调音量，步长和滑轨一致都是 5%。
-  焦点落在滑轨或菜单上时，方向键让位给它们。
-- ⌘K 命令面板、全局快捷键、长列表字母轨，以及**返回时回到原位**的滚动记忆。
-  搜索词和曲库分页都存在地址栏里，所以「返回」真的能把结果带回来。
+- **车载模式**——112–128px 触控目标、滑动切歌、屏幕常亮。
+- **`n1ko://` 深链接**、⌘K 命令面板、全局快捷键、全键盘控制、长列表字母轨，
+  以及**返回时回到原位**的滚动记忆。
 
 ### ☰ 曲库
 
-- 歌曲、专辑、歌手、歌单在一处，**虚拟滚动**，一万首也不卡。
-- **离线元数据缓存**——冷启动先把上次的曲库摆出来，网络回来再悄悄替换。
-  （只缓存元数据，不存任何音频。）
-- **内页说明**：制作人员名录、唱片说明、ISRC、MusicBrainz 版本信息。
-- **规格立牌**：位深、采样率、编码、声道、真实码率。
+- 歌曲、专辑、歌手、歌单在一处，**虚拟滚动**，一万首也不卡——
+  配**离线元数据缓存**，冷启动先把上次的曲库摆出来。
+- **内页说明**（制作人员名录、ISRC、MusicBrainz 版本信息）和
+  **规格立牌**（位深、采样率、编码、真实码率）。
 - **唱片目录年份轨**——一位歌手的作品读成一条生涯，而不是一片封面墙。
-- **把队列存成歌单**——随机撞出一段好听的序列，就把它留下来。
-  存的是你刚听到的那个顺序，不是它在数组里碰巧排成的样子。
-- **歌单可以就地编辑**——队列拖拽排序，歌单里删歌不用离开当前页面。
-- 多音乐库、服务端重扫、星级评分、公开分享链接、「还有谁在听」——
-  全部只在你的服务器**确实支持**时才出现。这里的「支持」是**问过服务器、
-  它说是**：一台关掉了分享的 Navidrome 上，分享入口整个不出现，
-  而不是摆在那里等你点了才失败。
+- **把队列存成歌单**，存的是你刚听到的那个顺序。歌单就地编辑，队列拖拽排序。
+- 分享、评分、重扫、多音乐库、「还有谁在听」——全部只在服务器**确实支持**
+  时才出现。一台关掉了分享的 Navidrome 上，分享入口整个不出现。
 
 ### ✎ 你自己的
 
 - **《本期》**——每个月自动成为一期：封面故事、排行、本期之最、第一次听到的人。
   编者按由真实数字拼成，一个字不编。
 - **重听**——*去年今日*、*久违*、*只听过一次*。你已经喜欢过、正在悄悄丢掉的那些。
-- **边注**——给任何歌曲、专辑、歌手写一句自己的话。它是这里唯一不能被重新算出来的数据，
-  因此优先同步、优先备份。
-- **可改的口味画像**——推荐打分时真正在用的权重摊开给你看，任何歌手或曲风都能永久关掉。
-  这是硬过滤，不是降权。
-- **导入既有打卡历史**，ListenBrainz 或 Last.fm 的导出都认，统计和推荐不必从零开始。
-- **一切都能导出**——歌单导出成 M3U8/XSPF，历史导出成 JSON/CSV，全部在浏览器里生成，
-  不上传。
+- **边注**——给任何歌曲、专辑、歌手写一句自己的话。它是这里唯一不能被重新
+  算出来的数据，因此优先同步、优先备份。
+- **可改的口味画像**——推荐打分时真正在用的权重摊开给你看，任何歌手或曲风
+  都能永久关掉。这是硬过滤，不是降权。
+- **导入既有打卡历史**（ListenBrainz / Last.fm 导出），统计和推荐不必从零开始；
+  **一切都能导出**——歌单 M3U8/XSPF、历史 JSON/CSV，全部在浏览器里生成，不上传。
 
 ### ⚙ 最花时间的细节
 
-- 中西文之间的细空格、标点悬挂、带斜杠的等宽数字。
-- 服务器凭据用取不出来的设备密钥加密落盘。
-- 离线时是一条带重试按钮的常驻横幅，不是一闪而过的 toast。
-- 播放开关带 `aria-pressed`、文字对比度达 WCAG AA、尊重 `motion-reduce`。
-- 每一页都有刊号、书眉和版记。
+中西文之间的细空格、标点悬挂、带斜杠的等宽数字 · 凭据用取不出来的设备密钥
+加密落盘 · 离线时是一条带重试按钮的常驻横幅，不是一闪而过的 toast ·
+`aria-pressed` 播放开关、WCAG AA 对比度、尊重 `motion-reduce` ·
+每一页都有刊号、书眉和版记。
 
 <br/>
 
----
+## 支持的服务器
 
-<div align="center">
+| 服务器 | 状态 | 说明 |
+|--------|------|------|
+| [Navidrome](https://www.navidrome.org/) | ✅ 推荐 | 体验最好，测试最充分 |
+| [Subsonic](http://www.subsonic.org/) | ✅ 支持 | 完整兼容 Subsonic API |
+| [Airsonic](https://airsonic.github.io/) / [Airsonic-Advanced](https://github.com/airsonic-advanced/airsonic-advanced) | ✅ 支持 | Subsonic 兼容分支 |
+| [Jellyfin](https://jellyfin.org/) | ✅ 支持 | 原生 API 对接 |
+| [Emby](https://emby.media/) | ✅ 支持 | 原生 API 对接 |
 
-### ✦ &nbsp; 它 是 怎 么 搭 起 来 的 &nbsp; ✦
+分享、评分、断点、多音乐库、重扫、电台、正在播放这些可选能力是**探测出来的，
+不是假设的**。你的服务器没实现哪一项，那个入口就整个不出现，而不是点了报错。
 
-</div>
+<details>
+<summary>相关搜索</summary>
+<sub>Navidrome 客户端 · Navidrome 桌面版 · Subsonic 客户端 · Subsonic 音乐播放器 · Jellyfin 音乐播放器 · Emby 音乐播放器 · NAS 音乐播放器 · 自建音乐播放器 · 私有云音乐 · Airsonic 客户端 · 网易云音乐 第三方客户端 · QQ 音乐 桌面客户端</sub>
+</details>
+
+<br/>
+
+## 流媒体音源 · 网易云音乐 / QQ 音乐
+
+没有 NAS，或者 NAS 上没有的歌，用你自己的账号登录就能听——
+**你有权听什么，这里就放什么**。会员曲你的账号没权限，它就标成 VIP 并告诉你原因，
+不做任何「解析」「破解」。
+
+| 音源 | 登录 | 能做什么 |
+|------|------|------|
+| 网易云音乐 | 手机 App 扫码 | 搜索、我的歌单、收藏、每日推荐、榜单、歌词、加入 / 移出歌单 |
+| QQ 音乐 | 手机 QQ / 微信扫码 | 搜索、我的歌单、收藏、雷达推荐、榜单、歌词 |
+
+它们和你的 NAS 是**并列**的，不是二选一：**搜索按来源分组**，也能切到「全部」
+按相关度混排；首页的**「今天听什么」**把各个音源的每日推荐交错合成一列；
+收藏、歌单按来源分节，队列里可以混着放；登录过期会在顶部提示你重新扫码，
+而不是让一半的页面无声地消失。
+
+**怎么做到的。** 每个音源是一个插件（[协议文档](docs/sources/PROTOCOL.md)，
+兼容 MusicFree 插件的写法，加了扫码登录等 `n1ko` 扩展），跑在一个只允许执行脚本的
+沙箱里：不能碰页面，不能自己联网，只能通过宿主访问 manifest 里白名单列出的域名，
+重定向每一跳都重新过白名单。出厂的两个插件随安装包一起打进去，首次启动自动就绪。
+
+**边界，直接说清楚。** 这些接口来自社区的逆向整理，不是官方开放接口——平台一改，
+它们可能失效，我们会跟着修，但不保证永远可用。凭据用与服务器密码同一套 AES-GCM
+加密只存在本机，不经过任何第三方服务器。流媒体音源只在桌面版与 App 里提供
+（浏览器版没有可用的出网通道）。
+
+<br/>
+
+## 下载
+
+在 **[Releases](https://github.com/baogutang/N1KO-MUSIC/releases/latest)** 里挑你的平台：
+
+| 平台 | 安装包 |
+|------|--------|
+| macOS（Apple 芯片） | `N1KO.MUSIC_x.x.x_aarch64.dmg` |
+| macOS（Intel） | `N1KO.MUSIC_x.x.x_x64.dmg` |
+| Windows | `N1KO.MUSIC_x.x.x_x64-setup.exe` / `.msi` |
+| Linux | `.AppImage` / `.deb` |
+
+**移动端**——由 [Mobile 工作流](https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml)
+构建，在最近一次运行的 Artifacts 里下载：
+
+| 平台 | 包 | 说明 |
+|------|--------|------|
+| Android | `N1KO-MUSIC-android-debug` → `app-debug.apk` | Debug 包，可直接安装（需允许未知来源） |
+| iOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | 未签名，用 AltStore / Sideloadly 侧载 |
+
+> 正式签名的移动端构建（Play keystore / Apple 开发者证书）还没配，工作流留好了位置，
+> 补上时不需要改结构。macOS 首次打开若提示「无法验证开发者」，到
+> 「系统设置 → 隐私与安全性」里允许即可；若提示**「“N1KO MUSIC”已损坏，无法打开」**，
+> 在终端执行一次下面这行再打开：
+>
+> ```bash
+> xattr -cr "/Applications/N1KO MUSIC.app"
+> ```
+>
+> （安装包目前是 ad-hoc 签名；Developer ID 公证版在计划里。）
+
+<br/>
+
+## 开发
+
+```bash
+git clone https://github.com/baogutang/N1KO-MUSIC.git
+cd N1KO-MUSIC/frontend
+npm install
+npm run dev          # Web 开发模式
+npm run tauri:dev    # 桌面开发模式
+```
+
+不需要自己有服务器：把地址填成 `https://demo.navidrome.org`，用户名密码都是 `demo`。
+
+同一套 React 前端也跑在 Capacitor 壳里，带原生后台播放与锁屏控制：
+
+```bash
+cd frontend
+npm run cap:sync            # 构建 Web 产物并同步到原生工程
+npx cap open android        # 需要 Android Studio / SDK
+npx cap open ios            # 需要 Xcode + CocoaPods
+```
+
+<details>
+<summary><b>它是怎么搭起来的</b> —— 架构图</summary>
+
+<br/>
 
 ```mermaid
 flowchart LR
@@ -236,126 +299,17 @@ flowchart LR
 
     LB["ListenBrainz<br/><sub>需自行开启</sub>"]
     MB["MusicBrainz<br/><sub>需自行开启，默认关</sub>"]
+    P["🎧 插件音源<br/><sub>网易云 / QQ 音乐的 API</sub>"]
     LO -.->|"打卡"| LB
     AD -.->|"只发歌手编号"| MB
+    AD -.->|"搜索 · 歌单 · 取流<br/><sub>只到白名单域名</sub>"| P
 ```
 
-**只在你自己的机器上**框里的一切都是你的。两条虚线是仅有的可能离开你网络的路径，
-都需要你自己开，其中 MusicBrainz 那条默认关闭。
+**只在你自己的机器上**框里的一切都是你的。虚线是可能离开你网络的路径：
+ListenBrainz 与 MusicBrainz 都要你自己开（MusicBrainz 默认关闭）；插件音源
+只在登录网易云 / QQ 音乐后出现，且沙箱只能访问各自 manifest 白名单里的域名。
 
-<br/>
-
-## 支持的服务器
-
-| 服务器 | 状态 | 说明 |
-|--------|------|------|
-| [Navidrome](https://www.navidrome.org/) | ✅ 推荐 | 体验最好，测试最充分 |
-| [Subsonic](http://www.subsonic.org/) | ✅ 支持 | 完整兼容 Subsonic API |
-| [Airsonic](https://airsonic.github.io/) / [Airsonic-Advanced](https://github.com/airsonic-advanced/airsonic-advanced) | ✅ 支持 | Subsonic 兼容分支 |
-| [Jellyfin](https://jellyfin.org/) | ✅ 支持 | 原生 API 对接 |
-| [Emby](https://emby.media/) | ✅ 支持 | 原生 API 对接 |
-
-分享、评分、断点、多音乐库、重扫、电台、正在播放这些可选能力是**探测出来的，不是假设的**。
-你的服务器没实现哪一项，那个入口就整个不出现，而不是点了报错。
-
-<details>
-<summary>相关搜索</summary>
-<sub>Navidrome 客户端 · Navidrome 桌面版 · Subsonic 客户端 · Subsonic 音乐播放器 · Jellyfin 音乐播放器 · Emby 音乐播放器 · NAS 音乐播放器 · 自建音乐播放器 · 私有云音乐 · Airsonic 客户端 · 网易云音乐 第三方客户端 · QQ 音乐 桌面客户端</sub>
 </details>
-
-<br/>
-
-## 流媒体音源 · 网易云音乐 / QQ 音乐
-
-没有 NAS，或者 NAS 上没有的歌，用你自己的账号登录就能听——
-**你有权听什么，这里就放什么**。会员曲你的账号没权限，它就标成 VIP 并告诉你原因，
-不做任何「解析」「破解」。
-
-| 音源 | 登录 | 能做什么 |
-|------|------|------|
-| 网易云音乐 | 手机 App 扫码 | 搜索、我的歌单、收藏、每日推荐、榜单、歌词、加入 / 移出歌单 |
-| QQ 音乐 | 手机 QQ 扫码 | 搜索、我的歌单、收藏、雷达推荐、榜单、歌词 |
-
-它们和你的 NAS 是**并列**的，不是二选一：
-
-- **搜索按来源分组**，也能切到「全部」按相关度混排；
-- 首页的**「今天听什么」**把各个音源的每日推荐交错合成一列（推荐页是它的展开版）；
-- 收藏、歌单按来源分节，队列里可以混着放；
-- 登录过期会在顶部提示你重新扫码，而不是让一半的页面无声地消失。
-
-**怎么做到的。** 每个音源是一个插件（[协议文档](docs/sources/PROTOCOL.md)，兼容 MusicFree 插件的写法，加了扫码登录等 `n1ko` 扩展），
-跑在一个只允许执行脚本的沙箱里：不能碰页面，不能自己联网，只能通过宿主访问
-manifest 里白名单列出的域名，重定向每一跳都重新过白名单。
-出厂的两个插件随安装包一起打进去，首次启动自动就绪。
-
-**边界，直接说清楚。** 这些接口来自社区的逆向整理，不是官方开放接口——平台一改，它们可能失效，
-我们会跟着修，但不保证永远可用。凭据用与服务器密码同一套 AES-GCM 加密只存在本机，
-不经过任何第三方服务器。浏览器版（Docker / 静态托管）没有可用的出网通道，
-流媒体音源只在桌面版与 App 里提供。
-
-<br/>
-
-## 下载
-
-在 **[Releases](https://github.com/baogutang/N1KO-MUSIC/releases/latest)** 里挑你的平台：
-
-| 平台 | 安装包 |
-|------|--------|
-| macOS（Apple 芯片） | `N1KO.MUSIC_x.x.x_aarch64.dmg` |
-| macOS（Intel） | `N1KO.MUSIC_x.x.x_x64.dmg` |
-| Windows | `N1KO.MUSIC_x.x.x_x64-setup.exe` / `.msi` |
-| Linux | `.AppImage` / `.deb` |
-
-**移动端**（由 [Mobile 工作流](https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml) 构建，在最近一次运行的 Artifacts 里下载）：
-
-| 平台 | 包 | 说明 |
-|------|--------|------|
-| Android | `N1KO-MUSIC-android-debug` → `app-debug.apk` | Debug 包，可直接安装（需允许未知来源） |
-| iOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | 未签名，用 AltStore / Sideloadly 侧载 |
-
-> 正式签名的移动端构建（Play keystore / Apple 开发者证书）还没配，工作流留好了位置，
-> 补上时不需要改结构。
->
-> macOS 首次打开若提示「无法验证开发者」，到「系统设置 → 隐私与安全性」里允许即可。
-
-<br/>
-
-## 技术栈
-
-| 层 | 技术 |
-|------|-----|
-| 前端 | React 18 · TypeScript · Vite 5 · Tailwind CSS |
-| UI | Radix UI · Phosphor Icons · 自托管字体（Source Serif 4 / Hanken Grotesk / JetBrains Mono / Nunito） |
-| 状态与数据 | Zustand · TanStack Query v5 |
-| 音频引擎 | 原生 HTML5 Audio |
-| 流媒体音源 | 沙箱化插件（MusicFree 兼容协议 + `n1ko` 扩展），宿主按白名单代理出网 |
-| 桌面壳 | Tauri 2（Rust） |
-| 移动壳 | Capacitor 8（Android · iOS） |
-| 可选同步服务 | Node.js 24 · Express · SQLite |
-| 多语言 | 扁平 JSON 词条，零运行时依赖（[来贡献一种语言](TRANSLATING.md)） |
-
-### 开发
-
-```bash
-git clone https://github.com/baogutang/N1KO-MUSIC.git
-cd N1KO-MUSIC/frontend
-npm install
-npm run dev          # Web 开发模式
-npm run tauri:dev    # 桌面开发模式
-```
-
-不需要自己有服务器：把地址填成 `https://demo.navidrome.org`，用户名密码都是 `demo`。
-
-### 移动端（Android / iOS）
-
-同一套 React 前端跑在 Capacitor 壳里，带原生后台播放与锁屏控制。
-
-```bash
-cd frontend
-npm run cap:sync            # 构建 Web 产物并同步到原生工程
-npx cap open android        # 需要 Android Studio / SDK
-npx cap open ios            # 需要 Xcode + CocoaPods
-```
 
 <details>
 <summary><b>可选同步服务</b> —— 跨设备的历史、收藏与边注</summary>
@@ -418,6 +372,22 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 ```
 
 </details>
+
+<br/>
+
+## 技术栈
+
+| 层 | 技术 |
+|------|-----|
+| 前端 | React 18 · TypeScript · Vite 5 · Tailwind CSS |
+| UI | Radix UI · Phosphor Icons · 自托管字体（Source Serif 4 / Hanken Grotesk / JetBrains Mono / Nunito） |
+| 状态与数据 | Zustand · TanStack Query v5 |
+| 音频引擎 | 原生 HTML5 Audio |
+| 流媒体音源 | 沙箱化插件（MusicFree 兼容协议 + `n1ko` 扩展），宿主按白名单代理出网 |
+| 桌面壳 | Tauri 2（Rust） |
+| 移动壳 | Capacitor 8（Android · iOS） |
+| 可选同步服务 | Node.js 24 · Express · SQLite |
+| 多语言 | 扁平 JSON 词条，零运行时依赖（[来贡献一种语言](TRANSLATING.md)） |
 
 <br/>
 
