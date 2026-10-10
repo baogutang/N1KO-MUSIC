@@ -44,3 +44,28 @@ describe('applyRecommendationConstraints', () => {
     expect(out.map(s => s.id)).toEqual(['a', 'c'])
   })
 })
+
+describe('屏蔽键原样透传（复审 A2：预归一把分隔符抹掉）', () => {
+  // 这条用例走完整的 applyRecommendationConstraints：原先单测把归一后的
+  // 条目直接喂 artistBlockedBy，抓不到「先 normalizeSet 再比」这层破坏。
+  it('屏蔽「A」，候选 artist 为 "A / B" 经 applyRecommendationConstraints 被滤掉', () => {
+    const candidate = { id: 'x', title: 'T', artist: 'A / B', serverId: 'srv' } as Song
+    const out = applyRecommendationConstraints([candidate, { ...candidate, id: 'y', artist: 'C' }], {
+      mutedArtists: new Set(['A']),
+    })
+    expect(out.map(s => s.id)).toEqual(['y'])
+  })
+
+  it('屏蔽整串「A / B」（原样、带分隔符）：挡住同名合作曲，不连坐 A 独唱', () => {
+    const duo = { id: 'duo', title: 'T', artist: 'A / B', serverId: 'srv' } as Song
+    const solo = { id: 'solo', title: 'T', artist: 'A', serverId: 'srv' } as Song
+    const out = applyRecommendationConstraints([duo, solo], { mutedArtists: new Set(['A / B']) })
+    expect(out.map(s => s.id)).toEqual(['solo'])
+  })
+
+  it('已归一持久化的新形态屏蔽键（"A/B" 被抹成 "ab"）仍命中同名合作曲', () => {
+    const duo = { id: 'duo', title: 'T', artist: 'A / B', serverId: 'srv' } as Song
+    const out = applyRecommendationConstraints([duo], { mutedArtists: new Set(['ab']) })
+    expect(out).toEqual([])
+  })
+})

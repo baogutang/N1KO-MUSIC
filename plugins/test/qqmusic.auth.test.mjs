@@ -312,3 +312,60 @@ test('未声明 methods 的旧宿主语义：createQr 不带参走 QQ 链路', a
   assert.equal(qr.key, 'QRSIG123')
   assert.ok(qr.qrImage.startsWith('data:image/png;base64,'))
 })
+
+test('复审 A8①：刷新响应只有 musickey/refresh_key 时与旧凭据合并，下一次刷新仍有料', async () => {
+  const bodies = []
+  let refreshCount = 0
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body)
+    bodies.push(body)
+    if (body.req_0.module === 'music.login.LoginServer') {
+      refreshCount += 1
+      if (refreshCount === 1) {
+        // 第一次刷新：响应只给两样东西（QQ 扫码链路的真实形状）
+        return jsonResponse({ req_0: { code: 0, data: { musickey: 'KEY-2', refresh_key: 'RK-2' } } })
+      }
+      // 第二次刷新：param 必须仍带旧凭据里的 openid/refresh_token/musicid
+      return jsonResponse({ req_0: { code: 0, data: { musickey: 'KEY-3', refresh_key: 'RK-3' } } })
+    }
+    return jsonResponse({ req_0: { code: 0, data: { v_playlist: [] } } })
+  }
+  const { plugin, env } = await loadPlugin('plugins/qqmusic', { credentials: credJson({
+    expiresAt: Date.now() + 60 * 1000, // 到期前 10 分钟窗口内 → 主动刷新
+  }) })
+  await plugin.n1ko.user.getPlaylists()
+
+  const stored = JSON.parse(env.credentials)
+  // 合并而不是覆盖：旧凭据的字段还在
+  assert.equal(stored.openid, 'OPENID-1')
+  assert.equal(stored.refresh_token, 'REFRESH-TOKEN-1')
+  assert.equal(stored.musicid, 12345)
+  assert.equal(stored.musickey, 'KEY-2')
+
+  // 第二次数据请求（快过期的合并凭据）再触发一次刷新：param 仍带得齐全
+  await plugin.n1ko.user.getPlaylists()
+  const second = bodies.filter(b => b.req_0.module === 'music.login.LoginServer')[1]
+  assert.equal(second.req_0.param.openid, 'OPENID-1')
+  assert.equal(second.req_0.param.refresh_token, 'REFRESH-TOKEN-1')
+  assert.equal(second.req_0.param.musicid, 12345)
+})
+
+test('复审 A8②：主动刷新遇 network 错误不致 unauthorized，旧 key 继续工作', async () => {
+  let refreshCalls = 0
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body)
+    if (body.req_0.module === 'music.login.LoginServer') {
+      refreshCalls += 1
+      throw Object.assign(new Error('Request timeout after 20000ms'), { isAxiosError: true, code: 'network' })
+    }
+    // 数据接口照常成功（旧 key 有效）
+    return jsonResponse({ req_0: { code: 0, data: { v_playlist: [] } } })
+  }
+  const { plugin } = await loadPlugin('plugins/qqmusic', { credentials: credJson({
+    expiresAt: Date.now() + 60 * 1000,
+  }) })
+  // 不抛 unauthorized：数据请求成功返回
+  const result = await plugin.n1ko.user.getPlaylists()
+  assert.deepEqual(result, { created: [], subscribed: [] })
+  assert.ok(refreshCalls >= 1, '确实尝试过刷新')
+})

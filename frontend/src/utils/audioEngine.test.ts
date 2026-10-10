@@ -320,7 +320,8 @@ describe('classifyStreamFailure（阶段 1.2：断网不再连跳）', () => {
     expect(classifyStreamFailure('network', 'Network Error')).toBe('transient')
     expect(classifyStreamFailure('rate-limited', '频控')).toBe('transient')
     expect(classifyStreamFailure('unknown', 'whatever')).toBe('transient')
-    expect(classifyStreamFailure('unsupported', '做不到')).toBe('transient')
+    // unsupported 已改判 not-found（复审 A9）：原地暂停会卡死队列
+    expect(classifyStreamFailure('unsupported', '做不到')).toBe('not-found')
   })
 
   it('无错误码（NAS 适配器的 axios 错误）退回文本匹配', () => {
@@ -350,5 +351,13 @@ describe('playbackKey（阶段 3.5：「是不是同一首」统一身份）', (
     // 极端碰撞下二者同串，但 serverId 由服务器 id 约束（不含冒号），实际不可达；
     // 钉住基本形状即可
     expect(a.startsWith('1@nas:')).toBe(true)
+  })
+})
+
+describe('classifyStreamFailure 的 unsupported（复审 A9：不再当瞬态暂停）', () => {
+  it('unsupported 归入 not-found 一类：走换源/跳歌，不原地暂停卡死队列', () => {
+    expect(classifyStreamFailure('unsupported', '做不到')).toBe('not-found')
+    // 无码时文本兜底不受影响
+    expect(classifyStreamFailure(undefined, 'Network Error')).toBe('transient')
   })
 })

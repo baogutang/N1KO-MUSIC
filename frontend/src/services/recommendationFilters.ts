@@ -49,11 +49,16 @@ export function applyRecommendationConstraints(
   constraints: RecommendationConstraints,
 ): Song[] {
   const { mutedArtists, mutedGenres, accountVip } = constraints
-  /* 屏蔽歌手按集合匹配（阶段 4.1）：屏蔽「A」要挡住「A / B」 */
-  const mutedArtistKeys = normalizedSet(mutedArtists)
+  /*
+   * 屏蔽歌手按集合匹配（阶段 4.1；复审 A2 修正）：条目**原样**传给
+   * artistBlockedBy——先过 normalizeSet 会把「A / B」抹成「ab」，
+   * 分隔符没了，集合拆分与整串匹配双双失效（旧实现的整串命中也丢了）。
+   * 拆分、归一、整串兜底都在 artistBlockedBy 里做。
+   * 流派没有合作者语义，仍两侧归一后整串比。
+   */
   const mutedGenreKeys = normalizedSet(mutedGenres)
   return songs.filter(song => {
-    if (artistBlockedBy(song.artist ?? '', mutedArtistKeys)) return false
+    if (mutedArtists && artistBlockedBy(song.artist ?? '', mutedArtists)) return false
     if (normalizeText(song.genre ?? '') && mutedGenreKeys.has(normalizeText(song.genre ?? ''))) return false
     // 会员曲：只有确知该来源账号没有权益时才滤（undefined = 还没问到，不动）
     if ((song.vip || song.ext?.vip) && accountVip?.[song.serverId] === false) return false

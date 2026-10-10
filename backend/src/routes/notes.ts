@@ -149,11 +149,17 @@ router.put('/', (req: Request, res: Response) => {
      * 设备、离线期间另一台设备已经改过），拒绝并回服务端版本，
      * 客户端采信服务端那份。相等放行——同秒内的两次写入分不出先后。
      */
-    if (existing && updatedAt !== undefined && updatedAt < existing.updated_at) {
+    /*
+     * 客户端时钟上限（复审 A4）：原样采信 updatedAt（zod 放行到 2100 年），
+     * 快钟设备写一次后，其它设备对这条边注全部 409 直到真实时间追上。
+     * 落库与冲突比较用同一个钳制值：最多比服务端时钟快 5 分钟。
+     */
+    const clampedUpdatedAt = updatedAt === undefined ? undefined : Math.min(updatedAt, now + 300)
+    if (existing && clampedUpdatedAt !== undefined && clampedUpdatedAt < existing.updated_at) {
       return { conflict: existing }
     }
 
-    const storedUpdatedAt = updatedAt ?? now
+    const storedUpdatedAt = clampedUpdatedAt ?? now
     // 命中墓碑时复活，并把 created_at 重置为这一次：那是一条新写的边注，
     // 不是旧的那条又回来了
     db.prepare(`

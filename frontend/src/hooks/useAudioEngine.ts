@@ -316,6 +316,14 @@ let recoverAttempts = 0
 let onRepeatRewind: (() => void) | null = null
 
 /**
+ * 「失败停下后按播放要重载」的标记（复审 A9）：只有 halt / 音质切换失败
+ * 这类真正停下时才置位。原先播放 effect 只看「无 src / 错误态」——
+ * 暂停态点歌、冷启动首播时 load effect 刚清空 src 也会命中，
+ * 多 bump 一次 playVersion、重复取流（插件源多撞一次限频）。
+ */
+let needsReloadOnPlay = false
+
+/**
  * 当前音频元素的真实播放位置（秒）。
  * audioEl 是模块级的 new Audio()，从不挂进 DOM，因此 document.querySelector('audio')
  * 找不到它——需要读取实际位置的调用方必须走这里。
@@ -709,6 +717,8 @@ export function useAudioEngine() {
       // 检查 store 当前状态是否还是同一首歌，避免 debounce 期间又切走了
       const latestSong = usePlayerStore.getState().currentSong
       if (!latestSong || latestSong.id !== capturedSongId) return
+      // 新一次加载接管了：之前留下的「按播放需重载」标记作废（复审 A9）
+      needsReloadOnPlay = false
 
       // ── 实际加载逻辑 ──────────────────────────────────────────
       const loadQuality = qualityOverride ?? effectiveQuality
@@ -752,6 +762,7 @@ export function useAudioEngine() {
         if (qualitySwitchResumeAt !== null) {
           // 把 isPlaying 收回来：元素还握着旧流，但加载目标已经失败，
           // 按钮停在「播放中」是在撒谎；收回后用户按播放可从旧流续听
+          needsReloadOnPlay = true
           usePlayerStore.getState().pause()
           toast({
             title: t('player.streamFailed', { title: capturedSong.title }),
@@ -821,6 +832,7 @@ export function useAudioEngine() {
          * 走到这里说明不是 denied / not-found（那两类在上面已走完换源链）。
          */
         if (!worthFallback) {
+          needsReloadOnPlay = true
           usePlayerStore.getState().pause()
           toast({
             title: t('player.streamNetworkHalted', { title: capturedSong.title }),
@@ -841,6 +853,7 @@ export function useAudioEngine() {
           consecutiveResolveFailures = 0
           // 停下时把 isPlaying 收回来：没有流在放，按钮停在「播放中」
           // 会让按播放看起来失灵（见下方 play effect 的重载修复）
+          needsReloadOnPlay = true
           usePlayerStore.getState().pause()
           toast({ title: t('player.queueHalted'), variant: 'destructive' })
           return
@@ -1162,12 +1175,22 @@ export function useAudioEngine() {
       /** 中途（非结尾）缓冲耗尽的停滞：多等一会儿再保位重载，给浏览器自愈机会 */
       const MID_STALL_RELOAD_MS = 8000
 
-      /* 倒带重置（6.12）：第二遍起看门狗按新一遍的进度判断 */
+      /*
+       * 倒带重置（6.12；复审 A5 补全）：第二遍是一条新的收听——
+       * 看门狗/恢复计数之外，还要清落盘时长（listenedSec/listenedPrevT，
+       * 否则第 2 遍起时长逐遍累计）与 scrobble 退避（scrobbleAttempts/
+       * scrobbleRetryAt，否则循环 5 遍后 scrobble 永久停摆、
+       * 每遍开头也不会立刻重报）。
+       */
       onRepeatRewind = () => {
         healthyPlaySec = 0
         recoverAttempts = 0
         stallPrevT = -1
         stallSinceMs = null
+        listenedSec = 0
+        listenedPrevT = -1
+        scrobbleAttempts = 0
+        scrobbleRetryAt = 0
       }
 
       const clearStallWatch = () => {
@@ -1599,11 +1622,13 @@ export function useAudioEngine() {
       if (!audioEl.paused) return
       // readyState < 2（HAVE_CURRENT_DATA）说明还没有足够数据，等 canplay 事件
       if (audioEl.readyState < 2) {
-        // 但元素已死（src 被清 / 进入错误态）时 canplay 永远等不来：
-        // 失败停下后按播放应当重试加载，而不是毫无反应（isPlaying 卡在 true）。
-        // 正常缓冲期 src 还在，走不到这条。
-        const attrSrc = audioEl.getAttribute('src')
-        if ((!attrSrc || audioEl.error !== null) && usePlayerStore.getState().currentSong) {
+        /*
+         * 复审 A9：只有 halt / 音质切换失败置过 needsReloadOnPlay 才重载。
+         * 原先只看「无 src / 错误态」太宽——暂停态点歌、冷启动首播时
+         * load effect 刚清空 src，这里也命中，多 bump 一次 playVersion、
+         * 重复取流（插件源多撞一次限频）。
+         */
+        if (needsReloadOnPlay && usePlayerStore.getState().currentSong) {
           usePlayerStore.getState().reloadCurrent()
         }
         return

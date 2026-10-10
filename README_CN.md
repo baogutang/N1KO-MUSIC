@@ -22,7 +22,7 @@
 
 <br/>
 
-<img src="docs/screenshots/v4/home-pop.png" alt="N1KO MUSIC — 首页 · 糖果·波普工坊" width="860" />
+<img src="docs/screenshots/v4/home.png" alt="N1KO MUSIC — 首页 · 奶油·软陶（默认皮肤）" width="860" />
 
 </div>
 
@@ -32,9 +32,8 @@
 
 [![N1KO-API — 一个 key 打通 Claude / GPT / Gemini，OpenAI 兼容，按量计费](docs/n1ko-api-banner.svg)](https://token.baogutang.top)
 
-> 如果你也在用 AI 做东西：**[N1KO-API](https://token.baogutang.top)** —— 一个 key 打通
-> Claude / GPT / Gemini 旗舰模型，智能路由秒级切换，99.9% SLA，按量计费不玩虚的。
-> 技术支持 QQ：783246411。
+> 如果你也在用 AI 做东西，这个可能用得上：**[N1KO-API](https://token.baogutang.top)** —— 订阅转 API 中转平台。
+> 一个 key 打通 Claude / GPT / Gemini 旗舰模型，智能路由秒级切换，99.9% SLA，按量计费不玩虚的。技术支持 QQ：783246411。
 
 <br/>
 
@@ -50,7 +49,7 @@
 |---|---|
 | **结构是一本刊物** | 报头、刊号、封面故事、书眉、版记。换皮换的是语气，不是骨架。 |
 | **封面是唯一的颜色** | 专辑封面是版面上唯一的大色块，其余交给皮肤的底色与描边。 |
-| **三张皮，一键切换** | **糖果·波普工坊**（默认）：奶油底 + 2px 墨描边 + 硬投影，糖果色全部绑定语义。**纸·墨·朱**：暖纸、宋体标题、一种朱色。**奶油·软陶**：粉彩黏土质感，吉祥物阿糯住在问候横幅里。三张皮共用同一套组件，切换只改 `<html>` 上的一个属性。 |
+| **三张皮，一键切换** | **奶油·软陶**（默认）：奶油底、圆头字、软鼓包投影，吉祥物阿糯住在问候横幅里。**糖果·波普**：奶油底 + 2px 墨描边 + 硬投影，糖果色全部绑定语义。**纸·墨·朱**：暖纸、宋体标题、一种朱色。三张皮共用同一套组件，切换只改 `<html>` 上的一个属性。 |
 | **自托管字体** | Source Serif 4 / Hanken Grotesk / JetBrains Mono —— 一切时长、序号、码率一律等宽。 |
 | **一个字都不编** | 应用里所有自动生成的句子——编者按、重听说明、口味权重——全部由真实数字拼成。数据撑不起某一句，那一句就不出现。 |
 
@@ -101,7 +100,7 @@ Emby 几秒钟连上；网易云 / QQ 音乐扫个码。
 </tr>
 </table>
 
-<sub>更多：[首页 · 糖果·波普工坊](docs/screenshots/v4/home-pop.png) ·
+<sub>更多：[首页 · 糖果·波普](docs/screenshots/v4/home-pop.png) ·
 [首页 · 纸·墨·朱](docs/screenshots/v4/home-editorial.png)</sub>
 
 <br/>

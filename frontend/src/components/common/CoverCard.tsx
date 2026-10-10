@@ -61,6 +61,9 @@ export function CoverCard({
       )}
       onClick={onClick}
       onKeyDown={e => {
+        /* 内层控件（播放键、菜单项）自己的 Enter/Space 不归卡片管（A6）：
+           冒泡上来直接跳转会吞掉它们的默认行为 */
+        if (e.target !== e.currentTarget) return
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           activate()

@@ -241,6 +241,7 @@ export default function Playlists() {
                   className="group cursor-pointer min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   onClick={() => setViewingLocal(pl.id)}
                   onKeyDown={e => {
+                    if (e.target !== e.currentTarget) return
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
                       setViewingLocal(pl.id)
@@ -293,7 +294,8 @@ export default function Playlists() {
               className="group cursor-pointer min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               onClick={() => navigate(`/playlists/${pl.id}?src=${encodeURIComponent(pl.serverId)}`)}
               onKeyDown={e => {
-                /* 键盘可达（阶段 7.4）：此前 div+onClick 键盘用户永远点不进歌单 */
+                /* 键盘可达（阶段 7.4）；内层控件的按键不冒泡接管（A6） */
+                if (e.target !== e.currentTarget) return
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
                   navigate(`/playlists/${pl.id}?src=${encodeURIComponent(pl.serverId)}`)

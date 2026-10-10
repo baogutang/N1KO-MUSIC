@@ -77,7 +77,8 @@ export function QueueDrawer() {
     if (!isQueueOpen) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      // 全屏播放器（页面级）不算模态，ESC 仍归队列抽屉（A1 同款排除）
+      if (document.querySelector('[role="dialog"]:not([data-fullscreen-player]), [role="alertdialog"]:not([data-fullscreen-player])')) return
       setQueueOpen(false)
     }
     window.addEventListener('keydown', onKeyDown)

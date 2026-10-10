@@ -203,9 +203,27 @@ async function refreshCredentials(cred) {
   }
   var data = await cgiOnce('music.login.LoginServer', 'Login', param, { tmeLoginType: loginType })
   if (!data || !data.musickey) {
+    /* 刷新响应残缺（复审 A8②）：只把「鉴权类」的失败译成 unauthorized——
+       network / rate-limited 原样抛，旧 musickey 大概率还有效，
+       交给调用方继续用，别把整个插件挡成「需要重新登录」。 */
     throw pluginError('unauthorized', '凭据刷新失败（响应没有 musickey）')
   }
-  var next = JSON.parse(credentialJsonFromLogin(data, loginType))
+  /*
+   * 与旧凭据合并（复审 A8①）：刷新响应可能只回 musickey / refresh_key，
+   * openid、refresh_token、musicid 一旦被空值覆盖，下一次刷新就无米下锅。
+   * 规则：响应里**非空**的字段以响应为准；空 / 缺失的沿用旧值；
+   * musickey 由上面的门槛保证必然存在。
+   */
+  var fresh = JSON.parse(credentialJsonFromLogin(data, loginType))
+  var next = Object.assign({}, cred)
+  for (var field in fresh) {
+    var value = fresh[field]
+    if (field === 'loginType') continue
+    if (value === '' || value === 0 || value === null || value === undefined) continue
+    next[field] = value
+  }
+  next.loginType = loginType
+  next.str_musicid = String(next.str_musicid || cred.str_musicid || next.musicid || '')
   liveCredentials = next
   env.setCredentials(JSON.stringify(next))
   return next
@@ -220,7 +238,7 @@ function refreshNow(cred) {
   return refreshInflight
 }
 
-/** 到期前主动刷新；刷新不了（没有 refresh_key / 刷新失败）就交由调用方按未登录处理 */
+/** 到期前主动刷新；失败不拦路（复审 A8②）：旧 key 多半还有效，继续用 */
 async function ensureFreshCredentials() {
   var cred = currentCredentials()
   if (!cred) return null
@@ -228,7 +246,10 @@ async function ensureFreshCredentials() {
     try {
       return await refreshNow(cred)
     } catch (e) {
-      throw pluginError('unauthorized', '登录已过期且自动续期失败，请重新扫码')
+      /* 断网 / 限流 / 接口抖动都不等于「凭据死了」：带着旧 key 继续，
+         真过期了由数据接口的 1000/104400/104401 被动刷新兜底 */
+      console.warn('[qqmusic] 主动续期失败，继续使用旧凭据：', e && e.message)
+      return cred
     }
   }
   return cred
@@ -393,8 +414,17 @@ async function cgi(module, method, param, commExtra) {
     try {
       await refreshNow(cred)
     } catch (refreshErr) {
-      /* 刷新失败：按「需要重新登录」收口，别把刷新的技术细节盖过原始错误 */
-      throw pluginError('unauthorized', '登录已过期，请重新扫码（' + (refreshErr && refreshErr.message ? refreshErr.message : '刷新失败') + '）')
+      /*
+       * 复审 A8②：只有刷新本身报鉴权类错误（unauthorized / forbidden——
+       * refresh_token 确实作废）才收口成「需要重新登录」；network /
+       * rate-limited 是暂时性问题，原样抛出：数据请求还能靠旧 key 重试，
+       * 横幅也不该误报重登。
+       */
+      var rc = refreshErr && refreshErr.code
+      if (rc === 'unauthorized' || rc === 'forbidden') {
+        throw pluginError('unauthorized', '登录已过期，请重新扫码（' + (refreshErr && refreshErr.message ? refreshErr.message : '刷新失败') + '）')
+      }
+      throw refreshErr
     }
     return await cgiOnce(module, method, param, commExtra)
   }

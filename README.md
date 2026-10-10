@@ -22,7 +22,7 @@ Music or QQ Music account (QQ or WeChat QR) and listen anyway.
 
 <br/>
 
-<img src="docs/screenshots/v4/home-pop.png" alt="N1KO MUSIC — home, Candy Pop Workshop skin" width="860" />
+<img src="docs/screenshots/v4/home.png" alt="N1KO MUSIC — home, Soft Clay skin (default)" width="860" />
 
 </div>
 
@@ -32,9 +32,9 @@ Music or QQ Music account (QQ or WeChat QR) and listen anyway.
 
 [![N1KO-API — one key, every model: Claude / GPT / Gemini, OpenAI-compatible, pay as you go](docs/n1ko-api-banner.svg)](https://token.baogutang.top)
 
-> If you build with AI: **[N1KO-API](https://token.baogutang.top)** — one key for
-> Claude / GPT / Gemini flagships, smart routing with instant failover, 99.9% SLA,
-> transparent pay-as-you-go billing. Support QQ: 783246411.
+> If you build with AI, this one is for you: **[N1KO-API](https://token.baogutang.top)** — a
+> subscription-to-API relay platform. One key for Claude, GPT and Gemini flagships, smart
+> routing with instant failover, 99.9% SLA, transparent pay-as-you-go billing. Support QQ: 783246411.
 
 <br/>
 
@@ -51,7 +51,7 @@ N1KO MUSIC is built that way, all the way down:
 |---|---|
 | **The structure is a magazine** | Masthead, issue number, cover story, running heads, colophon. A skin changes the voice, not the skeleton. |
 | **Artwork is the only colour** | Album covers are the sole large colour fields; everything else is ground and strokes. |
-| **Three skins, one click apart** | **Candy Pop Workshop** (default): cream ground, 2px ink strokes, hard shadows, every candy colour bound to a meaning. **Paper & Ink**: warm paper, serif headlines, one vermilion. **Soft Clay**: pastel claymorphism, home to Nuo the mascot. Same components — switching flips a single attribute on `<html>`. |
+| **Three skins, one click apart** | **Soft Clay** (default): cream ground, rounded type, soft puffed shadows, home to Nuo the mascot. **Candy Pop**: cream ground, 2px ink strokes, hard shadows, every candy colour bound to a meaning. **Paper & Ink**: warm paper, serif headlines, one vermilion. Same components — switching flips a single attribute on `<html>`. |
 | **Self-hosted type** | Source Serif 4 / Hanken Grotesk / JetBrains Mono — every duration, index and bitrate set in monospace. |
 | **Nothing is invented** | Every generated sentence — the editor's note, rediscovery captions, taste weights — is assembled from real numbers. When the data won't support a sentence, it doesn't appear. |
 
@@ -105,7 +105,7 @@ Subsonic / Jellyfin / Emby in seconds; NetEase / QQ Music with a QR scan.
 </tr>
 </table>
 
-<sub>More: [Candy Pop Workshop home](docs/screenshots/v4/home-pop.png) ·
+<sub>More: [Candy Pop home](docs/screenshots/v4/home-pop.png) ·
 [Paper & Ink home](docs/screenshots/v4/home-editorial.png)</sub>
 
 <br/>

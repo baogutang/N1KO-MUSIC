@@ -71,7 +71,16 @@ export function QrLogin({
   /** 这张码本地算出来的到期时刻（毫秒时间戳）；插件没给 expiresIn 时为 null */
   const expiresAtRef = useRef<number | null>(null)
 
+  /*
+   * 取码请求代次（复审 A7）：快速切换 QQ/微信时，共享的 cancelledRef 会被
+   * 新一次 startQr 复位成 false——晚到的旧 createQr 于是照样写 key 和图，
+   * 显示的是微信码、轮询的却是 QQ 的 key。每个请求持自己的代次，
+   * 回来时只认最新的。
+   */
+  const qrRequestIdRef = useRef(0)
+
   const startQr = useCallback(async (methodId?: string) => {
+    const requestId = ++qrRequestIdRef.current
     cancelledRef.current = false
     setPhase('loading')
     setErrorText('')
@@ -83,7 +92,7 @@ export function QrLogin({
         'n1ko.auth.createQr',
         methodId
       )
-      if (cancelledRef.current) return
+      if (cancelledRef.current || requestId !== qrRequestIdRef.current) return
       qrKeyRef.current = created.key
       /*
        * expiresIn（秒）此前被整个丢掉了。二维码过期后不少平台的 checkQr 仍旧
@@ -98,6 +107,7 @@ export function QrLogin({
       const safeQrImage = safeResourceUrl(created.qrImage, host.manifest.hosts, { allowDataMedia: true })
       if (safeQrImage) {
         // 服务端生成的二维码图（含扫描跳转地址，本地无法复刻）
+        if (cancelledRef.current || requestId !== qrRequestIdRef.current) return
         setQrImage(safeQrImage)
       } else {
         // 统一走 data URL <img>：SVG 注入会带固有宽高，URL 变长时溢出方框
@@ -106,12 +116,12 @@ export function QrLogin({
           width: 440,
           color: { dark: '#000000', light: '#ffffff' },
         })
-        if (cancelledRef.current) return
+        if (cancelledRef.current || requestId !== qrRequestIdRef.current) return
         setQrImage(dataUrl)
       }
       setPhase('waiting')
     } catch (err) {
-      if (cancelledRef.current) return
+      if (cancelledRef.current || requestId !== qrRequestIdRef.current) return
       setPhase('error')
       setErrorText(err instanceof Error ? err.message : String(err))
     }

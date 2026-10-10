@@ -38,9 +38,13 @@ function spaceBelongsToFocusedControl(target: EventTarget | null): boolean {
   return !!target.closest('button, a[href], [role="button"], [role="slider"], [role="switch"], [role="radio"], [role="menuitem"]')
 }
 
-/** 模态对话框（Radix Dialog 等 role=dialog/alertdialog）打开时全局快捷键不生效 */
-function isDialogOpen(): boolean {
-  return !!document.querySelector('[role="dialog"], [role="alertdialog"]')
+/** 模态对话框（Radix Dialog 等 role=dialog/alertdialog）打开时全局快捷键不生效。
+ *  全屏播放器除外（A1）：它虽然是 role=dialog，但它是页面级界面，
+ *  空格/方向键/⌘←→ 在全屏下必须照常工作。 */
+export function isDialogOpen(): boolean {
+  return !!document.querySelector(
+    '[role="dialog"]:not([data-fullscreen-player]), [role="alertdialog"]:not([data-fullscreen-player])'
+  )
 }
 
 /**

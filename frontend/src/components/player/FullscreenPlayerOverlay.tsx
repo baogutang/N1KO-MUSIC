@@ -67,9 +67,13 @@ export function FullscreenPlayerOverlay() {
       }}
     >
       <DialogPrimitive.Portal forceMount>
+        {/* 全屏播放器是「页面级」界面不是模态卡片：全局快捷键（空格/方向键等）
+            不因它让位（复审 A1）。快捷键选择器用 data-fullscreen-player 把它从
+            [role=dialog] 里排除。 */}
         <DialogPrimitive.Content
           forceMount
           aria-label={t('player.nowPlaying')}
+          data-fullscreen-player=""
           className="fixed inset-0 z-50 outline-none transition-all duration-300 ease-out"
           style={{
             opacity: animateIn ? 1 : 0,

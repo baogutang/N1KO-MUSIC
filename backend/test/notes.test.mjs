@@ -285,3 +285,21 @@ test('超过 500 条边注能按 offset 翻页拉全（阶段 1.8）', async () 
   // 翻完了，cursor 推进到本批最大 updated_at
   assert.equal(secondPage.body.cursor, 1700000500)
 })
+
+test('快钟 1 天的设备不能把边注钉死（复审 A4：客户端时钟钳制）', async () => {
+  const auth = await newUser('note-fastclock')
+  const put = (body) => request('/api/notes', { method: 'PUT', headers: auth, body: JSON.stringify(body) })
+
+  // 快钟设备（+1 天）写下 v1：落库时间必须被钳到服务端 now+300s 以内
+  const fast = await put({ targetType: 'song', targetId: 'fc1', serverId: 'server-a', body: '快钟写的', updatedAt: Math.floor(Date.now() / 1000) + 86_400 })
+  assert.equal(fast.response.status, 201)
+  assert.ok(fast.body.updatedAt <= Math.floor(Date.now() / 1000) + 300, '落库 updatedAt 被钳制')
+
+  // 正常设备在钳制窗（300s）之后写入：不能被挡——旧实现里那条记录
+  // 顶着「+1 天」的时间戳，任何设备都要等真实时间追上一整天才写得动
+  const later = await put({ targetType: 'song', targetId: 'fc1', serverId: 'server-a', body: '正常设备的新编辑', updatedAt: Math.floor(Date.now() / 1000) + 301 })
+  assert.equal(later.response.status, 200)
+
+  const current = await request('/api/notes', { headers: auth })
+  assert.equal(current.body.items[0].body, '正常设备的新编辑')
+})

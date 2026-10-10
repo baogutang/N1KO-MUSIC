@@ -199,7 +199,9 @@ export type StreamFailureClass = 'denied' | 'not-found' | 'transient'
 
 export function classifyStreamFailure(code: string | undefined, detail: string): StreamFailureClass {
   if (code === 'forbidden' || code === 'unauthorized') return 'denied'
-  if (code === 'not-found') return 'not-found'
+  /* unsupported：方法存在但平台做不到——不是暂时性问题，原地暂停只会
+     卡死队列（复审 A9），按 not-found 一类走换源/跳歌 */
+  if (code === 'not-found' || code === 'unsupported') return 'not-found'
   if (code) return 'transient'
   if (/forbidden|无权|VIP|付费/i.test(detail)) return 'denied'
   if (/not.?found/i.test(detail)) return 'not-found'

@@ -72,16 +72,27 @@ function canonicalGroup(artist: string): string {
 }
 
 export function artistBlockedBy(songArtist: string, mutedEntries: Iterable<string>): boolean {
-  let mutedFull: Set<string> | null = null
+  /*
+   * 条目必须**原样**进来（复审 A2）：预先 normalizeText 会把分隔符抹掉，
+   * 「A / B」变成拆不开的「ab」。这里对每个条目准备两把钥匙：
+   *   - 整串 key（artistKey）：兜住已被归一持久化的新形态条目与完全同名命中；
+   *   - 成员规范形（canonicalGroup）：拆合作者，顺序无关。
+   * 歌曲一侧除了这两把，再展开各合作者——屏蔽单人（「A」）要挡住合作曲。
+   * 不拿**条目的成员**当钥匙：屏蔽「A / B」不该连坐 A 的独唱。
+   */
+  let mutedKeys: Set<string> | null = null
   for (const entry of mutedEntries) {
-    const key = canonicalGroup(entry)
-    if (!key) continue
-    ;(mutedFull ??= new Set()).add(key)
+    const whole = artistKey(entry)
+    const canonical = canonicalGroup(entry)
+    if (!whole && !canonical) continue
+    ;(mutedKeys ??= new Set()).add(whole)
+    mutedKeys.add(canonical)
   }
-  if (!mutedFull?.size) return false
-  if (mutedFull.has(canonicalGroup(songArtist))) return true
+  if (!mutedKeys?.size) return false
+  if (mutedKeys.has(artistKey(songArtist))) return true
+  if (mutedKeys.has(canonicalGroup(songArtist))) return true
   for (const member of artistSet(songArtist)) {
-    if (mutedFull.has(member)) return true
+    if (mutedKeys.has(member)) return true
   }
   return false
 }

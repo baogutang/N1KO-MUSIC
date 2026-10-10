@@ -12,6 +12,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/services/storageKeys'
+import { normalizeText } from '@/utils/songIdentity'
 
 interface TasteState {
   /** 不再推荐的歌手（归一化键） */
@@ -28,6 +29,29 @@ function toggle(list: string[], key: string): string[] {
   return list.includes(key) ? list.filter(item => item !== key) : [...list, key]
 }
 
+/**
+ * 旧屏蔽键重归一（复审 A3）：v0 存的是 trim+lower（保留空格与分隔符），
+ * 画像键改为 normalizeText 后两者形状分叉——过滤仍生效（比较走
+ * artistBlockedBy 的兜底），但界面 `includes` 显示「未屏蔽」，且点一下
+ * 只加新键、再点只删新键，旧键永远删不掉。迁移把每个键重归一成新形态；
+ * 归一后为空的键丢弃。
+ */
+export function migrateTasteKeys(persisted: unknown): Pick<TasteState, 'mutedArtists' | 'mutedGenres'> {
+  const source = (persisted ?? {}) as { state?: { mutedArtists?: string[]; mutedGenres?: string[] } }
+  const renorm = (list: string[] | undefined): string[] => {
+    const seen = new Set<string>()
+    for (const key of list ?? []) {
+      const normalized = normalizeText(key)
+      if (normalized) seen.add(normalized)
+    }
+    return [...seen]
+  }
+  return {
+    mutedArtists: renorm(source.state?.mutedArtists),
+    mutedGenres: renorm(source.state?.mutedGenres),
+  }
+}
+
 export const useTasteStore = create<TasteState>()(
   persist(
     set => ({
@@ -37,7 +61,15 @@ export const useTasteStore = create<TasteState>()(
       toggleGenre: key => set(state => ({ mutedGenres: toggle(state.mutedGenres, key) })),
       clearAll: () => set({ mutedArtists: [], mutedGenres: [] }),
     }),
-    { name: STORAGE_KEYS.tasteStore }
+    {
+      name: STORAGE_KEYS.tasteStore,
+      version: 1,
+      migrate: (persisted, version) => {
+        if (version >= 1) return persisted as TasteState
+        /* v0：重归一旧键，界面的 includes 与 toggle 从此和画像键同一形态 */
+        return { ...(persisted as object), state: migrateTasteKeys(persisted) } as unknown as TasteState
+      },
+    }
   )
 )
 
