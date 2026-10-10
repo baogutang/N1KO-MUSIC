@@ -49,6 +49,7 @@ import {
   accumulateListenedDelta,
   buildLoadedKey,
   buildStreamCacheKey,
+  classifyStreamFailure,
   getFiniteDuration,
   isAtBufferedTail,
   isNearEndOfTrack,
@@ -697,19 +698,17 @@ export function useAudioEngine() {
         // 静默失败在用户眼里就是「点了没反应」——VIP/付费曲至少要说明原因
         const detail = e instanceof Error ? e.message : String(e)
         /**
-         * 「是不是权限问题」按**协议错误码**判（PluginCallError.code，PROTOCOL §7）。
-         *
-         * 原来匹配的是异常文本里的 `forbidden|无权|VIP|付费`：那是插件作者随手写的
-         * 自由文案，换个措辞（「仅限会员」「需要开通」）、换种语言就整条漏判，
-         * 于是既不给原因也不换源。文本只留作兜底——NAS 适配器抛的是 axios 错误，
-         * 身上没有 code。有 code 时它就是权威，不再拿文本去猜。
+         * 「是不是权限问题」按**协议错误码**判（PluginCallError.code，PROTOCOL §7），
+         * 分类逻辑抽在 classifyStreamFailure（utils/audioEngine.ts），那里有测试。
          */
         const code = (e as { code?: string } | null)?.code
-        const denied = code
-          ? code === 'forbidden' || code === 'unauthorized'
-          : /forbidden|无权|VIP|付费/i.test(detail)
+        const failureClass = classifyStreamFailure(code, detail)
+        const denied = failureClass === 'denied'
         // 音质切换途中失败不算跳歌场景：保持停在原处的原语义
         if (qualitySwitchResumeAt !== null) {
+          // 把 isPlaying 收回来：元素还握着旧流，但加载目标已经失败，
+          // 按钮停在「播放中」是在撒谎；收回后用户按播放可从旧流续听
+          usePlayerStore.getState().pause()
           toast({
             title: t('player.streamFailed', { title: capturedSong.title }),
             description: denied ? detail : undefined,
@@ -726,8 +725,7 @@ export function useAudioEngine() {
          * 报错只在**真的放不了**（所有源都试过）时说一次。
          * 除权限外，「这个源根本没有这一首」（not-found）同样值得换源再试。
          */
-        const worthFallback = denied
-          || (code ? code === 'not-found' : /not.?found/i.test(detail))
+        const worthFallback = failureClass === 'denied' || failureClass === 'not-found'
         if (worthFallback) {
           const index = usePlayerStore.getState().queueIndex
           if (!fallbackChain || fallbackChain.index !== index) {
@@ -748,6 +746,22 @@ export function useAudioEngine() {
           }
         }
 
+        /*
+         * 网络类错误（断网 / 超时 / 限频 / 未知）不是「这首坏了」：换哪首都一样。
+         * 原地暂停、说出原因，不计入连续失败——否则断网时连跳 MAX_AUTO_SKIPS 首
+         * 后弹「队列已停止」，用户会以为曲库坏了，其实只是网断了。
+         * 走到这里说明不是 denied / not-found（那两类在上面已走完换源链）。
+         */
+        if (!worthFallback) {
+          usePlayerStore.getState().pause()
+          toast({
+            title: t('player.streamNetworkHalted', { title: capturedSong.title }),
+            description: detail,
+            variant: 'destructive',
+          })
+          return
+        }
+
         toast({
           title: t('player.streamFailed', { title: capturedSong.title }),
           description: denied ? detail : undefined,
@@ -757,6 +771,9 @@ export function useAudioEngine() {
         consecutiveResolveFailures += 1
         if (consecutiveResolveFailures >= MAX_AUTO_SKIPS) {
           consecutiveResolveFailures = 0
+          // 停下时把 isPlaying 收回来：没有流在放，按钮停在「播放中」
+          // 会让按播放看起来失灵（见下方 play effect 的重载修复）
+          usePlayerStore.getState().pause()
           toast({ title: t('player.queueHalted'), variant: 'destructive' })
           return
         }
@@ -1467,7 +1484,16 @@ export function useAudioEngine() {
       audioEl.volume = targetVolume()
       if (!audioEl.paused) return
       // readyState < 2（HAVE_CURRENT_DATA）说明还没有足够数据，等 canplay 事件
-      if (audioEl.readyState < 2) return
+      if (audioEl.readyState < 2) {
+        // 但元素已死（src 被清 / 进入错误态）时 canplay 永远等不来：
+        // 失败停下后按播放应当重试加载，而不是毫无反应（isPlaying 卡在 true）。
+        // 正常缓冲期 src 还在，走不到这条。
+        const attrSrc = audioEl.getAttribute('src')
+        if ((!attrSrc || audioEl.error !== null) && usePlayerStore.getState().currentSong) {
+          usePlayerStore.getState().reloadCurrent()
+        }
+        return
+      }
       audioEl.play().catch(e => {
         if (e.name !== 'AbortError') {
           console.warn('[AudioEngine] play rejected:', e.message)

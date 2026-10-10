@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   accumulateListenedDelta,
+  classifyStreamFailure,
   buildLoadedKey,
   buildStreamCacheKey,
   DEFAULT_STREAM_TTL_MS,
@@ -299,5 +300,36 @@ describe('resolveStreamFromAdapter', () => {
     // 5 秒 < 30 秒 margin：解析完成的那一刻就已经在「即将过期」窗口内
     expect(isStreamExpired(resolved.expiresAt, now)).toBe(true)
     expect(isStreamExpired(resolved.expiresAt, now, 1_000)).toBe(false)
+  })
+})
+
+describe('classifyStreamFailure（阶段 1.2：断网不再连跳）', () => {
+  it('协议错误码是权威：权限类 → denied，值得换源', () => {
+    expect(classifyStreamFailure('forbidden', '任意文案')).toBe('denied')
+    expect(classifyStreamFailure('unauthorized', '任意文案')).toBe('denied')
+    // 即使文本里出现 not found 字样，code 优先
+    expect(classifyStreamFailure('forbidden', 'song not found here')).toBe('denied')
+  })
+
+  it('协议错误码 not-found → 值得换源', () => {
+    expect(classifyStreamFailure('not-found', '没有这首')).toBe('not-found')
+  })
+
+  it('network / rate-limited / unknown → transient：原地暂停，不计入连续失败', () => {
+    expect(classifyStreamFailure('network', 'Network Error')).toBe('transient')
+    expect(classifyStreamFailure('rate-limited', '频控')).toBe('transient')
+    expect(classifyStreamFailure('unknown', 'whatever')).toBe('transient')
+    expect(classifyStreamFailure('unsupported', '做不到')).toBe('transient')
+  })
+
+  it('无错误码（NAS 适配器的 axios 错误）退回文本匹配', () => {
+    expect(classifyStreamFailure(undefined, '仅限会员，无权播放')).toBe('denied')
+    expect(classifyStreamFailure(undefined, 'VIP 试听已到期')).toBe('denied')
+    expect(classifyStreamFailure(undefined, 'forbidden')).toBe('denied')
+    expect(classifyStreamFailure(undefined, 'Song not found')).toBe('not-found')
+    // axios 的断网与超时文案——正是连跳五首的元凶，必须落在 transient
+    expect(classifyStreamFailure(undefined, 'Network Error')).toBe('transient')
+    expect(classifyStreamFailure(undefined, 'timeout of 30000ms exceeded')).toBe('transient')
+    expect(classifyStreamFailure(undefined, 'connect ECONNREFUSED 127.0.0.1:4533')).toBe('transient')
   })
 })

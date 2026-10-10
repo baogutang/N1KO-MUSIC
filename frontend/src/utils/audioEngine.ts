@@ -172,6 +172,27 @@ export function isPrematureEnd(endedAt: number, metaDuration: number): boolean {
 }
 
 /**
+ * 取流失败按「下一步该做什么」分类：
+ * - denied：有凭据但无权（会员曲、地区限制、凭据失效）→ 值得换源再试
+ * - not-found：这个源没有这一首 → 值得换源再试
+ * - transient：断网 / 超时 / 限频 / 未知 → 换哪首都一样，原地暂停报原因，
+ *   不计入连续失败（断网连跳五首再弹「队列已停止」是把网络问题伪装成曲库问题）
+ *
+ * 有协议错误码（PluginCallError.code，PROTOCOL §7）时它是权威；
+ * 没有时（NAS 适配器抛 axios 错误）退回文本匹配。
+ */
+export type StreamFailureClass = 'denied' | 'not-found' | 'transient'
+
+export function classifyStreamFailure(code: string | undefined, detail: string): StreamFailureClass {
+  if (code === 'forbidden' || code === 'unauthorized') return 'denied'
+  if (code === 'not-found') return 'not-found'
+  if (code) return 'transient'
+  if (/forbidden|无权|VIP|付费/i.test(detail)) return 'denied'
+  if (/not.?found/i.test(detail)) return 'not-found'
+  return 'transient'
+}
+
+/**
  * 停滞位置是否已接近曲目结尾（可安全视为自然播完）。
  * 时长不可靠时一律返回 false —— 宁可让用户手动切歌，也不能从头重播。
  */

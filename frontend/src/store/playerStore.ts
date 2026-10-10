@@ -165,6 +165,8 @@ interface PlayerState {
   togglePlay: () => void
   pause: () => void
   resume: () => void
+  /** 失败停下后按播放：不换歌，只 bump playVersion 重走加载 */
+  reloadCurrent: () => void
   /**
    * 切下一首。
    *
@@ -300,6 +302,14 @@ export const usePlayerStore = create<PlayerState>()(
 
       pause: () => set({ isPlaying: false }),
       resume: () => set({ isPlaying: true }),
+      /**
+       * 失败停下后的「按播放重试」：不换歌，只 bump playVersion 触发加载
+       * effect 重新走一遍取流。加载失败分支已把 isPlaying 收回，此时按钮
+       * 指向「播放」；用户按下去不该毫无反应。
+       */
+      reloadCurrent: () => {
+        if (get().currentSong) set(state => ({ playVersion: state.playVersion + 1 }))
+      },
 
       next: (options?: { auto?: boolean }) => {
         if (!canSwitch()) return

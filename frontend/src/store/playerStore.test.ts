@@ -1011,3 +1011,30 @@ describe('adoptLegacySongSource（v1.10.0 队列升级迁移）', () => {
     expect(state().queue[0].serverId).toBeUndefined()
   })
 })
+
+describe('reloadCurrent（阶段 1.3：失败停下后按播放要能重试）', () => {
+  beforeEach(resetStore)
+
+  it('有当前曲目时 bump playVersion 触发重新加载，不换歌不换队', () => {
+    seedQueue(2, 1)
+    const versionBefore = state().playVersion
+
+    state().reloadCurrent()
+
+    const after = state()
+    expect(after.playVersion).toBe(versionBefore + 1)
+    // 只是重载：歌、队列、下标都不动
+    expect(after.currentSong?.id).toBe('s1')
+    expect(after.queueIndex).toBe(1)
+    expect(queueIds()).toEqual(['s0', 's1'])
+  })
+
+  it('没有当前曲目时是 no-op（不产生无人消费的 playVersion）', () => {
+    expect(state().currentSong).toBeNull()
+    const versionBefore = state().playVersion
+
+    state().reloadCurrent()
+
+    expect(state().playVersion).toBe(versionBefore)
+  })
+})
