@@ -20,6 +20,7 @@ import { ArrowsClockwise } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { EmptyState } from '@/components/common/EmptyState'
+import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
 import {
   interleaveRecommendations,
@@ -207,18 +208,3 @@ function SourceChip({ serverId, label, selected, onSelect }: {
 }
 
 /** 曲目加载骨架：hair-soft 行闪烁（DESIGN §4.5） */
-function SongRowsSkeleton({ rows }: { rows: number }) {
-  return (
-    <div className="border-t border-hair">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-3 py-3 border-b border-hair-soft">
-          <span className="w-8 h-3 rounded-sm bg-skeleton animate-pulse" />
-          <span className="w-10 h-10 rounded-sm bg-skeleton animate-pulse" />
-          <span className="flex-1 h-4 rounded-sm bg-skeleton animate-pulse" />
-          <span className="hidden lg:block flex-1 h-3.5 rounded-sm bg-skeleton animate-pulse" />
-          <span className="w-12 h-3.5 rounded-sm bg-skeleton animate-pulse" />
-        </div>
-      ))}
-    </div>
-  )
-}

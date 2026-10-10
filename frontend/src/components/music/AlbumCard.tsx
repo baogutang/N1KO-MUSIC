@@ -8,6 +8,7 @@ import { Play } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { CoverCard } from '@/components/common/CoverCard'
 import { usePlayerStore } from '@/store/playerStore'
 import { findAdapterFor, getAdapterFor } from '@/api'
 import type { Album, Song } from '@/api/types'
@@ -56,31 +57,23 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
   // 详情按专辑来源解析（多源下主库路由会打错适配器）；缓存键同样带来源
   const detailHref = `/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`
 
+  /* 外壳与封面砖样式收敛到 CoverCard（阶段 7.4），播放键与图注是本卡的语义 */
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      className={cn('group cursor-pointer min-w-0', className)}
+    <CoverCard
+      className={className}
+      aria-label={album.name}
       onClick={() => navigate(detailHref)}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          navigate(detailHref)
-        }
-      }}
-    >
-      {/* 封面砖：编辑风 hover 微放大；波普是描边实体块，hover 往左上抬起（见 .cover-tile） */}
-      <div className="relative mb-2.5">
-        <div className="cover-tile aspect-square overflow-hidden rounded-md ring-1 ring-hair-soft pop:ring-0">
-          <ImageWithFallback
-            src={coverUrl}
-            alt={album.name}
-            fallbackType="album"
-            className="w-full h-full object-cover"
-            customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
-          />
-        </div>
-        {/* 播放键：细线圆，hover 浮现；再 hover 填充 accent */}
+      tile={
+        <ImageWithFallback
+          src={coverUrl}
+          alt={album.name}
+          fallbackType="album"
+          className="w-full h-full object-cover"
+          customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
+        />
+      }
+      overlay={
+        /* 播放键：细线圆，hover 浮现；再 hover 填充 accent */
         <button
           onClick={handlePlay}
           aria-label={t('album.playWhole')}
@@ -88,20 +81,14 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
         >
           <Play className="w-3.5 h-3.5 ml-px" weight="fill" />
         </button>
-      </div>
-
-      {/* 图注：衬线专辑名 + 小字歌手 */}
-      <div className="min-w-0 px-0.5">
-        <p className="font-serif font-semibold text-[15px] leading-snug text-foreground truncate group-hover:text-primary transition-colors">
-          {spaceCJK(album.name)}
-        </p>
-        <p className="text-xs text-ink-soft mt-0.5 truncate">
-          {spaceCJK(album.artist)}
-          {album.year && (
-            <span className="ml-1 font-num text-ink-faint">· {album.year}</span>
-          )}
-        </p>
-      </div>
-    </div>
+      }
+      title={spaceCJK(album.name)}
+      meta={
+        <>
+          <span className="text-ink-soft">{spaceCJK(album.artist)}</span>
+          {album.year && <span className="ml-1 font-num text-ink-faint">· {album.year}</span>}
+        </>
+      }
+    />
   )
 }

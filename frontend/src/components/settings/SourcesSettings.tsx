@@ -306,7 +306,7 @@ export function SourcesSettings() {
             <div key={plugin.id} className="border-b border-hair-soft py-4">
               <div className="flex items-stretch justify-between gap-4">
                 <div className="flex min-w-0 items-stretch gap-3">
-                  <span className={cn('w-[2px] flex-shrink-0', accounts.length > 0 ? 'bg-primary' : 'bg-transparent')} />
+                  <span className={cn('w-[2px] flex-shrink-0', accounts.length > 0 ? 'bg-sem-connected' : 'bg-transparent')} />
                   <div className="min-w-0 py-0.5">
                     <p className="truncate text-sm font-medium">
                       {plugin.name}

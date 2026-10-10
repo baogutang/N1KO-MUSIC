@@ -4,8 +4,8 @@
  */
 
 import { useNavigate } from 'react-router-dom'
-import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { CoverCard } from '@/components/common/CoverCard'
 import { findAdapterFor } from '@/api'
 import type { Artist } from '@/api/types'
 import { useT } from '@/i18n'
@@ -24,14 +24,15 @@ export function ArtistCard({ artist, className }: ArtistCardProps) {
       ? (findAdapterFor(artist.serverId)?.getCoverUrl(artist.coverArt, 300) ?? undefined)
       : undefined)
 
+  /* 外壳收敛到 CoverCard（round：歌手语境的圆形头像），居中图注 */
   return (
-    <button
-      type="button"
-      className={cn('group cursor-pointer text-center min-w-0 w-full', className)}
+    <CoverCard
+      round
+      centered
+      className={className}
+      aria-label={artist.name}
       onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
-    >
-      {/* 圆形头像：发丝 ring，hover 微放大 */}
-      <div className="relative aspect-square overflow-hidden rounded-full mb-2.5 ring-1 ring-hair-soft transition-transform duration-300 ease-out group-hover:scale-[1.03]">
+      tile={
         <ImageWithFallback
           src={imageUrl}
           alt={artist.name}
@@ -39,17 +40,11 @@ export function ArtistCard({ artist, className }: ArtistCardProps) {
           className="w-full h-full object-cover"
           customCoverParams={{ type: 'artist', artist: artist.name }}
         />
-      </div>
-
-      {/* 图注：衬线歌手名 + mono 数量 */}
-      <p className="font-serif font-semibold text-[15px] leading-snug text-foreground truncate group-hover:text-primary transition-colors">
-        {artist.name}
-      </p>
-      {artist.albumCount !== undefined && (
-        <p className="text-xs text-ink-faint mt-0.5">
-          {t('artist.albumCountShort', { count: artist.albumCount ?? 0 })}
-        </p>
-      )}
-    </button>
+      }
+      title={artist.name}
+      {...(artist.albumCount !== undefined
+        ? { meta: <span className="font-num">{t('artist.albumCountShort', { count: artist.albumCount ?? 0 })}</span> }
+        : {})}
+    />
   )
 }

@@ -585,7 +585,7 @@ export function FullscreenPlayer() {
                   className={cn(
                     lineCircleBtn,
                     'w-8 h-8',
-                    currentSong.starred && 'text-primary border-primary'
+                    currentSong.starred && 'text-sem-fav border-sem-fav'
                   )}
                   aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
                 >
@@ -882,7 +882,7 @@ export function FullscreenPlayer() {
         {/* 右列：歌词流（上下 22% 渐隐由 LyricDisplay 处理） */}
         <div className="hidden md:flex flex-1 max-w-xl self-stretch min-h-0 flex-col">
           <p className="flex items-center gap-3.5 flex-none pb-2 text-[11px] tracking-[0.34em] text-ink-faint select-none">
-            <span className="whitespace-nowrap">{t('player.lyricsHeading')}</span>
+            <span className="whitespace-nowrap">{t('player.lyricsHeading')}<span className="latin-tag"> · LYRICS</span></span>
             <span className="flex-1 h-px bg-hair-soft" />
           </p>
           {lyrics ? (

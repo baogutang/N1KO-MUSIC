@@ -524,7 +524,7 @@ export default function LoginPage() {
             {servers.length > 0 && (
               <div className="mb-10">
                 <p className="mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
-                  {t('login.savedServers')}
+                  {t('login.savedServers')}<span className="latin-tag"> · SAVED</span>
                 </p>
                 <ol className="border-t border-hair">
                   {servers.map((server, i) => (
@@ -582,7 +582,7 @@ export default function LoginPage() {
 
             {/* 服务器类型：发丝线行式单选（当前项 accent + 左 2px 竖线） */}
             <p className="mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
-              {t('login.serverType')}
+              {t('login.serverType')}<span className="latin-tag"> · SERVER TYPE</span>
             </p>
             <div className="border-t border-hair">
               {SERVER_TYPES.map(({ type, label, descKey }) => {
@@ -629,7 +629,7 @@ export default function LoginPage() {
                 这里原来在 JSX 里拼了一截硬编码的「· STREAMING」——那个后缀是版式的
                 一部分，留在代码里等于把它排除在翻译之外 */}
             <p className="mt-10 mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
-              {t('sources.group')}
+              {t('sources.group')}<span className="latin-tag"> · STREAMING</span>
             </p>
             {/*
               正式版的纯浏览器没有能带 Cookie 的出网通道（见 lib/platform 的

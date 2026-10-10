@@ -29,6 +29,7 @@ const SECTION_KEYS: Array<[RegExp, string]> = [
   [/^\/stats/, 'nav.stats'],
   [/^\/issue/, 'nav.issue'],
   [/^\/search/, 'section.search'],
+  [/^\/toplists/, 'sources.topLists'],
   [/^\/songs\//, 'nav.songDetail'],
   [/^\/settings/, 'nav.settings'],
 ]

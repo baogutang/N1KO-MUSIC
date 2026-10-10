@@ -120,7 +120,7 @@ export default function History() {
           </h1>
           {history.length > 0 && (
             <p className="mt-1.5 text-sm text-ink-faint">
-              {t('history.recordCount', { count: history.length })}
+              <span className="font-num">{t('history.recordCount', { count: history.length })}</span>
               {visible.length < history.length && (
                 <span> · {t('history.shownCount', { count: visible.length })}</span>
               )}

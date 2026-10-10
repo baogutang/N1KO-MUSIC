@@ -19,6 +19,7 @@ import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
+import { ErrorState } from '@/components/common/ErrorState'
 import { useT } from '@/i18n'
 import type { SourceCapabilities } from '@/api/types'
 import { sourceParam } from '@/lib/sourceParam'
@@ -123,7 +124,7 @@ export default function PlaylistDetail() {
     return (
       <div className="pt-6 animate-fade-in">
         {backLink}
-        <EmptyState title={t('empty.loadFailed.title')} description={t('empty.loadFailed.description')} />
+        <ErrorState onBack={() => navigate(-1)} />
       </div>
     )
   }
@@ -152,7 +153,7 @@ export default function PlaylistDetail() {
           {/* 页眉带来源：混源之后「这是谁家的歌单」是理解本页一切行为的前提，
               包括为什么这里没有「移除」 */}
           <p className="mb-4 flex items-center gap-3 text-[11px] tracking-[0.3em] text-primary">
-            {t('playlist.kicker')}
+            {t('playlist.kicker')}<span className="latin-tag"> · PLAYLIST</span>
             <span className="h-px w-10 bg-primary" aria-hidden="true" />
             <SourceBadge serverId={playlist.serverId} withName className="tracking-[0.08em]" />
           </p>

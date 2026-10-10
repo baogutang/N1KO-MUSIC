@@ -13,6 +13,7 @@ import { Heart, MusicNotes, Play, Shuffle } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { CoverCard } from '@/components/common/CoverCard'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SourceGroupState, groupStateStatus } from '@/components/sources/SourceGroupState'
@@ -341,30 +342,29 @@ function MiniSheetCard({ playlist, serverId }: { playlist: Playlist; serverId: s
   const cover = playlist.coverArt
     ? (findAdapterFor(playlist.serverId)?.getCoverUrl(playlist.coverArt, 160) ?? playlist.coverArt)
     : undefined
+  /* 外壳收敛到 CoverCard（阶段 7.4）；角上的音源标识是这层独有的浮层 */
   return (
-    <button
-      className="group text-left min-w-0"
+    <CoverCard
+      aria-label={playlist.name}
       onClick={() => navigate(`/playlists/${playlist.id}?src=${encodeURIComponent(playlist.serverId)}`)}
-    >
-      <div className="relative aspect-square rounded-sm overflow-hidden ring-1 ring-hair-soft mb-2 transition-transform duration-300 group-hover:scale-[1.03] pop:border pop:border-hair pop:ring-0">
+      tileClassName="rounded-sm"
+      tile={
         <ImageWithFallback
           src={cover}
           alt={playlist.name}
           fallbackType="album"
-          className={cn('w-full h-full object-cover')}
+          className="w-full h-full object-cover"
         />
+      }
+      overlay={
         <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-sm bg-paper/85 backdrop-blur-sm px-1.5 py-0.5">
           <SourceBadge serverId={serverId} />
         </span>
-      </div>
-      <p className="text-[13px] font-serif font-semibold line-clamp-1 group-hover:text-primary transition-colors">
-        {playlist.name}
-      </p>
-      {playlist.songCount !== undefined && (
-        <p className="num text-[10.5px] tracking-[0.1em] text-ink-faint mt-0.5">
-          {t('song.trackCount', { count: playlist.songCount })}
-        </p>
-      )}
-    </button>
+      }
+      title={playlist.name}
+      {...(playlist.songCount !== undefined
+        ? { meta: <span className="font-num tracking-[0.1em] text-[10.5px]">{t('song.trackCount', { count: playlist.songCount })}</span> }
+        : {})}
+    />
   )
 }

@@ -116,7 +116,7 @@ export default function IssuePage() {
           <article className="grid grid-cols-1 items-start gap-10 border-b border-hair py-11 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:gap-14">
             <div className="min-w-0">
               <p className="mb-5 flex items-center gap-3.5 text-[11px] tracking-[0.34em] text-primary">
-                {t('issue.editorsNote')}
+                {t('issue.editorsNote')}<span className="latin-tag"> · EDITOR'S NOTE</span>
                 <span aria-hidden className="h-px w-14 bg-primary" />
               </p>
               <p className="max-w-[34em] font-serif text-[17px] leading-[1.9] text-ink">
@@ -175,7 +175,7 @@ export default function IssuePage() {
           {issue.superlatives.length > 0 && (
             <section className="border-b border-hair py-9" aria-labelledby="issue-superlatives">
               <h2 id="issue-superlatives" className="mb-5 text-[10.5px] uppercase tracking-[0.26em] text-ink-faint">
-                {t('issue.superlatives')}
+                {t('issue.superlatives')}<span className="latin-tag"> · SUPERLATIVES</span>
               </h2>
               <dl className="grid grid-cols-1 gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
                 {issue.superlatives.map(item => (

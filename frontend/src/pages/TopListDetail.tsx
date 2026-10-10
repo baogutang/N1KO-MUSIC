@@ -13,6 +13,8 @@ import { SourceBadge } from '@/components/sources/SourceBadge'
 import { useSourceTopLists, useTopListDetail } from '@/hooks/useSourceQueries'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { EmptyState } from '@/components/common/EmptyState'
+import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
+import { ErrorState } from '@/components/common/ErrorState'
 import { useT } from '@/i18n'
 
 export default function TopListDetail() {
@@ -55,33 +57,49 @@ export default function TopListDetail() {
     </button>
   )
 
+  /*
+   * 版式与其它详情页同一规格（阶段 7.2）：眉题（主词 + latin-tag 拉丁半边）、
+   * 大号衬线标题（长 CJK 名 truncate + min-w-0）、font-num 计数。
+   * 原先是一行 28px 小标题，连「这是榜单」的栏目感都没有。
+   */
   const header = (
-    <div className="pt-8 pb-8 border-b border-hair flex items-end gap-5">
+    <div className="pt-8 pb-8 border-b border-hair">
       {backLink}
-      <div className="flex-1 min-w-0">
-        <h1 className="font-serif text-[28px] font-bold flex items-center gap-3">
-          {listName ?? t('sources.topListDetail')}
-          <SourceBadge serverId={sourceId} withName />
-        </h1>
-      </div>
-      {songs && songs.length > 0 && (
-        <div className="flex items-center gap-6 pb-1.5">
-          <button
-            className="more inline-flex items-center gap-1.5"
-            onClick={() => playAllInOrder(songs, 0)}
-          >
-            <Play size={12} />
-            {t('player.playAll')}
-          </button>
-          <button
-            className="more inline-flex items-center gap-1.5"
-            onClick={() => playAllShuffled(songs, 0)}
-          >
-            <Shuffle size={12} />
-            {t('player.shuffle')}
-          </button>
+      <div className="mt-4 flex items-start justify-between gap-5">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">
+            {t('sources.topListEyebrow')}
+            <span className="latin-tag"> · CHARTS</span>
+          </p>
+          <h1 className="mt-3 flex min-w-0 items-center gap-3 font-serif text-3xl font-black tracking-[-0.01em] text-ink lg:text-4xl">
+            <span className="truncate">{listName ?? t('sources.topListDetail')}</span>
+            <SourceBadge serverId={sourceId} className="flex-shrink-0" />
+          </h1>
+          {songs && songs.length > 0 && (
+            <p className="mt-3 font-num text-xs tracking-[0.06em] text-ink-faint">
+              {t('song.trackCount', { count: songs.length })}
+            </p>
+          )}
         </div>
-      )}
+        {songs && songs.length > 0 && (
+          <div className="flex flex-shrink-0 items-center gap-6 pt-6">
+            <button
+              className="more inline-flex items-center gap-1.5"
+              onClick={() => playAllInOrder(songs, 0)}
+            >
+              <Play size={12} />
+              {t('player.playAll')}
+            </button>
+            <button
+              className="more inline-flex items-center gap-1.5"
+              onClick={() => playAllShuffled(songs, 0)}
+            >
+              <Shuffle size={12} />
+              {t('player.shuffle')}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 
@@ -97,12 +115,7 @@ export default function TopListDetail() {
           /* 出错和榜单为空是两件事。合在一起说的话，一次网络抖动看起来就像
              「这个榜今天没有内容」，用户既不知道该重试，也没有重试的入口。
              裸异常同理：插件抛的是英文开发者串，摆在正式界面上帮不了任何人。 */
-          <EmptyState
-            ruled
-            title={t('error.load.title')}
-            description={t('error.load.description')}
-            action={{ label: t('action.retry'), onClick: () => { void refetch() } }}
-          />
+          <ErrorState retry={() => { void refetch() }} />
         ) : !songs?.length ? (
           <EmptyState
             title={t('sources.topListEmptyTitle')}
@@ -122,19 +135,3 @@ export default function TopListDetail() {
   )
 }
 
-/** 曲目加载骨架：hair-soft 行闪烁（DESIGN §4.5） */
-function SongRowsSkeleton({ rows }: { rows: number }) {
-  return (
-    <div className="border-t border-hair">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-3 py-3 border-b border-hair-soft">
-          <span className="w-8 h-3 rounded-sm bg-skeleton animate-pulse" />
-          <span className="w-10 h-10 rounded-sm bg-skeleton animate-pulse" />
-          <span className="flex-1 h-4 rounded-sm bg-skeleton animate-pulse" />
-          <span className="hidden lg:block flex-1 h-3.5 rounded-sm bg-skeleton animate-pulse" />
-          <span className="w-12 h-3.5 rounded-sm bg-skeleton animate-pulse" />
-        </div>
-      ))}
-    </div>
-  )
-}

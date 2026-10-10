@@ -211,3 +211,7 @@
 - 6.11 SW（推断）：Tauri 壳内 UpdatePrompt 不注册 SW（Capacitor 构建本就没有）；globIgnores plugins/**。无法离线验证 SW 行为，逻辑改动极小。
 - 6.9 的跨 IP 锁测试用 127.0.0.1 与 [::1] 双栈回环构造两个来源地址；无 IPv6 环境自动跳过。
 - **不做（按任务书）**：Tauri Keychain / Capacitor Keystore 存凭据（deviceKey.ts 仍走加密 localStorage）——工作量大、密钥丢失会把所有用户锁在外面，需要单独设计恢复流程，后续项。Jellyfin 限码率走 HLS 而无 hls.js：未验证（无实机），维持现状。
+
+## 2026-10-10 · 阶段 7 · CoverCard 收敛范围
+- AlbumCard / ArtistCard / MiniSheetCard 已收敛到共享的 CoverCard（.cover-tile 皮肤差异、键盘可达、focus-visible 环全部归一）。
+- Playlists 的本地卡与服务器歌单卡本轮只做键盘可达（role+tabIndex+Enter/Space，原 div+onClick 键盘永远点不进）；它们的浮层差异大（播放组 + 删除菜单 + 智能歌单徽标 + 只读说明），硬塞进 CoverCard 的 slot 回归面大于收益，保留定制浮层，待下一轮浮层 slot 设计后再并。AddToPlaylistDialog 的卡本来就是 button，已可达。

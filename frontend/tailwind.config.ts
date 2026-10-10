@@ -33,6 +33,13 @@ export default {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
         },
+        /* 语义状态色（阶段 7.5）：皮肤无关的 playing/connected/fav/error */
+        sem: {
+          playing: 'hsl(var(--sem-playing))',
+          connected: 'hsl(var(--sem-connected))',
+          fav: 'hsl(var(--sem-fav))',
+          error: 'hsl(var(--sem-error))',
+        },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
           foreground: 'hsl(var(--secondary-foreground))',

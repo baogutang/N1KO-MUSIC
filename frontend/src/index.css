@@ -97,6 +97,12 @@
 
   --primary: 11 62% 44%;       /* 朱红 accent */
   --primary-foreground: 43 36% 92%;
+  /* 语义状态色（阶段 7.5）：播放/收藏走主强调色，已连接是墨绿，错误归 destructive。
+     皮肤各给值；这里与 --primary 同源（单一强调色原则）。 */
+  --sem-playing: 11 62% 44%;
+  --sem-fav: 11 62% 44%;
+  --sem-connected: 150 22% 32%;
+  --sem-error: 13 66% 37%;
 
   --secondary: 41 32% 88%;     /* paper-deep */
   --secondary-foreground: 36 14% 10%;
@@ -152,6 +158,10 @@
 
   --primary: 13 67% 55%;
   --primary-foreground: 36 14% 10%;
+  --sem-playing: 13 67% 55%;
+  --sem-fav: 13 67% 55%;
+  --sem-connected: 150 20% 52%;
+  --sem-error: 6 72% 62%;
 
   --secondary: 38 19% 11%;
   --secondary-foreground: 43 39% 88%;
@@ -274,6 +284,10 @@ html[data-skin='pop']:not(.dark) {
   --popover-foreground: 30 4% 10%;
 
   --primary: 243 75% 59%;
+  --sem-playing: 243 75% 59%;
+  --sem-fav: 243 75% 59%;
+  --sem-connected: 150 45% 42%;
+  --sem-error: 10 79% 43%;
   --primary-foreground: 40 100% 97%;
 
   --secondary: 38 56% 88%;
@@ -365,6 +379,10 @@ html[data-skin='pop'].dark {
   --popover-foreground: 37 49% 92%;
 
   --primary: 243 100% 82%;
+  --sem-playing: 243 100% 82%;
+  --sem-fav: 243 100% 82%;
+  --sem-connected: 150 45% 60%;
+  --sem-error: 10 100% 72%;
   --primary-foreground: 249 27% 10%;
 
   --secondary: 240 14% 14%;
@@ -520,6 +538,10 @@ html[data-skin='clay']:not(.dark) {
   --popover-foreground: 24 22% 24%;
 
   --primary: 14 63% 41%;
+  --sem-playing: 14 63% 41%;
+  --sem-fav: 14 63% 41%;
+  --sem-connected: 150 20% 34%;
+  --sem-error: 346 52% 41%;
   --primary-foreground: 35 100% 98%;
 
   --secondary: 34 52% 89%;
@@ -634,6 +656,10 @@ html[data-skin='clay'].dark {
   --popover-foreground: 31 51% 91%;
 
   --primary: 20 67% 63%;
+  --sem-playing: 20 67% 63%;
+  --sem-fav: 20 67% 63%;
+  --sem-connected: 150 25% 55%;
+  --sem-error: 348 79% 72%;
   --primary-foreground: 20 14% 12%;
 
   --secondary: 21 13% 22%;

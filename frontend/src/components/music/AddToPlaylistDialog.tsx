@@ -11,6 +11,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { ErrorState } from '@/components/common/ErrorState'
+import { useQueryClient } from '@tanstack/react-query'
 import { HardDrive, Plus } from '@phosphor-icons/react'
 import { useCreatePlaylist, useAddToPlaylist } from '@/hooks/useServerQueries'
 import {
@@ -134,6 +136,11 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
   const primaryServerId = useServerStore(s => s.activeServerId)
 
   const groups = useSourcePlaylists()
+  const queryClient = useQueryClient()
+  /** 分节加载失败的重试：失效各源的 playlists 族（阶段 7.1） */
+  const refetchSections = () =>
+    Promise.all(groups
+      .map(g => queryClient.invalidateQueries({ queryKey: [g.serverId, 'playlists'] })))
   const caps = useSourceCapabilities()
   const plan = useMemo(
     () => resolvePlaylistTargets(songs, primaryServerId, groups, caps),
@@ -243,7 +250,7 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
               </div>
             ))
           ) : section.status === 'error' ? (
-            <p className="px-2 py-4 text-[13px] text-ink-faint">{t('sources.loadError')}</p>
+            <ErrorState retry={() => { void refetchSections() }} />
           ) : section.playlists.length ? (
             section.playlists.map((pl, i) => (
               <button

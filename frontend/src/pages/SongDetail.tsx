@@ -391,7 +391,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
             <div className="flex-shrink-0 flex flex-col min-h-0">
               <div className="flex items-baseline justify-between mb-2 flex-shrink-0">
                 <p className="text-xs text-ink-faint">
-                  {t('lyrics.resultCount', { count: searchResults.length })}
+                  <span className="font-num">{t('lyrics.resultCount', { count: searchResults.length })}</span>
                 </p>
                 <p className="text-[10px] tracking-[0.18em] text-ink-faint">{t('lyrics.scoreAndDelta')}</p>
               </div>

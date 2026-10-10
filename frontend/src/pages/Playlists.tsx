@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { ImportPlaylistDialog } from '@/components/music/ImportPlaylistDialog'
 import { EmptyState } from '@/components/common/EmptyState'
+import { ErrorState } from '@/components/common/ErrorState'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
 
@@ -234,8 +235,17 @@ export default function Playlists() {
               {localPlaylists.map(pl => (
                 <div
                   key={pl.id}
-                  className="group cursor-pointer min-w-0"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={pl.name}
+                  className="group cursor-pointer min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   onClick={() => setViewingLocal(pl.id)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setViewingLocal(pl.id)
+                    }
+                  }}
                 >
                   <div className="relative mb-2.5">
                     <div className="aspect-square rounded-md ring-1 ring-hair-soft bg-paper-deep transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:shadow-float flex items-center justify-center pop:border pop:border-hair pop:ring-0">
@@ -269,14 +279,26 @@ export default function Playlists() {
               </div>
             )}
             {section.status === 'error' && (
-              <p className="py-3 text-[13px] text-ink-faint border-t border-hair">{t('sources.loadError')}</p>
+              <div className="col-span-full">
+                <ErrorState retry={() => { void refetchAll() }} />
+              </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
               {section.items.map(pl => (
             <div
               key={`${section.serverId}:${pl.id}`}
-              className="group cursor-pointer min-w-0"
+              role="button"
+              tabIndex={0}
+              aria-label={pl.name}
+              className="group cursor-pointer min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               onClick={() => navigate(`/playlists/${pl.id}?src=${encodeURIComponent(pl.serverId)}`)}
+              onKeyDown={e => {
+                /* 键盘可达（阶段 7.4）：此前 div+onClick 键盘用户永远点不进歌单 */
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  navigate(`/playlists/${pl.id}?src=${encodeURIComponent(pl.serverId)}`)
+                }
+              }}
             >
               {/* 封面：发丝 ring，hover 微放大 + 唯一允许的淡投影 */}
               <div className="relative mb-2.5">

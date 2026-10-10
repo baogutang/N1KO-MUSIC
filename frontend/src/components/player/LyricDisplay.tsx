@@ -137,7 +137,10 @@ export const LyricDisplay = memo(function LyricDisplay({
     armProgrammaticSettle()
     container.scrollTo({
       top: Math.max(0, targetScrollTop),
-      behavior: 'smooth',
+      /* 前庭安全（阶段 7.6）：系统开了「减少动态」就直跳，不做平滑滚动 */
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth',
     })
   }, [currentIndex, isSynced, armProgrammaticSettle])
 

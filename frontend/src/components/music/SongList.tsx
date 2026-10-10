@@ -724,7 +724,7 @@ const SongRow = React.memo(function SongRow({
           <span
             className={cn(
               'font-num text-xs group-hover:opacity-0 transition-opacity duration-200',
-              isCurrentSong ? 'text-primary' : 'text-ink-faint'
+              isCurrentSong ? 'text-sem-playing' : 'text-ink-faint'
             )}
           >
             {isPlaying && isCurrentSong ? (
@@ -772,7 +772,7 @@ const SongRow = React.memo(function SongRow({
       <div className="flex-1 min-w-0">
         <p className={cn(
           'song-title font-serif text-[15px] font-semibold leading-snug line-clamp-1 transition-colors',
-          isCurrentSong ? 'text-primary' : 'text-foreground'
+          isCurrentSong ? 'text-sem-playing' : 'text-foreground'
         )}>
           {spaceCJK(song.title)}
           {/* VIP 标识抽成 VipTag（队列抽屉 / 播放条共用同一枚，样式见那里） */}
@@ -882,7 +882,7 @@ const SongRow = React.memo(function SongRow({
 
           {canFavorite && (
             <DropdownMenuItem onClick={handleToggleStar} className="gap-2">
-              <Heart className={cn('w-4 h-4', localStarred ? 'text-primary' : '')} weight={localStarred ? 'fill' : 'regular'} />
+              <Heart className={cn('w-4 h-4', localStarred ? 'text-sem-fav' : '')} weight={localStarred ? 'fill' : 'regular'} />
               {localStarred ? t('player.unfavorite') : t('player.favorite')}
             </DropdownMenuItem>
           )}

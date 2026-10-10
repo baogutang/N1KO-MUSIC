@@ -166,7 +166,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
           <Heart
             size={26}
             weight={currentSong.starred ? 'fill' : 'regular'}
-            className={currentSong.starred ? 'text-primary' : 'text-ink'}
+            className={currentSong.starred ? 'text-sem-fav' : 'text-ink'}
           />
         </button>
         <button

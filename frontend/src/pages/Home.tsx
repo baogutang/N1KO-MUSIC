@@ -110,7 +110,7 @@ export default function HomePage() {
         <article data-clay-span="full" className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] items-center gap-10 lg:gap-14 pt-10 pb-12 border-b border-hair pop:border-b-0 pop:pb-8">
           <div className="min-w-0">
             <p className="flex items-center gap-3.5 mb-5 text-[11px] tracking-[0.34em] text-primary pop:mb-6">
-              <span className="sticker">{t('home.featuredAlbum')}</span>
+              <span className="sticker">{t('home.featuredAlbum')}<span className="latin-tag"> · FEATURED ALBUM</span></span>
               <span aria-hidden className="h-px w-14 bg-primary pop:hidden" />
             </p>
             <h1

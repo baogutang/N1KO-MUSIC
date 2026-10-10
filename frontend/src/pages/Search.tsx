@@ -27,6 +27,7 @@ import { mergeSongs, normalizeText } from '@/plugins/match'
 import type { Album, Artist, Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
+import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
 import { useT } from '@/i18n'
 
 type SearchView = 'all' | 'grouped'
@@ -537,10 +538,13 @@ export default function SearchPage() {
             <div className="section-head">
               <h2 id={`search-${g.serverId}`} className="flex items-center gap-2.5">
                 <SourceBadge serverId={g.serverId} withName />
-                {/* 原来是硬编码的 'PLUGIN' / 'NAS'：既没进词条，说的也是
-                    实现里的类型名。改成界面统一的说法——插件叫「音源」，
-                    NAS 类服务端才叫「服务器」。 */}
-                <small>{g.type === 'plugin' ? t('sources.typeLabel') : t('sources.typeLabelNas')}</small>
+                {/* 类型是**状态/类型标记**，不能放进 <small>（阶段 7.3）：
+                    那是双语报头的拉丁半边（.latin-tag 同款），软陶皮肤与
+                    非中文界面下 display:none——标记被自己的皮肤规则藏掉。
+                    换成常驻的细线小徽标。 */}
+                <span className="rounded-[2px] border border-hair px-1.5 py-px text-[10px] font-medium tracking-[0.08em] text-ink-faint">
+                  {g.type === 'plugin' ? t('sources.typeLabel') : t('sources.typeLabelNas')}
+                </span>
               </h2>
               {g.status === 'success' && (
                 <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
@@ -644,19 +648,3 @@ export default function SearchPage() {
   )
 }
 
-/** 搜索结果加载骨架：hair-soft 行闪烁（DESIGN §4.5） */
-function SongRowsSkeleton({ rows }: { rows: number }) {
-  return (
-    <div className="border-t border-hair">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-3 py-3 border-b border-hair-soft">
-          <span className="w-8 h-3 rounded-sm bg-skeleton animate-pulse" />
-          <span className="w-10 h-10 rounded-sm bg-skeleton animate-pulse" />
-          <span className="flex-1 h-4 rounded-sm bg-skeleton animate-pulse" />
-          <span className="hidden lg:block flex-1 h-3.5 rounded-sm bg-skeleton animate-pulse" />
-          <span className="w-12 h-3.5 rounded-sm bg-skeleton animate-pulse" />
-        </div>
-      ))}
-    </div>
-  )
-}

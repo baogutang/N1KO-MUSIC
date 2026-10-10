@@ -335,7 +335,7 @@ export function PlayerBar() {
               <button
                 onClick={handleToggleStar}
                 disabled={toggleStar.isPending}
-                className={cn(iconBtn, 'flex-shrink-0', currentSong.starred && 'text-primary')}
+                className={cn(iconBtn, 'flex-shrink-0', currentSong.starred && 'text-sem-fav')}
                 aria-label={t(currentSong.starred ? 'player.unfavorite' : 'player.favorite')}
               >
                 <Heart size={17} weight={currentSong.starred ? 'fill' : 'regular'} />
