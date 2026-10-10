@@ -199,3 +199,7 @@
 - 3.2 换主库不再清离线曲库缓存：条目改为按查询自己的源打标、恢复按归属校验后，旧主库内容闪不到新主库；清掉只会让「切回去」白屏。清理职责移到 removeServer（删源）。
 - 3.5 统一身份保留 stillCurrent 的 seq 判据：它比 playVersion 更强（连同一 playVersion 内的过期加载都拦），且已带 serverId；收敛的是书签、预热、trySeek 三处只比 id 的判定 + replaceCurrentSong 的 playVersion bump。
 - 3.6 Login.tsx / Settings.tsx 的 createAdapter 临时适配器维持现状：登录验证与 ping 发生在音源进注册表**之前**（服务器还没连上），临时构造是这两个场景的固有语义，不是 F02 的「绕过注册表写错库」；useServerQueries 的 11 处 `(serverId ? getAdapterFor : getAdapter)` 已全部换成 adapterForSource。封面展示路径的 findAdapterFor(...)?. 宽容取法是文档化用法（断源时整页不炸），保留。
+
+## 2026-10-10 · 阶段 5 · 回归测试的口径
+- F07/F09/F14 的修复主体在 hook 的 queryFn/effect 闭包里（固定拉取大小、翻页循环、音质阶梯），node 环境测不了渲染层，纯逻辑部分（常量阶梯）无可断言行为；F13（searchAll 并发/取消/分区失败）与 F10（star 可选挂载）有插件适配器级回归测试钉住。F18 的后端安全测试四条全部落地（security.test.mjs）。
+- F18 的 release/mobile 前置门禁采用「本地复跑关键检查」而不是跨工作流 workflow_run 等待：CI 只挂 push/PR，tag 推送不会触发它，跨 workflow 依赖需要给 CI 加 dispatch + 轮询，脆且费时；复跑 check:versions + 前后端测试 + 插件测试在语义上等价（tag 是人工动作，几分钟的重复可接受）。tag 触发方式本身未动。

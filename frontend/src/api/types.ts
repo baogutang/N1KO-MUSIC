@@ -347,6 +347,11 @@ export interface SearchResult {
   playlists?: Playlist[]
   /** 歌曲结果是否已到尾页（插件音源分页搜索填；缺省视为是） */
   songsIsEnd?: boolean
+  /**
+   * 非歌曲分区（专辑/歌手/歌单）加载失败的情况（阶段 5 / F13）：
+   * 歌曲结果照常展示，但「歌手区是空的」不该无声——按错误码给一行说明。
+   */
+  sectionFailures?: Array<{ section: 'albums' | 'artists' | 'playlists'; code: string }>
 }
 
 // ===================================================
@@ -401,8 +406,12 @@ export interface MusicServerAdapter {
 
   // --- 收藏 ---
   getStarred(signal?: AbortSignal): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }>
-  star(id: string, type: 'song' | 'album' | 'artist'): Promise<void>
-  unstar(id: string, type: 'song' | 'album' | 'artist'): Promise<void>
+  /**
+   * 可选（阶段 5 / F10）：插件源按 favorites 能力挂载；没挂就是「这个源收不了藏」，
+   * UI 的心形按能力表自然不出现，调用方须判空。
+   */
+  star?(id: string, type: 'song' | 'album' | 'artist'): Promise<void>
+  unstar?(id: string, type: 'song' | 'album' | 'artist'): Promise<void>
 
   // --- 元数据编辑 ---
   updateSongMetadata(songId: string, metadata: { title?: string; album?: string; artist?: string; year?: number; genre?: string; track?: number }): Promise<void>

@@ -706,8 +706,13 @@ export function useToggleStar() {
        */
       const sourceId = serverId ?? song?.serverId
       const adapter = adapterForSource(sourceId)
-      if (isStarred) await adapter.unstar(id, type)
-      else await adapter.star(id, type)
+      /* star/unstar 已按能力可选挂载（F10）：没挂就是「这个源收不了藏」，
+         别把请求发出去再等它炸 */
+      if (isStarred ? !adapter.unstar : !adapter.star) {
+        throw new Error(t('error.favoritesUnsupported'))
+      }
+      if (isStarred) await adapter.unstar!(id, type)
+      else await adapter.star!(id, type)
       // 音乐服务器始终是收藏的权威来源，同步服务只做跨设备镜像，失败不影响本次操作
       if (type === 'song') void mirrorFavorite(id, !isStarred, song)
     },

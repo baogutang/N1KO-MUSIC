@@ -50,11 +50,40 @@ jobs:
       - run: npm run audit:check -- backend
       - run: docker build -t n1ko-music-backend:ci backend
 
-  desktop:
+  plugins:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # 插件版本核对要比较 base...HEAD，需要历史
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # 插件测试与 lint 都借用 frontend 的依赖（crypto-js 等）
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run test:plugins
+      - run: npm run lint:plugins
+      - name: 插件代码变更必须伴随版本变更（F18）
+        run: node scripts/check-plugin-versions.mjs ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD^' }}
+
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            apt: true
+          - os: macos-latest
+            apt: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install Linux dependencies
+        if: ${{ matrix.apt }}
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf

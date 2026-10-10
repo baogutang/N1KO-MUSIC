@@ -959,6 +959,12 @@ module.exports = {
       },
       async setFavorite(musicItem, liked) {
         module.exports.requireLogin()
+        /* 只接受歌曲（阶段 5 / F10）：like 接口只认 trackId，专辑/歌手条目
+           拿来点赞等于对着一首不相干的歌下手。防御在插件侧再做一道——
+           宿主理论上已按能力拦住非歌曲类型。 */
+        if (!musicItem || !musicItem.id || !/^\d+$/.test(String(musicItem.id)) || musicItem.name) {
+          throw pluginError('unsupported', '网易云收藏只支持歌曲')
+        }
         var deviceId = await ensureDeviceId(env)
         await weapiRequest(env, '/api/radio/like', {
           alg: 'itembased',

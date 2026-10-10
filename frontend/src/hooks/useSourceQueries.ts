@@ -178,17 +178,29 @@ export interface SourceSearchPage {
   isEnd: boolean
   artists?: Artist[]
   albums?: Album[]
+  /** 非歌曲分区加载失败（F13）：歌照常展示，但空分区要有一行说明 */
+  sectionFailures?: Array<{ section: 'albums' | 'artists' | 'playlists'; code: string }>
 }
 
-export function useSourceSearch(query: string, page = 1): SourceQueryGroup<SourceSearchPage>[] {
+export function useSourceSearch(
+  query: string,
+  page = 1,
+  /** 已到尾页的源（阶段 5 / F13：加载更多不再重打它们，也不冒充「在路上」） */
+  endedSources?: ReadonlySet<string>
+): SourceQueryGroup<SourceSearchPage>[] {
   const sources = useConnectedSources()
   const caps = useSourceCapabilities()
   const eligible = useMemo(
     () => sources.filter(s => caps[s.serverId]?.search && hasAdapterFor(s.serverId)),
     [sources, caps]
   )
+  const ended = endedSources ?? EMPTY_SET
+  const active = useMemo(
+    () => eligible.filter(s => !ended.has(s.serverId)),
+    [eligible, ended]
+  )
   const results = useQueries({
-    queries: eligible.map(s => ({
+    queries: active.map(s => ({
       queryKey: [s.serverId, 'search', query, page] as const,
       queryFn: async ({ signal }: { signal: AbortSignal }): Promise<SourceSearchPage> => {
         const adapter = getAdapterFor(s.serverId)
@@ -199,6 +211,7 @@ export function useSourceSearch(query: string, page = 1): SourceQueryGroup<Sourc
             isEnd: adapter.searchSongsPage ? (res.songsIsEnd ?? true) : true,
             artists: res.artists,
             albums: res.albums,
+            ...(res.sectionFailures ? { sectionFailures: res.sectionFailures } : {}),
           }
         }
         if (adapter.searchSongsPage) return adapter.searchSongsPage(query, page)
@@ -210,8 +223,15 @@ export function useSourceSearch(query: string, page = 1): SourceQueryGroup<Sourc
   })
   // 不做 memo：results 每个查询状态翻转都是新引用，zip 只是小组数 map，
   // 记忆化反而会把「loading → success」的翻转吞掉
-  return zipQueryResults<SourceSearchPage>(eligible, results)
+  const zippedActive = zipQueryResults<SourceSearchPage>(active, results)
+  /* 被跳过的源按「已到尾页的空页」并入：moreAvailable / 占位行的语义都正确 */
+  const byId = new Map(zippedActive.map(g => [g.serverId, g]))
+  return eligible.map(s =>
+    byId.get(s.serverId) ?? { ...s, status: 'success' as const, data: { songs: [], isEnd: true } }
+  )
 }
+
+const EMPTY_SET: ReadonlySet<string> = new Set()
 
 // ===================================================
 // 2.3 首页区块：各源歌单 / 榜单 / 推荐歌单
@@ -244,13 +264,21 @@ export interface TopListGroups {
 export function useSourceTopLists(): SourceQueryGroup<TopListGroups>[] {
   const sources = useConnectedSources()
   const caps = useSourceCapabilities()
+  const servers = useServerStore(st => st.servers)
   const eligible = useMemo(
     () => sources.filter(s => caps[s.serverId]?.topLists && hasAdapterFor(s.serverId)),
     [sources, caps]
   )
+  /*
+   * key 带登录态（阶段 5 / F09）：QQ 的「每日推荐/雷达」是登录后才出现的
+   * 伪榜单分组，登录态翻转时共用一个缓存会出现「退登录后分组还在 /
+   * 登录后不出现（吃了匿名时的缓存）」。
+   */
+  const loggedInOf = (serverId: string) =>
+    !!servers.find(s => s.id === serverId)?.credentials
   const results = useQueries({
     queries: eligible.map(s => ({
-      queryKey: [s.serverId, 'toplists'] as const,
+      queryKey: [s.serverId, 'toplists', loggedInOf(s.serverId)] as const,
       queryFn: async () => {
         const groups = await getAdapterFor(s.serverId).getTopLists!()
         return { groups }
@@ -355,8 +383,24 @@ export function useTopListDetail(serverId: string, topListId: string) {
   return useQuery({
     queryKey: [serverId, 'toplists', 'detail', topListId] as const,
     queryFn: async () => {
-      const page = await getAdapterFor(serverId).getTopListDetail!(topListId, 0)
-      return page.songs
+      /*
+       * 拉全循环（阶段 5 / F09）：原先只取第 0 页并丢掉 isEnd，
+       * 百榜只显示前 30 首。带同页防呆（端点忽略 page 参数时首批 id
+       * 重复即止损，与 plugin.ts 的 fetchMusicPages 同一套经验）。
+       */
+      const songs: Song[] = []
+      let page = 0
+      let prevFirstId: string | undefined
+      for (;;) {
+        const result = await getAdapterFor(serverId).getTopListDetail!(topListId, page)
+        const batch = result.songs ?? []
+        const firstId = batch[0]?.id
+        if (page > 0 && firstId !== undefined && firstId === prevFirstId) return songs
+        prevFirstId = firstId
+        songs.push(...batch)
+        if (result.isEnd || !batch.length || songs.length >= 500) return songs
+        page += 1
+      }
     },
     enabled: !!serverId && !!topListId && hasAdapterFor(serverId),
     staleTime: 10 * 60 * 1000,

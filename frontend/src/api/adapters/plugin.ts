@@ -83,6 +83,8 @@ export class PluginAdapter implements MusicServerAdapter {
   getRecommendSongs?: MusicServerAdapter['getRecommendSongs']
   getSimilarSongs?: MusicServerAdapter['getSimilarSongs']
   searchSongsPage?: MusicServerAdapter['searchSongsPage']
+  star?: MusicServerAdapter['star']
+  unstar?: MusicServerAdapter['unstar']
 
   constructor(config: PluginAdapterConfig) {
     this.serverId = config.serverId
@@ -155,25 +157,65 @@ export class PluginAdapter implements MusicServerAdapter {
     }
   }
 
-  async searchAll(query: string): Promise<SearchResult> {
+  async searchAll(query: string, signal?: AbortSignal): Promise<SearchResult> {
     const result: SearchResult = { songs: [], albums: [], artists: [], playlists: [] }
     // 与文件里其它可选方法同一约定：manifest 声明了、沙箱也真回报了方法，才调
     if (!this.capability('search') || !this.host.hasMethod('search')) return result
-    const paged = await this.host.call<Paged<MusicItem | AlbumItem | ArtistItem | SheetItem> | null>('search', query, 1, 'music')
-    result.songs = (paged?.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId, this.hosts))
-    result.songsIsEnd = paged?.isEnd ?? true
-    if (this.host.hasMethod('search')) {
-      const [albums, artists, sheets] = await Promise.allSettled([
-        this.host.call<Paged<AlbumItem>>('search', query, 1, 'album'),
-        this.host.call<Paged<ArtistItem>>('search', query, 1, 'artist'),
-        this.host.call<Paged<SheetItem>>('search', query, 1, 'sheet'),
-      ])
-      if (albums.status === 'fulfilled') result.albums = (albums.value.data ?? []).map(i => mapAlbumItem(i, this.serverId, this.hosts))
-      if (artists.status === 'fulfilled') result.artists = (artists.value.data ?? []).map(i => mapArtistItem(i, this.serverId, this.hosts))
-      if (sheets.status === 'fulfilled' && result.playlists) {
-        result.playlists = (sheets.value.data ?? []).map(i => mapSheetItem(i, this.serverId, this.hosts))
-      }
+    /*
+     * 四类一次并发（阶段 5 / F13）：原先是歌曲先发、其余三类等它回来才发，
+     * 插件侧四条串行 RPC，慢源把整个搜索页拖住一倍时间。
+     *
+     * AbortSignal（F13）：宿主 RPC 本身不可中断，这里用「赛跑」实现取消——
+     * 换词后 TanStack 弃掉旧查询时，旧请求立即作废，不再回来污染结果
+     * （也不必等它跑完才渲染新词的结果）。中断按 AbortError 抛出，
+     * TanStack 会把它归类为取消而不是失败。
+     */
+    const callSection = async <T,>(type: string): Promise<T | null> => {
+      const request: Promise<T | null> = this.host.call<T | null>('search', query, 1, type)
+      if (!signal) return request
+      return new Promise<T | null>((resolve, reject) => {
+        const onAbort = () => reject(new DOMException('Search aborted', 'AbortError'))
+        if (signal.aborted) { onAbort(); return }
+        signal.addEventListener('abort', onAbort, { once: true })
+        request.then(
+          value => { signal.removeEventListener('abort', onAbort); resolve(value) },
+          err => { signal.removeEventListener('abort', onAbort); reject(err) }
+        )
+      })
     }
+
+    const [songs, albums, artists, sheets] = await Promise.allSettled([
+      callSection<Paged<MusicItem> | null>('music'),
+      callSection<Paged<AlbumItem> | null>('album'),
+      callSection<Paged<ArtistItem> | null>('artist'),
+      callSection<Paged<SheetItem> | null>('sheet'),
+    ])
+
+    /* 歌曲区失败：整个搜索失败（原有语义）；其余分区失败：记录并继续（F13） */
+    if (songs.status === 'rejected') throw songs.reason
+    result.songs = (songs.value?.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId, this.hosts))
+    result.songsIsEnd = songs.value?.isEnd ?? true
+
+    const sectionFailures: Array<{ section: 'albums' | 'artists' | 'playlists'; code: string }> = []
+    if (albums.status === 'fulfilled') {
+      result.albums = (albums.value?.data ?? []).map(i => mapAlbumItem(i, this.serverId, this.hosts))
+    } else if ((albums.reason as { name?: string } | null)?.name !== 'AbortError') {
+      sectionFailures.push({ section: 'albums', code: (albums.reason as { code?: string } | null)?.code ?? 'unknown' })
+    }
+    if (artists.status === 'fulfilled') {
+      result.artists = (artists.value?.data ?? []).map(i => mapArtistItem(i, this.serverId, this.hosts))
+    } else if ((artists.reason as { name?: string } | null)?.name !== 'AbortError') {
+      sectionFailures.push({ section: 'artists', code: (artists.reason as { code?: string } | null)?.code ?? 'unknown' })
+    }
+    if (sheets.status === 'fulfilled') {
+      result.playlists = (sheets.value?.data ?? []).map(i => mapSheetItem(i, this.serverId, this.hosts))
+    } else if ((sheets.reason as { name?: string } | null)?.name !== 'AbortError') {
+      sectionFailures.push({ section: 'playlists', code: (sheets.reason as { code?: string } | null)?.code ?? 'unknown' })
+    }
+    if (sectionFailures.length) result.sectionFailures = sectionFailures
+
+    // 中途被弃：结果不再有意义，按取消抛出
+    if (signal?.aborted) throw new DOMException('Search aborted', 'AbortError')
     return result
   }
 
@@ -317,22 +359,17 @@ export class PluginAdapter implements MusicServerAdapter {
     return { songs, albums: [], artists: [] }
   }
 
-  async star(id: string, type: 'song' | 'album' | 'artist'): Promise<void> {
-    await this.setFavorite(id, type, true)
-  }
-
-  async unstar(id: string, type: 'song' | 'album' | 'artist'): Promise<void> {
-    await this.setFavorite(id, type, false)
-  }
-
-  private async setFavorite(id: string, type: 'song' | 'album' | 'artist', liked: boolean): Promise<void> {
+  /*
+   * star/unstar 改为按 favorites 能力**可选挂载**（阶段 5 / F10）：
+   * 恒存在的类方法让「能力探测」失去意义——没声明 favorites 的插件
+   * 也带着这对方法，UI 一旦绕过能力表直接探测方法就会给出假心形，
+   * 点下去才在调用处炸「Plugin does not support favorites」。
+   * 协议的 setFavorite 只吃 MusicItem：专辑 / 歌手 id 一律 unsupported，
+   * 不再把别种 id 发给插件的点赞接口（网易的 like 只认歌曲 trackId）。
+   */
+  private async setFavoriteSong(id: string, liked: boolean): Promise<void> {
     if (!this.host.hasMethod('n1ko.user.setFavorite')) throw new Error('Plugin does not support favorites')
-    const item = type === 'song'
-      ? this.rawSong({ id })
-      : type === 'album'
-        ? (getRawItem<AlbumItem>(this.serverId, 'album', id) ?? { platform: this.manifest.platform, id, title: '' })
-        : (getRawItem<ArtistItem>(this.serverId, 'artist', id) ?? { platform: this.manifest.platform, id, name: '' })
-    await this.host.call('n1ko.user.setFavorite', item, liked)
+    await this.host.call('n1ko.user.setFavorite', this.rawSong({ id }), liked)
   }
 
   // --- 元数据 / 封面 / 流派 ---
@@ -447,6 +484,17 @@ export class PluginAdapter implements MusicServerAdapter {
         const paged = await this.host.call<Paged<MusicItem> | null>('search', query, page, 'music')
         const songs = (paged?.data ?? []).filter(isMusicItemShape).map(i => mapMusicItem(i as MusicItem, this.serverId, this.hosts))
         return { songs, isEnd: paged?.isEnd ?? true }
+      }
+    }
+
+    if (this.capability('favorites') && this.host.hasMethod('n1ko.user.setFavorite')) {
+      this.star = async (id, type) => {
+        if (type !== 'song') throw new Error(`Plugin favorites only support songs, got: ${type}`)
+        await this.setFavoriteSong(id, true)
+      }
+      this.unstar = async (id, type) => {
+        if (type !== 'song') throw new Error(`Plugin favorites only support songs, got: ${type}`)
+        await this.setFavoriteSong(id, false)
       }
     }
 

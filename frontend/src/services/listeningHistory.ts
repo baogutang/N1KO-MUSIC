@@ -381,6 +381,17 @@ export function isQualifiedListeningEvent(event: ListeningEvent): boolean {
   return event.listenedSeconds >= getScrobbleThreshold(event.song.duration || 0)
 }
 
+/**
+ * 一次收听是否计入「播放次数」（阶段 5 / F15 的统一口径）：
+ * 自然听完、或听到 scrobble 阈值都算；**拖到结尾的 completed 也算**——
+ * 进度条拖完时 listenedSeconds 很小，但 outcome 是 completed。
+ * 此前各页各数各的：统计页只认 completed、口味页只认阈值，同一份历史
+ * 在两页差出好几十次。
+ */
+export function isPlay(event: ListeningEvent): boolean {
+  return event.outcome === 'completed' || isQualifiedListeningEvent(event)
+}
+
 export function deriveListeningOutcome(
   listenedSeconds: number,
   durationSeconds: number,

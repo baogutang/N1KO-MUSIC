@@ -13,7 +13,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Play } from '@phosphor-icons/react'
-import { useServerStore } from '@/store/serverStore'
+import { useHistoryScope } from '@/store/serverStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import { buildRediscovery, type RediscoveryEntry } from '@/services/rediscovery'
 import { playAllInOrder, playListFrom } from '@/utils/playActions'
@@ -27,11 +27,12 @@ const PER_COLUMN = 5
 export function RediscoveryShelf() {
   const { t } = useT()
   const navigate = useNavigate()
-  const serverId = useServerStore(s => s.activeServerId)
 
+  /* 口径（阶段 5 / F15）：全源历史——重听的对象不分来源 */
+  const historyScope = useHistoryScope()
   const rediscovery = useMemo(
-    () => buildRediscovery(serverId ? readListeningEvents(serverId) : []),
-    [serverId]
+    () => buildRediscovery(readListeningEvents(historyScope)),
+    [historyScope]
   )
 
   const columns = [

@@ -258,9 +258,37 @@ describe('收藏与榜单', () => {
       }),
     })
     await adapter.searchAll('歌')
-    await adapter.star('s1', 'song')
-    await adapter.unstar('s1', 'song')
+    await adapter.star!('s1', 'song')
+    await adapter.unstar!('s1', 'song')
     expect(liked).toEqual([{ id: 's1', liked: true }, { id: 's1', liked: false }])
+  })
+
+  it('star/unstar 按 favorites 能力可选挂载（F10）：没能力就不存在，专辑/歌手 id 拒绝', async () => {
+    const defaultCaps = makeManifest().capabilities
+    // manifest 不声明 favorites：方法不存在（UI 的心形按能力表自然不出现）
+    const bare = new PluginAdapter({
+      serverId: 'srv',
+      manifest: makeManifest({ capabilities: defaultCaps.filter(c => c !== 'favorites') }),
+      host: makeFakeHost({
+        'n1ko.user.getFavorites': async () => ({ isEnd: true, data: [] }),
+        'n1ko.user.setFavorite': async () => undefined,
+      }),
+    })
+    expect(bare.star).toBeUndefined()
+    expect(bare.unstar).toBeUndefined()
+
+    // 声明了能力且方法齐全：歌曲可收藏，专辑/歌手 id 一律 unsupported
+    const withFav = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({
+        'n1ko.user.getFavorites': async () => ({ isEnd: true, data: [] }),
+        'n1ko.user.setFavorite': async () => undefined,
+      }),
+    })
+    expect(typeof withFav.star).toBe('function')
+    await expect(withFav.star!('a1', 'album')).rejects.toThrow(/songs/)
+    await expect(withFav.star!('ar1', 'artist')).rejects.toThrow(/songs/)
+    await expect(withFav.star!('s1', 'song')).resolves.toBeUndefined()
   })
 
   it('getTopLists / getTopListDetail 按 capability 挂载并映射分组', async () => {
@@ -403,5 +431,65 @@ describe('电台（radio）', () => {
     expect(adapter.getSourceCapabilities().radio).toBe(true)
     const songs = await adapter.getSimilarSongs!('seed', 1)
     expect(songs.map(s => [s.title, s.serverId])).toEqual([['相似一', 'srv-r1']])
+  })
+})
+
+describe('searchAll 并发 / 取消 / 分区失败（阶段 5 / F13）', () => {
+  it('四类搜索一次并发：第一个请求未完成时其余三类已发出（不再串行等待）', async () => {
+    const issued: string[] = []
+    const pending: Array<() => void> = []
+    const gate = () => new Promise<void>(resolve => pending.push(resolve))
+    const adapter = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({
+        search: async (...args: unknown[]) => {
+          const type = String(args[2])
+          issued.push(type)
+          await gate()
+          return { isEnd: true, data: type === 'music' ? [music('s1', '歌')] : [] }
+        },
+      }),
+    })
+    const promise = adapter.searchAll('歌')
+    // 微任务排队两轮，让四个请求都发出
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    expect(issued.sort()).toEqual(['album', 'artist', 'music', 'sheet'])
+    for (const release of pending) release()
+    const result = await promise
+    expect(result.songs.map(s => s.id)).toEqual(['s1'])
+  })
+
+  it('改词后取消：AbortSignal 触发时按 AbortError 抛出，不再等旧请求回来', async () => {
+    const controller = new AbortController()
+    const adapter = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({
+        search: () => new Promise(() => { /* 永不返回：模拟慢源 */ }),
+      }),
+    })
+    const promise = adapter.searchAll('旧词', controller.signal)
+    controller.abort()
+    await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('专辑/歌手分区失败不再静默：sectionFailures 带错误码，歌曲照常返回', async () => {
+    const adapter = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({
+        search: async (...args: unknown[]) => {
+          const type = String(args[2])
+          if (type === 'music') return { isEnd: true, data: [music('s1', '歌')] }
+          if (type === 'artist') throw new PluginCallError('unauthorized', '登录过期')
+          if (type === 'album') throw new PluginCallError('network', '断网')
+          return { isEnd: true, data: [] }
+        },
+      }),
+    })
+    const result = await adapter.searchAll('歌')
+    expect(result.songs.map(s => s.id)).toEqual(['s1'])
+    expect(result.sectionFailures).toEqual([
+      { section: 'albums', code: 'network' },
+      { section: 'artists', code: 'unauthorized' },
+    ])
   })
 })

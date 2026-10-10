@@ -32,6 +32,14 @@ const PROFILE_REFRESH_INTERVAL_MS = 60 * 1000
 /** 每个定向来源单次拉取的曲目数 */
 const SONGS_PER_SEED = 40
 
+/**
+ * 实际拉取与缓存的大小，固定（阶段 5 / F07）：cacheKey 不含调用方的 size，
+ * 首页（要 20）与推荐页（要 60）共享同一批计算与缓存——原先两页各算各的，
+ * 「点进推荐页」与「首页那一排」对不上，还白算一整轮扇出。
+ * 调用方要多少条由返回时切片决定。
+ */
+const RECOMMENDATION_FETCH_SIZE = 60
+
 interface RecommendationCacheEntry {
   savedAt: number
   songs: Song[]
@@ -195,14 +203,14 @@ export function usePersonalizedRecommendations(size = 30) {
    * 产生一个新键且从不回收，几天即可撑满 localStorage 配额。
    */
   const seed = `${scope}:${batch}`
-  const cacheKey = `${RECOMMENDATION_CACHE_PREFIX}${seed}:${size}`
+  const cacheKey = `${RECOMMENDATION_CACHE_PREFIX}${seed}:${RECOMMENDATION_FETCH_SIZE}`
 
   const query = useQuery({
     // historyRevision 刻意不进 queryKey。播放中每 30 秒就会写一次收听历史，
     // 节流后仍是每分钟一次；若它参与 key，每分钟都会重跑一整轮定向候选扇出
     // （十几个歌手/流派请求）。画像的细微变化不值这个代价——
     // 它会在下一次「换一批」或自然 refetch 时自然生效。
-    queryKey: [serverId ?? 'no-server', 'personalized-recommendations', size, seed, mutedFingerprint],
+    queryKey: [serverId ?? 'no-server', 'personalized-recommendations', RECOMMENDATION_FETCH_SIZE, seed, mutedFingerprint],
     queryFn: async (): Promise<Song[]> => {
       if (!serverId || !hasAdapter()) return []
       // 缓存键里已经含 batch，读它不会回放到别的批次，因此任何 batch 都可以
@@ -212,7 +220,7 @@ export function usePersonalizedRecommendations(size = 30) {
         const cached = readCachedRecommendations(cacheKey)
         /* 缓存也要过硬约束：刚屏蔽掉的歌手在缓存里原封不动，
            不滤的话「屏蔽」在下一次重算之前完全不生效（见 recommendationFilters） */
-        if (cached?.length) return filterRecommendable(cached).slice(0, size)
+        if (cached?.length) return filterRecommendable(cached).slice(0, RECOMMENDATION_FETCH_SIZE)
       }
       justAdvancedRef.current = false
       const adapter = getAdapter()
@@ -221,12 +229,12 @@ export function usePersonalizedRecommendations(size = 30) {
       const foreignAdapters = collectForeignRadioAdapters(serverId)
       const [randomResult, starredResult, directedResult, foreignResults] = await Promise.allSettled([
         // 随机候选保留下来作为探索通道，让画像之外的曲目仍有机会出现
-        adapter.getRandomSongs(Math.max(120, size * 5)),
+        adapter.getRandomSongs(Math.max(120, RECOMMENDATION_FETCH_SIZE * 5)),
         adapter.getStarred(),
-        fetchDirectedCandidates(adapter, profile, events, size, batch, serverId),
+        fetchDirectedCandidates(adapter, profile, events, RECOMMENDATION_FETCH_SIZE, batch, serverId),
         Promise.all(foreignAdapters.map(async a => {
           const parts = await Promise.allSettled([
-            a.getRandomSongs ? a.getRandomSongs(Math.max(40, size)) : Promise.resolve([] as Song[]),
+            a.getRandomSongs ? a.getRandomSongs(Math.max(40, RECOMMENDATION_FETCH_SIZE)) : Promise.resolve([] as Song[]),
             a.getStarred ? a.getStarred().then(r => r.songs) : Promise.resolve([] as Song[]),
           ])
           return parts.flatMap(p => (p.status === 'fulfilled' ? p.value : []))
@@ -247,7 +255,7 @@ export function usePersonalizedRecommendations(size = 30) {
         ? new Set(useRecommendationCursorStore.getState().getShownBefore(scope, batch))
         : undefined
       let recommendations = recommendSongs(
-        candidates, events, size, seed, Date.now(), profile, exclude, readMutedSets()
+        candidates, events, RECOMMENDATION_FETCH_SIZE, seed, Date.now(), profile, exclude, readMutedSets()
       )
       /* 引擎里已经按 muted 过滤过一轮，这里再过一次统一约束：
          外源候选（其它音源的随机 / 收藏）不经过引擎的会员判断，
@@ -282,7 +290,7 @@ export function usePersonalizedRecommendations(size = 30) {
    * 这里保证「用户此刻看到的」一定符合「用户此刻的屏蔽名单」。
    */
   const visibleData = useMemo(
-    () => (query.data ? filterRecommendable(query.data) : query.data),
+    () => (query.data ? filterRecommendable(query.data).slice(0, size) : query.data),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 指纹变即重滤，其余依赖都在 data 里
     [query.data, mutedFingerprint]
   )

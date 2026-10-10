@@ -674,16 +674,27 @@ export function useAudioEngine() {
      */
     let qualitySwitchResumeAt: number | null = null
 
+    /*
+     * 音质降级阶梯（阶段 5 / F14）：插件源上 denied 多半是「这一档要会员」，
+     * 先在同一个源逐档降（lossless→high→medium→low），全部失败才换源、
+     * 最后才跳歌——换源会离开用户的「首选源」，跳歌直接打断收听。
+     */
+    const QUALITY_LADDER: Record<AudioQuality, AudioQuality | null> = {
+      lossless: 'high', high: 'medium', medium: 'low', low: null,
+    }
+
     // 首次播放不需要 debounce（没有旧音频要中断），后续切歌才 debounce 吸收连续点击
     // reattachOnly=true：同 key 重挂监听（依赖变化触发过 cleanup 后），
     // 绝不能触碰 audioEl.src / currentTime，否则正在播放的歌会从头重播
-    const doLoad = async (reattachOnly = false) => {
+    // qualityOverride：同源音质降级时带着更低档重走一遍（F14）
+    const doLoad = async (reattachOnly = false, qualityOverride?: AudioQuality) => {
       // 检查 store 当前状态是否还是同一首歌，避免 debounce 期间又切走了
       const latestSong = usePlayerStore.getState().currentSong
       if (!latestSong || latestSong.id !== capturedSongId) return
 
       // ── 实际加载逻辑 ──────────────────────────────────────────
-      const maxBitrate = QUALITY_MAX_BITRATE[effectiveQuality]
+      const loadQuality = qualityOverride ?? effectiveQuality
+      const maxBitrate = QUALITY_MAX_BITRATE[loadQuality]
       const contentType = capturedSong.contentType
       // 异步加载序号：取流 await 期间切了歌，本次加载整体作废
       const seq = ++loadSeq
@@ -704,7 +715,7 @@ export function useAudioEngine() {
       }
       let resolved: ResolvedStream
       try {
-        resolved = await resolveStream(capturedSong, effectiveQuality)
+        resolved = await resolveStream(capturedSong, loadQuality)
       } catch (e) {
         // 过期的失败不该碰任何全局状态：缓冲标记、提示、换源、失败计数都跳过
         if (!stillCurrent()) return
@@ -740,6 +751,30 @@ export function useAudioEngine() {
          * 报错只在**真的放不了**（所有源都试过）时说一次。
          * 除权限外，「这个源根本没有这一首」（not-found）同样值得换源再试。
          */
+        /*
+         * 同源音质降级（F14）：只对插件源（异步取流）的 denied 做——
+         * NAS 的转码链路按 maxBitrate 自适应，denied 另有原因。
+         * 降档成功就以降档音质重走加载（doLoad 递归），只说一句话。
+         */
+        if (failureClass === 'denied' && !qualityOverride) {
+          const failingServer = songServerId(capturedSong)
+          const failingAdapter = hasAdapterFor(failingServer) ? getAdapterFor(failingServer) : null
+          if (failingAdapter?.resolveStreamUrl) {
+            let lower = QUALITY_LADDER[loadQuality]
+            while (lower) {
+              try {
+                await resolveStream(capturedSong, lower)
+                if (!stillCurrent()) return
+                toast({ title: t('player.qualityFallback', { quality: t(`audio.quality.${lower}`) }) })
+                return doLoad(false, lower)
+              } catch {
+                if (!stillCurrent()) return
+                lower = QUALITY_LADDER[lower]
+              }
+            }
+          }
+        }
+
         const worthFallback = failureClass === 'denied' || failureClass === 'not-found'
         if (worthFallback) {
           const index = usePlayerStore.getState().queueIndex

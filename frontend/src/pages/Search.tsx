@@ -36,6 +36,13 @@ function mergedKey(song: Song): string {
   return `${song.serverId}:${song.id}`
 }
 
+/** 分区失败文案的锚点表（i18n 静态引用检查靠字面量） */
+const SECTION_LABEL_KEYS = {
+  albums: 'search.section.albums',
+  artists: 'search.section.artists',
+  playlists: 'search.section.playlists',
+} as const
+
 export default function SearchPage() {
   const { t } = useT()
   const navigate = useNavigate()
@@ -107,7 +114,24 @@ export default function SearchPage() {
   // 两套查询键不同，主库同一请求会打两遍）
   const single = useSearch(debouncedQuery, { enabled: !multi })
   const [page, setPage] = useState(1)
-  const groups = useSourceSearch(debouncedQuery, page)
+  /* 已到尾页的源（阶段 5 / F13）：加载更多不再对它们重发请求 */
+  const [endedSources, setEndedSources] = useState<ReadonlySet<string>>(new Set())
+  useEffect(() => {
+    setEndedSources(new Set())
+  }, [debouncedQuery])
+  const groups = useSourceSearch(debouncedQuery, page, page > 1 ? endedSources : undefined)
+  useEffect(() => {
+    setEndedSources(prev => {
+      let next: Set<string> | null = null
+      for (const g of groups) {
+        if (g.status === 'success' && g.data?.isEnd && !prev.has(g.serverId)) {
+          next ??= new Set(prev)
+          next.add(g.serverId)
+        }
+      }
+      return next ?? prev
+    })
+  }, [groups])
   const caps = useSourceCapabilities()
   const priorityOrder = usePlaybackPriorityOrder()
   /**
@@ -185,29 +209,41 @@ export default function SearchPage() {
     })
   }, [groups, page])
 
+  /*
+   * 跨源去重按**播放优先序**遍历（阶段 5 / F13）：同名条目留在优先的源上，
+   * 原先按分组到达顺序，哪个源先回来哪个赢——用户手动排的优先序被无视。
+   */
+  const byPriority = useMemo(() => {
+    const order = priorityOrder.map(s => s.serverId)
+    const rank = (serverId: string) => {
+      const i = order.indexOf(serverId)
+      return i < 0 ? order.length : i
+    }
+    return <T extends { serverId: string }>(items: T[]): T[] =>
+      [...items].sort((a, b) => rank(a.serverId) - rank(b.serverId))
+  }, [priorityOrder])
+
   const mergedArtists = useMemo(() => {
     const seen = new Set<string>()
-    return accMeta.artists
-      .filter(a => caps[a.serverId]?.artist)
+    return byPriority(accMeta.artists.filter(a => caps[a.serverId]?.artist))
       .filter(a => {
         const key = normalizeText(a.name)
         if (seen.has(key)) return false
         seen.add(key)
         return true
       })
-  }, [accMeta.artists, caps])
+  }, [accMeta.artists, caps, byPriority])
 
   const mergedAlbums = useMemo(() => {
     const seen = new Set<string>()
-    return accMeta.albums
-      .filter(al => caps[al.serverId]?.album)
+    return byPriority(accMeta.albums.filter(al => caps[al.serverId]?.album))
       .filter(al => {
         const key = `${normalizeText(al.name)}|${normalizeText(al.artist)}`
         if (seen.has(key)) return false
         seen.add(key)
         return true
       })
-  }, [accMeta.albums, caps])
+  }, [accMeta.albums, caps, byPriority])
 
   const multiSourceCount = merged?.filter(m => m.sources.length > 1).length ?? 0
   const fuzzyCount = merged?.filter(m => m.tier === 'fuzzy').length ?? 0
@@ -364,6 +400,22 @@ export default function SearchPage() {
               {import.meta.env.DEV && g.error ? `（${g.error.slice(0, 120)}）` : ''}
             </p>
           ))}
+
+          {/* 源活着、但专辑/歌手/歌单分区没加载出来（阶段 5 / F13）：
+              歌曲结果照常，空分区不再无声——按错误码给一行说明 */}
+          {groups.filter(g => g.status === 'success' && g.data?.sectionFailures?.length).map(g => {
+            const failures = g.data!.sectionFailures!
+            const sections = failures.map(f => t(SECTION_LABEL_KEYS[f.section])).join('、')
+            const authish = failures.some(f => f.code === 'unauthorized' || f.code === 'forbidden')
+            return (
+              <p key={`sec-${g.serverId}`} className="mt-2 flex items-center gap-2 text-[12px] text-ink-faint">
+                <SourceBadge serverId={g.serverId} />
+                {t('search.sectionFailed', { source: g.name, sections })}
+                {authish ? t('search.sectionFailedAuth') : ''}
+                {import.meta.env.DEV ? `（${failures.map(f => f.code).join(',')}）` : ''}
+              </p>
+            )
+          })}
 
           {/* 还在路上的源留一行占位。
               「全部」是各源到一个合并一个的渐进列表，没有指示的话用户看到的

@@ -9,6 +9,8 @@
     "dev": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
     "check:versions": "node scripts/check-app-versions.mjs",
+    "lint:plugins": "frontend/node_modules/.bin/eslint --no-eslintrc -c eslint.plugins.config.cjs \"plugins/**/*.js\" \"scripts/*.mjs\"",
+    "check:plugin-versions": "node scripts/check-plugin-versions.mjs",
     "audit:check": "node scripts/audit-allowlist.mjs",
     "test:plugins": "node --test \"plugins/test/*.test.mjs\"",
     "tauri:dev": "cd frontend && npm run tauri dev",

@@ -5,7 +5,7 @@
  * 保留窗口大幅变长（上限 2 万条），统计口径与时间范围需要能明确表达。
  */
 
-import { isQualifiedListeningEvent, type ListeningEvent } from '@/services/listeningHistory'
+import { isPlay, isQualifiedListeningEvent, type ListeningEvent } from '@/services/listeningHistory'
 import { t } from '@/i18n'
 
 /** 统计时间范围：最近 N 天，或全部历史 */
@@ -117,7 +117,8 @@ export function computeListeningStats(
   }
 
   const listenedSeconds = scoped.reduce((sum, event) => sum + event.listenedSeconds, 0)
-  const completed = scoped.filter(event => event.outcome === 'completed').length
+  // 口径统一（F15）：isPlay = completed 或达到阈值，拖到结尾也算
+  const completed = scoped.filter(isPlay).length
   const skipped = scoped.filter(event => event.outcome === 'skipped').length
 
   // 日历图：范围内的天数，但不超过 MAX_DAILY_BUCKETS

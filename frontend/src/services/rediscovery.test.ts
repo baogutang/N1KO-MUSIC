@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { deriveListeningOutcome } from '@/services/listeningHistory'
 import { buildRediscovery } from './rediscovery'
 import type { ListeningEvent } from '@/services/listeningHistory'
 import type { Song } from '@/api/types'
@@ -36,7 +37,9 @@ function event(id: string, endedAt: number, listenedSeconds = 190): ListeningEve
     endedAt,
     listenedSeconds,
     completionRate: listenedSeconds / 200,
-    outcome: 'completed',
+    // outcome 按真实推导（阶段 5 / F15）：划过去两秒是 skipped，
+    // 不是 completed——isPlay 的口径因此对划过免疫
+    outcome: deriveListeningOutcome(listenedSeconds, 200),
   }
 }
 

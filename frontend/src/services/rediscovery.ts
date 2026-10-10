@@ -15,7 +15,7 @@
 
 import type { Song } from '@/api/types'
 import { t } from '@/i18n'
-import { isQualifiedListeningEvent, type ListeningEvent } from '@/services/listeningHistory'
+import { isPlay, type ListeningEvent } from '@/services/listeningHistory'
 
 const DAY_MS = 86_400_000
 
@@ -94,7 +94,7 @@ function formatGap(days: number): string {
 function aggregate(events: ListeningEvent[]): Map<string, Aggregate> {
   const map = new Map<string, Aggregate>()
   for (const event of events) {
-    if (!isQualifiedListeningEvent(event)) continue
+    if (!isPlay(event)) continue
     const key = songKey(event.song)
     const existing = map.get(key)
     if (existing) {

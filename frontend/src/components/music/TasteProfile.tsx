@@ -14,7 +14,7 @@
 
 import { useMemo } from 'react'
 import { Prohibit, ArrowCounterClockwise } from '@phosphor-icons/react'
-import { useServerStore } from '@/store/serverStore'
+import { useHistoryScope } from '@/store/serverStore'
 import { useTasteStore } from '@/store/tasteStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import { buildRecommendationProfile } from '@/services/recommendationEngine'
@@ -47,12 +47,14 @@ function topRows(
 
 export function TasteProfile() {
   const { t } = useT()
-  const serverId = useServerStore(s => s.activeServerId)
   const { mutedArtists, mutedGenres, toggleArtist, toggleGenre, clearAll } = useTasteStore()
 
+  /* 口径（阶段 5 / F15）：全源历史——推荐画像本来就用所有源的行为算，
+     口味页展示同一份，不然「引擎用的」和「给你看的」对不上 */
+  const historyScope = useHistoryScope()
   const profile = useMemo(
-    () => buildRecommendationProfile(serverId ? readListeningEvents(serverId) : []),
-    [serverId]
+    () => buildRecommendationProfile(readListeningEvents(historyScope)),
+    [historyScope]
   )
 
   const artists = useMemo(
