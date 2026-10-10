@@ -253,3 +253,31 @@ describe('normalizeFetchResponse · 多条 set-cookie', () => {
     expect(out.headers['content-type']).toBe('text/plain')
   })
 })
+
+// ── 复审 B16：协议降级（https→http）按跨主机处理、剥凭据 ──
+describe('重定向协议降级剥凭据（B16）', () => {
+  const req16 = (over: Partial<HostFetchRequest> = {}): HostFetchRequest => ({
+    url: 'https://music.163.com/a', method: 'GET', responseType: 'json', ...over,
+  })
+  it('https → http 同主机也剥 Cookie / Authorization（origin 比较，不只比 host）', async () => {
+    const headers = { Cookie: 'MUSIC_U=secret', Authorization: 'Bearer t', 'User-Agent': 'n1ko' }
+    const down = recordingSender([
+      okResult(302, { location: 'http://music.163.com/f' }),
+      okResult(200),
+    ])
+    await followRedirects(req16({ headers }), ALLOW, down.send)
+    // 降级后的明文链路上不能带着凭据飞
+    expect(down.sent[1].headers).toEqual({ 'User-Agent': 'n1ko' })
+  })
+
+  it('http → https 升级同样按跨源处理（保守侧：升链路也重发无凭据请求）', async () => {
+    const headers = { Cookie: 'MUSIC_U=secret' }
+    const up = recordingSender([
+      okResult(302, { location: 'https://music.163.com/f' }),
+      okResult(200),
+    ])
+    const r = req16({ url: 'http://music.163.com/w', headers })
+    await followRedirects(r, ALLOW, up.send)
+    expect(up.sent[1].headers ?? {}).not.toHaveProperty('Cookie')
+  })
+})
