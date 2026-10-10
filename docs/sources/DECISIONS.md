@@ -182,3 +182,8 @@
 
 未修（本轮排期在后）：F06 种子丢来源、F07 首页与推荐页不同批、F08 Live 版被当重复、F09 榜单分页与入口、F10 收藏入口不一致、F11 歌词解析、F12 失败可见性、F13 搜索串行、F14 音质降级、F15 统计口径、F17 全屏可访问性、F18 CI 门禁。
 
+
+## 2026-10-10 · 执行中变更 · README 与官网归执行方
+- 冲突：任务书第 0 节第 8 条禁止执行方碰 README.md / README_CN.md / website/（Kimi 在并行改写）。执行中途 N1KO 明确：Kimi 额度耗尽，README 优化与官网续作移交本执行方。
+- 选择：更新任务书第 0 节第 8 条（就地改写条款并注明变更原因）；接手 Kimi 的未提交 README 改写与 website/ 半成品，在 8 个整改阶段完成后收尾（README 内容依赖整改结果，如微信登录、macOS 签名说明）。README-TODO.md 中的条目届时直接并入 README 而非留给 N1KO。
+- 影响：提交范围扩大到 README.md / README_CN.md / website/；其余禁令（N1KO-API 推广区块、premium 概念、workflows tag 触发）不变。
