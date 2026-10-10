@@ -88,6 +88,7 @@ beforeEach(() => {
   // 捕获模块级 audioEl：引擎 play() 时记录 this
   const realPlay = HTMLMediaElement.prototype.play
   HTMLMediaElement.prototype.play = function (this: HTMLAudioElement) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- 测试要捕获引擎内部的模块级元素
     audio = this
     return Promise.resolve()
   }
