@@ -151,3 +151,20 @@ describe('interleaveRecommendations（今日推荐合并）', () => {
     expect(interleaveRecommendations([{ songs: [] }, { songs: a }], 5).map(s => s.id)).toEqual(['a1', 'a2', 'a3'])
   })
 })
+
+describe('zipQueryResults 的 errorCode（阶段 2.3：unauthorized 汇入登录状态）', () => {
+  it('协议错误码透传到分组：登录过期不再是普通 load error', () => {
+    const refs = [{ serverId: 'wy', name: 'wy', type: 'subsonic' } as SourceRef]
+    const zipped = zipQueryResults<number>(refs, [
+      { isSuccess: false, isPending: false, error: Object.assign(new Error('登录过期'), { code: 'unauthorized' }) },
+    ])
+    expect(zipped[0].status).toBe('error')
+    expect(zipped[0].errorCode).toBe('unauthorized')
+  })
+
+  it('没有 code 的错误（NAS 适配器）errorCode 为 undefined，行为不变', () => {
+    const refs = [{ serverId: 'nas', name: 'nas', type: 'subsonic' } as SourceRef]
+    const zipped = zipQueryResults<number>(refs, [{ isSuccess: false, isPending: false, error: new Error('ECONNREFUSED') }])
+    expect(zipped[0].errorCode).toBeUndefined()
+  })
+})

@@ -50,3 +50,16 @@ describe('splitGroups（阶段 1.4：失败可见）', () => {
     expect(failed).toHaveLength(2)
   })
 })
+
+describe('splitGroups 的 auth 态（阶段 2.3：登录过期 ≠ 加载失败）', () => {
+  it('unauthorized 的失败进 auth 桶：出口是去登录，不是重试', () => {
+    const { good, failed, auth } = splitGroups([
+      group('srv-a', { status: 'error', errorCode: 'unauthorized', error: '过期' }),
+      group('srv-b', { status: 'error', errorCode: 'network', error: '断网' }),
+      group('srv-c', { status: 'success', data: ['x'] }),
+    ])
+    expect(auth.map(g => g.serverId)).toEqual(['srv-a'])
+    expect(failed.map(g => g.serverId)).toEqual(['srv-b'])
+    expect(good.map(g => g.serverId)).toEqual(['srv-c'])
+  })
+})

@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { SourceBadge } from '@/components/sources/SourceBadge'
+import { VipTag } from '@/components/sources/VipTag'
 import { usePlayerStore } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
 import { findAdapterFor } from '@/api'
@@ -774,21 +775,8 @@ const SongRow = React.memo(function SongRow({
           isCurrentSong ? 'text-primary' : 'text-foreground'
         )}>
           {spaceCJK(song.title)}
-          {(song.vip || song.ext?.vip) && (
-            <span
-              title={accountLacksVip ? t('song.vipBlockedHint') : t('song.vipHint')}
-              /* 不能用 .latin-tag：那个类是「双语报头的拉丁半边」，软陶皮肤与
-                 非中文界面下整条 display:none——VIP 是有意义的状态标记，不是排印
-                 装饰，被自己的皮肤规则藏起来等于没有 */
-              className={cn(
-                'ml-1.5 inline-block translate-y-[-1px] rounded-[2px] border px-1 align-baseline font-sans text-[9px] font-semibold tracking-[0.08em]',
-                // 账号确知没有会员：这首多半点了也放不了，标记本身就该看起来是「灰的」
-                accountLacksVip ? 'border-ink-faint/50 text-ink-faint' : 'border-primary/60 text-primary'
-              )}
-            >
-              VIP
-            </span>
-          )}
+          {/* VIP 标识抽成 VipTag（队列抽屉 / 播放条共用同一枚，样式见那里） */}
+          <VipTag song={song} accountLacksVip={accountLacksVip} />
           {sourceBadge && (alternates && alternates.length > 1 ? (
             <SourceSwitchMenu song={song} alternates={alternates} onPick={alt => onReplace?.(index, alt)} />
           ) : (

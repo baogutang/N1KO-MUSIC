@@ -37,6 +37,7 @@ import {
 } from '@/plugins/host/pluginStore'
 import { getPluginHost } from '@/plugins/host/pluginRuntime'
 import { reloginPath } from '@/components/layout/ConnectionBanner'
+import { getAdapterFor, hasAdapterFor } from '@/api'
 import type { CatalogEntry } from '@/plugins/host/catalog'
 
 export function SourcesSettings() {
@@ -89,6 +90,31 @@ export function SourcesSettings() {
     (pluginId: string) => servers.filter(s => s.type === 'plugin' && s.pluginId === pluginId),
     [servers]
   )
+
+  /*
+   * 阶段 2.3：音源行自己也要能看出「登录过期」，而不是只有顶部横幅在说。
+   * 打开设置页时对各插件账号各问一次 diagnose（要打真实登录接口，只问一遍，
+   * 不轮询——常驻探测是横幅的职责）。
+   */
+  const [authExpiredIds, setAuthExpiredIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const bad = new Set<string>()
+      for (const server of servers) {
+        if (server.type !== 'plugin' || !hasAdapterFor(server.id)) continue
+        const adapter = getAdapterFor(server.id)
+        if (!adapter.diagnose) continue
+        try {
+          if ((await adapter.diagnose()) === 'unauthorized') bad.add(server.id)
+        } catch (err) {
+          if ((err as { code?: string } | null)?.code === 'unauthorized') bad.add(server.id)
+        }
+      }
+      if (!cancelled) setAuthExpiredIds(bad)
+    })()
+    return () => { cancelled = true }
+  }, [servers])
 
   const doInstallFromCatalog = async (id: string) => {
     setCatalogBusy(true)
@@ -302,7 +328,7 @@ export function SourcesSettings() {
                       点自己那一行，走的是「快速连接」——插件的 connectServer 从不
                       校验凭据，必然成功，人被送回首页，凭据还是坏的。 */}
                   <IconAction
-                    title={t('sources.settings.relogin')}
+                    title={t('sources.relogin')}
                     onClick={() => navigate(reloginPath(plugin.id))}
                   >
                     <SignIn size={15} />
@@ -319,6 +345,19 @@ export function SourcesSettings() {
                   </IconAction>
                 </div>
               </div>
+
+              {/* 登录过期：音源行直接说 + 直达扫码步（阶段 2.3 收口） */}
+              {accounts.some(a => authExpiredIds.has(a.id)) && (
+                <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-l-2 border-primary pl-3 text-[12px] leading-relaxed text-ink-soft">
+                  {t('sources.authExpired')}
+                  <button
+                    className="more inline-flex items-center gap-1"
+                    onClick={() => navigate(reloginPath(plugin.id))}
+                  >
+                    {t('sources.goRelogin')}
+                  </button>
+                </p>
+              )}
 
               {/* 沙箱越界（ready 之后自己导航走）：这个插件的账号已被停用。
                   横幅上说的是同一件事，用户点进设置来要能在这一行看到同样的说明。 */}

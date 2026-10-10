@@ -24,6 +24,7 @@ import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
 import { SleepTimerMenu } from '@/components/player/SleepTimerMenu'
 import { SourceBadge } from '@/components/sources/SourceBadge'
+import { VipTag } from '@/components/sources/VipTag'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useToggleStar } from '@/hooks/useServerQueries'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
@@ -321,6 +322,7 @@ export function PlayerBar() {
             <p className="font-serif text-[14.5px] font-semibold text-foreground truncate hover:text-primary cursor-pointer transition-colors duration-200 flex items-center gap-1.5"
               onClick={toggleFullscreen}>
               <span className="truncate">{spaceCJK(currentSong.title)}</span>
+              <VipTag song={currentSong} />
               {multiSource && <SourceBadge serverId={currentSong.serverId} />}
             </p>
             <p className="text-[11.5px] text-ink-soft truncate mt-0.5">

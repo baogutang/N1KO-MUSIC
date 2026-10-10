@@ -15,7 +15,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
-import { SourceGroupState } from '@/components/sources/SourceGroupState'
+import { SourceGroupState, groupStateStatus } from '@/components/sources/SourceGroupState'
 import type { SourceQueryGroup } from '@/hooks/useSourceQueries'
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
 import {
@@ -47,39 +47,52 @@ function useRetrySourceGroup() {
 
 /**
  * 把分组拆成「参与合并的成功组」与「要渲染状态行的组」：
+ * - 登录过期的源（unauthorized）占一行 auth 态——重试救不回来，出口是去登录；
  * - 失败的源永远占一行（带重试）——静默消失比报错更糟；
  * - 加载中的源只在整节还没有内容时占骨架行，有内容时不打扰（避免布局跳）；
  * - 成功但数据为空不算问题（未登录的插件音源就是这么表现的）。
  */
 export function splitGroups<T>(
   groups: SourceQueryGroup<T>[]
-): { good: Array<SourceQueryGroup<T> & { data: T }>; loading: SourceQueryGroup<T>[]; failed: SourceQueryGroup<T>[] } {
+): {
+  good: Array<SourceQueryGroup<T> & { data: T }>
+  loading: SourceQueryGroup<T>[]
+  failed: SourceQueryGroup<T>[]
+  auth: SourceQueryGroup<T>[]
+} {
   const good: Array<SourceQueryGroup<T> & { data: T }> = []
   const loading: SourceQueryGroup<T>[] = []
   const failed: SourceQueryGroup<T>[] = []
+  const auth: SourceQueryGroup<T>[] = []
   for (const g of groups) {
-    if (g.status === 'error') failed.push(g)
+    if (g.status === 'error' && g.errorCode === 'unauthorized') auth.push(g)
+    else if (g.status === 'error') failed.push(g)
     else if (g.status === 'loading') loading.push(g)
     else if (g.data) good.push(g as SourceQueryGroup<T> & { data: T })
   }
-  return { good, loading, failed }
+  return { good, loading, failed, auth }
 }
 
-/** 一节末尾的状态行（失败 + 可选的加载骨架） */
+/** 一节末尾的状态行（登录过期 + 失败 + 可选的加载骨架） */
 function GroupStateRows({
   failed,
   loading,
+  auth,
   showLoading,
   retry,
   family,
 }: {
   failed: SourceQueryGroup<unknown>[]
   loading: SourceQueryGroup<unknown>[]
+  auth: SourceQueryGroup<unknown>[]
   showLoading: boolean
   retry: (serverId: string, family: string) => void
   family: string
 }) {
   const rows = [
+    ...auth.map(g => (
+      <SourceGroupState key={`auth-${g.serverId}`} serverId={g.serverId} status="auth" error={g.error} />
+    )),
     ...failed.map(g => (
       <SourceGroupState key={`err-${g.serverId}`} serverId={g.serverId} status="error" error={g.error} onRetry={() => retry(g.serverId, family)} />
     )),
@@ -107,7 +120,7 @@ export function MergedDailyRail() {
   const { t } = useT()
   const navigate = useNavigate()
   const retry = useRetrySourceGroup()
-  const { good: sourceGroups, loading, failed } = splitGroups(useSourceRecommendSongs())
+  const { good: sourceGroups, loading, failed, auth } = splitGroups(useSourceRecommendSongs())
   // 主库（NAS 等）没有 recommendSongs 这个插件扩展，它的那一份来自本地画像。
   // 不把它算进来的话，只连 NAS 的用户在这条里永远看不到自己的歌。
   const { data: librarySongs } = usePersonalizedRecommendations(20)
@@ -118,8 +131,8 @@ export function MergedDailyRail() {
     return interleaveRecommendations(groups, 20)
   }, [sourceGroups, librarySongs])
 
-  // 一个源都没成、也没有要说明的失败时才整节不渲染
-  if (!merged.length && !failed.length && !loading.length) return null
+  // 一个源都没成、也没有要说明的失败/过期时才整节不渲染
+  if (!merged.length && !failed.length && !loading.length && !auth.length) return null
 
   return (
     <section aria-labelledby="home-dailymix" data-clay-span="full">
@@ -152,7 +165,7 @@ export function MergedDailyRail() {
         </div>
       </div>
       <SongList songs={merged} showCover showAlbum showIndex sourceBadge />
-      <GroupStateRows failed={failed} loading={loading} showLoading={!merged.length} retry={retry} family="recommend-songs" />
+      <GroupStateRows failed={failed} loading={loading} auth={auth} showLoading={!merged.length} retry={retry} family="recommend-songs" />
     </section>
   )
 }
@@ -178,7 +191,7 @@ export function SourceCollections() {
         {groups.map(g => (
           g.status !== 'success' ? (
             <div key={g.serverId} className="px-2">
-              <SourceGroupState serverId={g.serverId} status={g.status} error={g.error} onRetry={() => retry(g.serverId, 'playlists')} />
+              <SourceGroupState serverId={g.serverId} status={groupStateStatus(g)} error={g.error} onRetry={() => retry(g.serverId, 'playlists')} />
             </div>
           ) : (
           <div key={g.serverId} className="flex items-center gap-4 px-2 py-3">
@@ -225,9 +238,10 @@ export function SourceTopListsRail() {
   const retry = useRetrySourceGroup()
   const all = useSourceTopLists()
   const groups = all.filter(g => g.status === 'success' && g.data?.groups.length)
-  const failed = all.filter(g => g.status === 'error')
+  const failed = all.filter(g => g.status === 'error' && g.errorCode !== 'unauthorized')
   const loading = all.filter(g => g.status === 'loading')
-  if (!groups.length && !failed.length && !loading.length) return null
+  const auth = all.filter(g => g.status === 'error' && g.errorCode === 'unauthorized')
+  if (!groups.length && !failed.length && !loading.length && !auth.length) return null
 
   const total = groups.reduce((sum, g) => sum + g.data!.groups.length, 0)
   const truncated = total > groups.length * HOME_TOPLIST_GROUPS
@@ -272,7 +286,7 @@ export function SourceTopListsRail() {
           ))
         )}
       </div>
-      <GroupStateRows failed={failed} loading={loading} showLoading={!groups.length} retry={retry} family="toplists" />
+      <GroupStateRows failed={failed} loading={loading} auth={auth} showLoading={!groups.length} retry={retry} family="toplists" />
     </section>
   )
 }
@@ -281,7 +295,7 @@ export function SourceTopListsRail() {
 export function SourceRecommendSheetsRail() {
   const { t } = useT()
   const retry = useRetrySourceGroup()
-  const { good: groups, loading, failed } = splitGroups(useSourceRecommendSheets())
+  const { good: groups, loading, failed, auth } = splitGroups(useSourceRecommendSheets())
   const merged = useMemo(() => {
     // 每源取前 6 张，轮转交错成一张网格；歌单不像歌曲那样跨源去重（同名不同源是两张真实的歌单）
     const queues = groups.map(g => g.data.slice(0, 6).map(pl => ({ pl, serverId: g.serverId })))
@@ -299,7 +313,7 @@ export function SourceRecommendSheetsRail() {
     }
     return out.slice(0, 12)
   }, [groups])
-  if (!merged.length && !failed.length && !loading.length) return null
+  if (!merged.length && !failed.length && !loading.length && !auth.length) return null
 
   return (
     <section aria-labelledby="home-sheets">
@@ -315,7 +329,7 @@ export function SourceRecommendSheetsRail() {
           ))}
         </div>
       </div>
-      <GroupStateRows failed={failed} loading={loading} showLoading={!merged.length} retry={retry} family="recommend-sheets" />
+      <GroupStateRows failed={failed} loading={loading} auth={auth} showLoading={!merged.length} retry={retry} family="recommend-sheets" />
     </section>
   )
 }

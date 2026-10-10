@@ -338,7 +338,7 @@ export default function Settings() {
   async function handleSwitch(id: string) {
     if (!(await activateServer(id))) {
       toast({
-        title: t('settings.server.reloginTitle'),
+        title: t('sources.relogin'),
         description: t('settings.server.reloginDesc'),
         variant: 'destructive',
       })

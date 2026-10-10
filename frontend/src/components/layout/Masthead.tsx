@@ -86,7 +86,7 @@ export function Masthead() {
                 onClick={async () => {
                   if (!(await activateServer(server.id))) {
                     toast({
-                      title: t('settings.server.reloginTitle'),
+                      title: t('sources.relogin'),
                       description: t('settings.server.reloginDesc'),
                       variant: 'destructive',
                     })

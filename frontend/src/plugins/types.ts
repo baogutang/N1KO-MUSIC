@@ -36,6 +36,11 @@ export interface PluginAuth {
   cookieHint?: string
   /** 为 true 时允许不登录就添加音源（搜索、榜单、免费曲） */
   allowAnonymous?: boolean
+  /**
+   * 扫码登录的多条链路（协议 §2，可选）：比如 QQ 音乐同时提供 QQ 与微信扫码。
+   * 缺省时宿主不渲染方式切换，createQr 不带参调用——单链路插件行为不变。
+   */
+  methods?: Array<{ id: string; labelKey: string }>
 }
 
 export interface PluginUserVariable {
@@ -226,6 +231,11 @@ export interface MediaDetailResult<TItem> {
 export interface PluginQrCheckResult {
   status: 'waiting' | 'scanned' | 'confirmed' | 'expired'
   credentials?: string
+  /**
+   * expired 时的机器码（如 'wx_denied'：用户在手机上拒绝了登录），
+   * 宿主映射成各自的文案；插件不往这里放自由句子。
+   */
+  reason?: string
 }
 
 export interface PluginUser {
@@ -262,7 +272,12 @@ export interface PluginExports {
   getRecommendSheetsByTag?(tag: string | SheetItem, page: number): Promise<Paged<SheetItem>>
   n1ko?: {
     auth?: {
-      createQr?(): Promise<{ key: string; content: string; expiresIn: number; qrImage?: string }>
+      /**
+       * methodId 分派到 manifest.auth.methods 声明的链路（如 'qq' / 'wx'）；
+       * 不带参（或插件未声明 methods）时是插件自己的默认链路。
+       * 返回的 key 自带方法前缀（如 `wx:` + uuid），checkQr(key) 据此分派。
+       */
+      createQr?(methodId?: string): Promise<{ key: string; content: string; expiresIn: number; qrImage?: string }>
       checkQr?(key: string): Promise<PluginQrCheckResult>
       loginWithCookie?(text: string): Promise<{ credentials: string }>
       getUser?(): Promise<PluginUser | null>

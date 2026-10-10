@@ -13,6 +13,7 @@ import { useT } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
 import { SourceBadge } from '@/components/sources/SourceBadge'
+import { VipTag } from '@/components/sources/VipTag'
 import { useCreatePlaylist } from '@/hooks/useServerQueries'
 import { toast } from '@/components/ui/use-toast'
 import { Input } from '@/components/ui/input'
@@ -197,6 +198,7 @@ export function QueueDrawer() {
                     )}
                   >
                     <span className="truncate">{spaceCJK(song.title)}</span>
+                    <VipTag song={song} />
                     {multiSource && <SourceBadge serverId={song.serverId} />}
                   </span>
                   <span className="block text-[11px] text-ink-faint truncate mt-0.5">

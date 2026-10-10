@@ -143,6 +143,12 @@ export interface SourceQueryGroup<T> extends SourceRef {
   status: 'loading' | 'success' | 'error'
   data?: T
   error?: string
+  /**
+   * 失败时的协议错误码（PluginCallError.code，PROTOCOL §7）。
+   * unauthorized 专门拎出来：它不是「这个源坏了」，是「这个源的登录过期了」，
+   * 正确的出口是去重新登录，而不是重试（阶段 2.3）。
+   */
+  errorCode?: string
 }
 
 /** 把 useQueries 的结果按源 zip 回分组形状（纯函数，测试覆盖） */
@@ -158,6 +164,7 @@ export function zipQueryResults<T>(
       ...source,
       status: 'error' as const,
       error: r.error instanceof Error ? r.error.message : String(r.error ?? 'unknown'),
+      errorCode: (r.error as { code?: string } | null | undefined)?.code,
     }
   })
 }

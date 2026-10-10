@@ -284,7 +284,7 @@ export function ConnectionBanner() {
         </span>
         <button onClick={() => navigate(reloginPath(first.pluginId))} className={ACTION_CLASS}>
           <Key size={11} aria-hidden="true" />
-          {t('sources.banner.relogin')}
+          {t('sources.relogin')}
         </button>
         <button
           onClick={() => dismiss(first)}
@@ -329,7 +329,7 @@ export function ConnectionBanner() {
             className={ACTION_CLASS}
           >
             <Key size={11} aria-hidden="true" />
-            {primaryPlugin ? t('sources.banner.relogin') : t('empty.offline.reauth')}
+            {primaryPlugin ? t('sources.relogin') : t('sources.relogin')}
           </button>
         ) : (
           <button onClick={retry} disabled={retrying} className={cn(ACTION_CLASS, 'disabled:opacity-50')}>

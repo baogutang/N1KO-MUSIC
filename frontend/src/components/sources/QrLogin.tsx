@@ -4,6 +4,10 @@
  *
  * 轮询是 setTimeout 链而不是 setInterval，理由见下面 pollLoop 的注释：
  * 后台标签页要停、慢请求不能叠、二维码自己的有效期要算数。
+ *
+ * manifest.auth.methods 声明多条链路时（如 QQ 音乐的 QQ / 微信扫码），
+ * 顶部出一排分段切换：切换即换码，checkQr 的 key 自带方法前缀由插件分派
+ * （协议 §3）。单链路插件不渲染切换，行为与从前一致。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -14,10 +18,33 @@ import type { PluginHost } from '@/plugins/host/PluginHost'
 import type { PluginQrCheckResult } from '@/plugins/types'
 import { PluginCallError } from '@/plugins/host/PluginHost'
 import { safeResourceUrl } from '@/plugins/host/whitelist'
+import { cn } from '@/lib/utils'
 
 const POLL_INTERVAL_MS = 2000
 
 type QrPhase = 'loading' | 'waiting' | 'scanned' | 'expired' | 'error'
+
+/** expired 的机器码 → 文案 key（插件给的是 code，句子在 i18n 这边） */
+const EXPIRED_REASONS: Record<string, string> = {
+  wx_denied: 'sources.qr.denied',
+  wx_no_code: 'sources.qr.noCode',
+}
+
+/**
+ * 已知方法 id → 宿主词表键。manifest 里第三方插件给的 labelKey 多半不在
+ * 本应用词表里（t() 会原样回显键名）；认识的 id 用我们自己的词条，
+ * 不认识的退回 labelKey，再不行显示 id 本身。
+ */
+const METHOD_LABEL_KEYS: Record<string, string> = {
+  qq: 'sources.qr.method.qq',
+  wx: 'sources.qr.method.wx',
+}
+
+function methodLabel(method: { id: string; labelKey: string }, t: (key: string) => string): string {
+  const key = METHOD_LABEL_KEYS[method.id] ?? method.labelKey
+  const translated = t(key)
+  return translated === key ? method.id : translated
+}
 
 export function QrLogin({
   host,
@@ -30,23 +57,31 @@ export function QrLogin({
   onAuthorized: (credentials: string) => void
 }) {
   const { t } = useT()
+  const methods = host.manifest.auth?.methods
+  const [activeMethod, setActiveMethod] = useState<string | undefined>(methods?.[0]?.id)
   const [phase, setPhase] = useState<QrPhase>('loading')
   /** 二维码统一以 <img> 渲染（服务端图或本地生成的 data URL） */
   const [qrImage, setQrImage] = useState('')
   const [errorText, setErrorText] = useState('')
+  /** expired 时插件给的机器码（如微信被拒绝），映射成一句人话 */
+  const [expiredReason, setExpiredReason] = useState('')
   const qrKeyRef = useRef<string | null>(null)
   const cancelledRef = useRef(false)
   /** 这张码本地算出来的到期时刻（毫秒时间戳）；插件没给 expiresIn 时为 null */
   const expiresAtRef = useRef<number | null>(null)
 
-  const startQr = useCallback(async () => {
+  const startQr = useCallback(async (methodId?: string) => {
     cancelledRef.current = false
     setPhase('loading')
     setErrorText('')
+    setExpiredReason('')
     setQrImage('')
     expiresAtRef.current = null
     try {
-      const created = await host.call<{ key: string; content: string; expiresIn: number; qrImage?: string }>('n1ko.auth.createQr')
+      const created = await host.call<{ key: string; content: string; expiresIn: number; qrImage?: string }>(
+        'n1ko.auth.createQr',
+        methodId
+      )
       if (cancelledRef.current) return
       qrKeyRef.current = created.key
       /*
@@ -82,11 +117,17 @@ export function QrLogin({
   }, [host])
 
   useEffect(() => {
-    void startQr()
+    void startQr(activeMethod)
     return () => {
       cancelledRef.current = true
     }
-  }, [startQr])
+  }, [startQr, activeMethod])
+
+  /** 分段切换：换链路就是换一张全新的码 */
+  const switchMethod = (id: string) => {
+    if (id === activeMethod) return
+    setActiveMethod(id)
+  }
 
   /*
    * 轮询；waiting / scanned 都继续，expired / confirmed / error 停。
@@ -134,6 +175,7 @@ export function QrLogin({
           return
         }
         if (result.status === 'expired') {
+          setExpiredReason(result.reason ?? '')
           setPhase('expired')
           return
         }
@@ -177,12 +219,43 @@ export function QrLogin({
     loading: t('sources.qr.loading'),
     waiting: qrHint || t('sources.qr.waiting'),
     scanned: t('sources.qr.scanned'),
-    expired: t('sources.qr.expired'),
+    // 过期的原因（如「你在手机上拒绝了登录」）比一句笼统的「已过期」有用
+    expired: (expiredReason && EXPIRED_REASONS[expiredReason] ? t(EXPIRED_REASONS[expiredReason]) : '') || t('sources.qr.expired'),
     error: errorText || t('sources.qr.error'),
   }[phase]
 
   return (
     <div className="flex flex-col items-center gap-4 pt-2">
+      {/* 多链路扫码（QQ / 微信）：分段切换，切换即换码。
+          皮肤差异走既有 token：默认细线胶囊，pop: 变圆角实底（不读 store） */}
+      {methods && methods.length > 1 && (
+        <div
+          role="tablist"
+          aria-label={t('sources.qr.methodSwitch')}
+          className="inline-flex overflow-hidden border border-hair pop:rounded-pill pop:border-hair pop:shadow-press"
+        >
+          {methods.map(method => {
+            const active = method.id === activeMethod
+            return (
+              <button
+                key={method.id}
+                role="tab"
+                aria-selected={active}
+                onClick={() => switchMethod(method.id)}
+                className={cn(
+                  'min-w-[5.5em] px-4 py-1.5 text-[12.5px] transition-colors duration-200',
+                  'pop:not-first:border-y-0 pop:not-first:border-l pop:not-first:border-hair',
+                  active
+                    ? 'bg-paper-deep text-primary pop:bg-surface'
+                    : 'text-ink-faint hover:text-ink'
+                )}
+              >
+                {methodLabel(method, t)}
+              </button>
+            )
+          })}
+        </div>
+      )}
       <div className="relative">
         <div
           className={
@@ -194,7 +267,7 @@ export function QrLogin({
         </div>
         {phase === 'expired' && (
           <button
-            onClick={() => void startQr()}
+            onClick={() => void startQr(activeMethod)}
             className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[13px] font-medium text-foreground"
           >
             <ArrowsClockwise size={22} className="text-primary" />
