@@ -53,3 +53,16 @@
 - 官网：画廊 player 图说明写「柠檬黄荧光笔」但 gif 是软陶；`applyLang` 不刷新 alt；`og:image` 需绝对 URL。
 - 合入 main 前需在仓库 Settings 把 Pages Source 设为 GitHub Actions，否则 pages.yml 首发失败。
 - DECISIONS 阶段 1 零条目：1.8 翻页用 offset 而非 cursor、客户端未真正采服务端时钟，应补记。
+
+## D. 第二轮复核（a60acdb…bfb4529）· 剩余 6 条小项
+
+A 节 12 项全部核实到位。B 节 10 项到位、下面 6 条收尾；lint 曾挂一条（bfb4529 已修）。
+
+| # | 位置 | 问题 | 修法 |
+|---|---|---|---|
+| D1 | `plugins/test/harness.mjs:143`、`plugins/test/b16.helper.test.mjs:9-52` | harness 的 `setCredentials` 仍改写 `env.credentials`（真沙箱不会），新用例把这个错误语义钉成了断言；删掉 `liveCredentials` A8 用例照绿。uid 用例调的 `getUser()` 不经过 `currentUid`，两个实例 storage 本就独立，`seen.length===2` 对裸 `uid` 键也成立。 | harness 改成快照语义（只记录回写值）；uid 用例改走 `getFavorites`，同一 storage 里换凭据，断言重新请求且键不同。 |
+| D2 | `frontend/src/services/recommendationEngine.test.ts:510-517` | 重度用例的 ageDays 是 201–300 天，exp(-age/90) 衰减后头部权重≈2.04 < 下限 3，`negativeScale` 没变，改前也满足断言，抓不住 B2。 | ageDays 改成 1–10 天，让 positiveMax ≈ 20。 |
+| D3 | `README_CN.md:297,318`、`README.md:345`、`website/index.html:213`、`website/script.js:67,138` | 中文架构图仍是 `LO <-->` 且含「收藏」，中文同步章节仍写「本地歌单」；英文同步摘要仍写 favourites；官网隐私行仍是「只去你的音乐服务器，没有别处」。 | 与英文 README 已改好的版本对齐；官网词条跟 README。 |
+| D4 | `frontend/src/api/syncClient.ts:209` 注释、`docs/sources/DECISIONS.md` B9 条 | 写的「后端 v1.6.0+」不成立：服务端 updatedAt 是 679dd57 引入、尚未发版，backend/package.json 是 1.5.0。 | 改成「含 679dd57 的版本（v1.11.6 之后）」。 |
+| D5 | `frontend/src/hooks/useAudioEngine.ts:641-648` | 清空当前曲目路径先 `nowPlayingSent=false` 再 `closeSessionPrev`，Jellyfin stop 永远发不出（改前就是这个顺序，但 B5 声称已关）。 | 先 `closeSessionPrev` 再复位标记；补用例。 |
+| D6 | `frontend/src/utils/songIdentity.ts:29` | `feat\.|ft\.` 无词边界，且不再支持无点的 `A feat B` / `A ft B`（原正则支持）；`(with B)` 拆不开。 | `\bfeat\b\.?`、`\bft\b\.?`、`\bwith\b`；补无点形态用例。 |
