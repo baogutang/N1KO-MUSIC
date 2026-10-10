@@ -16,6 +16,7 @@ import type { Album, Artist, Playlist, SearchResult, ServerConfig, Song, SourceC
 import { useServerStore } from '@/store/serverStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { filterRecommendable } from '@/services/recommendationFilters'
+import { songKey } from '@/utils/songIdentity'
 
 // ===================================================
 // 音源引用与顺序（纯函数，测试直接覆盖）
@@ -285,11 +286,10 @@ export function useSourceRecommendSheets(): SourceQueryGroup<Playlist[]>[] {
 // 今日推荐合并（多源每日推荐交错去重）
 // ===================================================
 
-/** 跨源去重 key：小写、去空白、去括号后缀（Live/重制版等标记保留主体） */
-function recommendDedupKey(song: Song): string {
-  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '').replace(/[（(].*?[)）]/g, '')
-  return `${norm(song.title)}|${norm(song.artist)}`
-}
+/*
+ * 跨源去重 key 换成统一的 songKey（阶段 4.1 / F08）：旧实现把括号后缀整段
+ * 剥掉，Live 版与录音室版被当成同一首；songKey 的 titleKey 保留版本词。
+ */
 
 /**
  * 各源每日推荐合并成一张列表（纯函数，测试覆盖）：
@@ -310,7 +310,7 @@ export function interleaveRecommendations(
       if (out.length >= limit) break
       while (queue.length) {
         const song = queue.shift()!
-        const key = recommendDedupKey(song)
+        const key = songKey(song)
         if (seen.has(key)) continue
         seen.add(key)
         out.push(song)

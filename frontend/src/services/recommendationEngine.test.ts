@@ -7,6 +7,7 @@ import {
   recommendSongs,
   skipSeverity,
 } from '@/services/recommendationEngine'
+import { artistKey } from '@/utils/songIdentity'
 import {
   deriveListeningOutcome,
   type ListeningEvent,
@@ -71,8 +72,8 @@ describe('recommendation profile', () => {
       event(skipped, 'skipped', 5),
     ], NOW)
 
-    expect(profile.artistAffinity.get('artist a')).toBeGreaterThan(0)
-    expect(profile.artistAffinity.get('artist b')).toBeLessThan(0)
+    expect(profile.artistAffinity.get(artistKey('Artist A'))).toBeGreaterThan(0)
+    expect(profile.artistAffinity.get(artistKey('Artist B'))).toBeLessThan(0)
     // 跳过计数 = recency × 跳过强度。刚发生（recency≈1）、听了 5 秒就切，
     // 强度约 1.88，所以这里不是 1 而是接近 1.88。
     expect(profile.skipCounts.get('server-a:skip')).toBeCloseTo(skipSeverity(5), 1)
@@ -108,7 +109,7 @@ describe('recommendation profile', () => {
         expect(value).toBeLessThanOrEqual(1)
       }
     }
-    expect(profile.artistAffinity.get('artist b')).toBeLessThan(0)
+    expect(profile.artistAffinity.get(artistKey('Artist B'))).toBeLessThan(0)
   })
 })
 
@@ -405,8 +406,8 @@ describe('负侧先验平滑（阶段 1.6：一次跳过不再拉黑新歌手）
     ]
     const profile = buildRecommendationProfile(events, NOW)
 
-    const skipped = profile.artistAffinity.get('artist a') ?? 0
-    const completed = profile.artistAffinity.get('artist b') ?? 0
+    const skipped = profile.artistAffinity.get(artistKey('Artist A')) ?? 0
+    const completed = profile.artistAffinity.get(artistKey('Artist B')) ?? 0
 
     // 旧实现：-1.25 是全库最负 → 相对归一直接 -1.0，「一次跳过即拉黑」
     expect(skipped).toBeLessThan(0)
@@ -420,7 +421,7 @@ describe('负侧先验平滑（阶段 1.6：一次跳过不再拉黑新歌手）
     const events = Array.from({ length: 5 }, (_, i) => event(target, 'skipped', 5, i + 1))
     const profile = buildRecommendationProfile(events, NOW)
 
-    const affinity = profile.artistAffinity.get('artist a') ?? 0
+    const affinity = profile.artistAffinity.get(artistKey('Artist A')) ?? 0
     expect(affinity).toBeLessThanOrEqual(-0.5)
   })
 
@@ -432,7 +433,7 @@ describe('负侧先验平滑（阶段 1.6：一次跳过不再拉黑新歌手）
     ]
     const profile = buildRecommendationProfile(events, NOW)
     // +2 与 -1.25 同乘 recency 后合计为正：好感不该被一次跳过翻转
-    expect(profile.artistAffinity.get('artist a') ?? 0).toBeGreaterThan(0)
+    expect(profile.artistAffinity.get(artistKey('Artist A')) ?? 0).toBeGreaterThan(0)
   })
 
   it('时间衰减仍作用于负侧：一年前的跳过几乎不再压分', () => {
@@ -440,7 +441,7 @@ describe('负侧先验平滑（阶段 1.6：一次跳过不再拉黑新歌手）
       [event(song('s1', 'Artist A', 'rock'), 'skipped', 8, 365)],
       NOW
     )
-    expect(old.artistAffinity.get('artist a') ?? 0).toBeGreaterThan(-0.05)
+    expect(old.artistAffinity.get(artistKey('Artist A')) ?? 0).toBeGreaterThan(-0.05)
   })
 
   it('口味页读的与引擎用的是同一个值：展示权重来自同一 profile 构建器', () => {
@@ -451,8 +452,8 @@ describe('负侧先验平滑（阶段 1.6：一次跳过不再拉黑新歌手）
       event(song('s2', 'Artist B', 'pop'), 'completed', 195),
     ]
     const profile = buildRecommendationProfile(events, NOW)
-    expect(profile.artistAffinity.get('artist a')).toBe(1) // 正侧相对刻度保持旧行为
-    expect(profile.artistAffinity.get('artist b')).toBe(1)
+    expect(profile.artistAffinity.get(artistKey('Artist A'))).toBe(1) // 正侧相对刻度保持旧行为
+    expect(profile.artistAffinity.get(artistKey('Artist B'))).toBe(1)
   })
 })
 
@@ -467,7 +468,7 @@ describe('种子按来源收口（阶段 3.3 / F06：种子不再丢来源）', 
       { ...event(song('s2', 'Artist A', 'rock'), 'completed', 195, 1), serverId: 'wy', song: { ...song('s2', 'Artist A', 'rock'), artistId: 'wy-2' } },
     ]
     const profile = buildRecommendationProfile(events, NOW)
-    const identity = profile.artistIdentity.get('artist a')!
+    const identity = profile.artistIdentity.get(artistKey('Artist A'))!
     expect(identity.name).toBe('Artist A')
     expect(identity.idsBySource.get('wy')).toBe('wy-2')
     expect(identity.idsBySource.get('nas')).toBe('nas-7')

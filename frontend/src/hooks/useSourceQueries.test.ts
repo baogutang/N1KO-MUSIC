@@ -137,11 +137,12 @@ describe('interleaveRecommendations（今日推荐合并）', () => {
     expect(out.map(s => s.id)).toEqual(['a1', 'b2'])
   })
 
-  it('括号后缀不影响去重（Live / 重制）', () => {
+  it('Live 版与录音室版是两首歌，不再被去重吃掉（阶段 4.1 / F08）', () => {
     const a = [song('a1', '搁浅（Live）', '周杰伦')]
     const b = [song('b1', '搁浅', '周杰伦')]
     const out = interleaveRecommendations([{ songs: a }, { songs: b }], 10)
-    expect(out.map(s => s.id)).toEqual(['a1'])
+    // 旧实现把括号后缀整段剥掉再比，Live 版静默消失——用户以为没推荐
+    expect(out.map(s => s.id)).toEqual(['a1', 'b1'])
   })
 
   it('尊重上限；单源退化为截断；空组不出场', () => {

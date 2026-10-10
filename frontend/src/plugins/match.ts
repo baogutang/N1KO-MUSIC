@@ -25,22 +25,12 @@ export interface MergedSong {
 /** 时长缺席（0 / undefined）不参与比较，视为通过 */
 export const DURATION_TOLERANCE_SEC = 2
 
-const ARTIST_SEPARATORS = /[&,;、/]|(?:\s+feat\.?\s+)|(?:\s+ft\.?\s+)|(?:\s+with\s+)/gi
-
-/** 全角 → 半角、去空白与常见标点、小写。标题与歌手共用。 */
-export function normalizeText(text: string): string {
-  return text
-    .normalize('NFKC')
-    .toLowerCase()
-    // 去所有标点与空白（含括号内容外的连接符）；中文标点在 NFKC 后仍是标点
-    .replace(/[\p{P}\p{S}\p{Z}\s]+/gu, '')
-}
-
-/** 歌手串 → 归一化歌手集合（拆 & / 、 / feat. / with） */
-export function artistSet(artist: string): Set<string> {
-  const parts = artist.split(ARTIST_SEPARATORS).map(normalizeText).filter(Boolean)
-  return new Set(parts)
-}
+/*
+ * 归一化与歌手集合已抽到 utils/songIdentity（阶段 4.1，九套局部实现的唯一真源）。
+ * 这里 re-export 保住既有导入路径（Search.tsx 等直接引了 normalizeText）。
+ */
+export { normalizeText, artistSet } from '@/utils/songIdentity'
+import { normalizeText, artistSet } from '@/utils/songIdentity'
 
 function titleOf(song: Song): string {
   return normalizeText(song.title)

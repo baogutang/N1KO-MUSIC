@@ -14,6 +14,7 @@ import { SongList } from '@/components/music/SongList'
 import { useArtistDetail } from '@/hooks/useServerQueries'
 import { findAdapterFor, getAdapterFor } from '@/api'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
+import { artistKey } from '@/utils/songIdentity'
 import { useServerStore } from '@/store/serverStore'
 import { isQualifiedListeningEvent, readListeningEvents } from '@/services/listeningHistory'
 import { cn } from '@/lib/utils'
@@ -48,9 +49,9 @@ export default function ArtistDetailPage() {
   const serverId = useServerStore(st => st.activeServerId)
   const marginalia: ArtistMarginalia | undefined = useMemo(() => {
     if (!artist?.name || !serverId) return undefined
-    const key = artist.name.trim().toLocaleLowerCase()
+    const key = artistKey(artist.name)
     const events = readListeningEvents(serverId)
-      .filter(e => (e.song.artist ?? '').trim().toLocaleLowerCase() === key)
+      .filter(e => artistKey(e.song.artist ?? '') === key)
     if (!events.length) return undefined
 
     const qualified = events.filter(isQualifiedListeningEvent)

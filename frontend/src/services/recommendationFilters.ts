@@ -13,10 +13,16 @@
 import type { Song } from '@/api/types'
 import { readMutedSets } from '@/store/tasteStore'
 import { useServerStore } from '@/store/serverStore'
+import { artistBlockedBy, normalizeText } from '@/utils/songIdentity'
 
-/** 与 recommendationEngine 同款归一化：大小写与首尾空白不该影响屏蔽判定 */
-function normalized(text: string | undefined): string {
-  return (text ?? '').trim().toLowerCase()
+/*
+ * 持久化的屏蔽键可能是旧形态（trim+lower，保留 & 与空格），也可能是新的
+ * 全归一形态。两侧都过一遍归一再比，两种形态都命中。
+ */
+function normalizedSet(entries: ReadonlySet<string> | undefined): Set<string> {
+  const out = new Set<string>()
+  if (entries) for (const entry of entries) out.add(normalizeText(entry))
+  return out
 }
 
 export interface RecommendationConstraints {
@@ -43,9 +49,12 @@ export function applyRecommendationConstraints(
   constraints: RecommendationConstraints,
 ): Song[] {
   const { mutedArtists, mutedGenres, accountVip } = constraints
+  /* 屏蔽歌手按集合匹配（阶段 4.1）：屏蔽「A」要挡住「A / B」 */
+  const mutedArtistKeys = normalizedSet(mutedArtists)
+  const mutedGenreKeys = normalizedSet(mutedGenres)
   return songs.filter(song => {
-    if (mutedArtists?.has(normalized(song.artist))) return false
-    if (mutedGenres?.has(normalized(song.genre))) return false
+    if (artistBlockedBy(song.artist ?? '', mutedArtistKeys)) return false
+    if (normalizeText(song.genre ?? '') && mutedGenreKeys.has(normalizeText(song.genre ?? ''))) return false
     // 会员曲：只有确知该来源账号没有权益时才滤（undefined = 还没问到，不动）
     if ((song.vip || song.ext?.vip) && accountVip?.[song.serverId] === false) return false
     return true

@@ -6,6 +6,7 @@
  */
 
 import axios, { type AxiosInstance } from 'axios'
+import { parseLrc } from '@/utils/lrc'
 import md5 from 'md5'
 import type {
   MusicServerAdapter,
@@ -515,8 +516,9 @@ export class SubsonicAdapter implements MusicServerAdapter {
         const preferred = list.find(l => l.synced) ?? list[0]
         const offset = preferred.offset ?? 0
         const lines: LyricLine[] = (preferred.line ?? []).map(l => ({
-          // start 单位是毫秒，offset 是整体偏移（毫秒）
-          time: l.start !== undefined && l.start !== null ? Math.max(0, l.start + offset) : 0,
+          // start 单位是毫秒；offset 正值表示歌词提前显示 → 时间戳**减去**偏移
+          // （阶段 4.2 修正符号：原先的加号把「提前」唱成了「推后」）
+          time: l.start !== undefined && l.start !== null ? Math.max(0, l.start - offset) : 0,
           text: l.value ?? '',
         })).filter(l => l.text)
         return {
@@ -1092,77 +1094,10 @@ export class SubsonicAdapter implements MusicServerAdapter {
 }
 
 /**
- * 解析 LRC 格式歌词文本
- * 支持标准 LRC 和增强 LRC 格式
- *
- * LRC 元数据标签格式：`[tag:value]` 或 `[tag]`
- * 支持的标签：id, ar, ti, al, by, hash, sign, qq, total, offset, lang, length 等
- * 这些标签会被过滤掉，不作为歌词文本输出
+ * LRC 解析已抽到 utils/lrc（阶段 4.2，F11）：这里是适配器侧的兼容出口，
+ * subsonic / jellyfin / emby / plugin 四个适配器共用的导入路径。
  */
 export function parseLrcText(text: string): LyricLine[] {
-  if (!text?.trim()) return []
-
-  const lines: LyricLine[] = []
-
-  // [offset:±毫秒] 全局偏移：LRC 约定正值表示歌词提前显示（时间戳减去偏移），与 useLyrics.parseLrc 保持一致
-  const offsetMatch = /\[offset:\s*([+-]?\d+)\s*\]/i.exec(text)
-  const lrcOffset = offsetMatch ? parseInt(offsetMatch[1]) : 0
-
-  // LRC 元数据标签正则：匹配 [tag] 或 [tag:value] 格式
-  // 注意 [^\]] 的反斜杠不可省：JS 里 [^]] 会被解析为「任意字符 + 字面 ]」，导致多字符元数据值（如 [ar:周杰伦]）漏过滤
-  const metaTagRegex = /^\[(?:id|ar|ti|al|by|hash|sign|qq|total|offset|lang|length|desc|album|artist|title|author|maker|version|re|ve|encoding|file|rcv|usr|uid|msid|msas|mscv|msp|msu|cap|cta|cla|cla2|com|tag|instrument|role|track|lrcx)\s*(?::[^\]]*)?\]$/i
-
-  // 标准时间戳正则
-  const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g
-  const rows = text.split('\n')
-
-  for (const row of rows) {
-    const trimmed = row.trim()
-    if (!trimmed) continue
-
-    // 跳过 LRC 元数据标签行（如 [id:xxx], [ar:歌手], [ti:标题] 等）
-    if (metaTagRegex.test(trimmed)) {
-      continue
-    }
-
-    // 提取时间戳
-    const times: number[] = []
-    let match: RegExpExecArray | null
-    timeRegex.lastIndex = 0
-    while ((match = timeRegex.exec(trimmed)) !== null) {
-      const min = parseInt(match[1])
-      const sec = parseInt(match[2])
-      const ms = match[3].length === 2 ? parseInt(match[3]) * 10 : parseInt(match[3])
-      times.push(min * 60000 + sec * 1000 + ms)
-    }
-
-    // 提取歌词文本（去除所有时间标签）
-    const lyricText = trimmed.replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, '').trim()
-    if (!lyricText) continue
-
-    // 无时间戳的纯文本行
-    if (times.length === 0) {
-      lines.push({ time: 0, text: lyricText })
-      continue
-    }
-
-    // 区分两种多时间戳格式：
-    // 1) 重复副歌简写：所有时间标签连续出现在行首（[t1][t2]歌词），每个标签各生成一行
-    // 2) 卡拉OK逐字标签：时间标签内联在文字之间（如 "有[01:02.40]一[01:02.60]点[01:02.79]"，
-    //    行首可能没有标签），整行只生成一条记录，时间取该行最早的时间戳
-    // 行首标签之间允许空白（如 "[00:12.34] [01:45.00]text" 的重复副歌简写）
-    const leadingTags = /^(?:\[\d{2}:\d{2}\.\d{2,3}\]\s*)+/.exec(trimmed)
-    const leadingCount = leadingTags ? (leadingTags[0].match(/\[/g) ?? []).length : 0
-
-    if (leadingCount === times.length) {
-      for (const time of times) {
-        lines.push({ time: Math.max(0, time - lrcOffset), text: lyricText })
-      }
-    } else {
-      const earliest = Math.min(...times)
-      lines.push({ time: Math.max(0, earliest - lrcOffset), text: lyricText })
-    }
-  }
-
-  return lines.sort((a, b) => a.time - b.time)
+  return parseLrc(text)
 }
+

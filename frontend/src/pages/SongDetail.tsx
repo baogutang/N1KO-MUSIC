@@ -23,6 +23,7 @@ import { toast } from '@/components/ui/use-toast'
 import { useSettingsStore, buildRemoteCoverUrl } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/lyricCacheStore'
+import { artistKey, normalizeText, titleKey } from '@/utils/songIdentity'
 import { SongCredits } from '@/components/music/LinerNotes'
 import { buildSpecLine } from '@/utils/audioSpec'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
@@ -226,12 +227,13 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
    */
   function calculateMatchScore(result: LyricSearchResult, targetTitle: string, targetArtist: string, targetAlbum: string): number {
     let score = 0
-    const tTitle = targetTitle.toLowerCase().trim()
-    const tArtist = targetArtist.toLowerCase().trim()
-    const tAlbum = targetAlbum.toLowerCase().trim()
-    const rTitle = result.title.toLowerCase().trim()
-    const rArtist = result.artist.toLowerCase().trim()
-    const rAlbum = result.album.toLowerCase().trim()
+    // 归一化走统一的 songIdentity（阶段 4.1）：全半角/标点差异不再当不同歌
+    const tTitle = titleKey(targetTitle)
+    const tArtist = artistKey(targetArtist)
+    const tAlbum = normalizeText(targetAlbum)
+    const rTitle = titleKey(result.title)
+    const rArtist = artistKey(result.artist)
+    const rAlbum = normalizeText(result.album)
 
     if (rTitle === tTitle) score += 50
     else if (rTitle && tTitle && (rTitle.includes(tTitle) || tTitle.includes(rTitle))) score += 25

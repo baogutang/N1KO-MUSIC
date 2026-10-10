@@ -341,8 +341,10 @@ export class JellyfinAdapter implements MusicServerAdapter {
       const resp = await this.client.get(`/Audio/${songId}/Lyrics`)
       const lyrics = resp.data
       if (!lyrics?.Lyrics?.length) return null
-      const lines = (lyrics.Lyrics as Array<{ Start: number; Text: string }>).map(l => ({
-        time: Math.floor(l.Start / 10000),
+      const lines = (lyrics.Lyrics as Array<{ Start?: number; Text: string }>).map(l => ({
+        // Start 是 .NET ticks（100ns）；缺失/非数时落 0 而不是 NaN（阶段 4.2：
+        // NaN 进排序会让整首歌词的行序变成未定义）
+        time: typeof l.Start === 'number' && Number.isFinite(l.Start) ? Math.floor(l.Start / 10000) : 0,
         text: l.Text,
       }))
       return { songId, lines, synced: lines.some(l => l.time > 0) }

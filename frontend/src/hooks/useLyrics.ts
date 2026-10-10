@@ -10,85 +10,17 @@
 
 import { useMemo } from 'react'
 import type { LyricLine } from '@/api/types'
+import { parseLrc as parseLrcUnified } from '@/utils/lrc'
 
 // ===================================================
 // LRC 解析工具
 // ===================================================
 
-/** 解析 LRC 格式文本 */
+/** LRC 解析的唯一实现已抽到 utils/lrc（阶段 4.2 / F11），这里是兼容出口 */
 export function parseLrc(text: string): LyricLine[] {
-  if (!text?.trim()) return []
-
-  const lines: LyricLine[] = []
-
-  // LRC 元数据标签正则：匹配 [tag] 或 [tag:value] 格式
-  // 注意 [^\]] 的反斜杠不可省：JS 里 [^]] 会被解析为「任意字符 + 字面 ]」，导致多字符元数据值（如 [ar:周杰伦]）漏过滤
-  const metaPattern = /^\[(?:id|ar|ti|al|by|hash|sign|qq|total|offset|lang|length|desc|album|artist|title|author|maker|version|re|ve|encoding|file|rcv|usr|uid|msid|msas|mscv|msp|msu|cap|cta|cla|cla2|com|tag|instrument|role|track|lrcx)\s*(?::[^\]]*)?\]$/i
-
-  // [offset:±毫秒] 全局偏移标签：LRC 约定正值表示歌词提前显示（即时间戳减去偏移）
-  const offsetPattern = /^\[offset:\s*([+-]?\d+)\s*\]$/i
-  let lrcOffset = 0
-
-  /**
-   * 匹配 [mm:ss.xx] / [mm:ss.xxx]，以及**没有小数部分的 [mm:ss]**。
-   *
-   * 小数位此前是必需的，于是整秒精度的 LRC（不少手写歌词和一些下载源就是
-   * 这种）一行都匹配不上，整首歌词静默退化成「无同步文本」——看得见字，
-   * 但不会跟着走。
-   */
-  const timePattern = /\[(\d{1,2}):(\d{2})(?:\.(\d{2,3}))?\]/g
-
-  const rows = text.split('\n')
-
-  for (const row of rows) {
-    const trimmed = row.trim()
-    if (!trimmed) continue
-
-    const offsetMatch = offsetPattern.exec(trimmed)
-    if (offsetMatch) {
-      lrcOffset = parseInt(offsetMatch[1])
-      continue
-    }
-
-    if (metaPattern.test(trimmed)) continue
-
-    const times: number[] = []
-    let match: RegExpExecArray | null
-    timePattern.lastIndex = 0
-
-    while ((match = timePattern.exec(trimmed)) !== null) {
-      const min = parseInt(match[1])
-      const sec = parseInt(match[2])
-      // 没有小数部分时 match[3] 是 undefined——整秒时间戳走这一支
-      const frac = match[3]
-      const ms = frac === undefined ? 0
-        : frac.length === 2 ? parseInt(frac) * 10
-        : parseInt(frac)
-      times.push(min * 60000 + sec * 1000 + ms)
-    }
-
-    // 去除所有时间标签后的文本
-    const lyricText = trimmed.replace(/\[\d{1,2}:\d{2}\.\d{2,3}\]/g, '').trim()
-
-    if (times.length > 0 && lyricText) {
-      for (const time of times) {
-        lines.push({ time, text: lyricText })
-      }
-    } else if (times.length === 0 && lyricText) {
-      // 无时间戳的纯文本行
-      lines.push({ time: 0, text: lyricText })
-    }
-  }
-
-  // 应用全局偏移（正值提前 -> 减去偏移），并保证时间不为负
-  if (lrcOffset !== 0) {
-    for (const line of lines) {
-      line.time = Math.max(0, line.time - lrcOffset)
-    }
-  }
-
-  return lines.sort((a, b) => a.time - b.time)
+  return parseLrcUnified(text)
 }
+
 
 /**
  * 根据当前播放时间找到当前歌词行索引

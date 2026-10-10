@@ -9,6 +9,7 @@
  */
 
 import type { Song } from '@/api/types'
+import { songKey } from '@/utils/songIdentity'
 import type { ListeningEvent } from '@/services/listeningHistory'
 
 /** M3U 的 #EXTINF 时长用秒，未知写 -1 */
@@ -149,7 +150,7 @@ export function matchEntriesToLibrary(
       const base = path.split(/[\\/]/).pop()
       if (base && !byBasename.has(base)) byBasename.set(base, song)
     }
-    const label = `${song.artist ?? ''} ${song.title}`.toLowerCase()
+    const label = songKey({ title: song.title, artist: song.artist ?? '' })
     if (!byLabel.has(label)) byLabel.set(label, song)
   }
 
@@ -161,7 +162,7 @@ export function matchEntriesToLibrary(
     const song =
       byPath.get(location) ??
       (base ? byBasename.get(base) : undefined) ??
-      (entry.title ? byLabel.get(`${entry.artist ?? ''} ${entry.title}`.toLowerCase()) : undefined)
+      (entry.title ? byLabel.get(songKey({ title: entry.title, artist: entry.artist ?? '' })) : undefined)
     if (song) matched.push(song)
     else missing.push(entry)
   }

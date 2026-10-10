@@ -10,6 +10,7 @@
 import type { ListeningEvent } from '@/services/listeningHistory'
 import { isQualifiedListeningEvent } from '@/services/listeningHistory'
 import type { Song } from '@/api/types'
+import { artistKey, normalizeText } from '@/utils/songIdentity'
 import { t } from '@/i18n'
 
 const DAY_MS = 86_400_000
@@ -165,13 +166,13 @@ export function buildIssue(
     songs.set(songKey, { count: (prevSong?.count ?? 0) + 1, song })
 
     if (song.artist) {
-      const key = song.artist.toLocaleLowerCase()
+      const key = artistKey(song.artist)
       const prev = artists.get(key)
       artists.set(key, { count: (prev?.count ?? 0) + 1, song })
       artistSeconds.set(key, (artistSeconds.get(key) ?? 0) + event.listenedSeconds)
     }
     if (song.album) {
-      const key = song.albumId || song.album.toLocaleLowerCase()
+      const key = song.albumId || normalizeText(song.album)
       const prev = albums.get(key)
       albums.set(key, { count: (prev?.count ?? 0) + 1, song })
     }
@@ -206,7 +207,7 @@ export function buildIssue(
   const earlierArtists = new Set(
     allEvents
       .filter(e => e.endedAt < period.from && e.song.artist)
-      .map(e => e.song.artist.toLocaleLowerCase())
+      .map(e => artistKey(e.song.artist))
   )
   const discoveries = topArtists.filter(a => !earlierArtists.has(a.key)).slice(0, 5)
 

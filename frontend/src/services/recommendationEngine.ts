@@ -1,6 +1,7 @@
 import type { Album, Artist, Song } from '@/api/types'
 import type { ListeningEvent } from '@/services/listeningHistory'
 import { isQualifiedListeningEvent } from '@/services/listeningHistory'
+import { artistBlockedBy, normalizeText } from '@/utils/songIdentity'
 
 export interface RecommendationProfile {
   artistAffinity: Map<string, number>
@@ -64,9 +65,12 @@ export function artistSeedCountFor(size: number): number {
 /** 相似度惩罚系数，用于压制「整批推荐听起来都一样」 */
 const SIMILARITY_PENALTY = 0.24
 
-function normalized(value?: string): string {
-  return (value ?? '').trim().toLocaleLowerCase()
-}
+/*
+ * 归一化换统一的 normalizeText（阶段 4.1）：画像键、屏蔽匹配、跨源去重
+ * 从此同一形态。旧的持久化屏蔽键（lower 形态）在 recommendationFilters
+ * 里两侧归一后仍能命中。
+ */
+const normalized = normalizeText
 
 function songKey(song: Song): string {
   return `${song.serverId ?? ''}:${song.id}`
@@ -308,11 +312,14 @@ export function recommendSongs(
    */
   muted?: { artists?: ReadonlySet<string>; genres?: ReadonlySet<string> }
 ): Song[] {
+  /* 屏蔽键与流派键可能以旧形态（lower、保留空格）持久化：两侧归一后再比 */
+  const mutedArtistKeys = new Set([...(muted?.artists ?? [])].map(normalizeText))
+  const mutedGenreKeys = new Set([...(muted?.genres ?? [])].map(normalizeText))
   const deduped = new Map<string, Song>()
   for (const song of candidates) {
     if (!song?.id) continue
-    if (muted?.artists?.has(normalized(song.artist))) continue
-    if (muted?.genres?.has(normalized(song.genre))) continue
+    if (artistBlockedBy(song.artist ?? '', mutedArtistKeys)) continue
+    if (normalizeText(song.genre ?? '') && mutedGenreKeys.has(normalizeText(song.genre ?? ''))) continue
     deduped.set(songKey(song), song)
   }
 
