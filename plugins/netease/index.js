@@ -302,9 +302,22 @@ function anonymousUsername(deviceId) {
  * 匿名访问令牌（api-enhanced 启动时的 register/anonimous）：
  * 未登录也能搜索与听免费曲。注册结果存私有存储。
  */
+/* single-flight（复审 B15）：搜索四类并发后，冷启动的四个请求会同时
+   发现没有匿名 cookie、各自注册一次。同一时刻只放一个注册在飞。 */
+var anonymousCookieInflight = null
+
 async function ensureAnonymousCookie(env, deviceId) {
   var cached = await env.storage.get('anonymous-cookie')
   if (cached) return cached
+  if (anonymousCookieInflight) return anonymousCookieInflight
+  anonymousCookieInflight = registerAnonymousCookie(env, deviceId)
+  /* 无论成败都清掉在飞标记：失败后下一轮还能重试（成功已进 storage） */
+  var release = function () { anonymousCookieInflight = null }
+  anonymousCookieInflight.then(release, release)
+  return anonymousCookieInflight
+}
+
+async function registerAnonymousCookie(env, deviceId) {
   /* cookieOverride 必须显式传空串：匿名注册自身不能走 currentCookie，
      否则「注册 → 请求要 cookie → 没 cookie 再注册」构成自递归。
      weapi + 桌面 UA（与扫码会话同上下文，风控一致性） */

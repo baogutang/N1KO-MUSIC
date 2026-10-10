@@ -211,7 +211,7 @@ there is no "unlocking" of any kind.
 | Source | Sign-in | What works |
 |------|------|------|
 | NetEase Cloud Music | QR scan from the phone app | Search, your playlists, favourites, daily picks, charts, lyrics, add to / remove from playlists |
-| QQ Music | QR scan from the QQ app | Search, your playlists, favourites, radar picks, charts, lyrics |
+| QQ Music | QR scan from the QQ or WeChat app | Search, your playlists, radar picks, charts, lyrics |
 
 They sit **alongside** your NAS rather than replacing it: search is grouped by
 source with an "All" view merged by relevance; the home page's **"What to play
@@ -322,7 +322,8 @@ flowchart LR
 
     shells --> app
     AD -->|"audio + metadata"| S
-    LO <-->|"history · favourites · notes"| B
+    LO <-->|"history · notes"| B
+    LO -->|"favourites (push only)"| B
 
     LB["ListenBrainz<br/><sub>opt-in</sub>"]
     MB["MusicBrainz<br/><sub>opt-in, off by default</sub>"]
@@ -345,15 +346,16 @@ plugin's manifest allow-list.
 
 <br/>
 
-`backend/` exposes account, local-playlist, favourite, listening-history and
+`backend/` exposes account, playlist, favourite, listening-history and
 marginalia APIs. It is **entirely optional**: music always streams straight from
 your own music server, and with no sync service configured the app keeps its
 full feature set, storing everything locally in IndexedDB.
 
-Once deployed, open **Settings › 跨设备同步 (SYNC)**, enter the address and sign
-in. The client then mirrors history, favourites and notes, and merges records
-written by your other devices, so recommendations do not restart on a new
-machine.
+Once deployed, open **Settings › Sync across devices (SYNC)**, enter the address
+and sign in. The client then syncs your listening history both ways, pushes
+favourite changes to the service (restoring favourites on a new device relies on
+the music server itself), and merges your marginalia notes across devices — so
+recommendations do not restart on a new machine.
 
 ```bash
 cd backend
@@ -432,7 +434,7 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 
 | What | Where it goes |
 |---|---|
-| Your music | Your music server. Nowhere else. |
+| Your music | Your music server (NAS) or the plugin sources you signed in to — nowhere else. |
 | Listening history, statistics, taste profile | This device (IndexedDB), plus your own sync service if you run one. |
 | Marginalia | Same. It is the only irreplaceable data here, so it syncs first. |
 | Server credentials | Encrypted at rest with an AES-GCM key that page script cannot extract. |

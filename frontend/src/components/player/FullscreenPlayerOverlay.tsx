@@ -73,6 +73,10 @@ export function FullscreenPlayerOverlay() {
         <DialogPrimitive.Content
           forceMount
           aria-label={t('player.nowPlaying')}
+          /* Radix 需要 Title（复审 B12）：没有它开发态每次打开都
+             console.error「Missing Title」。视觉隐藏，不参与排版；
+             aria-label 已在 Content 上，Description 显式置空。 */
+          aria-describedby={undefined}
           data-fullscreen-player=""
           className="fixed inset-0 z-50 outline-none transition-all duration-300 ease-out"
           style={{
@@ -83,6 +87,7 @@ export function FullscreenPlayerOverlay() {
           /* 全屏铺满视口，不存在「浮层外部」——别让边缘点击误关 */
           onInteractOutside={e => e.preventDefault()}
         >
+          <DialogPrimitive.Title className="sr-only">{t('player.nowPlaying')}</DialogPrimitive.Title>
           <Suspense fallback={<div className="absolute inset-0 bg-background/70" />}>
             <FullscreenPlayer />
           </Suspense>

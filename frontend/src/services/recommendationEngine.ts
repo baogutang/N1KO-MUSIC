@@ -108,12 +108,19 @@ function normalizeMap<K>(map: Map<K, number>, eventCounts?: Map<K, number>) {
     if (value < 0) hasNegative = true
   }
   if (positiveMax <= 0 && !hasNegative) return
+  /*
+   * 负侧刻度与正侧同源（复审 B2）：原先固定除以 3、正侧按 positiveMax
+   * 相对归一——重度用户头部歌手原始权重 ≈20 时，一次 completed 归一后
+   * 只有 +0.1，一次 skip 却有 -0.104，「不超过一半」被打破。负侧改除以
+   * max(positiveMax, 固定下限)：轻用户维持原量级，重用户两边同一把尺。
+   */
+  const negativeScale = Math.max(positiveMax, NEGATIVE_FIXED_SCALE)
   for (const [key, value] of map) {
     if (value > 0) map.set(key, positiveMax > 0 ? value / positiveMax : 0)
     else if (value < 0) {
       const n = eventCounts?.get(key) ?? 1
       const shrunk = value * (n / (n + NEGATIVE_PRIOR_EVENTS))
-      map.set(key, Math.max(-1, shrunk / NEGATIVE_FIXED_SCALE))
+      map.set(key, Math.max(-1, shrunk / negativeScale))
     }
   }
 }
@@ -192,11 +199,17 @@ export function buildRecommendationProfile(
     if (artist) {
       addWeight(profile.artistAffinity, artist, weight)
       bump(artistEvents, artist)
-      // 各来源各记各的 id；同源的更新事件覆盖旧值（最新赢，不先到先得）
+      /*
+       * 各来源各记各的 id；**最新赢**（复审 B3 修正）：
+       * events 按新到旧排列，逐条覆盖 set 会让最后处理的（最旧的）赢。
+       * 只在该源还没有 id 时写入——新事件先到、占住位置，旧事件不再覆盖。
+       */
       if (event.song.artistId) {
         const known = profile.artistIdentity.get(artist)
         if (known) {
-          known.idsBySource.set(event.serverId, event.song.artistId)
+          if (!known.idsBySource.has(event.serverId)) {
+            known.idsBySource.set(event.serverId, event.song.artistId)
+          }
         } else {
           profile.artistIdentity.set(artist, {
             name: event.song.artist,

@@ -15,18 +15,20 @@ import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 
 /* ── 引擎依赖全部换成可控桩（vi.hoisted：mock 工厂在 import 前执行） ── */
-const { scrobble, upsertListeningEvent, fakeAdapter } = vi.hoisted(() => {
+const { scrobble, upsertListeningEvent, reportPlayback, fakeAdapter } = vi.hoisted(() => {
   const scrobble = vi.fn(async () => undefined)
   const upsertListeningEvent = vi.fn(async (_event: unknown) => 0)
+  const reportPlayback = vi.fn(async (_songId: string, _state: unknown) => undefined)
   const fakeAdapter = {
     type: 'plugin' as const,
     resolveStreamUrl: async () => ({ url: 'https://cdn.test/a.mp3', expiresAt: Date.now() + 60_000 }),
     scrobble,
+    reportPlayback,
     ping: async () => true,
     searchAll: async () => ({ songs: [], albums: [], artists: [] }),
     getStarred: async () => ({ songs: [], albums: [], artists: [] }),
   }
-  return { scrobble, upsertListeningEvent, fakeAdapter }
+  return { scrobble, upsertListeningEvent, reportPlayback, fakeAdapter }
 })
 vi.mock('@/api', () => ({
   getAdapterFor: () => fakeAdapter,
@@ -176,5 +178,44 @@ describe('单曲循环第 2 遍重算（复审 A5，引擎级）', () => {
     expect(Math.abs(durations[durations.length - 1] - 118)).toBeLessThanOrEqual(1)
     // scrobble 两遍都报了（playSubmitted 已复位）
     expect(scrobble.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('会话上报生命周期（复审 B5，引擎级）', () => {
+  it('暂停报 paused、恢复报播放态；同曲期间不发 stop，切歌才 stop', async () => {
+    act(() => { root!.render(<ProbeTree />) })
+    const el = await untilAudioAttached()
+    await act(async () => { for (let i = 0; i < 50; i++) await Promise.resolve() })
+
+    // 开始播放 → start
+    act(() => { el.dispatchEvent(new Event('play')) })
+    listenSeconds(el, 5)
+
+    // 暂停 → progress(isPaused:true)
+    act(() => { el.dispatchEvent(new Event('pause')) })
+    // 恢复 → progress(isPaused:false)（B5：原来不发，会话停在暂停态）
+    act(() => { el.dispatchEvent(new Event('play')) })
+
+    const events = reportPlayback.mock.calls.map(c => {
+      const state = c[1] as { event: string; isPaused?: boolean }
+      return { event: state.event, paused: !!state.isPaused }
+    })
+    expect(events[0]).toEqual({ event: 'start', paused: false })
+    expect(events.some(e => e.event === 'progress' && e.paused)).toBe(true)
+    expect(events.some(e => e.event === 'progress' && !e.paused)).toBe(true)
+    // 同一首还在听：中途不该有 stop
+    expect(events.filter(e => e.event === 'stop')).toEqual([])
+
+    // 切歌：真切歌路径发一次 stop
+    act(() => {
+      usePlayerStore.setState({
+        currentSong: { id: 's2', title: '下一首', artist: 'B', album: 'AL', duration: 120, serverId: 'srv' },
+        playVersion: usePlayerStore.getState().playVersion + 1,
+      } as never)
+    })
+    await act(async () => { for (let i = 0; i < 80; i++) await Promise.resolve() })
+    expect(
+      reportPlayback.mock.calls.some(c => (c[1] as { event: string }).event === 'stop')
+    ).toBe(true)
   })
 })

@@ -478,11 +478,9 @@ export class JellyfinAdapter implements MusicServerAdapter {
   }
 
   async deleteBookmark(songId: string): Promise<void> {
-    await this.client.post(
-      `/UserItems/${songId}/UserData`,
-      { PlaybackPositionTicks: 0 },
-      { params: { userId: this.userId } }
-    )
+    /* 双路由（复审 B6，6.4 漏的最后一处）：清断点也走 postUserData，
+       Emby 没有 10.9 的 /UserItems 路由 */
+    await this.postUserData(songId, { PlaybackPositionTicks: 0 })
   }
 
   /** 多音乐库：Jellyfin 用户可见的媒体库视图 */

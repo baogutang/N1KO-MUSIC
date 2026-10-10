@@ -10,6 +10,8 @@ import { Play, Shuffle, Heart } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
 import { LinerNotes } from '@/components/music/LinerNotes'
 import { useAlbumDetail, useToggleStar } from '@/hooks/useServerQueries'
+import { useSourceCapabilities } from '@/hooks/useSourceQueries'
+import { sourceSupportsFavorites } from '@/services/heartCapability'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { findAdapterFor } from '@/api'
 import { formatDurationNatural } from '@/utils/formatters'
@@ -28,6 +30,9 @@ export default function AlbumDetailPage() {
   const [searchParams] = useSearchParams()
   const { data: album, isLoading } = useAlbumDetail(id ?? '', sourceParam(searchParams))
   const toggleStar = useToggleStar()
+  /* B4：专辑收藏只在源声明 favorites 时给入口 */
+  const caps = useSourceCapabilities()
+  const canStarAlbum = sourceSupportsFavorites(caps, album?.serverId)
   const [starred, setStarred] = useState(false)
   const [view, setView] = useState<'tracks' | 'notes'>('tracks')
 
@@ -132,6 +137,7 @@ export default function AlbumDetailPage() {
               <Shuffle size={14} />
               {t('player.shuffle')}
             </button>
+            {canStarAlbum && (
             <button
               onClick={() => {
                 if (!id) return
@@ -153,6 +159,7 @@ export default function AlbumDetailPage() {
             >
               <Heart size={17} weight={starred ? 'fill' : 'regular'} />
             </button>
+            )}
           </div>
         </div>
       </div>

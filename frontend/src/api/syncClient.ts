@@ -205,14 +205,38 @@ export async function pushNote(
     updatedAt?: number
   }
 ): Promise<PushNoteResult> {
-  try {
-    const response = await createClient(baseUrl, token).put<{ updatedAt?: number }>('/api/notes', {
+  /*
+   * 老后端兼容（复审 B9）：边注 PUT 的 updatedAt 是 v1.6.0 才加的字段，
+   * 更早的后端 zod .strict() 会把带它的请求直接 400——边注从此静默推不上去。
+   * 遇 400 去掉 updatedAt 用旧形状重试一次（旧后端没有旧盖新保护，
+   * 那是它的语义，能同步总比静默丢强）。
+   */
+  const putNote = (withUpdatedAt: boolean) =>
+    createClient(baseUrl, token).put<{ updatedAt?: number }>('/api/notes', {
       targetType: note.targetType,
       targetId: note.targetId,
       serverId: note.serverId,
       body: note.body,
-      ...(note.updatedAt !== undefined ? { updatedAt: Math.floor(note.updatedAt / 1000) } : {}),
+      ...(withUpdatedAt && note.updatedAt !== undefined
+        ? { updatedAt: Math.floor(note.updatedAt / 1000) }
+        : {}),
     })
+
+  try {
+    let response: Awaited<ReturnType<typeof putNote>>
+    try {
+      response = await putNote(note.updatedAt !== undefined)
+    } catch (firstError) {
+      if (
+        note.updatedAt !== undefined
+        && axios.isAxiosError(firstError)
+        && firstError.response?.status === 400
+      ) {
+        response = await putNote(false)
+      } else {
+        throw firstError
+      }
+    }
     return { updatedAt: response.data?.updatedAt }
   } catch (error) {
     // 409 不是失败：是服务端在告诉我们「你手里的版本旧了」

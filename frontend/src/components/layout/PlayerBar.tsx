@@ -27,6 +27,8 @@ import { SourceBadge } from '@/components/sources/SourceBadge'
 import { VipTag } from '@/components/sources/VipTag'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useToggleStar } from '@/hooks/useServerQueries'
+import { useSourceCapabilities } from '@/hooks/useSourceQueries'
+import { sourceSupportsFavorites } from '@/services/heartCapability'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -235,6 +237,9 @@ export function PlayerBar() {
   const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
 
   const toggleStar = useToggleStar()
+  /* B4：心形按 favorites 能力出现（与 SongList 一致），插件源没声明就不给入口 */
+  const caps = useSourceCapabilities()
+  const canFavoriteCurrent = sourceSupportsFavorites(caps, currentSong?.serverId)
   // 多源连接时曲目信息带来源徽标（PLAN 2.5）；单源保持原样
   const multiSource = useServerStore(s => s.connectedServerIds.length > 1)
 
@@ -330,6 +335,7 @@ export function PlayerBar() {
             </p>
           </div>
 
+          {canFavoriteCurrent && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -343,6 +349,7 @@ export function PlayerBar() {
             </TooltipTrigger>
             <TooltipContent>{t(currentSong.starred ? 'player.unfavorite' : 'player.favorite')}</TooltipContent>
           </Tooltip>
+          )}
         </div>
 
         {/* ===== 中：传输键 + 进度行 ===== */}

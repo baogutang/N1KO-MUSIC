@@ -28,6 +28,8 @@ import { useThemeStore } from '@/store/themeStore'
 import { useIsMobileLayout } from '@/lib/platform'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useLyricsQuery, useToggleStar } from '@/hooks/useServerQueries'
+import { useSourceCapabilities } from '@/hooks/useSourceQueries'
+import { sourceSupportsFavorites } from '@/services/heartCapability'
 import { useCoverUrl } from '@/hooks/useCoverUrl'
 import { LyricDisplay } from './LyricDisplay'
 import { CoverImage } from '@/components/common/CoverImage'
@@ -274,6 +276,9 @@ export function FullscreenPlayer() {
 
   const { primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 512 })
   const toggleStar = useToggleStar()
+  /* B4：心形按 favorites 能力出现；桌面与移动两处共用 */
+  const caps = useSourceCapabilities()
+  const canFavoriteCurrent = sourceSupportsFavorites(caps, currentSong?.serverId)
 
   // 封面取色晕染（DESIGN §1.3 唯一允许的渐变）：提取完成后才渲染，null = 尚未取色
   const [bleedColors, setBleedColors] = useState<{ primary: string; secondary: string } | null>(null)
@@ -579,6 +584,7 @@ export function FullscreenPlayer() {
                 >
                   <Queue size={16} />
                 </button>
+                {canFavoriteCurrent && (
                 <button
                   onClick={handleToggleStar}
                   disabled={toggleStar.isPending}
@@ -591,6 +597,7 @@ export function FullscreenPlayer() {
                 >
                   <Heart size={16} weight={currentSong.starred ? 'fill' : 'regular'} />
                 </button>
+                )}
               </div>
             </div>
           ) : (
@@ -723,6 +730,7 @@ export function FullscreenPlayer() {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">{t('action.addToPlaylist')}</TooltipContent>
               </Tooltip>
+              {canFavoriteCurrent && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -740,6 +748,7 @@ export function FullscreenPlayer() {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">{currentSong.starred ? t('player.unfavorite') : t('player.favorite')}</TooltipContent>
               </Tooltip>
+              )}
             </div>
           </div>
 

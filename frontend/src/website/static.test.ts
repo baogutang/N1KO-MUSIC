@@ -34,3 +34,18 @@ describe('默认皮肤口径（A10：默认是奶油·软陶，不是糖果·波
     expect(js).toContain('Soft Clay (default skin)')
   })
 })
+
+describe('官网词条完整性（复审 B13）', () => {
+  it('sources.note 两种语言都是整句（不再被截成半句），HTML 默认文案与词条同形', () => {
+    const js = readFileSync(website('script.js'), 'utf8')
+    const zhEntry = /'sources\.note': '([^']+)'/.exec(js)?.[1] ?? ''
+    const enEntry = /'sources\.note': '([^']+)',\n\s*'sandbox/.exec(js)?.[1] ?? ''
+    expect(zhEntry.length).toBeGreaterThan(30)
+    expect(enEntry.length).toBeGreaterThan(30)
+
+    const html = readFileSync(website('index.html'), 'utf8')
+    // 下载区默认文案含 xattr 引导（切不切语言都在）
+    expect(html).toContain('xattr -cr "/Applications/N1KO MUSIC.app"')
+    expect(js).toContain('xattr -cr')
+  })
+})

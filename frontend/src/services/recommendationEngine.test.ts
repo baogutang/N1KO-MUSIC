@@ -460,12 +460,13 @@ describe('负侧先验平滑（阶段 1.6：一次跳过不再拉黑新歌手）
 describe('种子按来源收口（阶段 3.3 / F06：种子不再丢来源）', () => {
   const target = song('s1', 'Artist A', 'rock')
 
-  it('同一位歌手在两个源各有 id，artistIdentity 按源分表（不再先到先得）', () => {
+  it('同一位歌手在两个源各有 id，artistIdentity 按源分表，同源最新赢（复审 B3：新到旧喂数据）', () => {
+    // events 按新到旧排列（readListeningEvents 的真实顺序）：
+    // 最新的是 wy-2，最旧的是 wy-1 —— 最终 wy 必须是 wy-2
     const events = [
-      { ...event(target, 'completed', 195, 3), serverId: 'wy', song: { ...target, artistId: 'wy-1' } },
-      { ...event(target, 'completed', 195, 2), serverId: 'nas', song: { ...target, artistId: 'nas-7' } },
-      // wy 上更晚的事件带来新 id：同源最新赢
       { ...event(song('s2', 'Artist A', 'rock'), 'completed', 195, 1), serverId: 'wy', song: { ...song('s2', 'Artist A', 'rock'), artistId: 'wy-2' } },
+      { ...event(target, 'completed', 195, 2), serverId: 'nas', song: { ...target, artistId: 'nas-7' } },
+      { ...event(target, 'completed', 195, 3), serverId: 'wy', song: { ...target, artistId: 'wy-1' } },
     ]
     const profile = buildRecommendationProfile(events, NOW)
     const identity = profile.artistIdentity.get(artistKey('Artist A'))!
@@ -502,5 +503,28 @@ describe('种子按来源收口（阶段 3.3 / F06：种子不再丢来源）', 
     const seeds = deriveRecommendationSeeds(profile, events, { serverId: 'nas', songs: 10 })
     // nas 上只有 s2/s3 听完过
     expect(seeds.songIds).toEqual(['s2', 's3'])
+  })
+})
+
+describe('负侧与正侧同尺（复审 B2：重度历史下「一次 skip ≤ 一次 completed 的一半」）', () => {
+  it('头部歌手原始权重 ≈20 的重度用户：新歌手一次 skip 的扣分 ≤ 一次 completed 加分的一半', () => {
+    // 10 位重度歌手各听 10 遍（原始权重 2×10=20），再各来一次新歌手事件
+    const heavy = []
+    let t = 300
+    for (let a = 1; a <= 10; a++) {
+      for (let i = 0; i < 10; i++) {
+        heavy.push(event(song(`h${a}-${i}`, `Heavy ${a}`, 'rock'), 'completed', 195, t))
+        t -= 1
+      }
+    }
+    const skipNew = event(song('new-s', 'Artist A', 'rock'), 'skipped', 8, 2)
+    const doneNew = event(song('new-s2', 'Artist B', 'rock'), 'completed', 195, 1)
+    const profile = buildRecommendationProfile([...heavy, skipNew, doneNew], NOW)
+
+    const skipAffinity = Math.abs(profile.artistAffinity.get(artistKey('Artist A')) ?? 0)
+    const doneAffinity = profile.artistAffinity.get(artistKey('Artist B')) ?? 0
+
+    expect(doneAffinity).toBeGreaterThan(0)
+    expect(skipAffinity).toBeLessThanOrEqual(0.5 * doneAffinity)
   })
 })

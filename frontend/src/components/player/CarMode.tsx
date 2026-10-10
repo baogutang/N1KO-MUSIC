@@ -18,6 +18,8 @@ import { Play, Pause, SkipBack, SkipForward, Heart, X } from '@phosphor-icons/re
 import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useToggleStar } from '@/hooks/useServerQueries'
+import { useSourceCapabilities } from '@/hooks/useSourceQueries'
+import { sourceSupportsFavorites } from '@/services/heartCapability'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { cn } from '@/lib/utils'
@@ -83,6 +85,9 @@ function useWakeLock(active: boolean): void {
 export function CarMode({ onExit }: { onExit: () => void }) {
   const { t } = useT()
   const currentSong = usePlayerStore(s => s.currentSong)
+  /* B4：心形按 favorites 能力出现，占位保持按钮间距 */
+  const caps = useSourceCapabilities()
+  const canFavoriteCurrent = sourceSupportsFavorites(caps, currentSong?.serverId)
   const isPlaying = usePlayerStore(s => s.isPlaying)
   const currentTime = usePlayerStore(s => s.currentTime)
   const duration = usePlayerStore(s => s.duration)
@@ -153,6 +158,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
         「上一首 / 播放 / 下一首」——窄屏上三个键才排得开，不会被切掉。
       */}
       <div className="flex items-center justify-between p-4">
+        {canFavoriteCurrent ? (
         <button
           onClick={() => toggleStar.mutate({
             id: currentSong.id,
@@ -169,6 +175,9 @@ export function CarMode({ onExit }: { onExit: () => void }) {
             className={currentSong.starred ? 'text-sem-fav' : 'text-ink'}
           />
         </button>
+        ) : (
+          <span className="grid h-16 w-16" aria-hidden="true" />
+        )}
         <button
           onClick={onExit}
           aria-label={t('player.exitCarMode')}

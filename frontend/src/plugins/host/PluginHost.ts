@@ -113,7 +113,7 @@ export interface PluginHostStorage {
 }
 
 /** 每源频控退避到期时刻（serverId → 毫秒时间戳；阶段 6.8） */
-const rateBackoffUntil = new Map<string, number>()
+export const rateBackoffUntil = new Map<string, number>()
 /** PROTOCOL §7 承诺的宿主退避时长 */
 export const RATE_LIMITED_BACKOFF_MS = 60_000
 

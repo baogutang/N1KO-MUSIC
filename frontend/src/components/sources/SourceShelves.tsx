@@ -31,6 +31,8 @@ import type { Playlist } from '@/api/types'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
+import { useTasteStore } from '@/store/tasteStore'
+import { filterRecommendable } from '@/services/recommendationFilters'
 
 /**
  * 单个音源某个区块的重试：失效该源该族 query，TanStack 按挂载状态重取。
@@ -72,6 +74,22 @@ export function splitGroups<T>(
     else if (g.data) good.push(g as SourceQueryGroup<T> & { data: T })
   }
   return { good, loading, failed, auth }
+}
+
+/**
+ * 每日推荐合并前的分组处理（复审 B1，纯函数可测）：
+ * 插件源的每日推荐 queryKey 不含屏蔽指纹（10 分钟缓存），合并前必须
+ * 过一遍 filterRecommendable，否则屏蔽后缓存期内照样出现。
+ */
+export function recommendationGroupsForMerge(
+  sourceGroups: Array<{ data: import('@/api/types').Song[] }>,
+  librarySongs: import('@/api/types').Song[] | undefined
+): Array<{ songs: import('@/api/types').Song[] }> {
+  const groups = sourceGroups
+    .map(g => ({ songs: filterRecommendable(g.data) }))
+    .filter(g => g.songs.length > 0)
+  if (librarySongs?.length) groups.unshift({ songs: librarySongs })
+  return groups
 }
 
 /** 一节末尾的状态行（登录过期 + 失败 + 可选的加载骨架） */
@@ -126,11 +144,20 @@ export function MergedDailyRail() {
   // 不把它算进来的话，只连 NAS 的用户在这条里永远看不到自己的歌。
   const { data: librarySongs } = usePersonalizedRecommendations(20)
 
-  const merged = useMemo(() => {
-    const groups = sourceGroups.filter(g => g.data.length > 0).map(g => ({ songs: g.data }))
-    if (librarySongs?.length) groups.unshift({ songs: librarySongs })
-    return interleaveRecommendations(groups, 20)
-  }, [sourceGroups, librarySongs])
+  /*
+   * 屏蔽指纹参与合并（复审 B1）：插件源每日推荐的 queryKey 没有屏蔽
+   * 指纹（10 分钟缓存），主库那份在 1.5 已做渲染端过滤，插件源这份
+   * 合并前同样过一遍 filterRecommendable——指纹一变这里就重算。
+   */
+  const mutedFingerprint = useTasteStore(s =>
+    [...s.mutedArtists, ...s.mutedGenres].map(x => x.trim().toLowerCase()).sort().join('|')
+  )
+  const merged = useMemo(
+    () => interleaveRecommendations(recommendationGroupsForMerge(sourceGroups, librarySongs), 20),
+    // mutedFingerprint 进依赖：屏蔽名单变化时插件源结果立即重滤（B1）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sourceGroups, librarySongs, mutedFingerprint]
+  )
 
   // 一个源都没成、也没有要说明的失败/过期时才整节不渲染
   if (!merged.length && !failed.length && !loading.length && !auth.length) return null

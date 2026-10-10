@@ -59,3 +59,15 @@ describe('parseLrc', () => {
     expect(parseLrc('  \n  ')).toEqual([])
   })
 })
+
+describe('offset 全局生效（复审 B7）', () => {
+  it('offset 标签在文件末尾也作用于全部行（旧实现只影响其后的行）', () => {
+    const lines = parseLrc('[00:10.00]第一句\n[00:20.00]第二句\n[offset:500]')
+    expect(lines.map(l => l.time)).toEqual([9_500, 19_500])
+  })
+
+  it('多个 offset 取第一个（与旧两套实现一致）', () => {
+    const lines = parseLrc('[offset:1000]\n[offset:2000]\n[00:10.00]词')
+    expect(lines[0].time).toBe(9_000)
+  })
+})

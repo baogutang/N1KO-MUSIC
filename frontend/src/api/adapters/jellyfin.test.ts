@@ -88,3 +88,30 @@ describe('Jellyfin 从歌单移除', () => {
     expect(calls).toHaveLength(0)
   })
 })
+
+/**
+ * 复审 B16：Start 缺失时 time 落 0 而不是 NaN。
+ * NaN 进 sort 会让整首歌词的行序变成未定义。
+ */
+describe('Jellyfin 歌词行的 Start 缺失（B16）', () => {
+  it('缺 Start / 非数值 Start → time 为 0，不产生 NaN', async () => {
+    const adapter = new JellyfinAdapter({
+      url: 'https://jf.test', token: 't', userId: 'user1', serverId: 'srv-jf',
+    })
+    ;(adapter as unknown as { client: unknown }).client = {
+      get: async () => ({
+        data: {
+          Lyrics: [
+            { Start: 100_000_000, Text: '正常行' },
+            { Text: '缺 Start' },
+            { Start: 'not-a-number' as unknown, Text: '坏 Start' },
+          ],
+        },
+      }),
+    }
+    const lyrics = await adapter.getLyrics('song1')
+    const times = lyrics?.lines.map(l => l.time) ?? []
+    expect(times).toEqual([10_000, 0, 0])
+    expect(times.every(Number.isFinite)).toBe(true)
+  })
+})

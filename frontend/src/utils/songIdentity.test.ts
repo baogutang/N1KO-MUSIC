@@ -99,13 +99,34 @@ describe('artistBlockedBy（屏蔽的集合语义）', () => {
 })
 
 describe('syntheticSongId 冻结', () => {
-  it('输出与旧算法逐字节一致（持久化 id，改了会断掉已有统计聚合）', () => {
-    // 由 2026-10-10 时的实现算出并钉死：
+  it('输出与旧算法逐字面量一致（持久化 id，改了会断掉已有统计聚合）', () => {
+    // 由 2026-09-22 的实现算出并钉死（复审 B16：此前只比自等性，算法换了测试照样绿）：
+    expect(syntheticSongId('Artist A', 'Song One')).toBe('import:1qgsyqy')
+    expect(syntheticSongId('X', 'Y')).toBe('import:1i9us94')
+    expect(syntheticSongId('周杰伦', '晴天')).toBe('import:1qf2wg8')
     expect(syntheticSongId('Artist A', 'Song One')).toBe(syntheticSongId('artist a', 'song one'))
-    expect(syntheticSongId('Artist A', 'Song One')).toMatch(/^import:[0-9a-z]+$/)
     // 同输入必同输出（聚合性）
     expect(syntheticSongId('X', 'Y')).toBe(syntheticSongId('X', 'Y'))
     // 不同输入不同 id
     expect(syntheticSongId('X', 'Y')).not.toBe(syntheticSongId('X', 'Z'))
+  })
+})
+
+describe('全角分隔符与括号 feat（复审 B8：先 NFKC 再拆）', () => {
+  it('全角 ＆ ， ／ 都能拆', () => {
+    expect([...artistSet('A＆B')].sort()).toEqual(['a', 'b'])
+    expect([...artistSet('A，B')].sort()).toEqual(['a', 'b'])
+    expect([...artistSet('A／B')].sort()).toEqual(['a', 'b'])
+  })
+
+  it('括号形态的 feat：A (feat. B) 与全角 A（feat.B）都拆', () => {
+    expect([...artistSet('A (feat. B)')].sort()).toEqual(['a', 'b'])
+    expect([...artistSet('A（feat.B）')].sort()).toEqual(['a', 'b'])
+    expect([...artistSet('A (ft. B)')].sort()).toEqual(['a', 'b'])
+  })
+
+  it('with 仍按词拆：Within Temptation 不被误拆', () => {
+    expect([...artistSet('Within Temptation')]).toEqual(['withintemptation'])
+    expect([...artistSet('A with B')].sort()).toEqual(['a', 'b'])
   })
 })

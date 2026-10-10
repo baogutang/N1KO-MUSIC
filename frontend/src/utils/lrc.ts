@@ -44,17 +44,25 @@ export function parseLrc(text: string): LyricLine[] {
   if (!text?.trim()) return []
 
   const lines: LyricLine[] = []
+  /*
+   * [offset:] 全局生效（复审 B7）：旧两套解析器都是先扫全取 offset 再解析；
+   * 逐行版只在标签**之后**的行上应用——标签写在文件尾时整首都不生效。
+   * 先扫全文取第一个 offset，解析时统一应用。
+   */
   let lrcOffset = 0
+  for (const row of text.split('\n')) {
+    const m = OFFSET_TAG.exec(row.trim())
+    if (m) {
+      lrcOffset = parseInt(m[1], 10)
+      break
+    }
+  }
 
   for (const row of text.split('\n')) {
     const trimmed = row.trim()
     if (!trimmed) continue
 
-    const offsetMatch = OFFSET_TAG.exec(trimmed)
-    if (offsetMatch) {
-      lrcOffset = parseInt(offsetMatch[1], 10)
-      continue
-    }
+    if (OFFSET_TAG.test(trimmed)) continue
     if (META_TAG.test(trimmed)) continue
 
     const times: number[] = []

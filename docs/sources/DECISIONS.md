@@ -224,3 +224,18 @@
   - 8.6 十三个本地 format* 收进 formatters——SleepTimerMenu 复制的 formatDuration 起步即可，全部收敛涉及行为比对；toLocaleString 两处已可顺手做但未及；
   - 8.8 大文件拆分（useAudioEngine/SongList/playerStore/Settings/subsonic）——任务书允许做不完，本轮已在 3.5/6.3/6.12 多处给 useAudioEngine 内聚了注释与模块级状态，完整拆分留待专门一轮；
   - 8.3 的其余 6 处裸 message toast 逐个换 describeError（映射已就位）。
+
+## 2026-10-10 · 复审 B9 · 边注同步的最低后端版本
+- 客户端 PUT /api/notes 现在会带 updatedAt（旧盖新保护，需要后端 v1.6.0+ 的 .strict() schema 接受该字段）。老后端遇未知字段回 400 时客户端自动去掉 updatedAt 用旧形状重试一次（见 syncClient.pushNote）——**代价是老后端上没有旧盖新保护**，最后写入者赢。想要冲突保护请把后端升到本仓库当前版本。
+
+## 2026-10-10 · 复审 C 节 · 顺延项登记（不阻塞合并）
+- useAudioEngine denied 含 unauthorized：换源链上对 unauthorized 也白发至多 3 档降档取流（应只对 forbidden 降档）；清 preloadEl 后 preloadedIdRef 未复位，下一首可能被误判「已预热」。
+- scripts/check-plugin-versions.mjs 只判「manifest 是否被改过」不比 version 数值；且 push 事件只比 HEAD^（合并提交时会漏判）。
+- storageMaintenance 的 rebuildable 清单未含 musicbrainz 缓存（8.5 只集中了键名，没接清理）。
+- UpdatePrompt 在 Tauri 壳只是不再注册 SW，没注销已有注册（升级用户壳内可能仍挂着旧 SW）。
+- hostFetch sameHost 比较 origin：http→https 升级与换端口也剥凭据——偏严但可接受，保持现状。
+- F15 只收敛了一半：listeningStats / recommendationEngine / issue 三处统计口径仍用 isQualifiedListeningEvent 而非 isPlay。
+- QrLogin 分段切换的 pop:not-first:* 变体不存在（无输出）；ConnectionBanner 一处三元两支相同；Favorites / Playlists / Search 遇 unauthorized 未走 auth 态（只有首页 rail 与设置页接了）。
+- 官网：画廊 player 图说明写「柠檬黄荧光笔」但 gif 实为软陶皮肤；applyLang 不刷新 gallery 图 alt；og:image 需要绝对 URL 才被社交卡片识别。
+- 合入 main 前需在仓库 Settings → Pages 把 Source 设为 GitHub Actions，否则 pages.yml 首发部署失败。
+- 阶段 1.8 补记：边注翻页用的是 offset 而非 cursor（服务端两参数都支持）；客户端「采服务端时钟」只在推送成功回显时成立，纯拉取路径仍未对时。

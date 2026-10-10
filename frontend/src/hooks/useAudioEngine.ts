@@ -223,7 +223,15 @@ function peekNextSong(st: ReturnType<typeof usePlayerStore.getState>): Song | nu
   return null
 }
 let loadedKey: string | null = null  // "songId@quality@version" 格式
-let cleanupPrev: (() => void) | null = null
+let cleanupPrev: ((stopSession?: boolean) => void) | null = null
+
+/**
+ * 关闭「正在上报的播放会话」（复审 B5）：Jellyfin 的 Sessions/Playing。
+ * cleanupPrev 在 React 依赖变化的 cleanup 里就会被置空，而那时还不知道
+ * 下一首歌是谁——把「关会话」单独留在模块级，由新的 effect 体按
+ * 「base 是否真的变了」决定关不关；卸载路径无条件关。
+ */
+let closeSessionPrev: (() => void) | null = null
 /**
  * 切歌标志位 — 切歌时设为 true，防止 audio.src='' 触发的 pause
  * 事件被误认为是耳机拔出等外部暂停并同步到 store
@@ -637,6 +645,8 @@ export function useAudioEngine() {
         clearTimeout(loadDebounceTimer)
         loadDebounceTimer = null
       }
+      closeSessionPrev?.()
+      closeSessionPrev = null
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
       audioEl.pause()
       audioEl.src = ''
@@ -670,6 +680,8 @@ export function useAudioEngine() {
        */
       persistListeningSession()
       resetListeningSession()
+      closeSessionPrev?.()
+      closeSessionPrev = null
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
       audioEl.pause()
       audioEl.src = ''
@@ -1147,6 +1159,10 @@ export function useAudioEngine() {
               console.warn('[AudioEngine] now-playing report failed; will retry:', error)
             })
           }
+        } else if (nowPlayingSent && preciseReporter) {
+          /* 暂停后恢复（复审 B5）：续上会话的进度与播放态，服务器才不再
+             把它当「已暂停」 */
+          reportPrecise('progress', Math.max(0, audio.currentTime * 1000), false)
         }
       }
 
@@ -1491,12 +1507,20 @@ export function useAudioEngine() {
         }
       }
 
-      const cleanup = () => {
-        onRepeatRewind = null
-        /* 切歌 / 卸载时关会话（6.3）：只开会话不关，服务器的「播放中」永远挂着 */
+      /*
+       * 复审 B5：会话 stop 不在 cleanup 里发——cleanup 在 reattach/音质切换
+       * 时也会跑，会话被拦腰关掉。关闭动作挂到模块级 closeSessionPrev，
+       * 由「真的换歌 / 卸载」的路径显式调用。
+       */
+      closeSessionPrev = () => {
         if (nowPlayingSent && !audio.ended) {
           reportPrecise('stop', Math.max(0, bestKnownTime() * 1000))
         }
+      }
+      const cleanup = () => {
+        onRepeatRewind = null
+        /* closeSessionPrev 不在这里清空：React 依赖变化的 cleanup 先于新
+           effect 体执行，这里清了它，新 body 就没法按 base 判断关会话 */
         clearStallWatch()
         audio.removeEventListener('loadedmetadata', onLoadedMetadata)
         audio.removeEventListener('durationchange', onDurationChange)
@@ -1559,7 +1583,15 @@ export function useAudioEngine() {
     }
 
     if (!isFirstPlay) {
-      // 非首次播放：停止旧音频、标记切歌防止 onPause 误同步
+      // 非首次播放：停止旧音频、标记切歌防止 onPause 误同步。
+      // 会话 stop 只在「真的换了歌」时发：同 base 的重载（音质切换/
+      // reattach）继续用原会话（复审 B5）
+      const prevBase = loadedKey ? parseLoadedKey(loadedKey)?.base : null
+      const nextBase = parseLoadedKey(currentKey)?.base
+      if (prevBase !== nextBase) {
+        closeSessionPrev?.()
+        closeSessionPrev = null
+      }
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
       isSwitchingSong = true
       audioEl.pause()
@@ -1590,7 +1622,9 @@ export function useAudioEngine() {
         clearTimeout(loadDebounceTimer)
         loadDebounceTimer = null
       }
-      if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
+      /* 依赖变化必然重跑 effect（reattach/重载）：会话不关；
+         真切歌在 effect 体内按 base 判断发 stop（复审 B5） */
+      if (cleanupPrev) { cleanupPrev(false); cleanupPrev = null }
     }
 
     // 依赖歌曲 id 而非对象引用：updateCurrentSong（如收藏切换）只替换引用不换歌，
@@ -1605,6 +1639,8 @@ export function useAudioEngine() {
       clearTimeout(loadDebounceTimer)
       loadDebounceTimer = null
     }
+    closeSessionPrev?.()
+    closeSessionPrev = null
     if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
     audioEl.pause()
     audioEl.src = ''

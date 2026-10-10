@@ -63,3 +63,25 @@ describe('splitGroups 的 auth 态（阶段 2.3：登录过期 ≠ 加载失败�
     expect(good.map(g => g.serverId)).toEqual(['srv-c'])
   })
 })
+
+describe('插件源每日推荐的屏蔽过滤（复审 B1）', () => {
+  it('合并前过 filterRecommendable：插件源缓存里屏蔽歌手的歌被滤掉', async () => {
+    const { recommendationGroupsForMerge } = await import('@/components/sources/SourceShelves')
+    const { useTasteStore } = await import('@/store/tasteStore')
+    useTasteStore.setState({ mutedArtists: ['artista'] })
+
+    const pluginGroup = {
+      data: [
+        { id: 'w1', title: '好歌', artist: '别的歌手', serverId: 'wy' },
+        { id: 'w2', title: '屏蔽的歌', artist: 'Artist A', serverId: 'wy' },
+      ],
+    } as never
+    // 主库为空：只验证插件源那一份
+    const groups = recommendationGroupsForMerge([pluginGroup], [])
+    expect(groups).toHaveLength(1)
+    expect(groups[0].songs.map(s => (s as { id: string }).id)).toEqual(['w1'])
+
+    useTasteStore.setState({ mutedArtists: [] })
+  })
+})
+

@@ -73,3 +73,19 @@ describe('FullscreenPlayerOverlay 对话框语义（阶段 1.7）', () => {
     expect(underneath.getAttribute('aria-hidden')).toBe('true')
   })
 })
+
+describe('Radix Dialog Title（复审 B12）', () => {
+  it('全屏播放器带视觉隐藏的 Title，不再触发 Missing Title 警告', async () => {
+    usePlayerStore.setState({ isFullscreen: true })
+    await mount()
+
+    const dialog = document.querySelector('[role="dialog"]')!
+    // Radix 会把 aria-labelledby 指向 Title 元素
+    const labelledby = dialog.getAttribute('aria-labelledby')
+    expect(labelledby).toBeTruthy()
+    const title = document.getElementById(labelledby!)
+    expect(title?.textContent).toBeTruthy()
+    // Description 显式置空：不挂多余的 aria-describedby
+    expect(dialog.getAttribute('aria-describedby')).toBeNull()
+  })
+})

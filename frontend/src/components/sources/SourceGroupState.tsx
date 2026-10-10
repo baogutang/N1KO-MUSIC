@@ -16,8 +16,10 @@
  * 经 zipQueryResults 的 errorCode 汇到这里，不再被当成普通 load error 吞掉。
  */
 
+import { useEffect, useState } from 'react'
 import { ArrowsClockwise, Key } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { rateBackoffRemaining } from '@/plugins/host/PluginHost'
 import { useServerStore } from '@/store/serverStore'
@@ -68,15 +70,10 @@ export function SourceGroupState({ serverId, status, error, onRetry }: SourceGro
     )
   }
 
-  /* 频控退避中（6.8）：说明剩余时间，不给重试——重试只会把封禁越打越长 */
-  const backoffSec = Math.ceil(rateBackoffRemaining(serverId) / 1000)
-  if (backoffSec > 0) {
-    return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3" role="status">
-        <SourceBadge serverId={serverId} withName />
-        <span className="text-[13px] text-ink-soft">{t('sources.rateLimited', { seconds: backoffSec })}</span>
-      </div>
-    )
+  /* 频控退避中（6.8；复审 B11 补活）：倒计时每秒走，到点自动重试 */
+  const initialBackoffSec = Math.ceil(rateBackoffRemaining(serverId) / 1000)
+  if (initialBackoffSec > 0) {
+    return <RateLimitedRow serverId={serverId} initialSeconds={initialBackoffSec} />
   }
 
   return (
@@ -111,7 +108,36 @@ export function groupStateStatus(group: { status: 'loading' | 'success' | 'error
  * 频控退避的剩余秒数（阶段 6.8）：PluginHost 撞上 rate-limited 后按源记账
  * 60 秒，期间界面要能说清「这不是坏了，是一分钟后再来」。
  */
-export function rateLimitedSeconds(serverId: string): number {
-  const remaining = rateBackoffRemaining(serverId)
-  return remaining > 0 ? Math.ceil(remaining / 1000) : 0
+
+
+/**
+ * 频控倒计时行（复审 B11）：原先只在渲染时算一次秒数、没有定时器、
+ * 到期也不重试——文案却写着「自动恢复」。这里每秒重算，到点失效该源
+ * 全部查询并卸掉自己（回到正常渲染路径）。
+ */
+export function RateLimitedRow({ serverId, initialSeconds }: { serverId: string; initialSeconds: number }) {
+  const { t } = useT()
+  const queryClient = useQueryClient()
+  const [seconds, setSeconds] = useState(initialSeconds)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const remaining = Math.ceil(rateBackoffRemaining(serverId) / 1000)
+      if (remaining <= 0) {
+        clearInterval(timer)
+        /* 退避结束：拉一次该源的全部查询，缓存/新结果立刻回来 */
+        void queryClient.invalidateQueries({ queryKey: [serverId] })
+        return
+      }
+      setSeconds(remaining)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [serverId, queryClient])
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3" role="status">
+      <SourceBadge serverId={serverId} withName />
+      <span className="text-[13px] text-ink-soft">{t('sources.rateLimited', { seconds })}</span>
+    </div>
+  )
 }

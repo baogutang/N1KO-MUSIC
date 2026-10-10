@@ -28,15 +28,23 @@ if (TRUST_PROXY_HOPS > 0) {
   app.set('trust proxy', TRUST_PROXY_HOPS)
 } else {
   /*
-   * 反代后面跑却没配 TRUST_PROXY_HOPS（阶段 6.9）：req.ip 会取到代理地址，
-   * 登录锁按 IP 记账会把全部用户折进同一个键（限流同理）。
-   * 无法在这里读到未消费的请求头，改在第一笔请求上侦测一次并大声说。
+   * 反代后面跑却没配 TRUST_PROXY_HOPS（阶段 6.9；复审 B10 收敛）：
+   * req.ip 会取到代理地址，登录锁按 IP 记账把全部用户折进同一个键
+   * （限流同理）。启动时先说一次（docker/Nginx 场景大概率自己带探测请求），
+   * 运行中第一笔带 XFF 的请求再补一次——之后不再刷屏。
    */
+  console.warn(
+    '[config] 提示：若 N1KO 同步服务跑在反向代理（Nginx/Caddy/traefik）后面，' +
+    '请设置 TRUST_PROXY_HOPS（如 1）——否则按 IP 的限流与登录锁会记到代理地址上。' +
+    '本提示仅在 TRUST_PROXY_HOPS=0 时出现。'
+  )
+  let xffWarned = false
   app.use((req, _res, next) => {
-    if (req.headers['x-forwarded-for'] !== undefined) {
+    if (!xffWarned && req.headers['x-forwarded-for'] !== undefined) {
+      xffWarned = true
       console.warn(
-        '[config] 收到 X-Forwarded-For 但 TRUST_PROXY_HOPS=0：' +
-        '若服务在反向代理后面，请设置 TRUST_PROXY_HOPS（如 1），否则按 IP 的限流与登录锁会记到代理地址上'
+        '[config] 已收到 X-Forwarded-For 但 TRUST_PROXY_HOPS=0（本警告每次启动只提示一次）：' +
+        '反代后请设置 TRUST_PROXY_HOPS，否则限流与登录锁按代理地址记账。'
       )
     }
     next()

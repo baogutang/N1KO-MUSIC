@@ -297,3 +297,37 @@ describe('连接诊断', () => {
     expect(await adapter.diagnose()).toBe('unreachable')
   })
 })
+
+// ── 复审 B16：offset 符号的适配器侧用例 ──
+describe('OpenSubsonic structured lyrics 的 offset 符号（B16）', () => {
+  const makeLyricsAdapter = (structured: unknown) => {
+    const adapter = new SubsonicAdapter({
+      url: 'https://example.test', username: 'u', token: 't', salt: 's', serverId: 'srv-a',
+    })
+    ;(adapter as unknown as { client: unknown }).client = {
+      get: async (url: string) => {
+        if (url.includes('/getLyricsBySongId')) {
+          return { status: 200, data: { 'subsonic-response': { status: 'ok', lyricsList: structured } } }
+        }
+        throw new Error(`unexpected: ${url}`)
+      },
+    }
+    return adapter
+  }
+
+  it('offset 正值 = 提前显示 → start 减去 offset（原来加号把提前唱成推后）', async () => {
+    const adapter = makeLyricsAdapter({
+      structuredLyrics: [{ synced: true, offset: 500, line: [{ start: 10_000, value: '词' }] }],
+    })
+    const lyrics = await adapter.getLyrics('s1')
+    expect(lyrics?.lines[0].time).toBe(9_500)
+  })
+
+  it('offset 缺省不动时间', async () => {
+    const adapter = makeLyricsAdapter({
+      structuredLyrics: [{ synced: true, line: [{ start: 10_000, value: '词' }] }],
+    })
+    const lyrics = await adapter.getLyrics('s1')
+    expect(lyrics?.lines[0].time).toBe(10_000)
+  })
+})
