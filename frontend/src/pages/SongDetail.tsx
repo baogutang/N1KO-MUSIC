@@ -746,7 +746,7 @@ export default function SongDetailPage() {
   }
 
   const handleLyricsSave = async (lrcText: string) => {
-    saveLyrics(song.id, lrcText)
+    saveLyrics(song.id, lrcText, song.serverId)
     toast({ title: t('lyrics.savedLocally') })
   }
 

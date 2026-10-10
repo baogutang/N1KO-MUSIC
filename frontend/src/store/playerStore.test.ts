@@ -1038,3 +1038,18 @@ describe('reloadCurrent（阶段 1.3：失败停下后按播放要能重试）',
     expect(state().playVersion).toBe(versionBefore)
   })
 })
+
+describe('replaceCurrentSong 的 playVersion（阶段 3.5：同 id 不同源也要重载）', () => {
+  beforeEach(resetStore)
+
+  it('原位替换 bump playVersion：加载 effect 不会因为 id 没变而不跑', () => {
+    seedQueue(1, 0)
+    const versionBefore = state().playVersion
+    const replacement = { ...song('s0'), serverId: 'other-source', id: 's0' } // 同 id 不同源
+
+    state().replaceCurrentSong(replacement)
+
+    expect(state().playVersion).toBe(versionBefore + 1)
+    expect(state().currentSong?.serverId).toBe('other-source')
+  })
+})

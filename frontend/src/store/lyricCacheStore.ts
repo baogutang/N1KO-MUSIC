@@ -26,26 +26,33 @@ interface LyricCache {
 }
 
 /**
- * 缓存 key 需带上当前服务器 id：不同服务器（尤其 Subsonic/Airsonic 的数字自增 id）
- * 的 songId 会互相冲突，仅用 songId 会串词并抑制正确歌词的请求。
+ * 缓存 key 按**歌曲自己的来源**分域（阶段 3.1）。
+ *
+ * 原先取的是「当前主库」：外源歌曲的歌词会记到主库名下；换一次主库，
+ * 同一首歌的缓存就找不到了，而两个音源同 id 时还会互相串词。
+ * serverId 由调用方（useLyricsQuery / SongDetail）从歌曲身上带过来；
+ * 缺省回落主库只作兼容旧调用。
  */
-function cacheKey(songId: string): string {
-  const serverId = useServerStore.getState().activeServerId ?? ''
-  return `${serverId}:${songId}`
+function cacheKey(songId: string, serverId?: string): string {
+  const owner = serverId ?? useServerStore.getState().activeServerId ?? ''
+  return `${owner}:${songId}`
 }
 
 interface LyricCacheState {
   /** 歌词缓存，key 为 `${serverId}:${songId}` */
   cache: Record<string, LyricCache>
 
-  /** 保存歌词到本地缓存 */
-  saveLyrics: (songId: string, text: string) => void
+  /** 保存歌词到本地缓存（serverId 是歌曲自己的来源，缺省按主库） */
+  saveLyrics: (songId: string, text: string, serverId?: string) => void
 
   /** 获取本地缓存的歌词 */
-  getLyrics: (songId: string) => string | null
+  getLyrics: (songId: string, serverId?: string) => string | null
 
   /** 删除本地缓存的歌词 */
-  removeLyrics: (songId: string) => void
+  removeLyrics: (songId: string, serverId?: string) => void
+
+  /** 删除某个音源名下的全部条目（删源时清理，不留读不到的死词） */
+  removeServerEntries: (serverId: string) => void
 
   /** 清除所有缓存 */
   clearCache: () => void
@@ -59,14 +66,14 @@ export const useLyricCacheStore = create<LyricCacheState>()(
     (set, get) => ({
       cache: {},
 
-      saveLyrics: (songId: string, text: string) => {
+      saveLyrics: (songId, text, serverId) => {
         set(state => ({
           // 条数与字节双重封顶：条数挡住键爆炸，字节挡住单条超大的 LRC
           cache: capByBytes(
             capByRecency(
               {
                 ...state.cache,
-                [cacheKey(songId)]: {
+                [cacheKey(songId, serverId)]: {
                   text,
                   savedAt: Date.now(),
                 },
@@ -78,14 +85,27 @@ export const useLyricCacheStore = create<LyricCacheState>()(
         }))
       },
 
-      getLyrics: (songId: string) => {
-        return get().cache[cacheKey(songId)]?.text ?? null
+      getLyrics: (songId, serverId) => {
+        return get().cache[cacheKey(songId, serverId)]?.text ?? null
       },
 
-      removeLyrics: (songId: string) => {
+      removeLyrics: (songId, serverId) => {
         set(state => {
-          const { [cacheKey(songId)]: _, ...rest } = state.cache
+          const { [cacheKey(songId, serverId)]: _, ...rest } = state.cache
           return { cache: rest }
+        })
+      },
+
+      removeServerEntries: (serverId) => {
+        const prefix = `${serverId}:`
+        set(state => {
+          let changed = false
+          const rest: typeof state.cache = {}
+          for (const [key, value] of Object.entries(state.cache)) {
+            if (key.startsWith(prefix)) changed = true
+            else rest[key] = value
+          }
+          return changed ? { cache: rest } : state
         })
       },
 

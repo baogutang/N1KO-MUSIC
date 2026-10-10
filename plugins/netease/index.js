@@ -531,14 +531,25 @@ async function fetchDailyRecommend(env, deviceId) {
   return songs.map(mapSong)
 }
 
-/** 当前登录 uid（缓存进私有存储，账号横幅/收藏都要用） */
+/**
+ * 当前登录 uid（缓存进私有存储，账号横幅/收藏都要用）。
+ * 缓存键带上凭据指纹（阶段 3.4）：换账号后旧 uid 不再串号——
+ * 收藏与账号信息曾因此一直读上一个账号的。
+ */
+function credentialFingerprint(env) {
+  var raw = String((env && env.credentials) || '')
+  if (!raw) return 'anon'
+  return CryptoJS.MD5(raw).toString().slice(0, 12)
+}
+
 async function currentUid(env, deviceId) {
-  var cached = await env.storage.get('uid')
+  var storageKey = 'uid:' + credentialFingerprint(env)
+  var cached = await env.storage.get(storageKey)
   if (cached) return cached
   var res = await weapiRequest(env, '/api/nuser/account/get', {}, deviceId)
   var uid = res.body.account && res.body.account.id
   if (!uid) return null
-  await env.storage.set('uid', String(uid))
+  await env.storage.set(storageKey, String(uid))
   return String(uid)
 }
 
@@ -581,7 +592,7 @@ module.exports = {
   author: 'N1KO',
   description: '网易云音乐（用自己的账号听自己有权听的）',
 
-  _crypto: { weapi: weapi, eapi: eapi },
+  _crypto: { weapi: weapi, eapi: eapi, credentialFingerprint: credentialFingerprint },
 
   /* ---------- 搜索（cloudsearch） ---------- */
   async search(query, page, type) {

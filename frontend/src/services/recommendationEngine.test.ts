@@ -455,3 +455,51 @@ describe('负侧先验平滑（阶段 1.6：一次跳过不再拉黑新歌手）
     expect(profile.artistAffinity.get('artist b')).toBe(1)
   })
 })
+
+describe('种子按来源收口（阶段 3.3 / F06：种子不再丢来源）', () => {
+  const target = song('s1', 'Artist A', 'rock')
+
+  it('同一位歌手在两个源各有 id，artistIdentity 按源分表（不再先到先得）', () => {
+    const events = [
+      { ...event(target, 'completed', 195, 3), serverId: 'wy', song: { ...target, artistId: 'wy-1' } },
+      { ...event(target, 'completed', 195, 2), serverId: 'nas', song: { ...target, artistId: 'nas-7' } },
+      // wy 上更晚的事件带来新 id：同源最新赢
+      { ...event(song('s2', 'Artist A', 'rock'), 'completed', 195, 1), serverId: 'wy', song: { ...song('s2', 'Artist A', 'rock'), artistId: 'wy-2' } },
+    ]
+    const profile = buildRecommendationProfile(events, NOW)
+    const identity = profile.artistIdentity.get('artist a')!
+    expect(identity.name).toBe('Artist A')
+    expect(identity.idsBySource.get('wy')).toBe('wy-2')
+    expect(identity.idsBySource.get('nas')).toBe('nas-7')
+  })
+
+  it('向主库要种子时用主库的 artistId；主库没见过这位歌手就只用名字', () => {
+    const events = [
+      { ...event(target, 'completed', 195, 2), serverId: 'wy', song: { ...target, artistId: 'wy-1' } },
+      { ...event(song('s2', 'Artist A', 'rock'), 'completed', 195, 1), serverId: 'nas', song: { ...song('s2', 'Artist A', 'rock'), artistId: 'nas-7' } },
+    ]
+    const profile = buildRecommendationProfile(events, NOW)
+
+    const forNas = deriveRecommendationSeeds(profile, events, { serverId: 'nas' })
+    expect(forNas.artists[0]).toEqual({ id: 'nas-7', name: 'Artist A' })
+
+    const forWy = deriveRecommendationSeeds(profile, events, { serverId: 'wy' })
+    expect(forWy.artists[0]).toEqual({ id: 'wy-1', name: 'Artist A' })
+
+    // qq 上没见过：id 为空，靠名字
+    const forQq = deriveRecommendationSeeds(profile, events, { serverId: 'qq' })
+    expect(forQq.artists[0]).toEqual({ id: undefined, name: 'Artist A' })
+  })
+
+  it('种子歌曲只取同源：外源 songId 不发给主库的 getSimilarSongs', () => {
+    const events = [
+      { ...event(target, 'completed', 195, 3), serverId: 'wy' },
+      { ...event(song('s2', 'Artist B', 'pop'), 'completed', 195, 2), serverId: 'nas' },
+      { ...event(song('s3', 'Artist C', 'jazz'), 'completed', 195, 1), serverId: 'nas' },
+    ]
+    const profile = buildRecommendationProfile(events, NOW)
+    const seeds = deriveRecommendationSeeds(profile, events, { serverId: 'nas', songs: 10 })
+    // nas 上只有 s2/s3 听完过
+    expect(seeds.songIds).toEqual(['s2', 's3'])
+  })
+})

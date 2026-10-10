@@ -16,7 +16,7 @@ import { useEffect } from 'react'
 import { useQueryClient, type Query } from '@tanstack/react-query'
 import { useServerStore } from '@/store/serverStore'
 import {
-  clearCacheForServer, pruneCache, readCacheEntry, writeCacheEntry,
+  pruneCache, readCacheEntry, writeCacheEntry,
   LIBRARY_CACHE_TTL_MS,
 } from '@/services/libraryCacheDb'
 
@@ -41,6 +41,23 @@ function categoryOf(queryKey: readonly unknown[]): string | null {
 
 function cacheKeyOf(queryKey: readonly unknown[]): string {
   return JSON.stringify(queryKey)
+}
+
+/**
+ * 这条查询**自己的**归属源（阶段 3.2）。
+ *
+ * 键头有两种形态（见 useServerQueries 的 queryKeyBelongsToServer）：
+ * 单源页面是 `serverId` 或 `serverId@库范围`，聚合查询是裸 `serverId`。
+ * 打标/校验都必须用它，而不是「此刻的主库」——外源查询在主库是 A 时落盘，
+ * 标的却该是它自己的源；否则换一次主库，它的缓存就再也读不回来。
+ */
+export function ownerOf(queryKey: readonly unknown[], fallbackServerId: string | null): string {
+  const head = queryKey[0]
+  if (typeof head === 'string' && head) {
+    const at = head.indexOf('@')
+    return at >= 0 ? head.slice(0, at) : head
+  }
+  return fallbackServerId ?? 'no-server'
 }
 
 export function useOfflineLibraryCache(): void {
@@ -69,7 +86,8 @@ export function useOfflineLibraryCache(): void {
       attempted.add(key)
 
       const entry = await readCacheEntry(key)
-      if (cancelled || !entry || entry.serverId !== serverId) return
+      // 归属比对用查询自己的源：外源条目在换主库后仍然读得回来（阶段 3.2）
+      if (cancelled || !entry || entry.serverId !== ownerOf(query.queryKey, serverId)) return
       // 读盘期间网络可能已经回来了，别再把旧的盖上去
       if (queryClient.getQueryData(query.queryKey) !== undefined) return
 
@@ -114,7 +132,7 @@ export function useOfflineLibraryCache(): void {
       if (!categoryOf(query.queryKey)) return
       const data = query.state.data
       if (data === undefined) return
-      void writeCacheEntry(cacheKeyOf(query.queryKey), serverId, data)
+      void writeCacheEntry(cacheKeyOf(query.queryKey), ownerOf(query.queryKey, serverId), data)
     })
 
     return () => {
@@ -129,14 +147,9 @@ export function useOfflineLibraryCache(): void {
     return () => window.clearTimeout(timer)
   }, [])
 
-  // 换服务器时把上一台的缓存清掉
-  useEffect(() => {
-    let previous = serverId
-    return useServerStore.subscribe(state => {
-      if (state.activeServerId === previous) return
-      const stale = previous
-      previous = state.activeServerId
-      if (stale) void clearCacheForServer(stale)
-    })
-  }, [serverId])
+  /*
+   * 换主库**不**清缓存（阶段 3.2）：条目按查询自己的源打标、按归属校验，
+   * 旧主库的内容闪不到新主库上；清掉反而让「切回去」白屏一次。
+   * 删源（removeServer）时才真正清理，见 serverStore。
+   */
 }

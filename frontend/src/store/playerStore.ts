@@ -405,7 +405,12 @@ export const usePlayerStore = create<PlayerState>()(
         if (queueIndex < 0 || queueIndex >= queue.length) return
         const nextQueue = [...queue]
         nextQueue[queueIndex] = song
-        set({ queue: nextQueue, currentSong: song })
+        /*
+         * playVersion 必须一起 bump（阶段 3.5）：替代版本与原曲**同 id 不同源**
+         * 时，currentSongId 不变，加载 effect 不会重跑——界面上「已切换到 X 源」，
+         * 喇叭里还是旧源的流。bump 一次等于声明「这是一次新的播放」。
+         */
+        set({ queue: nextQueue, currentSong: song, playVersion: get().playVersion + 1 })
       },
 
       prev: () => {

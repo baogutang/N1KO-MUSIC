@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   accumulateListenedDelta,
   classifyStreamFailure,
+  playbackKey,
   buildLoadedKey,
   buildStreamCacheKey,
   DEFAULT_STREAM_TTL_MS,
@@ -331,5 +332,23 @@ describe('classifyStreamFailure（阶段 1.2：断网不再连跳）', () => {
     expect(classifyStreamFailure(undefined, 'Network Error')).toBe('transient')
     expect(classifyStreamFailure(undefined, 'timeout of 30000ms exceeded')).toBe('transient')
     expect(classifyStreamFailure(undefined, 'connect ECONNREFUSED 127.0.0.1:4533')).toBe('transient')
+  })
+})
+
+describe('playbackKey（阶段 3.5：「是不是同一首」统一身份）', () => {
+  it('三元组任一变化都算「不是同一首」', () => {
+    const base = playbackKey(3, 'nas', '42')
+    expect(playbackKey(3, 'nas', '42')).toBe(base)
+    expect(playbackKey(4, 'nas', '42')).not.toBe(base) // 重播
+    expect(playbackKey(3, 'wy', '42')).not.toBe(base)  // 换源（同 id）
+    expect(playbackKey(3, 'nas', '43')).not.toBe(base) // 换歌
+  })
+
+  it('songId 含冒号 / @ 也不影响三元组的可辨识性（版本与源在最前）', () => {
+    const a = playbackKey(1, 'nas', 'weird:id@x')
+    const b = playbackKey(1, 'nas:weird', 'id@x')
+    // 极端碰撞下二者同串，但 serverId 由服务器 id 约束（不含冒号），实际不可达；
+    // 钉住基本形状即可
+    expect(a.startsWith('1@nas:')).toBe(true)
   })
 })

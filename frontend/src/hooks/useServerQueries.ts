@@ -14,7 +14,7 @@ import {
   keepPreviousData,
   type QueryClient,
 } from '@tanstack/react-query'
-import { findAdapterFor, getAdapter, getAdapterFor, hasAdapter, hasAdapterFor, adapterForSource } from '@/api'
+import { findAdapterFor, getAdapter, hasAdapter, hasAdapterFor, adapterForSource } from '@/api'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
 import { useLibraryScopeStore } from '@/store/libraryScopeStore'
@@ -207,7 +207,8 @@ export function useLyricsQuery(
   const hasRemoteTemplate = lyricsUseRemote && !!lyricsRemoteTemplate
 
   // 1. 优先检查本地缓存（注意：不能提前 return，需保持 hooks 调用顺序稳定）
-  const cachedLyrics = getCachedLyrics(songId)
+  // 缓存分域用歌曲自己的来源（阶段 3.1）：不再跟着主库走
+  const cachedLyrics = getCachedLyrics(songId, serverId)
   const cachedLines = cachedLyrics ? parseLrc(cachedLyrics) : null
   const cachedLyricsData = cachedLines
     ? ({ songId, lines: cachedLines, synced: cachedLines.some(l => l.time > 0) } as Lyrics | null)
@@ -423,7 +424,7 @@ export function useAlbumsInfinite(
     // 适配器在 queryFn 里解析：插件源 rehydrate 时 activeServerId 先于沙箱就绪，
     // 渲染体里同步 getAdapter() 会把「还没连上」炸成整页错误
     queryFn: ({ pageParam = 0, signal }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter())
+      adapterForSource(serverId)
         .getAlbums({ size, offset: pageParam as number, type, musicFolderId: serverId ? undefined : currentFolderId(), signal }),
     enabled: queryEnabled(options.enabled, serverId ? hasAdapterFor(serverId) : hasAdapter()),
     initialPageParam: 0,
@@ -500,7 +501,7 @@ export function useAlbumDetail(albumId: string, serverId?: string) {
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'albums', albumId] as const,
     queryFn: ({ signal }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter()).getAlbumDetail(albumId, signal),
+      adapterForSource(serverId).getAlbumDetail(albumId, signal),
     enabled: !!albumId && (serverId ? hasAdapterFor(serverId) : hasAdapter()),
     staleTime: 10 * 60 * 1000,
   })
@@ -524,7 +525,7 @@ export function useArtists(serverId?: string, options: { enabled?: boolean } = {
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'artists'] as const,
     queryFn: ({ signal }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter())
+      adapterForSource(serverId)
         .getArtists(serverId ? undefined : currentFolderId(), signal),
     enabled: queryEnabled(options.enabled, serverId ? hasAdapterFor(serverId) : hasAdapter()),
     staleTime: 10 * 60 * 1000,
@@ -536,7 +537,7 @@ export function useArtistDetail(artistId: string, serverId?: string) {
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'artists', artistId] as const,
     queryFn: ({ signal }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter()).getArtistDetail(artistId, signal),
+      adapterForSource(serverId).getArtistDetail(artistId, signal),
     enabled: !!artistId && (serverId ? hasAdapterFor(serverId) : hasAdapter()),
     staleTime: 10 * 60 * 1000,
   })
@@ -557,7 +558,7 @@ export function usePlaylists(serverId?: string) {
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'playlists'] as const,
     queryFn: ({ signal }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter()).getPlaylists(signal),
+      adapterForSource(serverId).getPlaylists(signal),
     // 指定了源就要求它真的在册；缺省路径保持旧行为（适配器缺失时由 queryFn 报错）
     enabled: !serverId || hasAdapterFor(serverId),
     staleTime: 3 * 60 * 1000,
@@ -575,7 +576,7 @@ export function usePlaylistDetail(playlistId: string, serverId?: string) {
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'playlists', playlistId] as const,
     queryFn: ({ signal }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter()).getPlaylistDetail(playlistId, signal),
+      adapterForSource(serverId).getPlaylistDetail(playlistId, signal),
     enabled: !!playlistId && (!serverId || hasAdapterFor(serverId)),
     staleTime: 3 * 60 * 1000,
   })
@@ -591,7 +592,7 @@ export function useCreatePlaylist() {
       /** 落在哪个音源；缺省主库 */
       serverId?: string
     }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter()).createPlaylist(name, songIds),
+      adapterForSource(serverId).createPlaylist(name, songIds),
     onSuccess: (_data, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists'] })
       // 聚合视图的键是裸 serverId，与带库范围的 serverKey() 不是同一个前缀
@@ -617,7 +618,7 @@ export function useRemoveSongsFromPlaylist() {
       /** 跨源歌单：条目所属音源；缺省主库 */
       serverId?: string
     }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter()).removeSongsFromPlaylist(playlistId, songIndexes),
+      adapterForSource(serverId).removeSongsFromPlaylist(playlistId, songIndexes),
     onSuccess: (_data, { playlistId, serverId }) => {
       queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists', playlistId] })
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
@@ -634,7 +635,7 @@ export function useDeletePlaylist() {
       /** 歌单所属音源；缺省主库。写死主库会把「删网易云歌单」发到 NAS 上 */
       serverId?: string
     }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter()).deletePlaylist(playlistId),
+      adapterForSource(serverId).deletePlaylist(playlistId),
     onSuccess: (_data, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists'] })
       if (serverId) queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
@@ -652,7 +653,7 @@ export function useAddToPlaylist() {
       /** 歌单所属音源；缺省主库。曲目 id 只在自己的源里有意义 */
       serverId?: string
     }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter()).addSongsToPlaylist(playlistId, songIds),
+      adapterForSource(serverId).addSongsToPlaylist(playlistId, songIds),
     onSuccess: (_data, { playlistId, serverId }) => {
       queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists', playlistId] })
       queryClient.invalidateQueries({ queryKey: [serverId ?? serverKey(), 'playlists'] })
@@ -669,7 +670,7 @@ export function useStarred(serverId?: string, options: { enabled?: boolean } = {
   return useQuery({
     queryKey: [serverId ?? serverKey(), 'starred'] as const,
     queryFn: ({ signal }) =>
-      (serverId ? getAdapterFor(serverId) : getAdapter()).getStarred(signal),
+      adapterForSource(serverId).getStarred(signal),
     enabled: (options.enabled ?? true) && (serverId ? hasAdapterFor(serverId) : hasAdapter()),
     staleTime: 3 * 60 * 1000,
   })

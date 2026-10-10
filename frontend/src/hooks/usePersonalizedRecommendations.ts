@@ -49,13 +49,16 @@ async function fetchDirectedCandidates(
   profile: RecommendationProfile,
   events: ListeningEvent[],
   size: number,
-  batch: number
+  batch: number,
+  serverId: string
 ): Promise<Song[]> {
   // 种子数按目标条数反推，并让窗口随批次轮转——定向候选池本身要变，
   // 否则「换一批」的前几行永远是同一位偏好歌手。
+  // 种子按主库源收口：歌手用它在这个源的 artistId，歌曲 id 只取同源（阶段 3.3）。
   const seeds = deriveRecommendationSeeds(profile, events, {
     artists: artistSeedCountFor(size),
     offset: batch,
+    serverId,
   })
   const requests: Array<Promise<Song[]>> = []
 
@@ -220,7 +223,7 @@ export function usePersonalizedRecommendations(size = 30) {
         // 随机候选保留下来作为探索通道，让画像之外的曲目仍有机会出现
         adapter.getRandomSongs(Math.max(120, size * 5)),
         adapter.getStarred(),
-        fetchDirectedCandidates(adapter, profile, events, size, batch),
+        fetchDirectedCandidates(adapter, profile, events, size, batch, serverId),
         Promise.all(foreignAdapters.map(async a => {
           const parts = await Promise.allSettled([
             a.getRandomSongs ? a.getRandomSongs(Math.max(40, size)) : Promise.resolve([] as Song[]),

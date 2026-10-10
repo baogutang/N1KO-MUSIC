@@ -50,6 +50,7 @@ import {
   buildLoadedKey,
   buildStreamCacheKey,
   classifyStreamFailure,
+  playbackKey,
   getFiniteDuration,
   isAtBufferedTail,
   isNearEndOfTrack,
@@ -335,6 +336,14 @@ export function seekHowl(time: number) {
 export function useAudioEngine() {
   const currentSong = usePlayerStore(s => s.currentSong)
   const currentSongId = currentSong?.id ?? null
+  const playVersion = usePlayerStore(s => s.playVersion)
+  /*
+   * 「现在放的是哪一次播放」的统一身份（阶段 3.5）：playVersion + 来源 + id。
+   * 书签 / 预热原先只比 id，两个音源同 id 时会认错人。
+   */
+  const playbackIdentity = currentSong
+    ? playbackKey(playVersion, songServerId(currentSong), currentSong.id)
+    : null
   const isPlaying   = usePlayerStore(s => s.isPlaying)
   const volume      = usePlayerStore(s => s.volume)
   const muted       = usePlayerStore(s => s.muted)
@@ -344,7 +353,6 @@ export function useAudioEngine() {
   const audioQuality = useSettingsStore(s => s.audioQuality)
   const cellularAudioQuality = useSettingsStore(s => s.cellularAudioQuality)
   const adaptiveQuality = useSettingsStore(s => s.adaptiveQuality)
-  const playVersion  = usePlayerStore(s => s.playVersion)
   const repeatSeekToken = usePlayerStore(s => s.repeatSeekToken)
 
   // 网络类型变化时重新求值（插拔 Wi-Fi、开关省流量模式）
@@ -510,13 +518,13 @@ export function useAudioEngine() {
   const bookmarkAppliedRef = useRef(new Set<string>())
   useEffect(() => {
     const song = currentSongRef.current
-    if (!song || !currentSongId) return
-    if (bookmarkAppliedRef.current.has(currentSongId)) return
+    if (!song || !playbackIdentity) return
+    if (bookmarkAppliedRef.current.has(playbackIdentity)) return
     const position = song.ext?.bookmarkPosition
     if (!position || (song.duration ?? 0) < 20 * 60) return
     // 距离结尾太近就不必续了
     if (song.duration - position / 1000 < 30) return
-    bookmarkAppliedRef.current.add(currentSongId)
+    bookmarkAppliedRef.current.add(playbackIdentity)
 
     let attempts = 0
     const seconds = position / 1000
@@ -530,7 +538,9 @@ export function useAudioEngine() {
     let timer: ReturnType<typeof setTimeout> | null = null
     const trySeek = () => {
       timer = null
-      if (usePlayerStore.getState().currentSong?.id !== currentSongId) return
+      // 守卫按完整身份比：同 id 不同源的替代版本不该被旧曲目的书签拽走
+      const now = usePlayerStore.getState()
+      if (!now.currentSong || playbackKey(now.playVersion, songServerId(now.currentSong), now.currentSong.id) !== playbackIdentity) return
       attempts += 1
       seekHowl(seconds)
       if (Math.abs(audioEl.currentTime - seconds) > 2 && attempts < 12) {
@@ -539,7 +549,7 @@ export function useAudioEngine() {
     }
     timer = setTimeout(trySeek, 500)
     return () => { if (timer) clearTimeout(timer) }
-  }, [currentSongId])
+  }, [playbackIdentity])
 
   /**
    * 下一首预热（弱无缝）。
@@ -559,15 +569,20 @@ export function useAudioEngine() {
       // 剩 15 秒内才预热，早了会和当前曲抢连接
       if (!st.duration || remaining > 15 || remaining <= 0) return
       const nextSong = peekNextSong(st)
-      if (!nextSong || nextSong.id === preloadedIdRef.current) return
+      if (!nextSong) return
+      // 预热去重按完整身份（阶段 3.5）：队列里两首同 id 不同源的歌都要能各自预热
+      const nextKey = playbackKey(st.playVersion, songServerId(nextSong), nextSong.id)
+      if (nextKey === preloadedIdRef.current) return
       if (!hasAdapterFor(songServerId(nextSong))) return
-      preloadedIdRef.current = nextSong.id
+      preloadedIdRef.current = nextKey
       // 预热同样走 resolveStream：命中未过期的地址（含刚解析过的）直接用，
       // 预热的地址到正式加载时若已过期，加载路径会重取
       resolveStream(nextSong, effectiveQuality)
         .then(resolved => {
-          // resolve 期间队列可能已经变化：预热错了歌比不预热更糟
-          if (peekNextSong(usePlayerStore.getState())?.id !== nextSong.id) return
+          // resolve 期间队列可能已经变化：预热错了歌比不预热更糟（身份连来源一起比）
+          const laterState = usePlayerStore.getState()
+          const laterNext = peekNextSong(laterState)
+          if (!laterNext || playbackKey(laterState.playVersion, songServerId(laterNext), laterNext.id) !== nextKey) return
           preloadEl.src = resolved.url
           preloadEl.load()
         })

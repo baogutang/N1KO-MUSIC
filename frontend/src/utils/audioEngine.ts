@@ -114,6 +114,20 @@ export interface ParsedLoadedKey {
 }
 
 /**
+ * 「现在放的是不是这一首」的统一身份 key（阶段 3.5）：
+ * `${playVersion}@${serverId}:${songId}`。
+ *
+ * 原先引擎里有四套判定各比各的：stillCurrent 连来源一起比、loadedKey 带
+ * playVersion、书签与预热只比 id。只比 id 的两处在「同一首歌在两个音源
+ * 同 id」时认错人（预热错源、书签错位）；统一到这个三元组后，
+ * 重播（playVersion 变）、换源（serverId 变）、换歌（songId 变）
+ * 任何一种都算「不是同一首」。
+ */
+export function playbackKey(playVersion: number, serverId: string, songId: string): string {
+  return `${playVersion}@${serverId}:${songId}`
+}
+
+/**
  * 解析加载 key。songId 自身可能含 '@'（部分服务端用路径当 id），
  * 因此必须从右侧切出 quality 与 version，左侧剩下的整体才是 base。
  */

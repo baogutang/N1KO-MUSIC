@@ -17,6 +17,8 @@ import {
 import { queryClient } from '@/lib/queryClient'
 import { t } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
+import { useLyricCacheStore } from '@/store/lyricCacheStore'
+import { clearCacheForServer } from '@/services/libraryCacheDb'
 import { useSettingsStore } from '@/store/settingsStore'
 import { createSecurePersistStorage } from '@/store/securePersistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
@@ -127,6 +129,10 @@ export const useServerStore = create<ServerState>()(
          * 一边让删掉主库时把别的源的歌一起清掉。两个方向都错。
          */
         usePlayerStore.getState().removeSongsFromServer(id)
+        // 该源的本地歌词缓存一并清掉：songId 一旦跨源串号，留下就是毒词
+        useLyricCacheStore.getState().removeServerEntries(id)
+        // 离线曲库缓存同样按源清理（阶段 3.2）
+        void clearCacheForServer(id)
         // 播放优先级里的死 id 同步清掉：resolveSourceOrder 虽能容忍，
         // 但下次在设置页调排序时会按「只写已连接源」把用户的旧偏好静默丢掉
         useSettingsStore.getState().prunePlaybackPriority([id])
@@ -201,6 +207,10 @@ export const useServerStore = create<ServerState>()(
         // 当前曲若正是它的则前进到下一首（PLAN §4.4「断开某个音源时从队列里移除它的曲目」）。
         // 只裁这一个源——混源队列里别人的歌不该被连坐。
         usePlayerStore.getState().removeSongsFromServer(id)
+        // 该源的本地歌词缓存一并清掉：songId 一旦跨源串号，留下就是毒词
+        useLyricCacheStore.getState().removeServerEntries(id)
+        // 离线曲库缓存同样按源清理（阶段 3.2）
+        void clearCacheForServer(id)
         set(state => ({
           connectedServerIds: state.connectedServerIds.filter(x => x !== id),
           servers: state.servers.map(s => (s.id === id ? { ...s, isActive: false } : s)),

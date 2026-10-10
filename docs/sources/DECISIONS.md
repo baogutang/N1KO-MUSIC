@@ -194,3 +194,8 @@
 - uuid 提取正则：任务书给的 `uuid=(.+?)"` 会把前引号吃进捕获组（页面是 `uuid="VALUE"` 形态），改为 `uuid="?([^"&\s]+)`，兼容带/不带引号。
 - QQ 扫码（QQConnectLogin）响应不一定回 access_token/refresh_token：自动刷新可能无米下锅，届时按 unauthorized → 重新扫码收口，行为不劣于从前；微信链路（Login CGI）字段齐全。
 - 文案收口范围：动作词条统一为 sources.relogin（原 sources.banner.relogin / empty.offline.reauth / sources.settings.relogin / settings.server.reloginTitle 并入删除）；Masthead/Settings 的「凭据格式已升级」描述（settings.server.reloginDesc）保留其特定语境——它说的是迁移不是过期。Login 的 sources.expiredRelogin 是扫码页的「为什么会到这一步」说明句，不属于动作词条，保留。
+
+## 2026-10-10 · 阶段 3 · 复合键专项的三处取舍
+- 3.2 换主库不再清离线曲库缓存：条目改为按查询自己的源打标、恢复按归属校验后，旧主库内容闪不到新主库；清掉只会让「切回去」白屏。清理职责移到 removeServer（删源）。
+- 3.5 统一身份保留 stillCurrent 的 seq 判据：它比 playVersion 更强（连同一 playVersion 内的过期加载都拦），且已带 serverId；收敛的是书签、预热、trySeek 三处只比 id 的判定 + replaceCurrentSong 的 playVersion bump。
+- 3.6 Login.tsx / Settings.tsx 的 createAdapter 临时适配器维持现状：登录验证与 ping 发生在音源进注册表**之前**（服务器还没连上），临时构造是这两个场景的固有语义，不是 F02 的「绕过注册表写错库」；useServerQueries 的 11 处 `(serverId ? getAdapterFor : getAdapter)` 已全部换成 adapterForSource。封面展示路径的 findAdapterFor(...)?. 宽容取法是文档化用法（断源时整页不炸），保留。

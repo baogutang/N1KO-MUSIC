@@ -10,8 +10,15 @@ export interface RecommendationProfile {
   lastPlayedAt: Map<string, number>
   skipCounts: Map<string, number>
   positiveEventCount: number
-  /** 归一化歌手名 → 原始名与 artistId，用于按歌手向服务器定向拉取候选 */
-  artistIdentity: Map<string, { name: string; id?: string }>
+  /**
+   * 归一化歌手名 → 原始名与**各来源的 artistId**。
+   *
+   * 同一位歌手在两个音源里各有各的 id（阶段 3.3 / F06）：只存一个「先看到的」
+   * id 会让种子把网易云的 id 发给 NAS（或反过来）——请求静默落空，
+   * 定向候选通道等于没有。按源分表后，向哪个源拉就用哪个源的 id；
+   * 那个源没见过这位歌手就只用名字。
+   */
+  artistIdentity: Map<string, { name: string; idsBySource: Map<string, string> }>
   /**
    * 归一化流派名 → 原始名。
    * 画像用小写归一化以便合并统计，但 Subsonic 的 getSongsByGenre 大小写敏感，
@@ -181,13 +188,19 @@ export function buildRecommendationProfile(
     if (artist) {
       addWeight(profile.artistAffinity, artist, weight)
       bump(artistEvents, artist)
-      // 记录一次原始名与 id，后续可直接用于向服务器请求该歌手的曲目
-      const known = profile.artistIdentity.get(artist)
-      if (!known || (!known.id && event.song.artistId)) {
-        profile.artistIdentity.set(artist, {
-          name: event.song.artist,
-          id: event.song.artistId ?? known?.id,
-        })
+      // 各来源各记各的 id；同源的更新事件覆盖旧值（最新赢，不先到先得）
+      if (event.song.artistId) {
+        const known = profile.artistIdentity.get(artist)
+        if (known) {
+          known.idsBySource.set(event.serverId, event.song.artistId)
+        } else {
+          profile.artistIdentity.set(artist, {
+            name: event.song.artist,
+            idsBySource: new Map([[event.serverId, event.song.artistId]]),
+          })
+        }
+      } else if (!profile.artistIdentity.has(artist)) {
+        profile.artistIdentity.set(artist, { name: event.song.artist, idsBySource: new Map() })
       }
     }
     if (genre) {
@@ -408,21 +421,26 @@ function rotatedTopKeys(map: Map<string, number>, limit: number, offset: number)
 export function deriveRecommendationSeeds(
   profile: RecommendationProfile,
   events: ListeningEvent[],
-  limits: { artists?: number; genres?: number; songs?: number; offset?: number } = {}
+  limits: { artists?: number; genres?: number; songs?: number; offset?: number; serverId?: string } = {}
 ): RecommendationSeeds {
   const {
     artists: artistLimit = DEFAULT_ARTIST_SEEDS,
     genres: genreLimit = DEFAULT_GENRE_SEEDS,
     songs: songLimit = DEFAULT_SONG_SEEDS,
     offset = 0,
+    serverId,
   } = limits
 
-  // offset 让「换一批」轮转种子窗口：只靠打分抖动换不出新的歌手，
-  // 定向候选池本身必须变，否则每批的前几行永远是同一位歌手。
+  /*
+   * 种子按来源收口（阶段 3.3 / F06）：向哪个服务器拉候选，就只用
+   * 那个服务器认识的身份——歌手用它在**那个源**的 artistId（没见过就只用名字，
+   * 让服务端按名字找），歌曲 id 只取同源的。跨源 id 发过去是静默落空。
+   */
   const artistKeys = rotatedTopKeys(profile.artistAffinity, artistLimit, offset)
   const artists = artistKeys.map(key => {
     const identity = profile.artistIdentity.get(key)
-    return { id: identity?.id, name: identity?.name ?? key }
+    const id = serverId ? identity?.idsBySource.get(serverId) : [...(identity?.idsBySource.values() ?? [])][0]
+    return { id, name: identity?.name ?? key }
   })
 
   // 种子歌曲取最近听完的曲目：既贴合当下口味，也最可能有可用的相似曲目
@@ -431,6 +449,7 @@ export function deriveRecommendationSeeds(
   for (const event of events) {
     if (songIds.length >= songLimit) break
     if (event.outcome !== 'completed' && event.outcome !== 'qualified') continue
+    if (serverId && event.serverId !== serverId) continue
     if (seen.has(event.song.id)) continue
     seen.add(event.song.id)
     songIds.push(event.song.id)
