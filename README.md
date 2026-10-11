@@ -342,7 +342,7 @@ plugin's manifest allow-list.
 </details>
 
 <details>
-<summary><b>Optional sync service</b> — cross-device history, favourites and notes</summary>
+<summary><b>Optional sync service</b> — cross-device history and notes, pushed favourites</summary>
 
 <br/>
 

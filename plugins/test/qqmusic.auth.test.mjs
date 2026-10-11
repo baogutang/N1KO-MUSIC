@@ -160,7 +160,7 @@ test('到期前主动刷新：QQ param 分支 + tmeLoginType=2 + 回写凭据', 
     // 刷新后的数据请求
     return jsonResponse({ req_0: { code: 0, data: { songList: [] } } })
   }
-  const { plugin, env } = await loadPlugin('plugins/qqmusic', { credentials: credJson() })
+  const { plugin, credentialsWrites } = await loadPlugin('plugins/qqmusic', { credentials: credJson() })
   await plugin.n1ko.user.getPlaylists()
 
   assert.ok(refreshDone, '应当先走一次刷新')
@@ -176,8 +176,8 @@ test('到期前主动刷新：QQ param 分支 + tmeLoginType=2 + 回写凭据', 
   assert.equal(p.musickey, 'OLD-KEY')
   assert.equal(p.refresh_key, 'REFRESH-KEY-1')
   assert.equal(p.loginMode, 2)
-  // 新凭据已回写宿主
-  const stored = JSON.parse(env.credentials)
+  // 新凭据已回写宿主（D1：harness 只记录回写值，env.credentials 是 init 快照）
+  const stored = JSON.parse(credentialsWrites[0])
   assert.equal(stored.musickey, 'NEW-KEY-2')
   // 数据请求用新 key
   const dataReq = bodies.find(b => b.req_0.module !== 'music.login.LoginServer')
@@ -330,12 +330,13 @@ test('复审 A8①：刷新响应只有 musickey/refresh_key 时与旧凭据合�
     }
     return jsonResponse({ req_0: { code: 0, data: { v_playlist: [] } } })
   }
-  const { plugin, env } = await loadPlugin('plugins/qqmusic', { credentials: credJson({
+  const { plugin, credentialsWrites } = await loadPlugin('plugins/qqmusic', { credentials: credJson({
     expiresAt: Date.now() + 60 * 1000, // 到期前 10 分钟窗口内 → 主动刷新
   }) })
   await plugin.n1ko.user.getPlaylists()
 
-  const stored = JSON.parse(env.credentials)
+  // 回写值是最新一次合并的结果（最后一次刷新的回写）
+  const stored = JSON.parse(credentialsWrites.at(-1))
   // 合并而不是覆盖：旧凭据的字段还在
   assert.equal(stored.openid, 'OPENID-1')
   assert.equal(stored.refresh_token, 'REFRESH-TOKEN-1')

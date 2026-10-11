@@ -220,3 +220,30 @@ describe('会话上报生命周期（复审 B5，引擎级）', () => {
     ).toBe(true)
   })
 })
+
+describe('清空队列时关掉 Jellyfin 会话（复审 D5）', () => {
+  it('currentSong 清空 → reportPlayback 收到一次 stop（标记复位不再吞掉它）', async () => {
+    act(() => { root!.render(<ProbeTree />) })
+    const el = await untilAudioAttached()
+    await act(async () => { for (let i = 0; i < 50; i++) await Promise.resolve() })
+
+    // 播放中
+    act(() => { el.dispatchEvent(new Event('play')) })
+    listenSeconds(el, 3)
+    expect(
+      reportPlayback.mock.calls.some(c => (c[1] as { event: string }).event === 'start')
+    ).toBe(true)
+    const stopsBefore = reportPlayback.mock.calls
+      .filter(c => (c[1] as { event: string }).event === 'stop').length
+
+    // 清空队列（currentSong → null）：load effect 的清空分支应发 stop
+    act(() => {
+      usePlayerStore.setState({ currentSong: null, queue: [], queueIndex: -1, isPlaying: false } as never)
+    })
+    await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve() })
+
+    const stopsAfter = reportPlayback.mock.calls
+      .filter(c => (c[1] as { event: string }).event === 'stop').length
+    expect(stopsAfter).toBe(stopsBefore + 1)
+  })
+})

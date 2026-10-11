@@ -638,6 +638,13 @@ export function useAudioEngine() {
       playStatKey = null
       listenedSec = 0
       listenedPrevT = -1
+      /*
+       * 先关会话再复位标记（复审 D5）：closeSessionPrev 内部看 nowPlayingSent，
+       * 原顺序先把标记清成 false，Jellyfin 的 stop 永远发不出去——
+       * 「队列清空后服务器还挂着正在播放」。
+       */
+      closeSessionPrev?.()
+      closeSessionPrev = null
       nowPlayingSent = false
       playSubmitted = false
       // 清除未触发的 debounce
@@ -645,8 +652,6 @@ export function useAudioEngine() {
         clearTimeout(loadDebounceTimer)
         loadDebounceTimer = null
       }
-      closeSessionPrev?.()
-      closeSessionPrev = null
       if (cleanupPrev) { cleanupPrev(); cleanupPrev = null }
       audioEl.pause()
       audioEl.src = ''

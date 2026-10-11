@@ -294,7 +294,8 @@ flowchart LR
 
     shells --> app
     AD -->|"音频 + 元数据"| S
-    LO <-->|"历史 · 收藏 · 边注"| B
+    LO <-->|"历史 · 边注"| B
+    LO -->|"收藏（只推送）"| B
 
     LB["ListenBrainz<br/><sub>需自行开启</sub>"]
     MB["MusicBrainz<br/><sub>需自行开启，默认关</sub>"]
@@ -315,7 +316,7 @@ ListenBrainz 与 MusicBrainz 都要你自己开（MusicBrainz 默认关闭）；
 
 <br/>
 
-`backend/` 提供账号、本地歌单、收藏、收听历史与边注接口。它**完全可选**：
+`backend/` 提供账号、歌单、收藏、收听历史与边注接口（歌单与收藏增量拉取暂未接入客户端）。它**完全可选**：
 音乐永远直接从你自己的音乐服务器流出，不配同步服务时功能一样完整，
 数据全部存在本机 IndexedDB 里。
 

@@ -126,21 +126,24 @@ export function makeBigIntegerShim() {
 }
 
 /**
- * 加载一个插件目录：返回 { manifest, plugin, env }。
- * env.storage 是内存 KV；credentials 可注入。
+ * 加载一个插件目录：返回 { manifest, plugin, env, storageMap, credentialsWrites }。
+ * env.storage 是内存 KV（可经 storageMap 选项注入共享表，模拟「同一设备换账号」）；
+ * credentials 可注入；credentialsWrites 记录 setCredentials 的回写值（D1）。
  */
-export function loadPlugin(pluginDir, { credentials = null } = {}) {
+export function loadPlugin(pluginDir, { credentials = null, storageMap: sharedStorage } = {}) {
   const code = readFileSync(path.join(pluginDir, 'index.js'), 'utf8')
   const manifest = JSON.parse(readFileSync(path.join(pluginDir, 'manifest.json'), 'utf8'))
 
-  const storageMap = new Map()
+  const storageMap = sharedStorage ?? new Map()
+  /** 回写值只记录（真沙箱语义：setCredentials 不改写 env.credentials 快照，D1） */
+  const credentialsWrites = []
   const env = {
     appVersion: '1.10.0-test',
     locale: 'zh-CN',
     platform: 'web',
     userVariables: {},
     credentials,
-    setCredentials(next) { env.credentials = next },
+    setCredentials(next) { credentialsWrites.push(next) },
     storage: {
       get: async (key) => storageMap.get(key) ?? null,
       set: async (key, value) => { storageMap.set(key, value) },
@@ -161,5 +164,5 @@ export function loadPlugin(pluginDir, { credentials = null } = {}) {
   const factory = new Function('module', 'exports', 'require', 'env', 'console', code)
   factory(module, module.exports, requireShim, env, console)
 
-  return { manifest, plugin: module.exports, env, storageMap }
+  return { manifest, plugin: module.exports, env, storageMap, credentialsWrites }
 }

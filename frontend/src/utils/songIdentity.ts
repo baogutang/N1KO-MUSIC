@@ -20,14 +20,12 @@
 import type { Song } from '@/api/types'
 
 /*
- * 合作者分隔（复审 B8 修正）：**先 NFKC 再拆**——全角 ＆ ， ／ 与（）
- * 在 NFKC 后归成半角，原先先 split 后归一，全角分隔符根本不认。
- * feat/ft 带点即可拆（括号形态「A (feat. B)」「A（feat. B）」由此覆盖，
- * 残留的括号由 normalizeText 剥掉）；with 仍要求两侧空白，避免误拆
- * 「Within Temptation」。
+ * 合作者分隔（复审 B8 + D6）：**先 NFKC 再拆**——全角 ＆ ， ／ 与（）
+ * 在 NFKC 后归成半角。feat/ft/with 用 \b 词边界（D6：裸 "A feat B" /
+ * "A ft B" 无点形态要拆，"feature"/"featuring" 不误伤；"(with B)" 括号
+ * 形态也拆）；残留括号由 normalizeText 剥掉。
  */
-const ARTIST_SEPARATORS = /[&,;/、]|feat\.|ft\./gi
-const WITH_SEPARATOR = /\s+with\s+/gi
+const ARTIST_SEPARATORS = /[&,;/、]|\bfeat\b\.?|\bft\b\.?|\bwith\b(?![a-z])/gi
 
 /** 全角 → 半角、去空白与常见标点、小写。标题与歌手共用。null 安全（缺元数据的歌不炸）。 */
 export function normalizeText(text: string | null | undefined): string {
@@ -51,12 +49,11 @@ export function artistKey(artist: string | null | undefined): string {
   return normalizeText(artist)
 }
 
-/** 歌手串 → 归一化歌手集合（拆 & / 、 / feat. / ft. / with；先 NFKC） */
+/** 歌手串 → 归一化歌手集合（拆 & / 、 / feat / ft / with；先 NFKC） */
 export function artistSet(artist: string | null | undefined): Set<string> {
   const nfkc = (artist ?? '').normalize('NFKC')
   const parts = nfkc
     .split(ARTIST_SEPARATORS)
-    .flatMap(part => part.split(WITH_SEPARATOR))
     .map(normalizeText)
     .filter(Boolean)
   return new Set(parts)

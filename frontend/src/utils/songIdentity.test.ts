@@ -130,3 +130,20 @@ describe('全角分隔符与括号 feat（复审 B8：先 NFKC 再拆）', () =>
     expect([...artistSet('A with B')].sort()).toEqual(['a', 'b'])
   })
 })
+
+describe('词边界与无点形态（复审 D6）', () => {
+  it('无点形态 A feat B / A ft B 也拆', () => {
+    expect([...artistSet('A feat B')].sort()).toEqual(['a', 'b'])
+    expect([...artistSet('A ft B')].sort()).toEqual(['a', 'b'])
+  })
+
+  it('(with B) 括号形态拆得开', () => {
+    expect([...artistSet('A (with B)')].sort()).toEqual(['a', 'b'])
+    expect([...artistSet('A（with B）')].sort()).toEqual(['a', 'b'])
+  })
+
+  it('词边界不误伤：feature / featuring / Without You 不是分隔符', () => {
+    expect([...artistSet('The Featuring Project')]).toEqual(['thefeaturingproject'])
+    expect([...artistSet('DJ Feature')]).toEqual(['djfeature'])
+  })
+})

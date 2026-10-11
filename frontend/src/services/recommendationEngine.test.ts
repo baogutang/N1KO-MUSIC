@@ -508,13 +508,15 @@ describe('种子按来源收口（阶段 3.3 / F06：种子不再丢来源）', 
 
 describe('负侧与正侧同尺（复审 B2：重度历史下「一次 skip ≤ 一次 completed 的一半」）', () => {
   it('头部歌手原始权重 ≈20 的重度用户：新歌手一次 skip 的扣分 ≤ 一次 completed 加分的一半', () => {
-    // 10 位重度歌手各听 10 遍（原始权重 2×10=20），再各来一次新歌手事件
+    // 10 位重度歌手各听 10 遍、都在近 1–10 天（recency≈1 → 原始权重 2×10=20，
+    // positiveMax≈20；D2：原用例 ageDays 201–300，衰减后权重≈2 压不过下限 3，
+    // negativeScale 退回常数时断言也过，抓不住 B2）
     const heavy = []
-    let t = 300
+    let age = 10
     for (let a = 1; a <= 10; a++) {
       for (let i = 0; i < 10; i++) {
-        heavy.push(event(song(`h${a}-${i}`, `Heavy ${a}`, 'rock'), 'completed', 195, t))
-        t -= 1
+        heavy.push(event(song(`h${a}-${i}`, `Heavy ${a}`, 'rock'), 'completed', 195, age))
+        age -= 0.05
       }
     }
     const skipNew = event(song('new-s', 'Artist A', 'rock'), 'skipped', 8, 2)

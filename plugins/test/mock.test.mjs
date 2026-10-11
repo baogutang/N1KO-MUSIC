@@ -161,14 +161,17 @@ test('扫码状态机：waiting×2 → scanned×2 → confirmed（第 5 次）�
     statuses.push(r.status)
     if (r.status === 'confirmed') {
       assert.ok(r.credentials.startsWith('mock-cookie:'))
+      // 宿主会拿 credentials 落盘；经 setCredentials 记录一下（D1：只记录）
       fresh.env.setCredentials(r.credentials)
     }
   }
   assert.deepEqual(statuses, ['waiting', 'waiting', 'scanned', 'scanned', 'confirmed'])
   // confirmed 后 key 被消费掉：再查应报 not-found
   await assert.rejects(() => fresh.plugin.n1ko.auth.checkQr(qr.key), errIs('not-found'))
-  // 凭据生效
-  const user = await fresh.plugin.n1ko.auth.getUser()
+  // 凭据生效（D1：harness setCredentials 不改快照，用带凭据的新实例验证——
+  // 这也是宿主真实落盘后下次启动的形态）
+  const authorized = loadPlugin(MOCK_DIR, { credentials: fresh.credentialsWrites[0] })
+  const user = await authorized.plugin.n1ko.auth.getUser()
   assert.equal(user.name, 'Mock 用户')
   assert.equal(user.vip, true)
 })
@@ -180,7 +183,8 @@ test('loginWithCookie：有效凭据直通，无效串拒绝', async () => {
 })
 
 test('登录后：歌单 2+1、收藏分页、收藏增删、建单、加减歌', async () => {
-  env.setCredentials(CREDENTIALS)
+  // D1：harness setCredentials 只记录不改快照——用户域用例改为带凭据加载
+  const mock = loadPlugin(MOCK_DIR, { credentials: CREDENTIALS }).plugin
 
   const playlists = await mock.n1ko.user.getPlaylists()
   assert.equal(playlists.created.length, 2)
@@ -215,11 +219,16 @@ test('登录后：歌单 2+1、收藏分页、收藏增删、建单、加减歌'
 })
 
 test('env.setCredentials / logout', async () => {
-  env.setCredentials(CREDENTIALS)
-  assert.equal((await mock.n1ko.auth.getUser()).id, 'user-1000')
-  await mock.n1ko.auth.logout()
-  assert.equal(env.credentials, null)
-  assert.equal(await mock.n1ko.auth.getUser(), null)
+  // D1：真沙箱语义——setCredentials 只通知宿主回写，不改 env.credentials
+  const { plugin, env, credentialsWrites } = loadPlugin(MOCK_DIR, { credentials: CREDENTIALS })
+  assert.equal((await plugin.n1ko.auth.getUser()).id, 'user-1000')
+  await plugin.n1ko.auth.logout()
+  // logout 的宿主回写是 null；env 快照不变
+  assert.equal(credentialsWrites.at(-1), null)
+  assert.equal(env.credentials, CREDENTIALS)
+  // 回写落盘后（宿主真实行为）下次启动无凭据
+  const loggedOut = loadPlugin(MOCK_DIR, { credentials: null })
+  assert.equal(await loggedOut.plugin.n1ko.auth.getUser(), null)
 })
 
 /** 断言错误码（沙箱里是 PluginError.code，Node 骨架里同名字段） */
