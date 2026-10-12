@@ -294,7 +294,7 @@ export function usePersonalizedRecommendations(size = 30) {
   const constraints = useRecommendationConstraints()
   const visibleData = useMemo(
     () => (query.data ? applyRecommendationConstraints(query.data, constraints).slice(0, size) : query.data),
-    [query.data, constraints]
+    [query.data, constraints, size]
   )
 
   return {

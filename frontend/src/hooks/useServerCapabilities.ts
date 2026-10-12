@@ -64,7 +64,10 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
     if (!hasAdapter()) return NONE
     // 推导唯一真源在 services/capabilities（阶段 4.1），两处共用
     return capabilitiesOfAdapter(getAdapter())
-  }, [activeServerId])
+    // getAdapter() 读的是注册表而非 React 状态：主库切换（activeServerId）与
+    // 冷启动主库连上（isConnected，并行连源后 setPrimary 不改 id）都要重算
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeServerId, isConnected])
 
   // 探测一次分享是否真的开着。probeShares 只在服务器明确回答时 resolve；
   // 连不上时它会抛错，让这个查询进入 error 态——**不要**在这里 retry: false，
@@ -84,13 +87,17 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
     staleTime: 30 * 60 * 1000,
   })
 
-  return {
+  // 返回值按内容 memo：调用方（SongList 的 rowCapsOf、批量操作 memo）把整个对象
+  // 放进依赖，每次渲染都给新对象会让它们逐帧重建
+  return useMemo(() => ({
     ...methods,
     // 只认肯定答复：探测在飞、或者根本没问到服务器时都按「不支持」算。
     // 入口晚出现一会儿，好过点下去才失败。
     shares: methods.shares && sharesEnabled === true,
     // 只有一个库时切换器没有意义
     musicFolders: methods.musicFolders && (folders?.length ?? 0) > 1,
-    folders: folders ?? [],
-  }
+    folders: folders ?? NO_FOLDERS,
+  }), [methods, sharesEnabled, folders])
 }
+
+const NO_FOLDERS: Array<{ id: string; name: string }> = []

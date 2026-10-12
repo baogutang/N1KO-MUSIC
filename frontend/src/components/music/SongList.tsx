@@ -199,15 +199,15 @@ export function SongList({
     [servers]
   )
   const activeServerId = useServerStore(s => s.activeServerId)
-  // 只解构出用得着的几个布尔量。useServerCapabilities 每次渲染都返回新对象，
-  // 整个对象进 renderRow 的依赖会让它每次重建，SongRow 的 memo 就全废了
+  // 只调一次：返回值已按内容 memo（引用只随能力/探测结果变），整个对象可以
+  // 进 rowCapsOf 与批量操作的依赖；renderRow 仍只解构布尔量，SongRow 的 memo 不受影响
+  const primaryCaps = useServerCapabilities()
   const {
     shares: primaryShares,
     rating: primaryRating,
     favorites: primaryFavorites,
     radio: primaryRadio,
-  } = useServerCapabilities()
-  const primaryCaps = useServerCapabilities()
+  } = primaryCaps
   const handleShare = useCallback((song: Song) => setShareSong(song), [])
   const handleRadio = useCallback(async (song: Song) => {
     const ok = await startRadio({ kind: 'song', id: song.id, name: song.title, serverId: song.serverId })
@@ -325,7 +325,7 @@ export function SongList({
       },
     ]
     // t 的引用随语言变（见 i18n/useT），因此它本身就是这里需要的那个依赖
-  }, [clearSelection, t, sourceCaps, primaryFavorites])
+  }, [clearSelection, t, sourceCaps, primaryCaps])
 
   const renderRow = useCallback((song: Song, index: number) => {
     /**

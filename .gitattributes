@@ -1,5 +1,8 @@
 * text=auto eol=lf
 
+# Windows 批处理必须保持 CRLF（Gradle 原样分发；LF-only 的 .bat 在部分 cmd 下 goto/label 出错）
+*.bat text eol=crlf
+
 # 二进制
 *.png binary
 *.jpg binary

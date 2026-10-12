@@ -28,7 +28,6 @@ describe('字体子集标签（3.4）', () => {
     const referenced = [...css.matchAll(/url\((?:[^)]*)?\/fonts\/([^)]+)\)/g)].map(m => m[1])
     expect(referenced.length).toBeGreaterThan(30)
     for (const f of referenced) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const exists = readdirSync(publicFonts).includes(f)
       expect(exists, `${f} 缺失`).toBe(true)
     }
