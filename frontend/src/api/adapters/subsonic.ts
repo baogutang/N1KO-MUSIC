@@ -195,6 +195,19 @@ export class SubsonicAdapter implements MusicServerAdapter {
   }
 
   /**
+   * Subsonic 错误码 → 宿主协议错误码（services/errors.ts 的词表）：
+   * Subsonic 的失败多半是 HTTP 200 + 响应体里的 code（「不存在」是 70、
+   * 凭据类是 40–44），不把它挂到抛出的错误上，下游的
+   * `code === 'not-found'` / `code === 'unauthorized'` 判定永远不中（复核 F2）。
+   */
+  private static mapErrorCode(code: number | undefined): string | undefined {
+    if (code === 70) return 'not-found'
+    // 与 diagnose() 的分类一致：40–44 是用户名/令牌/API key 问题
+    if (typeof code === 'number' && code >= 40 && code <= 44) return 'unauthorized'
+    return undefined
+  }
+
+  /**
    * 发送 Subsonic API 请求（GET）。
    * signal 用于在组件卸载 / 快速切页时取消在途请求——此前完全没有取消能力，
    * 连点搜索会堆积请求，后到的旧响应还可能覆盖新结果。
@@ -210,7 +223,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
     })
     const data = response.data['subsonic-response']
     if (data.status === 'failed') {
-      throw new Error(data.error?.message || 'Subsonic API error')
+      throw SubsonicAdapter.subsonicFailure(data.error)
     }
     return data as T
   }
@@ -222,9 +235,17 @@ export class SubsonicAdapter implements MusicServerAdapter {
     })
     const data = response.data['subsonic-response']
     if (data.status === 'failed') {
-      throw new Error(data.error?.message || 'Subsonic API error')
+      throw SubsonicAdapter.subsonicFailure(data.error)
     }
     return data as T
+  }
+
+  /** 响应体里的失败 → 带协议错误码的 Error（message 保持原样，只加 code） */
+  private static subsonicFailure(error: { code?: number; message?: string } | undefined): Error {
+    const err = new Error(error?.message || 'Subsonic API error') as Error & { code?: string }
+    const mapped = SubsonicAdapter.mapErrorCode(error?.code)
+    if (mapped) err.code = mapped
+    return err
   }
 
   async login(url: string, username: string, password: string): Promise<AuthResult> {

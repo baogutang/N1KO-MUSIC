@@ -18,6 +18,7 @@ import { useServerStore } from '@/store/serverStore'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { VipTag } from '@/components/sources/VipTag'
 import { useCreatePlaylist } from '@/hooks/useServerQueries'
+import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import { toast } from '@/components/ui/use-toast'
 import { Input } from '@/components/ui/input'
 import { useIsMobileLayout } from '@/lib/platform'
@@ -68,6 +69,7 @@ export function QueueDrawer() {
    */
   const createPlaylist = useCreatePlaylist()
   const primaryServerId = useServerStore(s => s.activeServerId)
+  const caps = useSourceCapabilities()
   const createLocal = useLocalPlaylistStore(s => s.create)
   const [saveOpen, setSaveOpen] = useState(false)
   const [saveName, setSaveName] = useState('')
@@ -136,28 +138,36 @@ export function QueueDrawer() {
     const name = saveName.trim()
     if (!name) return
     /*
-     * 混源队列分家（阶段 1.10）：主库的歌进服务端歌单（id 有意义）；
-     * 插件源的歌 id 只在自己源里有效——发主库会建出指向别的曲子的歌单。
-     * 落本地混合歌单（跨源安全的去处，与「加入歌单」的跨源策略一致）。
+     * 混源队列分家（阶段 1.10；复核 F7 补 caps 闸）：主库的歌进服务端歌单
+     * （id 有意义），但只在主库声明了 playlistWrite 时——主库是只读账号或
+     * 插件源时发给它只会建出指向别的曲子的歌单，这些歌同样落本地。
+     * 插件源的歌 id 只在自己源里有效，永远落本地混合歌单
+     * （新建一张本地单，不是并进已有的；与「加入歌单」的跨源策略一致）。
      */
     const songsInOrder = order.map(qi => queue[qi]).filter((song): song is Song => !!song)
-    const primarySongs = songsInOrder.filter(song => song.serverId === primaryServerId)
-    const foreignSongs = songsInOrder.filter(song => song.serverId !== primaryServerId)
+    const primaryWritable = !!primaryServerId && caps[primaryServerId]?.playlistWrite === true
+    const belongsToPrimary = (song: Song) => (song.serverId || primaryServerId || '') === primaryServerId
+    const primarySongs: Song[] = []
+    const localSongs: Song[] = []
+    for (const song of songsInOrder) {
+      if (primaryWritable && belongsToPrimary(song)) primarySongs.push(song)
+      else localSongs.push(song)
+    }
     try {
       if (primarySongs.length) {
         await createPlaylist.mutateAsync({ name, songIds: primarySongs.map(song => song.id) })
       }
-      if (foreignSongs.length) {
-        // 外源歌也存：有服务端单就并进同名本地单，没有就建（本地单收一切来源）
-        const local = await createLocal(name, foreignSongs)
-        void local
+      if (localSongs.length) {
+        await createLocal(name, localSongs)
       }
       setSaveOpen(false)
       toast({
         title: t('queue.saved', { name }),
-        ...(primarySongs.length && foreignSongs.length
-          ? { description: t('queue.savedMixed', { server: primarySongs.length, local: foreignSongs.length }) }
-          : {}),
+        ...(primarySongs.length && localSongs.length
+          ? { description: t('queue.savedMixed', { server: primarySongs.length, local: localSongs.length }) }
+          : !primarySongs.length && localSongs.length
+            ? { description: t('queue.savedLocal', { count: localSongs.length }) }
+            : {}),
       })
     } catch (err) {
       toast({
@@ -167,7 +177,7 @@ export function QueueDrawer() {
         variant: 'destructive',
       })
     }
-  }, [saveName, order, queue, createPlaylist, createLocal, primaryServerId, t])
+  }, [saveName, order, queue, createPlaylist, createLocal, primaryServerId, caps, t])
 
   const renderRow = useCallback((qi: number, pos: number) => {
             const song = queue[qi]

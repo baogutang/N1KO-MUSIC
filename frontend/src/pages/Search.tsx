@@ -115,10 +115,19 @@ export default function SearchPage() {
   // 多源模式下聚合分组才是数据源；单源 hook 关掉（否则设了曲库范围时
   // 两套查询键不同，主库同一请求会打两遍）
   const single = useSearch(debouncedQuery, { enabled: !multi })
-  /* 页数与累积结果按 location.key 记（阶段 3.12）：返回列表保住已翻的页 */
+  /* 页数与累积结果按 location.key 记（阶段 3.12）：返回列表保住已翻的页。
+   * 复核 F4 补两条：①累积结果 acc / 首页歌手专辑 meta 一起存进 history.state，
+   * 否则回来只恢复页数、看到的结果比离开时少；②重置 effect 跳过首跑，
+   * 否则挂载当帧把恢复出来的页数冲回 1，恢复从未生效过。 */
   const locationKey = useLocation().key
+  const savedRestore = window.history.state?.mspSearchRestore as {
+    key?: string
+    acc?: Record<string, Song[]>
+    meta?: { artists: Artist[]; albums: Album[] }
+  } | undefined
+  const restoreMatches = savedRestore?.key === locationKey
   const [page, setPage] = useState(() => {
-    const saved = history.state?.mspSearchPage as { key?: string; page?: number } | undefined
+    const saved = window.history.state?.mspSearchPage as { key?: string; page?: number } | undefined
     return saved?.key === locationKey && saved.page ? saved.page : 1
   })
   /* 已到尾页的源（阶段 5 / F13）：加载更多不再对它们重发请求 */
@@ -150,20 +159,19 @@ export default function SearchPage() {
    * 「第 3 行现在是另一首歌，而且它被换成了别人的版本」。
    */
   const [swaps, setSwaps] = useState<Record<string, Song>>({})
-  useEffect(() => { setSwaps({}); setPage(1); setAcc({}); setAccMeta({ artists: [], albums: [] }) }, [debouncedQuery])
-
-  // 页数变化写进 history.state（阶段 3.12）：后退回来时恢复
+  /* 换词才清空（复核 F4）：挂载首跑不清——恢复出来的页数/累积结果
+   * 正是靠「不清」才活过第一帧的。 */
+  const queryChangedRef = useRef(false)
   useEffect(() => {
-    try {
-      window.history.replaceState({
-        ...window.history.state,
-        mspSearchPage: { key: locationKey, page },
-      }, '')
-    } catch { /* 无 history 时退化 */ }
-  }, [locationKey, page])
+    if (!queryChangedRef.current) { queryChangedRef.current = true; return }
+    setSwaps({}); setPage(1); setAcc({}); setAccMeta({ artists: [], albums: [] })
+  }, [debouncedQuery])
 
-  // 各源结果累积（跨页保留、按 id 去重）：page>1 到达时并入已有结果
-  const [acc, setAcc] = useState<Record<string, Song[]>>({})
+  // 各源结果累积（跨页保留、按 id 去重）：page>1 到达时并入已有结果。
+  // 初值取恢复载荷（复核 F4）：翻过的页在离开前已存进 history.state
+  const [acc, setAcc] = useState<Record<string, Song[]>>(
+    () => (restoreMatches && savedRestore?.acc) || {}
+  )
   useEffect(() => {
     setAcc(prev => {
       let changed = false
@@ -206,7 +214,21 @@ export default function SearchPage() {
 
   /** 歌手 / 专辑跨源去重（归一名相等只留优先序在前的那个）。
    *  数据源是第 1 页结果的累积状态：翻页后 groups 只剩当页数据 */
-  const [accMeta, setAccMeta] = useState<{ artists: Artist[]; albums: Album[] }>({ artists: [], albums: [] })
+  const [accMeta, setAccMeta] = useState<{ artists: Artist[]; albums: Album[] }>(
+    () => (restoreMatches && savedRestore?.meta) || { artists: [], albums: [] }
+  )
+
+  // 页数与累积结果写进 history.state（阶段 3.12 + 复核 F4）：后退回来时恢复。
+  // acc / accMeta 后到（翻页后数据陆续并入），所以它们也在依赖里。
+  useEffect(() => {
+    try {
+      window.history.replaceState({
+        ...window.history.state,
+        mspSearchPage: { key: locationKey, page },
+        mspSearchRestore: { key: locationKey, acc, meta: accMeta },
+      }, '')
+    } catch { /* 无 history / 序列化超限时退化：只保住页数那一档 */ }
+  }, [locationKey, page, acc, accMeta])
   useEffect(() => {
     if (page !== 1) return
     setAccMeta(prev => {

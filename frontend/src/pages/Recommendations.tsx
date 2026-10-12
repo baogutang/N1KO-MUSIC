@@ -21,15 +21,21 @@ import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { EmptyState } from '@/components/common/EmptyState'
 import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
+import {
+  GroupStateRows,
+  recommendationGroupsForMerge,
+  splitGroups,
+  useRetrySourceGroup,
+} from '@/components/sources/SourceShelves'
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
 import {
   interleaveRecommendations,
   useConnectedSources,
   useSourceRecommendSongs,
 } from '@/hooks/useSourceQueries'
+import { useRecommendationConstraints } from '@/services/recommendationFilters'
 import { formatDuration } from '@/utils/formatters'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
-import type { Song } from '@/api/types'
 import { useT } from '@/i18n'
 
 /** 这一页的上限。首页那条是 20，这里是它的展开版 */
@@ -42,32 +48,30 @@ const MAX_SONGS = 60
  * （usePersonalizedRecommendations 会去别的源取随机/收藏），按产出方分组
  * 会把它们统统错标成主库，来源筛选就跟着错。
  *
- * 分组顺序即轮转顺序：本地画像先进，所以它出第一首，其余源依次跟上，
- * 谁也不刷屏（interleaveRecommendations 的语义）。
+ * 合并前过 recommendationGroupsForMerge（与首页 MergedDailyRail 同一条）：
+ * 插件源的每日推荐 queryKey 不含屏蔽指纹（10 分钟缓存），不过滤的话
+ * 屏蔽了某个歌手，这页在缓存期内照样推他。失败/登录过期的源不再被
+ * 静默丢掉——拆出来交给 GroupStateRows 占一行（复核 F1）。
  */
 function useMergedRecommendations(size: number) {
   const sourceGroups = useSourceRecommendSongs()
+  const { good, loading, failed, auth } = splitGroups(sourceGroups)
   const { data: librarySongs, isFetching, refresh } = usePersonalizedRecommendations(size)
+  const constraints = useRecommendationConstraints()
 
-  const grouped = useMemo(() => {
-    const byServer = new Map<string, Song[]>()
-    const add = (songs: Song[] | undefined) => {
-      for (const song of songs ?? []) {
-        const list = byServer.get(song.serverId)
-        if (list) list.push(song)
-        else byServer.set(song.serverId, [song])
-      }
-    }
-    add(librarySongs)
-    for (const group of sourceGroups) add(group.data)
-    return [...byServer].map(([serverId, songs]) => ({ serverId, songs }))
-    // sourceGroups 每次渲染都是新数组（zipQueryResults 刻意不 memo，见其注释），
+  const grouped = useMemo(
+    () => recommendationGroupsForMerge(good, librarySongs, constraints),
+    // good/librarySongs 每次渲染都可能是新数组（zipQueryResults 刻意不 memo），
     // 这里的重算只是一次小数组遍历，比吞掉「loading → success」的翻转划算
-  }, [librarySongs, sourceGroups])
+    [good, librarySongs, constraints]
+  )
 
   return {
     grouped,
     refresh,
+    failed,
+    loading,
+    auth,
     /** 有任意一路还在取：本地画像在算，或者某个插件源还没回来 */
     isFetching: isFetching || sourceGroups.some(g => g.status === 'loading'),
   }
@@ -77,7 +81,8 @@ export default function RecommendationsPage() {
   const { t } = useT()
   const queryClient = useQueryClient()
   const sources = useConnectedSources()
-  const { grouped, refresh, isFetching } = useMergedRecommendations(MAX_SONGS)
+  const retry = useRetrySourceGroup()
+  const { grouped, refresh, isFetching, failed, loading, auth } = useMergedRecommendations(MAX_SONGS)
 
   /** 来源筛选；null = 全部。选中的源断开后自动回到「全部」 */
   const [pickedSource, setPickedSource] = useState<string | null>(null)
@@ -177,6 +182,17 @@ export default function RecommendationsPage() {
             description={t('empty.recommendations.description')}
           />
         )}
+
+        {/* 失败/登录过期的源占一行（复核 F1）：静默消失比报错更糟，
+            这一页是首页那条的展开版，状态行的约定也与它一致 */}
+        <GroupStateRows
+          failed={failed}
+          loading={loading}
+          auth={auth}
+          showLoading={!songs.length}
+          retry={retry}
+          family="recommend-songs"
+        />
       </section>
     </div>
   )

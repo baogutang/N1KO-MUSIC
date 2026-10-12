@@ -246,7 +246,7 @@
 
 ## 2026-10-12 · 第四轮 · 阶段 1 的取舍
 - 1.10 保存队列的混源分家：主库歌进服务端歌单、插件源歌进本地混合歌单（各自独立保存，两条提示合一）。任务书给的另一选项「明确提示」不做——AddToPlaylistDialog 的跨源策略就是本地混合歌单，保持一致。
-- 1.9 与 1.3 是同一根因（navigate 缺 ?src=），1.3 抽 detailPath 时已覆盖 Issue/AlbumDetail/ArtistDetail/NowPlayingOnServer/FullscreenPlayer 全部 8 处，1.9 无剩余工作。
+- ~~1.9 与 1.3 是同一根因（navigate 缺 ?src=），1.9 无剩余工作~~。**此判定有误（复核 F1 更正）**：1.9 是「查看全部」推荐页不滤屏蔽、失败源静默消失，与 `?src=` 无关。已在 F1 修复：该页改走 `recommendationGroupsForMerge` + `useRecommendationConstraints`（与首页 MergedDailyRail 同一条过滤），失败/登录过期的源由 `GroupStateRows` 占一行。
 - 1.11 Jellyfin 的 getSong 把 400 也视作 not-found：Jellyfin 对不存在的 Items id 常回 400 而非 404（与 postUserData 双路由的观察一致）。
 - 1.7 抽 useDestructiveConfirm hook 而非复制 Settings 的两个 Dialog：三个报头（Masthead/TopBar/MobileHeader）+ 两种动作共用一份确认 UI；文案复用 settings.primaryDialog.* / settings.disconnect.confirm 既有词条，新增 masthead.disconnectDesc 一条。
 

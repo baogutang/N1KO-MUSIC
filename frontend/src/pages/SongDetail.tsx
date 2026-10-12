@@ -8,17 +8,18 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { describeError } from '@/services/errors'
+import { describeError, pluginErrorCode } from '@/services/errors'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   MusicNote, ArrowRight, MagnifyingGlass,
-  X, FloppyDisk, ArrowsClockwise,
+  X, FloppyDisk, ArrowsClockwise, Key,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ErrorState } from '@/components/common/ErrorState'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/use-toast'
 import { useSettingsStore, buildRemoteCoverUrl } from '@/store/settingsStore'
@@ -688,7 +689,7 @@ export default function SongDetailPage() {
    * 范围里。缓存键的形状与 useServerQueries 的约定一致（[来源, 'songs', …]），
    * 键首位带来源，两个音源出现同 id 的歌时不会互相串。
    */
-  const { data: fetchedSong, isLoading, isError } = useQuery({
+  const { data: fetchedSong, isLoading, isError, error: queryError, refetch } = useQuery({
     queryKey: [serverId || 'no-server', 'songs', 'detail', id ?? ''] as const,
     queryFn: () => getAdapterFor(serverId).getSong(id ?? ''),
     enabled: !!id && hasAdapterFor(serverId),
@@ -752,7 +753,40 @@ export default function SongDetailPage() {
     )
   }
 
-  if (!song || isError) {
+  /*
+   * 查询出错与「真的没有」是两件事（复核 F2）：适配器只把 404 / not-found
+   * 转成 null，401 / 断网原样抛——这里必须分开设，否则凭据过期又会被
+   * 显示成「找不到这首歌」。
+   */
+  if (isError) {
+    const code = pluginErrorCode(queryError)
+    if (code === 'unauthorized') {
+      return (
+        <div className="pt-24 max-w-[720px] animate-fade-in">
+          <Key className="w-8 h-8 text-ink-faint mb-5" />
+          <p className="font-serif text-2xl font-semibold">{t('sources.authExpired')}</p>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="mt-4 text-sm text-primary underline decoration-hair underline-offset-[6px] hover:decoration-primary transition-colors"
+          >
+            {t('action.back')}
+          </button>
+        </div>
+      )
+    }
+    return (
+      <div className="pt-16 max-w-[720px] animate-fade-in">
+        <ErrorState
+          className="!pt-8"
+          retry={() => void refetch()}
+          onBack={() => navigate(-1)}
+        />
+      </div>
+    )
+  }
+
+  if (!song) {
     return (
       <div className="pt-24 max-w-[720px] animate-fade-in">
         <MusicNote className="w-8 h-8 text-ink-faint mb-5" />

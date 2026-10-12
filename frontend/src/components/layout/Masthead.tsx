@@ -82,7 +82,11 @@ export function Masthead() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="start">
-            {servers.map(server => (
+            {/* 可切的主库候选（复核 F6）：插件行不提供「设为主库」（1.7 的约定，
+                设置页同样不给）；当前主库自己也不出现——点它再弹确认框是噪音 */}
+            {servers
+              .filter(server => server.type !== 'plugin' && server.id !== activeServerId)
+              .map(server => (
               <DropdownMenuItem
                 key={server.id}
                 onClick={() => {
@@ -104,7 +108,6 @@ export function Masthead() {
                     },
                   })
                 }}
-                className={cn(activeServerId === server.id && 'text-primary')}
               >
                 <MusicNote size={16} className="mr-2" />
                 {server.name}

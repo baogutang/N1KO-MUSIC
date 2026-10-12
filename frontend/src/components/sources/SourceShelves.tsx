@@ -37,8 +37,9 @@ import { filterRecommendable, applyRecommendationConstraints, useRecommendationC
 /**
  * 单个音源某个区块的重试：失效该源该族 query，TanStack 按挂载状态重取。
  * 失败的源看得见、点得动，而不是从页面上静默消失（SourceGroupState 头注）。
+ * 导出共用：推荐页（Recommendations）的展开版也要给失败源一行重试。
  */
-function useRetrySourceGroup() {
+export function useRetrySourceGroup() {
   const queryClient = useQueryClient()
   return useCallback(
     (serverId: string, family: string) => {
@@ -95,8 +96,8 @@ export function recommendationGroupsForMerge(
   return groups
 }
 
-/** 一节末尾的状态行（登录过期 + 失败 + 可选的加载骨架） */
-function GroupStateRows({
+/** 一节末尾的状态行（登录过期 + 失败 + 可选的加载骨架）；推荐页展开版共用 */
+export function GroupStateRows({
   failed,
   loading,
   auth,

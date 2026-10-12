@@ -238,11 +238,15 @@ export function backfillPendingScrobbles(): number {
  * 收藏的权威来源始终是音乐服务器（Subsonic starred / Jellyfin UserData），
  * 这里只是跨设备镜像，因此失败仅告警、不向调用方抛出。
  * 收藏时需要完整的 Song 才能保存元数据快照；取消收藏只需 id。
+ *
+ * `serverIdOverride` 供重放使用（复核 F8）：入队时固化的来源原样带回，
+ * 不在重放那一刻重新读主库——主库可能已经换成另一台。
  */
 export async function mirrorFavorite(
   songId: string,
   starred: boolean,
-  song?: Song
+  song?: Song,
+  serverIdOverride?: string
 ): Promise<void> {
   const credentials = activeSyncCredentials()
   /*
@@ -252,9 +256,17 @@ export async function mirrorFavorite(
    * 一首网易云的歌会被当成 NAS 的，随后拿它的 id 去 NAS 上找——找不到，
    * 或者更糟，找到同 id 的另一首。
    */
-  const serverId = song?.serverId ?? useServerStore.getState().activeServerId
+  const serverId = serverIdOverride ?? song?.serverId ?? useServerStore.getState().activeServerId
   if (!credentials || !serverId) return
   if (starred && !song) return
+
+  /* 新调用先作废同键的待重试项（复核 F8③）：旧状态即使稍后重放成功，
+   * 也只会覆盖掉这次的新状态——镜像回到过去比漏一次更糟。attempts 带过来：
+   * 重放轮次要跨失败累计，不能每轮清零（否则上限永远数不到） */
+  const mirrorKey = `${serverId}:${songId}`
+  const prevAttempts = pendingFavoriteMirrors.get(mirrorKey)?.attempts ?? 0
+  pendingFavoriteMirrors.delete(mirrorKey)
+  persistPendingMirrors()
 
   try {
     if (starred && song) {
@@ -269,35 +281,97 @@ export async function mirrorFavorite(
       return
     }
     if (axios.isAxiosError(error) && error.response?.status === 404) return
-    /* 阶段 4.11：网络/5xx 失败不再只 warn——排进重试队列（复用历史
-     * 同步的定时冲刷节奏），下一轮 flush 时随 outbox 一起再试 */
-    pendingFavoriteMirrors.push({ songId, starred, song })
+    /* 阶段 4.11 + 复核 F8 重写：网络/5xx 失败排进按 serverId:songId 去重的
+     * 重试表——同一首歌只保留最新状态；serverId 入队时固化；条目持久化到
+     * localStorage（纯内存的旧实现在刷新后整条队列蒸发）；重放串行、
+     * 带上限与指数退避 */
+    pendingFavoriteMirrors.set(mirrorKey, { serverId, songId, starred, song, attempts: prevAttempts })
+    persistPendingMirrors()
     scheduleFavoriteMirrorRetry()
   }
 }
 
-/** 待重试的收藏镜像（阶段 4.11）：只留每条 songId 的最新状态 */
-const pendingFavoriteMirrors: Array<{ songId: string; starred: boolean; song?: Song }> = []
+/** 待重试的收藏镜像（复核 F8）：按 serverId:songId 只存最新状态 */
+interface PendingFavoriteMirror {
+  serverId: string
+  songId: string
+  starred: boolean
+  song?: Song
+  attempts: number
+}
+const PENDING_MIRRORS_STORE_KEY = 'n1ko-pending-favorite-mirrors'
+const FAVORITE_RETRY_BASE_MS = 60_000
+const FAVORITE_RETRY_MAX_MS = 10 * 60_000
+/** 重试上限：收藏的权威源在音乐服务器上，镜像尽力而为，不无限空转 */
+const FAVORITE_RETRY_MAX_ATTEMPTS = 5
+
+function loadPendingMirrors(): Map<string, PendingFavoriteMirror> {
+  const map = new Map<string, PendingFavoriteMirror>()
+  try {
+    const raw = localStorage.getItem(PENDING_MIRRORS_STORE_KEY)
+    if (!raw) return map
+    const parsed = JSON.parse(raw) as PendingFavoriteMirror[]
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        if (item && typeof item.serverId === 'string' && typeof item.songId === 'string') {
+          map.set(`${item.serverId}:${item.songId}`, { ...item, attempts: item.attempts ?? 0 })
+        }
+      }
+    }
+  } catch { /* 存储损坏按空队处理 */ }
+  return map
+}
+
+const pendingFavoriteMirrors = loadPendingMirrors()
 let favoriteMirrorTimer: ReturnType<typeof setTimeout> | null = null
+let favoriteRetryDelay = FAVORITE_RETRY_BASE_MS
+
+function persistPendingMirrors(): void {
+  try {
+    localStorage.setItem(PENDING_MIRRORS_STORE_KEY, JSON.stringify([...pendingFavoriteMirrors.values()]))
+  } catch { /* 无痕/配额：退化为内存队列 */ }
+}
 
 function scheduleFavoriteMirrorRetry(): void {
   if (favoriteMirrorTimer !== null) return
   favoriteMirrorTimer = setTimeout(() => {
     favoriteMirrorTimer = null
-    const pending = [...pendingFavoriteMirrors]
-    pendingFavoriteMirrors.length = 0
-    const credentials = activeSyncCredentials()
-    if (!credentials) {
-      // 没凭据了：状态放回去等下一次配置同步后再试
-      pendingFavoriteMirrors.push(...pending)
-      return
+    void replayFavoriteMirrors()
+  }, favoriteRetryDelay)
+}
+
+/** 串行重放（复核 F8②）：并发 void 不保序，乱序完成又会互相覆盖 */
+async function replayFavoriteMirrors(): Promise<void> {
+  const credentials = activeSyncCredentials()
+  if (!credentials) {
+    /* 没凭据：不丢条目也不再「放回后没人调度」（F8⑦）——重新挂上定时器，
+     * 等同步账号重新配置；退避到上限，空窗期不狂转 */
+    favoriteRetryDelay = FAVORITE_RETRY_MAX_MS
+    scheduleFavoriteMirrorRetry()
+    return
+  }
+  for (const [key, item] of [...pendingFavoriteMirrors]) {
+    if (item.attempts >= FAVORITE_RETRY_MAX_ATTEMPTS) {
+      pendingFavoriteMirrors.delete(key)
+      persistPendingMirrors()
+      console.warn('[Sync] 收藏镜像重试超限，放弃（serverId=%s, songId=%s）', item.serverId, item.songId)
+      continue
     }
-    for (const item of pending) {
-      void mirrorFavorite(item.songId, item.starred, item.song).catch(() => {
-        pendingFavoriteMirrors.push(item)
-      })
+    item.attempts += 1
+    /* mirrorFavorite 成功时会把同键条目删掉；失败时它的 catch 会带着
+     * 固化 serverId 重新入队（attempts 保留在同一个对象上，不会被清零） */
+    try {
+      await mirrorFavorite(item.songId, item.starred, item.song, item.serverId)
+    } catch {
+      /* mirrorFavorite 自己不抛（内部全兜住）；这里只防意外 */
     }
-  }, 60_000)
+  }
+  if (pendingFavoriteMirrors.size) {
+    favoriteRetryDelay = Math.min(favoriteRetryDelay * 2, FAVORITE_RETRY_MAX_MS)
+    scheduleFavoriteMirrorRetry()
+  } else {
+    favoriteRetryDelay = FAVORITE_RETRY_BASE_MS
+  }
 }
 
 /**
@@ -328,9 +402,19 @@ export function resetHistorySyncForTests(): void {
   retryDelay = FLUSH_DELAY_MS
   flushing = false
   started = false
+  pendingFavoriteMirrors.clear()
+  if (favoriteMirrorTimer !== null) clearTimeout(favoriteMirrorTimer)
+  favoriteMirrorTimer = null
+  favoriteRetryDelay = FAVORITE_RETRY_BASE_MS
+  try { localStorage.removeItem(PENDING_MIRRORS_STORE_KEY) } catch { /* ignore */ }
 }
 
 /** 仅供测试/诊断：当前待上报条数 */
 export function pendingScrobbleCount(): number {
   return outbox.size
+}
+
+/** 仅供测试/诊断：当前待重试的收藏镜像（按 serverId:songId 去重后的条数） */
+export function pendingFavoriteMirrorCount(): number {
+  return pendingFavoriteMirrors.size
 }

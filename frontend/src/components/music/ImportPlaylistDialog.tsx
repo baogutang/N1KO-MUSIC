@@ -97,16 +97,21 @@ export function ImportPlaylistDialog({
      * 本地混合歌单——「答应过的本地混合歌单」不能因为一条都匹配不上就灰掉。
      * matched>0 时维持原语义：服务端单 + 外源落本地。
      */
-    /* matched===0 时把未匹配条目转成最小 Song（仅本地歌单展示/播放入口用） */
+    /* matched===0 时把未匹配条目转成最小 Song（仅本地歌单展示用）。
+     * serverId 用 'local' 哨兵：toEntries 会过滤 serverId 为空的歌（复核 F3：
+     * 空串建出的本地单是空的，toast 却说有 N 首）；'local' 不在 servers 里，
+     * 徽标不渲染、也永远命中不了适配器——它只是一条待匹配的占位。 */
     const missingAsSongs: Song[] = missing.map((entry, i) => ({
       id: `unmatched-${i}`,
-      serverId: '',
+      serverId: 'local',
       title: entry.title ?? entry.location,
       artist: entry.artist ?? '',
       album: entry.album ?? '',
       duration: entry.durationSeconds ?? 0,
     }))
-    const localSongs = matched.length === 0 ? missingAsSongs : foreign
+    /* 外源歌不因 matched===0 被丢掉（复核 F3①）：全未匹配主库但命中外源时，
+     * foreign 与 missing 占位一起进本地混合歌单 */
+    const localSongs = [...foreign, ...(matched.length ? [] : missingAsSongs)]
     if (!name.trim() || (!matched.length && !localSongs.length)) return
     setStage('creating')
     try {
@@ -255,7 +260,7 @@ export function ImportPlaylistDialog({
               <Button variant="ghost" onClick={reset} disabled={stage === 'creating'}>
                 {t('playlist.import.anotherFile')}
               </Button>
-              <Button onClick={handleCreate} disabled={(!(matched.length || missing.length) || !name.trim() || stage === 'creating')}>
+              <Button onClick={handleCreate} disabled={(!(matched.length || foreign.length || missing.length) || !name.trim() || stage === 'creating')}>
                 {stage === 'creating'
                   ? t('action.creating')
                   : t('playlist.import.create', { count: matched.length || missing.length })}

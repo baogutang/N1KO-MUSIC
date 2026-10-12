@@ -348,6 +348,16 @@ let onRepeatRewind: (() => void) | null = null
 let needsReloadOnPlay = false
 
 /**
+ * 离线暂停令牌（复核 F5）：handleOfflineError 暂停时签发一个新令牌；
+ * 之后用户的任何播放/暂停动作都会把它清零。网络恢复时只有令牌仍然
+ * 有效才自动续播——「暂停时正在播」本身不够：用户离线期间手动停过，
+ * 联网后就不该抢方向盘。
+ */
+let offlineResumeToken = 0
+/** 本次 isPlaying 翻转是否引擎自己发起（离线暂停先置位，播放 effect 据此放过令牌） */
+let engineInitiatedPause = false
+
+/**
  * 当前音频元素的真实播放位置（秒）。
  * audioEl 是模块级的 new Audio()，从不挂进 DOM，因此 document.querySelector('audio')
  * 找不到它——需要读取实际位置的调用方必须走这里。
@@ -1360,25 +1370,39 @@ export function useAudioEngine() {
       }, 900)
 
       /*
-       * 断网恢复（阶段 3.11）：离线期间的失败不是流坏了——不消耗恢复次数，
-       * 暂停并等 online（5 分钟内）从原位置续播。地铁/电梯场景不用手动点播放。
+       * 断网恢复（阶段 3.11；复核 F5 修三处）：离线期间的失败不是流坏了——
+       * 不消耗恢复次数，暂停并等 online（5 分钟内）从原位置续播。
+       * ① 只 pause 不 resume：联网后 onBack 只重载不续播，得手动点播放——
+       *   现在签发离线令牌，联网时令牌仍有效就 resume；
+       * ② 超出 5 分钟窗口直接 return：之后点播放没反应（audio 已错死）——
+       *   现在置 needsReloadOnPlay，把方向盘还给用户；
+       * ③ cleanup 不摘 online 监听：切歌后旧闭包还挂在 window 上——
+       *   现在由 effect cleanup 负责摘。
        */
+      let offlineOnlineHandler: (() => void) | null = null
       const handleOfflineError = (): boolean => {
         if (typeof navigator !== 'undefined' && navigator.onLine) return false
-        const resumeAt = bestKnownTime()
+        const token = ++offlineResumeToken
+        engineInitiatedPause = true
         usePlayerStore.getState().pause()
         const onBack = () => {
+          offlineOnlineHandler = null
           window.removeEventListener('online', onBack)
-          if (performance.now() - offlineAtMs > 5 * 60 * 1000) return // 超窗不再抢方向盘
+          if (performance.now() - offlineAtMs > 5 * 60 * 1000) {
+            // 超窗不再抢方向盘，但要让「点播放」有反应：流已错死，重载才播得动
+            needsReloadOnPlay = true
+            return
+          }
+          if (offlineResumeToken !== token) return // 用户动过播放/暂停，听用户的
           const stillSame = usePlayerStore.getState().currentSong?.id === capturedSongId
           if (!stillSame) return
-          /* reloadForRecovery 自带 seek 恢复点（bestKnownTime），这里只负责续播 */
+          /* reloadForRecovery 自带 seek 恢复点（bestKnownTime）并把 store 的播放
+           * 意图亮回来；canplay → tryPlay 看见 isPlaying 自然续播 */
+          usePlayerStore.getState().resume()
           reloadForRecovery(audio.currentSrc || streamUrl, 400, 'Network back online')
-          setTimeout(() => {
-            if (usePlayerStore.getState().isPlaying) void audio.play().catch(() => {})
-          }, 600)
         }
         const offlineAtMs = performance.now()
+        offlineOnlineHandler = onBack
         window.addEventListener('online', onBack)
         return true
       }
@@ -1391,8 +1415,10 @@ export function useAudioEngine() {
 
         // code=1 是 load() 中止旧播放，不是真正错误
         if (code === 1) return
-        // 离线：挂起等网，不消耗恢复次数（阶段 3.11）
-        if (code === 2 && handleOfflineError()) return
+        // 离线：挂起等网，不消耗恢复次数（阶段 3.11）。
+        // code 4 也先查离线（复核 F5）：开播前取流失败常报 src not supported (4)，
+        // 离线时它同样是「没网」而不是「流坏了」，不该烧恢复次数
+        if ((code === 2 || code === 4) && handleOfflineError()) return
 
         // 网络错误(2) / 解码失败(3，转码流坏块常见) / 音频源不可用(4)：
         // 按策略恢复（见文件头 206 vs code 4 说明）。恢复点由 reloadForRecovery
@@ -1598,6 +1624,12 @@ export function useAudioEngine() {
         /* closeSessionPrev 不在这里清空：React 依赖变化的 cleanup 先于新
            effect 体执行，这里清了它，新 body 就没法按 base 判断关会话 */
         clearStallWatch()
+        /* 离线等待的 online 监听也要摘（复核 F5③）：旧闭包挂着，
+           切歌后网络一恢复就会拿旧 audio 元素抢方向盘 */
+        if (offlineOnlineHandler) {
+          window.removeEventListener('online', offlineOnlineHandler)
+          offlineOnlineHandler = null
+        }
         audio.removeEventListener('loadedmetadata', onLoadedMetadata)
         audio.removeEventListener('durationchange', onDurationChange)
         audio.removeEventListener('timeupdate', onTimeUpdate)
@@ -1728,6 +1760,10 @@ export function useAudioEngine() {
 
   // --- 播放/暂停控制 ---
   useEffect(() => {
+    // 离线令牌的作废点（复核 F5）：isPlaying 的翻转若非引擎自己发起，
+    // 就是用户（或 UI）动了播放/暂停——离线期间的自动续播不再抢方向盘。
+    if (engineInitiatedPause) engineInitiatedPause = false
+    else offlineResumeToken = 0
     if (isPlaying) {
       // 渐弱期间元素还没真正 pause，audioEl.paused 仍是 false。
       // 若此时用户又按了播放，必须先取消那条待执行的暂停，否则渐弱回调稍后

@@ -62,8 +62,8 @@ interface ServerState {
   // --- Actions ---
   /** 添加或更新服务器配置 */
   addServer: (config: Omit<ServerConfig, 'id' | 'createdAt'>) => string
-  /** 删除服务器配置（同时注销其适配器）*/
-  removeServer: (id: string) => void
+  /** 删除服务器配置（同时注销其适配器）。平台登出 settle 后才拆沙箱，故异步 */
+  removeServer: (id: string) => Promise<void>
   /** 连接单个服务器（注册适配器，不改主库）；插件音源要装载沙箱，是异步的 */
   connectServer: (id: string) => Promise<boolean>
   /** 断开单个服务器（注销适配器；若是主库则清空主库）*/
@@ -80,8 +80,8 @@ interface ServerState {
    * 返回是否成功（失效的旧版 Jellyfin/Emby 凭据会返回 false 并要求重新登录）。
    */
   activateServer: (id: string) => Promise<boolean>
-  /** 登出并断开所有服务器 */
-  disconnect: () => void
+  /** 登出并断开所有服务器（各源平台登出逐个 settle 后再拆沙箱，故异步） */
+  disconnect: () => Promise<void>
   /** 更新服务器认证信息（登录成功后调用）*/
   updateServerAuth: (id: string, token: string, salt?: string, userId?: string) => void
   /** 插件音源凭据回写（env.setCredentials / 重新登录产生新串时）*/
@@ -118,8 +118,10 @@ export const useServerStore = create<ServerState>()(
         return id
       },
 
-      removeServer: (id) => {
-        bestEffortPluginLogout(id)
+      removeServer: async (id) => {
+        /* 先让平台侧登出 settle（≤500ms）再拆沙箱（复核 F9）：
+         * 旧代码同步 dispose，登出请求被连坐 reject，从未真正发出去过 */
+        await bestEffortPluginLogout(id)
         disposePluginHost(id)
         unregisterAdapter(id)
         /*
@@ -202,7 +204,11 @@ export const useServerStore = create<ServerState>()(
 
       disconnectServer: (id) => {
         const wasPrimary = get().activeServerId === id
-        bestEffortPluginLogout(id)
+        /*
+         * 不调平台登出（复核 F9）：断开**不清盘上凭据**，下次启动还要自动重连；
+         * 真把平台侧会话登掉了，重连会变成死循环 401。平台登出只在
+         * removeServer（删除音源，凭据一并清）时才做。
+         */
         disposePluginHost(id)
         unregisterAdapter(id)
         // 适配器没了，这个源的歌就取不到流了：把它们从队列与历史里摘掉，
@@ -274,13 +280,14 @@ export const useServerStore = create<ServerState>()(
         return get().setPrimaryServer(id)
       },
 
-      disconnect: () => {
+      disconnect: async () => {
         usePlayerStore.getState().resetForServerChange()
         clearAdapter()
         // 登出全部必须拆掉每个插件沙箱（removeServer/disconnectServer 都拆，这里不能漏）：
-        // 否则带凭据的 iframe 与消息监听在「已登出」后继续存活，仍能让宿主代发请求
+        // 否则带凭据的 iframe 与消息监听在「已登出」后继续存活，仍能让宿主代发请求。
+        // 登出请求要先 settle 再拆（复核 F9）：await，不与 dispose 抢跑
         for (const id of [...get().connectedServerIds]) {
-          bestEffortPluginLogout(id)
+          await bestEffortPluginLogout(id)
           disposePluginHost(id)
         }
         // 登出时清空查询缓存，避免下次登录其他服务器时命中旧数据
@@ -497,15 +504,19 @@ export function getServerTypeLabel(type: ServerType): string {
 
 
 /**
- * 断开前尽力调一次 n1ko.auth.logout（阶段 4.8：协议承诺了 logout，
- * 宿主此前一次都没调）。best-effort：失败/超时 500ms 都不拦断开——
+ * 拆沙箱前尽力调一次 n1ko.auth.logout（阶段 4.8：协议承诺了 logout，
+ * 宿主此前一次都没调）。best-effort：失败/超时 500ms 都不拦拆除——
  * 清凭据的主语始终是本机（拆沙箱 + 清存储），服务端登出是锦上添花。
+ *
+ * 复核 F9：改成 **await** 再返回——调用方必须等它 settle 后才 disposePluginHost，
+ * 否则下一行同步 dispose 会拆掉 iframe、reject 掉全部 pendingCalls，
+ * 登出请求根本到不了平台，500ms 的 race 等于不存在。
  */
-function bestEffortPluginLogout(serverId: string): void {
+async function bestEffortPluginLogout(serverId: string): Promise<void> {
   try {
     const host = getPluginHost(serverId)
     if (!host?.hasMethod('n1ko.auth.logout')) return
-    void Promise.race([
+    await Promise.race([
       host.call('n1ko.auth.logout'),
       new Promise<null>(resolve => setTimeout(() => resolve(null), 500)),
     ]).catch(() => { /* 尽力而为 */ })

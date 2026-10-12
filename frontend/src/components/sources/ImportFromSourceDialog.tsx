@@ -147,20 +147,26 @@ export function ImportFromSourceDialog({
     setBusy(true)
     try {
       const ids = matched.map(r => r.song.id)
-      if (targetMode === 'new') {
-        await createPlaylist.mutateAsync({ name: sheet?.name ?? t('sources.import.defaultName'), songIds: ids })
-      } else {
-        if (!targetId) return
-        await addToPlaylist.mutateAsync({ playlistId: targetId, songIds: ids })
+      /* 一条都没匹配上时跳过服务端写入（复核 F3④）：只建本地混合歌单，
+       * 不给主库塞一张空歌单。与 ImportPlaylistDialog 的 if (matched.length) 同规则。 */
+      if (ids.length) {
+        if (targetMode === 'new') {
+          await createPlaylist.mutateAsync({ name: sheet?.name ?? t('sources.import.defaultName'), songIds: ids })
+        } else {
+          if (!targetId) return
+          await addToPlaylist.mutateAsync({ playlistId: targetId, songIds: ids })
+        }
+        queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
       const localCount = unmatched.length
       if (localCount > 0) {
         await createLocal(`${sheet?.name ?? t('sources.import.defaultName')} · ${t('sources.import.localSuffix')}`, unmatched)
       }
       toast({
-        title: t('sources.import.done', { count: ids.length, name: sheet?.name ?? '' }),
-        description: localCount > 0 ? t('sources.import.localCreated', { count: localCount }) : undefined,
+        title: ids.length
+          ? t('sources.import.done', { count: ids.length, name: sheet?.name ?? '' })
+          : t('sources.import.localCreated', { count: localCount }),
+        description: ids.length && localCount > 0 ? t('sources.import.localCreated', { count: localCount }) : undefined,
       })
       onOpenChange(false)
       reset()
@@ -354,7 +360,13 @@ export function ImportFromSourceDialog({
             </div>
 
             <Button
-              disabled={busy || matched.length === 0 || (targetMode === 'append' && !targetId)}
+              disabled={
+                busy
+                  /* 同 ImportPlaylistDialog 的规则（复核 F3④）：只命中未匹配也可建本地单；
+                   * 追加模式只有在真有匹配歌要追加时才要求选目标 */
+                  || (matched.length === 0 && unmatched.length === 0)
+                  || (matched.length > 0 && targetMode === 'append' && !targetId)
+              }
               onClick={() => void handleCreate()}
               className="w-full"
             >

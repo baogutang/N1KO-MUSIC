@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import { Play, Trash } from '@phosphor-icons/react'
@@ -64,8 +64,12 @@ export default function History() {
     return () => window.removeEventListener(HISTORY_UPDATED_EVENT, onUpdate)
   }, [historyScope])
 
-  // 切换服务器后重新从第一页开始
+  // 切换服务器后重新从第一页开始。跳过挂载首跑（复核 F4）：这个 effect
+  // 挂载时也执行，会把上面恢复出来的 visibleCount 当帧冲回 150，
+  // 随后 replaceState 又把 150 写回——恢复从未生效过。
+  const scopeChangedRef = useRef(false)
   useEffect(() => {
+    if (!scopeChangedRef.current) { scopeChangedRef.current = true; return }
     setVisibleCount(PAGE_SIZE)
   }, [historyScope])
 

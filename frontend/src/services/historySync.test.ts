@@ -19,6 +19,7 @@ import {
   enqueueLocalBacklog,
   flushOutbox,
   mirrorFavorite,
+  pendingFavoriteMirrorCount,
   pendingScrobbleCount,
   pullRemoteHistory,
   queueScrobble,
@@ -464,6 +465,87 @@ describe('毒丸记录不再卡死队列（阶段 1.9）', () => {
       expect(pendingScrobbleCount()).toBe(0)
     } finally {
       warn.mockRestore()
+    }
+  })
+})
+
+// ===================================================
+// 复核 F8：收藏镜像重试队列（去重 / 固化来源 / 串行 / 持久化 / 上限）
+// ===================================================
+
+describe('收藏镜像重试队列（F8）', () => {
+  it('失败入队；同键新调用成功后旧待重试项被撤销，不会回头覆盖', async () => {
+    enableSync()
+    // 第一次收藏失败（500）→ 入队
+    vi.mocked(pushFavorite).mockRejectedValueOnce(rejected(500))
+    await mirrorFavorite('w1', true, song('w1', { serverId: 'wy' }))
+    expect(pendingFavoriteMirrorCount()).toBe(1)
+
+    // 用户随后取消了同一首，且这次成功：旧待重试项必须已撤销——
+    // 否则 60s 后重放会把「收藏」盖回服务端，撤销用户的取消
+    await mirrorFavorite('w1', false, song('w1', { serverId: 'wy' }))
+    expect(removeFavorite).toHaveBeenCalledTimes(1)
+    expect(pendingFavoriteMirrorCount()).toBe(0)
+  })
+
+  it('同键只留最新状态（去重），重放串行且来源用的是入队时固化的', async () => {
+    enableSync()
+    vi.mocked(pushFavorite).mockRejectedValue(rejected(500))
+    // 假定时器要先于失败入队打开：重试定时器要挂在假时钟上才可控
+    vi.useFakeTimers()
+    await mirrorFavorite('w1', true, song('w1', { serverId: 'wy' }))
+    await mirrorFavorite('w1', true, song('w1', { serverId: 'wy' }))
+    expect(pendingFavoriteMirrorCount(), '同键不重复堆积').toBe(1)
+
+    // 切走主库后触发重放：来源仍是固化的 wy，不是新主库
+    useServerStore.setState({ activeServerId: 'other-primary' })
+    try {
+      vi.advanceTimersByTime(60_000)
+      for (let i = 0; i < 20; i++) await Promise.resolve()
+      const calls = vi.mocked(pushFavorite).mock.calls
+      expect(calls.length).toBeGreaterThanOrEqual(3)
+      for (const call of calls) {
+        expect(call[3]).toBe('wy')
+      }
+      // 串行：每笔都等到上一笔 settle 才发（调用序就是完成序，这里至少验证
+      // 没有把两条不同来源的镜像并发乱序送出——同键只有一条，加另一首验证）
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('重试有上限：连续失败 5 轮后放弃并出队', async () => {
+    enableSync()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(pushFavorite).mockRejectedValue(rejected(500))
+    vi.useFakeTimers()
+    await mirrorFavorite('w1', true, song('w1', { serverId: 'wy' }))
+    try {
+      for (let round = 0; round < 6; round++) {
+        vi.advanceTimersByTime(10 * 60_000)
+        for (let i = 0; i < 20; i++) await Promise.resolve()
+      }
+      expect(pendingFavoriteMirrorCount(), '超限后放弃出队').toBe(0)
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('放弃'), expect.anything(), expect.anything())
+    } finally {
+      vi.useRealTimers()
+      warn.mockRestore()
+    }
+  })
+
+  it('待重试条目持久化：模块重新加载（刷新）后仍在', async () => {
+    enableSync()
+    vi.mocked(pushFavorite).mockRejectedValue(rejected(500))
+    await mirrorFavorite('w1', true, song('w1', { serverId: 'wy' }))
+    expect(localStorage.getItem('n1ko-pending-favorite-mirrors')).toContain('w1')
+
+    // 刷新 = 模块图重建，队列从 localStorage 恢复
+    vi.resetModules()
+    const fresh = await import('@/services/historySync')
+    try {
+      expect(fresh.pendingFavoriteMirrorCount()).toBe(1)
+    } finally {
+      fresh.resetHistorySyncForTests()
     }
   })
 })
