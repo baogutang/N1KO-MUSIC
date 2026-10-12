@@ -170,3 +170,22 @@
 | 全局体验修复 | 5a34eb1 / 252c309 | 详情页跳转 14 处补 ?src=（混合列表跳主库落空）；SongList 标 VIP；fetchAllDetailPages 防呆；专辑详情补 isEnd（netease 0.1.7 / qqmusic 0.1.5） |
 
 无头探针（scripts/tmp/probe-sweep.mjs）全绿：NAS + 双流媒体匿名 → 聚合搜索 46 行无失败 → 非 VIP 曲播放时间码前进 → 首页合并网格/官方 logo → QQ 歌手页 25 曲、专辑页有曲目 → 收藏页无异常，console 零报错。
+
+## 2026-10-12 第四轮 · 阶段 1（P0 功能性 bug）
+
+**做了**：1.1–1.12 全部 12 条，无跳过。
+- 1.1 网易歌单写入三方法迁至 n1ko.user（宿主唯一调用面），宿主能力探测路径真调验证；createPlaylist 返回带 platform。netease 0.1.14。
+- 1.2 插件登录失败回 type 步，不再死局；真实路径（选插件→扫码→连接失败）用例验证。
+- 1.3 新 utils/detailPath 工具，8 处详情跳转统一带 ?src=（AlbumDetail/Issue×4/ArtistDetail/NowPlayingOnServer/FullscreenPlayer）。1.9 同根因由此覆盖。
+- 1.4 网易 getMusicInfo 走 v3/song/detail、QQ 走搜索精确匹配；链接打开详情页可达。netease 0.1.14 / qqmusic 0.1.17。
+- 1.5 后端 stats/favorites 快钟钳制（与 notes A4 同款），前端不再丢记录。
+- 1.6 清空历史遍历 historyScope。
+- 1.7 抽 useDestructiveConfirm hook，Masthead/TopBar/MobileHeader 的切主库与断开都先确认。
+- 1.8 歌词三态占位（加载/无/失败）；详情页歌词入口按「正在播放的就是这首」分流，否则本曲预览对话框。
+- 1.10 全屏分享限主库曲且 target 带 serverId；保存队列混源分家（主库→服务端歌单，插件源→本地混合歌单，提示合一）。
+- 1.11 三适配器 getSong 错误分流：只 404/not-found 转 null。
+- 1.12 Home onKeyDown 判 target。
+
+**门禁**：lint/tsc/vitest 894/build、backend 27、plugins 51+3skip、lint:plugins、check:versions、audit×2 全绿。
+**提交**：fix(audit-2): 阶段 1（1.1–1.12）。
+**取舍**（DECISIONS 已记）：1.10 混源分家走本地混合歌单；1.7 抽共用 hook；1.11 Jellyfin 400 也算 not-found；官网静态测试收缩到字体 URL 不变量（website/ 另一方改版中）。
