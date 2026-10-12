@@ -277,3 +277,112 @@
 
 **量化总览**（阶段 3）：沙箱 432→195KB（gz 77.8）；SW precache 3465→2688KB（−558KB 子集字体）；冷启动不再串行等沙箱；切歌 −120ms（距上次加载超窗即载）。
 **分支**：fix/audit-2026-10-12，基于 main e5b7009。未 push、未打 tag、app 七处版本号未动（netease 0.1.14 / qqmusic 0.1.17 / backend 1.6.0 不在七处之列）。
+
+---
+
+# 2026-10-12 · 第四轮 · 复核 F 节处理（F1–F25）
+
+对 `docs/audit-2026-10-12-review.md` F 节 25 条逐条整改。两个提交：af63381（F-A：F1–F9）、f37737f（F-B/F-C：F10–F25）。门禁在干净 worktree（`git worktree add --detach ../n1ko-gate fix/audit-2026-10-12`，依赖用绝对符号链接指向主仓 node_modules）跑完即拆，逐项真实输出见本节末尾。
+
+## F-A · 任务书写了没做/做了一半
+
+| # | 处置 | 说明 |
+|---|---|---|
+| F1 | **到位** | Recommendations 页改走 `splitGroups` + `recommendationGroupsForMerge`（与首页 MergedDailyRail 同一条屏蔽过滤，constraints 含 accountVip）+ `GroupStateRows`（失败/登录过期源占行，retry 与 family 复用）；DECISIONS 249 行的错误结论已划掉更正。用例 `Recommendations.mute.test.tsx`：屏蔽歌手后该页立即不含该歌手（插件源 10 分钟缓存内也滤掉）、失败源有重试行 |
+| F2 | **到位** | SongDetail 拆开 `isError`（unauthorized → 「需要重新登录」+返回；其余 → ErrorState 带重试+返回）与 `!song`（才显示「未找到」）；subsonic `request/postRequest` 抛错挂协议码（70→not-found、40–44→unauthorized，diagnose 同口径），getSong 判定改走 `pluginErrorCode/httpStatus`。用例 `SongDetail.error.test.tsx` 三条：401 不冒充未找到 / 网络错给重试 / 真没有才「未找到」 |
+| F3 | **到位（5 子项全修）** | ① `localSongs = [...foreign, ...(matched.length ? [] : missingAsSongs)]`——只命中外源不再整批丢；② missing 占位 `serverId:'local'` 哨兵（toEntries 不再滤空、SourceBadge 对未知源不渲染）；③ 确认键按 `matched+foreign+missing` 判可用；④ ImportFromSourceDialog 同规则（确认键放行 + 空匹配跳过服务端写入不建空单）；⑤ `sources.import.noSheets` 两份词条补上。用例 `ImportPlaylistDialog.test.tsx` 覆盖「只命中外源」「全未匹配」两条 |
+| F4 | **到位** | 两页重置 effect 用 ref 跳过挂载首跑（History 的 visibleCount、Search 的 page/acc）；Search 另把累积结果 acc 与首页歌手专辑 meta 一起存进 `history.state`（`mspSearchRestore`，配额超限 try/catch 退化只保页数），初值从恢复载荷取。用例 `SearchHistory.restore.test.tsx`：搜索翻到第 3 页 / 历史点三次加载更多 → 离开 → 浏览器返回 → 80 首/500 条原样在、还能继续翻 |
+| F5 | **到位（4 子项）** | 离线令牌：handleOfflineError 签发 `offlineResumeToken`，联网且令牌有效 → `resume()` + reloadForRecovery（canplay→tryPlay 自然续播）；code 4 也先查 `navigator.onLine`；超 5 分钟窗口置 `needsReloadOnPlay`（点播放走 reloadCurrent）；`online` 监听由 effect cleanup 摘除。用例 `useAudioEngine.offline.test.tsx` 5 条（自动续播 / code 4 / 用户动过不抢 / 超窗可重载 / 切歌后旧监听不复活） |
+| F6 | **到位** | 报头候选滤掉插件行与当前主库。用例 `Masthead.test.tsx`：真实打开 Radix 菜单断言候选与确认框链路 |
+| F7 | **到位** | QueueDrawer 存队列按 `caps[primary].playlistWrite` 分流（不可写时主库歌也落本地）；toast 全外源时说明去处（新增 `queue.savedLocal`）；注释改「新建本地单」。用例 `QueueDrawer.save.test.tsx` 两条（不可写全落本地 + 可写分家计数） |
+| F8 | **到位（重写）** | 收藏镜像重试队列：`Map<serverId:songId, 状态>`（新调用先删同键旧项——重放成功不会把取消盖回收藏）；serverId 入队固化（重放带回 `serverIdOverride`，不读当时主库）；串行重放；条目持久化 localStorage（刷新不丢，模块加载时恢复）；上限 5 次 + 指数退避（60s→10min）；无凭据时重新挂定时器不再「放回后没人调度」。用例 4 条（撤销旧项 / 去重+固化 / 超限放弃 / 模块重载恢复） |
+| F9 | **到位** | `bestEffortPluginLogout` 改 await 版本；`removeServer`/`disconnect` 先 `await` 登出 settle（≤500ms）再 `disposePluginHost`；`disconnectServer` 不再调平台登出（保盘上凭据给自动重连——真登出反而毁重连）。用例 `serverStore.logout.test.tsx` 4 条（顺序 logout-settled→dispose / 500ms 超时照样拆 / disconnect 不登出 / disconnect 全部逐源先登出） |
+
+## F-B · 做了但有副作用/口径不符
+
+| # | 处置 | 说明 |
+|---|---|---|
+| F10 | **到位** | 窗口锚改 `lastLoadScheduledAt`（每次调度更新）+ 待执行定时器随点击重置——连点 5 次 50ms 间隔整窗只有最后一次取流（旧实现第 3 次连点就进立即分支、发 3 次）；ended 结账改快照制：同步 `captureListeningSession()` → submit → reset → advance → `persistSessionSnapshot`（后推到新 doLoad 之后也不会读到被清零的 listenedSec）；3.7 漏做的「已存在条目删掉再插头部」补上（`appendHistory` 按身份去重）。用例 `useAudioEngine.debounce.test.tsx` + queueMath 用例 |
+| F11 | **到位** | 预解析每个 key 只试一次（失败不回 `preResolved`——不再整首歌期间每 8s 打一次插件/吃频控额度）；`inflightStreams.delete` 前比较 `get(key) === request`（skipCache 新旧同 key 不互删）。用例 `useAudioEngine.preresolve.test.tsx`：3 轮定时后 s2 只被解析过 1 次 |
+| F12 | **到位** | Playlists 骨架只占分节内（loading 分节摆 6 格，anyLoading 不再整页 12 格盖掉已回分节；空态只在 `!anyLoading` 时出现）；Artists 页头 `!isLoading && !isError` 才给计数。用例 `BrowsePages.error.test.tsx` 3 条 |
+| F13 | **到位** | errors.lint 重写：扫 .ts+.tsx（剔测试/声明），message 检测按「行含 `.message` 且行是 UI 汇点（toast/description/title/setError/textContent）」，豁免收敛为行级清单（ScrobbleSettings 回执、TopListDetail DEV 块）；鸭子取码禁 cast 形态、`.code===协议码` 按 instanceof/类型化字段放行。清掉三处：useAudioEngine（改 `pluginErrorCode`，toast 说明改 `describeError` 词条）、plugin.ts/subsonic.ts getSong（改 `pluginErrorCode`） |
+| F14 | **到位** | Search 的 `{g.name}：` 走词条 `search.sourcePendingLine`（顺带删除已无调用方的 `search.sourcePending`）；CommandPalette Enter 判 `isComposing`/keyCode 229。用例见 F22 的 compose 测试 |
+| F15 | **到位** | `readListeningEventsWithSnapshot` 带出底层快照引用；画像缓存键改（快照引用 + scope 字符串）——多源 scope 过滤每次出新数组导致的永久 miss 修复。用例 2 条（同快照新数组命中 / 同快照不同 scope 不串味） |
+| F16 | **到位** | vite.config runtimeCaching 给 `-subset-(cyrillic\|greek\|vietnamese).woff2` 加 CacheFirst（font-subset-cache，30 条/180 天）——DECISIONS 说的「运行时缓存」这才真有了；SW 生成由构建门禁验证 |
+| F17 | **到位** | `useRecentAlbums` 订阅 `isConnected` 放进 enabled——主库后连上时重估，不再靠别的 hook 碰巧订阅 servers |
+| F18 | **到位** | 歌词「加载失败」改中性色（红只给 destructive）；`useLyricsQuery` 合并分支的 isLoading 合并两路——服务器已回空、远程在途时全屏歌词栏显示「加载中」而不是提前亮「无歌词」（复核标注的推断已按源码复现：旧合并只继承单边 isLoading） |
+| F19 | **到位** | static.test.ts 恢复 A10（默认皮肤口径）/B13（sources.note 整句 + xattr）两组断言原文；DECISIONS 补记（门禁改干净 worktree 跑，主工作区对方未提交改版让 A10 红属其口径，不迁就）。已核对提交态 website/index.html 与 script.js 全过；干净 worktree 门禁里 3/3 绿 |
+
+## F-C · 测试质量
+
+| # | 处置 | 说明 |
+|---|---|---|
+| F20 | **到位** | `History.clear.test.tsx` 重写为渲染页面：真实渲染两源记录 → 点「清空记录」→ 确认框 → 断言 nas/wy 各被清一次、列表转空态；附取消不动数据一条。自证写法（自己重写 scope 拼接再调 mock）删除 |
+| F21 | **到位** | `netease.playlist-write.test.mjs` 的 `assert.ok(true)` 空断言改为 `collectMethodPaths` 路径探测：`n1ko.user.createPlaylist/addToPlaylist/removeFromPlaylist` 三条存在、顶层 `user.*` 写方法不存在（与 sandbox-call.test.mjs 的 runtime 同形实现） |
+| F22 | **到位（六项各一）** | 1.8：`SongDetail.lyrics.test.tsx`（点歌词留本页看 B 的词、不后退开别人的全屏）；1.10：`FullscreenPlayer.share.test.tsx`（插件歌菜单无分享 / 主库歌有）；1.12：`Home.row.test.tsx`（行上 Enter 进专辑、行内按钮 Enter 不冒泡）；2.3：`SourcesSettings.update.test.tsx`（目录拉失败说真话）；2.4：QrLogin.test.tsx 追加（error 态有刷新键、文案走 describeError 不裸奔原始异常）；2.5：`CommandPalette.compose.test.tsx`（组词 Enter 不执行、真 Enter 执行）。保存队列的 1.10 后半已由 F7 用例覆盖 |
+| F23 | **到位** | 23 处 `navigate(\`/(albums\|artists\|songs)/…?src=\`)` 全部替换为 `detailPath(...)`（13 个文件，含 LinerNotes 条件 src 与 Issue 的 `?? ''` 两处变体），「唯一拼法」的注释从此属实；tsc 全绿 |
+| F24 | **到位** | `/toplists` 进 `loaders`/lazy/routeMatchers（`route:toplists`，悬停预取可用）；`useDocumentTitle` 补 `/toplists`（榜单）与 `/toplists/`（榜单详情）标题映射 |
+| F25 | **到位** | 检查更新按钮 `disabled={updateBusy}` + 转圈 + 忙碌 aria-label（新增 `sources.settings.checking` 词条两语言） |
+
+## 插件版本
+
+本轮未改任何插件源码（只改了 `plugins/test/netease.playlist-write.test.mjs` 测试），manifest 无需升版本；`check:versions` 七处保持 1.11.7。
+
+## 门禁（干净 worktree `../n1ko-gate` @ f37737f，跑完已拆）
+
+逐项真实输出（尾行）：
+
+**1. `cd frontend && npm run lint`**（最后三行，--max-warnings 0）：
+```
+> n1ko-music@1.11.7 lint
+> eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+
+```
+（无任何 error/warning 输出，exit 0）
+
+**2. `npx tsc --noEmit`**：无输出，exit 0。
+
+**3. `npm test`**：
+```
+ Test Files  107 passed (107)
+      Tests  967 passed (967)
+   Start at  16:20:40
+   Duration  18.72s (transform 4.68s, setup 0ms, collect 92.22s, tests 16.28s, environment 14.88s, prepare 8.76s)
+```
+（含恢复的 A10/B13 官网断言——干净 worktree 里是提交态 website 文件，3/3 绿。主工作区因另一方未提交的换肤改版 A10 一条红，属其改版口径，见 DECISIONS F19 补记。）
+
+**4. `npm run build`**：
+```
+✓ built in 4.76s
+PWA v0.20.5  mode generateSW  precache 97 entries (2692.18 KiB)
+```
+（沙箱 196KB 与上轮一致；入口/precache 无回退。）
+
+**5. `cd backend && npm test`**：
+```
+ℹ pass 29   ℹ fail 0   ℹ skipped 0
+```
+
+**6. `npm run test:plugins`**：
+```
+ℹ pass 51   ℹ fail 0   ℹ skipped 3
+```
+
+**7. `npm run lint:plugins`**：无输出，exit 0。
+
+**8. `npm run check:versions`**：
+```
+Application versions are synchronized at 1.11.7
+```
+
+**9. `npm run audit:check -- frontend` / `-- backend`**：
+```
+✓ frontend 无未登记的安全公告
+✓ backend 无未登记的安全公告
+```
+
+## 未做 / 说明
+
+- F16 未加独立单测（SW runtimeCaching 是构建产物行为，由 build 门禁验证生成；写单测要解析 sw.js，收益低）。
+- 复核标注「子代理/推断」的条目全部亲自复现过：F3②（toEntries 滤 serverId 空串，读 localPlaylistStore 证实）、F5 code 4 / 超窗（读 onError 分支证实）、F10 节流（旧条件 `now - lastLoadStartedAt >= WINDOW` 在定时器排定未发时即成立，写用例前先在旧代码上数过取流次数）、F11 频控（读预解析 8s 循环证实）、F18 远程模板（读 useLyricsQuery 合并分支证实 isLoading 只继承单边）。无「未复现」项，DECISIONS 无新增跳过记录（仅 F19 补记与 F1 更正）。
+- 工作区里 README.md / README_CN.md 出现了另一方的未提交改动（皮肤演示链接、截图表格），与本轮无关，未纳入提交；website/ 三文件同样未碰。
