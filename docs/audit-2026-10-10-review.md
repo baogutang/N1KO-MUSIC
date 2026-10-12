@@ -66,3 +66,16 @@ A 节 12 项全部核实到位。B 节 10 项到位、下面 6 条收尾；lint 
 | D4 | `frontend/src/api/syncClient.ts:209` 注释、`docs/sources/DECISIONS.md` B9 条 | 写的「后端 v1.6.0+」不成立：服务端 updatedAt 是 679dd57 引入、尚未发版，backend/package.json 是 1.5.0。 | 改成「含 679dd57 的版本（v1.11.6 之后）」。 |
 | D5 | `frontend/src/hooks/useAudioEngine.ts:641-648` | 清空当前曲目路径先 `nowPlayingSent=false` 再 `closeSessionPrev`，Jellyfin stop 永远发不出（改前就是这个顺序，但 B5 声称已关）。 | 先 `closeSessionPrev` 再复位标记；补用例。 |
 | D6 | `frontend/src/utils/songIdentity.ts:29` | `feat\.|ft\.` 无词边界，且不再支持无点的 `A feat B` / `A ft B`（原正则支持）；`(with B)` 拆不开。 | `\bfeat\b\.?`、`\bft\b\.?`、`\bwith\b`；补无点形态用例。 |
+
+## E. 第三轮复核（b419e81）· D 节 6 条全部到位，新增 1 条应修 + 2 条顺延
+
+逐条核实并做了「退回旧实现看测试是否变红」的实测：D1 删 `liveCredentials` 兜底 / `uid:` 键退回裸 `uid` 各红 1 条；D2 `negativeScale` 退回常数 3 红；D5 恢复旧顺序红。D3 两份 README 架构图与同步章节口径一致，官网隐私行已含插件音源；D4 `v1.11.6` 打在 2026-09-07，`679dd57` 不在任何 tag 内，表述成立；D6 无点形态与 `(with B)` 均拆得开。`test:plugins` 46 过 3 跳（live/参考实现缺省跳）、前端相关用例 69 过、两道 lint `--max-warnings 0` 全绿。
+
+| # | 位置 | 问题 | 修法 |
+|---|---|---|---|
+| E1 | `plugins/qqmusic/index.js:213-228`（`refreshCredentials` 合并）、`plugins/test/b16.helper.test.mjs:62-66` | A8① 的合并规则把响应里「空 / 0」的字段一律跳过，`credentialJsonFromLogin` 在响应缺 `expired_in` 时给出 `expiresAt: 0`，于是**合并后沿用旧的、仍在 10 分钟窗口内的 `expiresAt`**；下一笔数据请求再次命中 `ensureFreshCredentials` 又刷新一次——窗口内每个请求都打一次 `music.login.LoginServer`。D1 的新用例把这个行为钉成了断言（第二笔 `authst === 'KEY-2'`），等于把刷新风暴当成期望。 | 合并后补一句：`if (!fresh.expiresAt) next.expiresAt = next.expired_in > 0 ? Date.now() + next.expired_in * 1000 : 0`（刷新成功即按同样寿命续期；两边都没有就退回 0，交给被动刷新兜底）。D1 用例改成「第二笔仍是 KEY-1、`refreshCount === 1`」。按 A8 惯例升 qqmusic patch + catalog。 |
+
+### 顺延（记进 DECISIONS，不阻塞）
+
+- `frontend/src/utils/songIdentity.ts:28` `\bwith\b` 不再要求前面有空白：串首的 `With Confidence`（真有这个乐队）现在拆成 `confidence`，main 的 `\s+with\s+` 原本保留整串；`Feat` / `Ft. Lauderdale Band` 同理被吃掉首词。可选修法：`(?<=[\s(])with\b`、`(?<=[\s(])feat\b\.?`、`(?<=[\s(])ft\b\.?`（保留括号形态，串首不拆）；另 `\bwith\b` 之后的 `(?![a-z])` 与 `\b` 重复，可删。
+- `frontend/src/utils/songIdentity.test.ts:146` 用例标题写了「Without You 不是分隔符」但没断言；补一行 `expect([...artistSet('Without You')]).toEqual(['withoutyou'])`。
