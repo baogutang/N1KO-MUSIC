@@ -203,3 +203,20 @@
 
 **门禁**：lint/tsc/vitest 898/build、backend 27、plugins 51+3skip、lint:plugins、check:versions、audit×2 全绿。
 **提交**：fix(audit-2): 阶段 2（2.1–2.7）。
+
+## 2026-10-12 第四轮 · 阶段 3（性能与体验）
+
+**做了**：3.1/3.2/3.4/3.7/3.8/3.9/3.10/3.11/3.12 共 9 条；3.3/3.5/3.6 记 DECISIONS 跳过。
+- 3.1 冷启动：主库先连 + 立即 setPrimary，其余源 Promise.allSettled；useRecentAlbums enabled 门。
+- 3.2 沙箱 432KB → 195KB（gz 77.8KB）；assertSandboxSyntax 通过。
+- 3.4 实测 23 个非拉丁子集共 558KB（任务书说 572KB 基本准确）——文件名加 -subset- 标签 + globIgnores；SW precache 119 条 3465KB → 97 条 2688KB。
+- 3.7 距上次加载超 120ms 立即加载（每次切歌 −120ms 的等待）；ended 先切歌再落历史。
+- 3.8 Artists useDeferredValue + content-visibility（未实测千级行为，推断收益）。
+- 3.9 画像缓存（引用对比测试；回首页少算一次 ~11ms×2）。
+- 3.10 在途去重 + 插件源 8s 后预解析下一首（不拉流）。
+- 3.11 离线不耗恢复次数 + online 续播（5 分钟窗口）。
+- 3.12 Search 页数/History 深度按 location.key 进 history.state。
+- 跳过：3.3 词表动态（97 处同步 import，改动面大收益 −55KB）；3.5 qrcode（实测已在懒 chunk，前提不成立）；3.6 phosphor 字重（聚合入口无法廉价剔除，需换按字重入口，收益未达 20% 线）。
+
+**门禁**：lint/tsc/vitest 902/build（precache 2688KB）、backend 27、plugins 51+3skip、lint:plugins、check:versions、audit×2 全绿。
+**提交**：perf(audit-2): 阶段 3。
