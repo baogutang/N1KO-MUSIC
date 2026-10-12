@@ -189,3 +189,17 @@
 **门禁**：lint/tsc/vitest 894/build、backend 27、plugins 51+3skip、lint:plugins、check:versions、audit×2 全绿。
 **提交**：fix(audit-2): 阶段 1（1.1–1.12）。
 **取舍**（DECISIONS 已记）：1.10 混源分家走本地混合歌单；1.7 抽共用 hook；1.11 Jellyfin 400 也算 not-found；官网静态测试收缩到字体 URL 不变量（website/ 另一方改版中）。
+
+## 2026-10-12 第四轮 · 阶段 2（展示状态与文案）
+
+**做了**：2.1–2.7 全部 7 条。
+- 2.1 五页（Artists/Playlists/Search/Favorites/Library）失败走 ErrorState、加载中隐藏 0 计数；组件级用例钉「错误态有重试按钮、与空态两套词」。
+- 2.2 导入对话框三态补齐；全未匹配可只建本地混合歌单（missing 条目转最小 Song）。
+- 2.3 catalogFailed + busy 全程。
+- 2.4 error 态刷新按钮 + describeError。
+- 2.5 中文标点全部进词条（common.listSeparator / quoteL / quoteR / search.sourceErrorLine）；两处 Enter 判 isComposing。
+- 2.6 /toplists 列表页（按源分组、复用 useSourceTopLists 缓存），首页卡跳它。
+- 2.7 pluginErrorCode（null 安全）替换 6 处鸭子取码；13 处直出 message 改 describeError；errors.lint.test.ts 钉住（Search 的 sectionFailures[].code 字符串比较与 QrLogin 在允许清单，理由写在测试头注）。
+
+**门禁**：lint/tsc/vitest 898/build、backend 27、plugins 51+3skip、lint:plugins、check:versions、audit×2 全绿。
+**提交**：fix(audit-2): 阶段 2（2.1–2.7）。
