@@ -39,7 +39,8 @@ describe('官网词条完整性（复审 B13）', () => {
   it('sources.note 两种语言都是整句（不再被截成半句），HTML 默认文案与词条同形', () => {
     const js = readFileSync(website('script.js'), 'utf8')
     const zhEntry = /'sources\.note': '([^']+)'/.exec(js)?.[1] ?? ''
-    const enEntry = /'sources\.note': '([^']+)',\n\s*'sandbox/.exec(js)?.[1] ?? ''
+    // \s* 而不是 \n：Windows runner autocrlf 后是 \r\n（v1.11.7 Windows 构建曾在此红）
+    const enEntry = /'sources\.note': '([^']+)',\s*'sandbox/.exec(js)?.[1] ?? ''
     expect(zhEntry.length).toBeGreaterThan(30)
     expect(enEntry.length).toBeGreaterThan(30)
 
