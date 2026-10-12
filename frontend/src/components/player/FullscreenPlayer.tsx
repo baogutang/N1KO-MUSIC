@@ -331,7 +331,8 @@ export function FullscreenPlayer() {
   const lyricsPlaceholder = lyricsQuery.isLoading
     ? <p className="flex-1 grid place-items-center text-[13px] text-ink-faint animate-pulse">{t('lyrics.loading')}</p>
     : lyricsQuery.isError
-      ? <p className="flex-1 grid place-items-center text-[13px] text-destructive">{t('lyrics.loadFailed')}</p>
+      /* 中性色（复核 F18）：红只给 destructive 动作，歌词加载失败不是 */
+      ? <p className="flex-1 grid place-items-center text-[13px] text-ink-soft">{t('lyrics.loadFailed')}</p>
       : <p className="flex-1 grid place-items-center text-[13px] text-ink-faint">{t('lyrics.none')}</p>
 
   const cycleRepeatMode = () => {
@@ -363,13 +364,13 @@ export function FullscreenPlayer() {
   const handleNavigateArtist = () => {
     if (!currentSong?.artistId) return
     toggleFullscreen()
-    navigate(`/artists/${currentSong.artistId}?src=${encodeURIComponent(currentSong.serverId)}`)
+    navigate(detailPath('artists', currentSong.artistId, currentSong.serverId))
   }
 
   const handleNavigateAlbum = () => {
     if (!currentSong?.albumId) return
     toggleFullscreen()
-    navigate(`/albums/${currentSong.albumId}?src=${encodeURIComponent(currentSong.serverId)}`)
+    navigate(detailPath('albums', currentSong.albumId, currentSong.serverId))
   }
 
   if (!currentSong) return null

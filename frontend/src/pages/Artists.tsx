@@ -19,6 +19,7 @@ import { EmptyState } from '@/components/common/EmptyState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
+import { detailPath } from '@/utils/detailPath'
 
 export default function ArtistsPage() {
   const { t } = useT()
@@ -85,7 +86,8 @@ export default function ArtistsPage() {
     <div className="pt-9 animate-fade-in">
       <div className="mb-6">
         <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('nav.artists')}</h1>
-        {!isLoading && (
+        {/* 出错时也不显示计数（复核 F12）：0 位是把故障说成空库 */}
+        {!isLoading && !isError && (
           <p className="num text-sm text-ink-soft mt-1.5">
             {t('artist.total', { count: filtered.length })}
           </p>
@@ -160,7 +162,7 @@ export default function ArtistsPage() {
                   {bucket.items.map(artist => (
                     <button
                       key={artist.id}
-                      onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
+                      onClick={() => navigate(detailPath('artists', artist.id, artist.serverId))}
                       className="group flex w-full items-baseline justify-between gap-4 px-2 py-3.5 text-left transition-all duration-200 hover:translate-x-1.5 hover:bg-paper-deep"
                     >
                       <span className="min-w-0 truncate font-serif text-lg font-semibold text-ink transition-colors duration-200 group-hover:text-primary md:text-xl">

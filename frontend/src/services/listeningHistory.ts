@@ -224,12 +224,27 @@ function dedupeByEventId(groups: ListeningEvent[][]): ListeningEvent[] {
  * 不传则返回全部（不过滤）。
  */
 export function readListeningEvents(serverId?: string | readonly string[]): ListeningEvent[] {
+  return readListeningEventsWithSnapshot(serverId).events
+}
+
+/**
+ * 读收听事件并带上**底层快照引用**（复核 F15）：
+ * 带 scope 的读取每次都 filter 出新数组，按返回值引用做缓存键的调用方
+ * （推荐画像）永远 miss——缓存实际不起作用。快照引用 + scope 字符串
+ * 才是稳定的键：无写入时快照引用不变，写入后引用必变。
+ */
+export function readListeningEventsWithSnapshot(serverId?: string | readonly string[]): {
+  events: ListeningEvent[]
+  snapshot: ListeningEvent[]
+} {
   const ids = typeof serverId === 'string' ? [serverId] : serverId
-  const events = currentEvents(ids?.[0] || 'legacy')
-  if (!ids || !ids.length) return events
-  if (ids.length === 1) return events.filter(event => event.serverId === ids[0])
+  const snapshot = currentEvents(ids?.[0] || 'legacy')
+  if (!ids || !ids.length) return { events: snapshot, snapshot }
+  if (ids.length === 1) {
+    return { events: snapshot.filter(event => event.serverId === ids[0]), snapshot }
+  }
   const set = new Set(ids)
-  return events.filter(event => set.has(event.serverId))
+  return { events: snapshot.filter(event => set.has(event.serverId)), snapshot }
 }
 
 export function upsertListeningEvent(event: ListeningEvent): void {

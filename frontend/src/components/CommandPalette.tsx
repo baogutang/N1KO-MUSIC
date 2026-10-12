@@ -23,6 +23,7 @@ import { useT } from '@/i18n'
 import type { Song } from '@/api/types'
 import { useSourceSearch, usePlaybackPriorityOrder } from '@/hooks/useSourceQueries'
 import { mergeSongs } from '@/plugins/match'
+import { detailPath } from '@/utils/detailPath'
 
 interface Command {
   id: string
@@ -181,7 +182,7 @@ export function CommandPalette() {
       label: album.name,
       hint: album.artist,
       icon: <Disc size={15} />,
-      run: () => navigate(`/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`),
+      run: () => navigate(detailPath('albums', album.id, album.serverId)),
     }))
   ), [results, navigate])
 
@@ -190,7 +191,7 @@ export function CommandPalette() {
       id: `artist-${artist.id}`,
       label: artist.name,
       icon: <MicrophoneStage size={15} />,
-      run: () => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`),
+      run: () => navigate(detailPath('artists', artist.id, artist.serverId)),
     }))
   ), [results, navigate])
 
@@ -221,6 +222,8 @@ export function CommandPalette() {
       e.preventDefault()
       setActive(i => (i - 1 + flat.length) % Math.max(1, flat.length))
     } else if (e.key === 'Enter') {
+      /* 组词中的 Enter 是确认候选词，不是提交（阶段 2.5；复核 F14 补上此处） */
+      if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
       e.preventDefault()
       runActive()
     }

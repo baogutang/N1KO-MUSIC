@@ -108,20 +108,21 @@ describe('disconnectServer', () => {
 })
 
 describe('removeServer', () => {
-  it('删掉一个音源时它的歌离开队列，配置也一并移除', () => {
+  /* removeServer 异步化（复核 F9）：先让平台登出 settle（≤500ms）再拆沙箱 */
+  it('删掉一个音源时它的歌离开队列，配置也一并移除', async () => {
     connectBothWithMixedQueue(0)
 
-    useServerStore.getState().removeServer(WY)
+    await useServerStore.getState().removeServer(WY)
 
     expect(usePlayerStore.getState().queue.map(s => s.id)).toEqual(['a', 'c'])
     expect(useServerStore.getState().servers.map(s => s.id)).toEqual([NAS])
     expect(useServerStore.getState().connectedServerIds).toEqual([NAS])
   })
 
-  it('删掉主库时别的源的歌留着，主库让位', () => {
+  it('删掉主库时别的源的歌留着，主库让位', async () => {
     connectBothWithMixedQueue(1)
 
-    useServerStore.getState().removeServer(NAS)
+    await useServerStore.getState().removeServer(NAS)
 
     expect(usePlayerStore.getState().queue.map(s => s.id)).toEqual(['b', 'd'])
     expect(useServerStore.getState().activeServerId).toBeNull()

@@ -8,7 +8,6 @@
  * - 「全未匹配」：哪里都没中 → 确认键可点，本地单里真的有那两条
  *   占位（旧代码 serverId:'' 被 toEntries 过滤，建出空单）。
  */
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
@@ -52,6 +51,7 @@ let root: Root | null = null
 let queryClient: QueryClient
 
 beforeEach(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   useServerStore.setState({
     activeServerId: 'nas',
     connectedServerIds: ['nas', 'wy'],
@@ -125,7 +125,7 @@ describe('导入歌单对话框（F3）', () => {
     await flush()
 
     expect(createLocal, '外源歌进本地混合歌单').toHaveBeenCalledTimes(1)
-    const [, songs] = createLocal.mock.calls[0] as [string, Song[]]
+    const [, songs] = createLocal.mock.calls[0] as unknown as [string, Song[]]
     expect(songs.map(s => s.title)).toEqual(['晴天', '七里香'])
     expect(getAdapter, '没有主库命中时不建服务端歌单').not.toHaveBeenCalled()
   })
@@ -143,7 +143,7 @@ describe('导入歌单对话框（F3）', () => {
     await flush()
 
     expect(createLocal).toHaveBeenCalledTimes(1)
-    const [, songs] = createLocal.mock.calls[0] as [string, Song[]]
+    const [, songs] = createLocal.mock.calls[0] as unknown as [string, Song[]]
     expect(songs, '两条占位都在').toHaveLength(2)
     expect(songs.every(s => s.serverId === 'local'), '占位带哨兵 serverId，能活过 toEntries').toBe(true)
     expect(songs.map(s => s.title)).toEqual(['Foo', 'Bar'])

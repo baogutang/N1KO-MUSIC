@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAlbumShelf, type AlbumShelfType } from '@/hooks/useServerQueries'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
+import { detailPath } from '@/utils/detailPath'
 
 export function AlbumShelf({
   type,
@@ -43,7 +44,7 @@ export function AlbumShelf({
         {albums.map((album, index) => (
           <li key={album.id}>
             <button
-              onClick={() => navigate(`/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`)}
+              onClick={() => navigate(detailPath('albums', album.id, album.serverId))}
               className="group flex w-full items-baseline gap-4 border-b border-hair-soft px-2 py-3 text-left transition-[background,transform] duration-200 hover:translate-x-1 hover:bg-paper-deep"
             >
               <span className="font-num w-7 flex-none text-[11px] text-ink-faint">

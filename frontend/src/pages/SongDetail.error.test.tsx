@@ -42,7 +42,6 @@ function mount() {
   })
 }
 
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 async function flush(times = 6) {
   // react-query 的 notifyManager 用宏任务批量通知，只等微任务会读不到 error 态
@@ -52,6 +51,7 @@ async function flush(times = 6) {
 }
 
 beforeEach(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   useServerStore.setState({
     activeServerId: 'nas',
     connectedServerIds: ['nas'],

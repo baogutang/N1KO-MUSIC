@@ -20,6 +20,7 @@ import { playAllInOrder, playListFrom } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
 import { cn } from '@/lib/utils'
+import { detailPath } from '@/utils/detailPath'
 
 /** 一栏最多列这么多，再多这一页就不是首页了 */
 const PER_COLUMN = 5
@@ -102,7 +103,7 @@ export function RediscoveryShelf() {
                     column.entries.map(item => item.song),
                     index
                   )}
-                  onOpenArtist={() => entry.song.artistId && navigate(`/artists/${entry.song.artistId}?src=${encodeURIComponent(entry.song.serverId)}`)}
+                  onOpenArtist={() => entry.song.artistId && navigate(detailPath('artists', entry.song.artistId, entry.song.serverId))}
                 />
               ))}
             </ol>

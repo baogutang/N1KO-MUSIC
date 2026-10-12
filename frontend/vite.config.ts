@@ -436,6 +436,20 @@ export default defineConfig(({ mode }) => ({
               ],
               runtimeCaching: [
                 {
+                  // 非拉丁子集字体（阶段 3.4 + 复核 F16）：unicode-range 按需取，
+                  // 不进首装预缓存，但离线 PWA 下这些字形仍要能落地——
+                  // DECISIONS 写了「走运行时缓存」，实际一条规则都没配，
+                  // 离线时西里尔/希腊/越南语字形全部回落系统字体。
+                  urlPattern: ({ url }) => /-subset-(cyrillic|greek|vietnamese)\.woff2$/.test(url.pathname),
+                  handler: 'CacheFirst',
+                  options: {
+                    cacheName: 'font-subset-cache',
+                    // 字体带 content-hash，版本迭代即换名；旧的清掉即可
+                    expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 180 },
+                    cacheableResponse: { statuses: [0, 200] },
+                  },
+                },
+                {
                   // 封面按 URL 缓存：音乐服务器的封面接口稳定且体积可观。
                   // 走 StaleWhileRevalidate，离线时仍有图，联网时后台更新。
                   urlPattern: ({ url }) =>

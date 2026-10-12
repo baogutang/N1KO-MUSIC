@@ -5,7 +5,6 @@
  * 用户路径：搜索翻到第 3 页 / 历史点两次加载更多 → 点进别的页面 →
  * 浏览器返回 → 看到的仍是离开时的全部结果，不是被冲回第一页。
  */
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
@@ -123,6 +122,7 @@ const song = (id: string, serverId: string): Song => ({
 })
 
 beforeEach(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   useServerStore.setState({
     activeServerId: 'nas',
     connectedServerIds: ['nas', 'wy'],

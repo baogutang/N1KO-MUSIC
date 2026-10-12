@@ -45,6 +45,7 @@ import { LyricDisplay } from '@/components/player/LyricDisplay'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
+import { detailPath } from '@/utils/detailPath'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
@@ -866,14 +867,14 @@ export default function SongDetailPage() {
           <Row
             label={t('song.field.album')}
             value={song.album || '—'}
-            onClick={song.albumId ? () => navigate(`/albums/${song.albumId}?src=${encodeURIComponent(song.serverId)}`) : undefined}
+            onClick={song.albumId ? () => navigate(detailPath('albums', song.albumId, song.serverId)) : undefined}
             linkable={!!song.albumId}
           />
 
           <Row
             label={t('song.field.artist')}
             value={song.artist || '—'}
-            onClick={song.artistId ? () => navigate(`/artists/${song.artistId}?src=${encodeURIComponent(song.serverId)}`) : undefined}
+            onClick={song.artistId ? () => navigate(detailPath('artists', song.artistId, song.serverId)) : undefined}
             linkable={!!song.artistId}
           />
 

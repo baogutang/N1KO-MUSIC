@@ -193,30 +193,19 @@ export default function Playlists() {
         </div>
       </header>
 
-      {/* 歌单封面墙：去卡片盒，封面即内容（DESIGN v2 §3） */}
-      {isLoading ? (
-        <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i}>
-              <div className="aspect-square rounded-md bg-paper-deep animate-pulse" />
-              <div className="mt-2.5 h-4 w-3/4 rounded-sm bg-paper-deep animate-pulse" />
-              <div className="mt-1.5 h-3 w-1/3 rounded-sm bg-paper-deep animate-pulse" />
-            </div>
-          ))}
-        </div>
-      ) : allSourcesFailed && localPlaylists.length === 0 ? (
+      {/*
+       * 歌单封面墙（复核 F12：骨架只在分节内显示）。
+       * 多源时任一源还在加载时，已返回的分节照常呈现——注释里写着
+       * 「不等最慢的」，旧实现却在 anyLoading 时用 totalCount=-1 把整页
+       * 换成 12 格骨架，把已到的分节盖掉。加载中的分节自己摆骨架。
+       */}
+      {allSourcesFailed && localPlaylists.length === 0 ? (
         <EmptyState
           title={t('sources.allFailed.title')}
           description={t('sources.allFailed.description')}
           action={{ label: t('action.retry'), onClick: () => void refetchAll() }}
         />
-      ) : totalCount === -1 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="aspect-square rounded-md bg-skeleton animate-pulse" />
-          ))}
-        </div>
-      ) : totalCount === 0 && localPlaylists.length === 0 ? (
+      ) : totalCount === 0 && localPlaylists.length === 0 && !anyLoading ? (
         <EmptyState
           title={t('empty.playlists.title')}
           description={t('empty.playlists.description')}
@@ -299,6 +288,14 @@ export default function Playlists() {
               </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
+              {/* 分节内骨架（复核 F12）：这一节还在加载时摆几格占位，
+                  不再让整页陪着转 */}
+              {section.status === 'loading' && Array.from({ length: 6 }).map((_, i) => (
+                <div key={`skeleton-${i}`}>
+                  <div className="aspect-square rounded-md bg-paper-deep animate-pulse" />
+                  <div className="mt-2.5 h-4 w-3/4 rounded-sm bg-paper-deep animate-pulse" />
+                </div>
+              ))}
               {section.items.map(pl => (
             <div
               key={`${section.serverId}:${pl.id}`}

@@ -31,3 +31,24 @@ describe('cachedRecommendationProfile（3.9）', () => {
     expect(b.artistAffinity.has('b')).toBe(true)
   })
 })
+
+describe('cachedRecommendationProfile 的键（复核 F15）', () => {
+  beforeEach(resetProfileCacheForTests)
+
+  it('scope 过滤出的新数组 + 同一底层快照：命中缓存，不重算', () => {
+    const snapshot: ListeningEvent[] = [...events]
+    const filteredA = snapshot.filter(e => e.serverId === 'srv')
+    const filteredB = snapshot.filter(e => e.serverId === 'srv') // 新数组，同一快照
+    const a = cachedRecommendationProfile(filteredA, { snapshot, scope: 'nas,wy' })
+    const b = cachedRecommendationProfile(filteredB, { snapshot, scope: 'nas,wy' })
+    // 旧实现按 events 引用比对，这里永远 miss；新键命中
+    expect(a).toBe(b)
+  })
+
+  it('同快照不同 scope：不串味（各建各的）', () => {
+    const snapshot: ListeningEvent[] = [...events]
+    const a = cachedRecommendationProfile(snapshot, { snapshot, scope: 'nas' })
+    const b = cachedRecommendationProfile(snapshot, { snapshot, scope: 'wy' })
+    expect(a).not.toBe(b)
+  })
+})

@@ -32,6 +32,7 @@ import { playAllInOrder, playAllShuffled, playListFrom, shuffleWholeLibrary, pla
 import type { Album, Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
+import { detailPath } from '@/utils/detailPath'
 
 export default function HomePage() {
   const { t } = useT()
@@ -96,7 +97,7 @@ export default function HomePage() {
             </p>
             <h1
               className="font-serif font-black text-[36px] lg:text-[48px] leading-[1.08] tracking-[-0.01em] text-balance cursor-pointer hover:text-primary transition-colors duration-200"
-              onClick={() => navigate(`/albums/${heroAlbum.id}?src=${encodeURIComponent(heroAlbum.serverId)}`)}
+              onClick={() => navigate(detailPath('albums', heroAlbum.id, heroAlbum.serverId))}
             >
               {heroAlbum.name}
             </h1>
@@ -132,7 +133,7 @@ export default function HomePage() {
 
           <figure className="group w-full max-w-[300px] lg:justify-self-end">
             <button
-              onClick={() => navigate(`/albums/${heroAlbum.id}?src=${encodeURIComponent(heroAlbum.serverId)}`)}
+              onClick={() => navigate(detailPath('albums', heroAlbum.id, heroAlbum.serverId))}
               aria-label={t('album.viewLabel', { name: heroAlbum.name })}
               className="block w-full aspect-square rounded-md overflow-hidden ring-1 ring-hair-soft shadow-float rotate-[1.5deg] transition-all duration-300 group-hover:rotate-0 group-hover:-translate-y-1.5 pop:ring-0 pop:border pop:border-hair"
             >
@@ -184,7 +185,7 @@ export default function HomePage() {
                 key={album.id}
                 album={album}
                 index={i}
-                onOpen={() => navigate(`/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`)}
+                onOpen={() => navigate(detailPath('albums', album.id, album.serverId))}
                 onPlay={() => void playAlbum(album)}
               />
             ))}
@@ -212,7 +213,7 @@ export default function HomePage() {
                   </span>
                 )}
                 <button
-                  onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
+                  onClick={() => navigate(detailPath('artists', artist.id, artist.serverId))}
                   className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                 >
                   {spaceCJK(artist.name)}

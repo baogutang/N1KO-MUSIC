@@ -80,3 +80,23 @@ describe('QrLogin 切换登录方式的竞态（A7）', () => {
     expect(imgAfter.src).toContain('data:image/jpeg')
   })
 })
+
+describe('失败态也有刷新入口（阶段 2.4 / F22）', () => {
+  it('createQr 直接失败 → error 态渲染「刷新」按钮与说明文案', async () => {
+    const host = fakeHost({
+      createQr: () => Promise.reject(new PluginCallError('network', 'boom')),
+    })
+    mount(host)
+
+    await act(async () => { for (let i = 0; i < 20; i++) await Promise.resolve() })
+
+    // 失败说明出现（词条，不是原始英文异常裸奔）
+    const text = document.body.textContent ?? ''
+    expect(text).toMatch(/二维码|失败|failed|network problem/i)
+    expect(text).not.toMatch(/boom/)
+    // 刷新按钮在（旧实现 error 态没有出口，只能关掉重来）
+    const refresh = [...document.querySelectorAll('button')]
+      .find(b => /刷新二维码|Refresh QR/i.test(b.textContent ?? ''))
+    expect(refresh, 'error 态也有刷新').toBeTruthy()
+  })
+})

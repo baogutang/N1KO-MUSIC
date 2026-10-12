@@ -9,6 +9,7 @@ import { CoverCard } from '@/components/common/CoverCard'
 import { findAdapterFor } from '@/api'
 import type { Artist } from '@/api/types'
 import { useT } from '@/i18n'
+import { detailPath } from '@/utils/detailPath'
 
 interface ArtistCardProps {
   artist: Artist
@@ -31,7 +32,7 @@ export function ArtistCard({ artist, className }: ArtistCardProps) {
       centered
       className={className}
       aria-label={artist.name}
-      onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
+      onClick={() => navigate(detailPath('artists', artist.id, artist.serverId))}
       tile={
         <ImageWithFallback
           src={imageUrl}

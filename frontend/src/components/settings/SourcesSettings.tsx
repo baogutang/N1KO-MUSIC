@@ -336,8 +336,14 @@ export function SourcesSettings() {
                   </div>
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-1">
-                  <IconAction title={t('sources.settings.update')} onClick={() => void doUpdate(plugin)}>
-                    <ArrowsClockwise size={15} />
+                  {/* 检查期间可连点的问题（2.3 / 复核 F25）：除了重入守卫，
+                      按钮自己也要按下忙碌态——转圈 + 不可点 */}
+                  <IconAction
+                    title={updateBusy ? t('sources.settings.checking') : t('sources.settings.update')}
+                    onClick={() => void doUpdate(plugin)}
+                    disabled={updateBusy}
+                  >
+                    <ArrowsClockwise size={15} className={updateBusy ? 'animate-spin' : undefined} />
                   </IconAction>
                   {/* 直达这个插件的扫码步。此前只是 navigate('/login')：到了登录页
                       点自己那一行，走的是「快速连接」——插件的 connectServer 从不
@@ -609,11 +615,13 @@ function NeedsAppNotice() {
 function IconAction({
   title,
   destructive,
+  disabled,
   onClick,
   children,
 }: {
   title: string
   destructive?: boolean
+  disabled?: boolean
   onClick: () => void
   children: React.ReactNode
 }) {
@@ -623,6 +631,7 @@ function IconAction({
       title={title}
       aria-label={title}
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         'flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors active:scale-95',
         destructive ? 'hover:text-destructive' : 'hover:text-primary'

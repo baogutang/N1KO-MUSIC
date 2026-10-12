@@ -1,9 +1,10 @@
 /**
- * 官网静态不变量。
+ * 官网静态不变量（复审 A10 / A11 / B13）。
  *
- * 注意（2026-10-12）：website/ 正由另一方并行改版（整站换肤、封面轮换），
- * 皮肤名/截图等文案断言会在两方之间打架——这里只保留与改版无关的
- * 结构性不变量：字体的相对 URL（A11 修复）必须一直成立。
+ * website/ 正由另一方并行改版（未提交的工作区改动不归本分支管）——
+ * 这些断言核对的是**仓库里已提交的** website 文件；门禁在干净 worktree
+ * 里跑（复核 F19：此前为迁就对方未提交的改动删掉了 A10/B13 两组断言，
+ * 正确做法是把门禁挪进干净 worktree，而不是撤哨）。
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -21,5 +22,35 @@ describe('官网字体的相对 URL（A11：url 相对 css 自身解析）', () 
       expect(url.startsWith('assets/'), `${url} 仍是相对站点根的旧写法`).toBe(false)
       expect(existsSync(website(`assets/fonts/${url}`)), `${url} 文件不存在`).toBe(true)
     }
+  })
+})
+
+describe('默认皮肤口径（A10：默认是奶油·软陶，不是糖果·波普）', () => {
+  it('官网 hero 用软陶截图，文案不再出现「工坊/Workshop」', () => {
+    const html = readFileSync(website('index.html'), 'utf8')
+    expect(html).toContain('src="assets/home.png"')
+    expect(html).not.toContain('工坊')
+    const js = readFileSync(website('script.js'), 'utf8')
+    expect(js).not.toContain('Workshop')
+    expect(js).not.toContain('工坊')
+    // hero 图注两语都标软陶为默认
+    expect(js).toContain('奶油·软陶（默认皮肤）')
+    expect(js).toContain('Soft Clay (default skin)')
+  })
+})
+
+describe('官网词条完整性（复审 B13）', () => {
+  it('sources.note 两种语言都是整句（不再被截成半句），HTML 默认文案与词条同形', () => {
+    const js = readFileSync(website('script.js'), 'utf8')
+    const zhEntry = /'sources\.note': '([^']+)'/.exec(js)?.[1] ?? ''
+    // \s* 而不是 \n：Windows runner autocrlf 后是 \r\n（v1.11.7 Windows 构建曾在此红）
+    const enEntry = /'sources\.note': '([^']+)',\s*'sandbox/.exec(js)?.[1] ?? ''
+    expect(zhEntry.length).toBeGreaterThan(30)
+    expect(enEntry.length).toBeGreaterThan(30)
+
+    const html = readFileSync(website('index.html'), 'utf8')
+    // 下载区默认文案含 xattr 引导（切不切语言都在）
+    expect(html).toContain('xattr -cr "/Applications/N1KO MUSIC.app"')
+    expect(js).toContain('xattr -cr')
   })
 })

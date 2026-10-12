@@ -31,6 +31,7 @@ import { redactUrl } from '@/utils/redactUrl'
 import { useServerStore } from '@/store/serverStore'
 import { useSettingsStore, QUALITY_MAX_BITRATE, type AudioQuality } from '@/store/settingsStore'
 import { getAdapterFor, hasAdapterFor } from '@/api'
+import { describeError, pluginErrorCode } from '@/services/errors'
 import { collectSourceRefs, resolveSourceOrder } from '@/hooks/useSourceQueries'
 import { bestMatchFor } from '@/plugins/match'
 import { toast } from '@/components/ui/use-toast'
@@ -153,7 +154,12 @@ async function resolveStream(
     return resolved
   })()
   inflightStreams.set(key, request)
-  request.then(() => inflightStreams.delete(key), () => inflightStreams.delete(key))
+  /* 只删自己那一格（复核 F11）：skipCache 请求可能与旧在途同 key，
+   * 旧请求先结束时把新条目也删掉，去重表就漏风了 */
+  request.then(
+    () => { if (inflightStreams.get(key) === request) inflightStreams.delete(key) },
+    () => { if (inflightStreams.get(key) === request) inflightStreams.delete(key) }
+  )
   return request
 }
 
@@ -259,6 +265,13 @@ const LOAD_DEBOUNCE_MS = 120  // 120ms：足以吸收快速连击，又不影响
  * 立即加载——非首播不该一律等 120ms，正常听歌每首之间都白等一拍。
  */
 let lastLoadStartedAt = 0
+/**
+ * 上次**调度**（处理一次切歌，无论立即加载还是排 debounce）的时刻
+ * （复核 F10）：判定「是不是连击」要看用户最后一次动作，不能只看
+ * 「上次加载开始」——排定中的加载还没开始，连点第 3 次就会撞进
+ * 立即分支，debounce 退化成节流。
+ */
+let lastLoadScheduledAt = 0
 
 /**
  * 模块级播放统计状态 — 完全脱离 React 生命周期
@@ -298,21 +311,44 @@ function startListeningSession(song: Song, serverId: string) {
 }
 
 function persistListeningSession(outcomeOverride?: ListeningOutcome) {
-  if (!playEventId || !playEventSong || !playEventServerId || listenedSec < 1) return
-  const duration = Math.max(0, playEventSong.duration || 0)
-  const outcome = outcomeOverride ?? deriveListeningOutcome(listenedSec, duration)
+  persistSessionSnapshot(captureListeningSession(), outcomeOverride)
+}
+
+/** 会话的纯数据快照（复核 F10）：ended 结账不再后推闭包读取，防被新加载清零 */
+interface SessionSnapshot {
+  eventId: string | null
+  song: Song | null
+  serverId: string | null
+  startedAt: number
+  listenedSec: number
+}
+
+function captureListeningSession(): SessionSnapshot {
+  return {
+    eventId: playEventId,
+    song: playEventSong,
+    serverId: playEventServerId,
+    startedAt: playEventStartedAt,
+    listenedSec,
+  }
+}
+
+function persistSessionSnapshot(snap: SessionSnapshot, outcomeOverride?: ListeningOutcome) {
+  if (!snap.eventId || !snap.song || !snap.serverId || snap.listenedSec < 1) return
+  const duration = Math.max(0, snap.song.duration || 0)
+  const outcome = outcomeOverride ?? deriveListeningOutcome(snap.listenedSec, duration)
   upsertListeningEvent({
     version: 2,
-    eventId: playEventId,
-    serverId: playEventServerId,
-    song: playEventSong,
-    startedAt: playEventStartedAt || Date.now() - listenedSec * 1000,
+    eventId: snap.eventId,
+    serverId: snap.serverId,
+    song: snap.song,
+    startedAt: snap.startedAt || Date.now() - snap.listenedSec * 1000,
     endedAt: Date.now(),
-    listenedSeconds: Math.round(listenedSec * 10) / 10,
-    completionRate: duration > 0 ? Math.max(0, Math.min(1, listenedSec / duration)) : 0,
+    listenedSeconds: Math.round(snap.listenedSec * 10) / 10,
+    completionRate: duration > 0 ? Math.max(0, Math.min(1, snap.listenedSec / duration)) : 0,
     outcome,
   })
-  lastPersistedListenedSec = listenedSec
+  lastPersistedListenedSec = snap.listenedSec
 }
 
 /**
@@ -639,10 +675,14 @@ export function useAudioEngine() {
       const cached = streamCache.get(key)
       if (cached && !isStreamExpired(cached.expiresAt, Date.now())) return
       preResolved.add(key)
-      // 只解析不拉流（阶段 3.10b）：手动切歌省一次插件往返
-      resolveStream(next, effectiveQuality).catch(() => {
-        preResolved.delete(key) // 失败允许下轮再试
-      })
+      /*
+       * 只解析不拉流（阶段 3.10b）。失败不重试（复核 F11）：预解析是锦上
+       * 添花，旧实现失败后从 preResolved 里删掉，8s 一轮再来——会员/denied
+       * 曲整首歌期间每 8s 打一次插件，还与用户操作共用频控额度，撞上
+       * rate-limited 让整个源退避 60s，反过来挡住用户切歌。每个 key 只试
+       * 一次；真切到这首时正常加载路径自会走完整的失败处理。
+       */
+      resolveStream(next, effectiveQuality).catch(() => { /* 放弃这首的预解析 */ })
     }, 8000)
 
     const timer = setInterval(() => {
@@ -823,8 +863,12 @@ export function useAudioEngine() {
         /**
          * 「是不是权限问题」按**协议错误码**判（PluginCallError.code，PROTOCOL §7），
          * 分类逻辑抽在 classifyStreamFailure（utils/audioEngine.ts），那里有测试。
+         * 取码走 pluginErrorCode（复核 F13：不再鸭子 cast）。
          */
-        const code = (e as { code?: string } | null)?.code
+        const code = pluginErrorCode(e)
+        /* toast 的说明句走 describeError 的词条（复核 F13）：detail 只喂给
+         * classifyStreamFailure 做文本嗅探，插件作者的原始英文串不进 UI */
+        const userDetail = describeError(e)
         const failureClass = classifyStreamFailure(code, detail)
         const denied = failureClass === 'denied'
         // 音质切换途中失败不算跳歌场景：保持停在原处的原语义
@@ -835,7 +879,7 @@ export function useAudioEngine() {
           usePlayerStore.getState().pause()
           toast({
             title: t('player.streamFailed', { title: capturedSong.title }),
-            description: denied ? detail : undefined,
+            description: denied ? userDetail : undefined,
             variant: 'destructive',
           })
           return
@@ -905,7 +949,7 @@ export function useAudioEngine() {
           usePlayerStore.getState().pause()
           toast({
             title: t('player.streamNetworkHalted', { title: capturedSong.title }),
-            description: detail,
+            description: userDetail,
             variant: 'destructive',
           })
           return
@@ -913,7 +957,7 @@ export function useAudioEngine() {
 
         toast({
           title: t('player.streamFailed', { title: capturedSong.title }),
-          description: denied ? detail : undefined,
+          description: denied ? userDetail : undefined,
           variant: 'destructive',
         })
         // 自动跳歌：单轨失败不再停住整条队列
@@ -1294,13 +1338,18 @@ export function useAudioEngine() {
         }
         clearStallWatch()
         if (nowPlayingSent) reportPrecise('stop', Math.max(0, bestKnownTime() * 1000))
-        // 先切歌、历史延后落盘（阶段 3.7）：2 万条 map+sort+广播不该
-        // 挡在 advanceOnEnded 前面——那是「下一首什么时候出声」的路径
-        const endedSession = { persist: persistListeningSession, reset: resetListeningSession, submit: maybeSubmitPlay }
+        /*
+         * 先快照、先结账，再切歌（阶段 3.7；复核 F10 改快照制）：
+         * 把会话**数据**同步拍下来、阈值提交同步做完、立刻 reset 给下一首
+         * 让位，然后才 advance。此前把 persist 后推到 advance 之后、靠
+         * 闭包读模块变量——只要真正被推迟到新 doLoad 之后（effect 微任务），
+         * listenedSec 已被清零，落盘就成了空会话。快照在任何时序下都安全。
+         */
+        const endedSnapshot = captureListeningSession()
+        maybeSubmitPlay()
+        resetListeningSession()
         usePlayerStore.getState().advanceOnEnded()
-        endedSession.submit()
-        endedSession.persist('completed')
-        endedSession.reset()
+        persistSessionSnapshot(endedSnapshot, 'completed')
       }
 
       stallWatchInterval = setInterval(() => {
@@ -1715,16 +1764,25 @@ export function useAudioEngine() {
 
     if (isFirstPlay) {
       // 首次播放：同步执行，不经过 setTimeout（消除 macrotask 排队延迟）
+      lastLoadScheduledAt = performance.now()
       doLoad()
-    } else if (performance.now() - lastLoadStartedAt >= LOAD_DEBOUNCE_MS) {
-      // 距上次加载已超过 debounce 窗口（阶段 3.7）：这不是连击，立即加载
-      doLoad()
-    } else {
-      // 后续切歌：120ms debounce 吸收连续点击
+    } else if (performance.now() - lastLoadScheduledAt < LOAD_DEBOUNCE_MS) {
+      /*
+       * 连击窗口内只保留最后一次（复核 F10）：窗口锚在「上次调度」上，
+       * 定时器随每次点击重置——连点 5 次只有静默后的最后一次真正取流。
+       * 旧实现锚在「上次加载开始」，排定中的加载还没开始、时间戳还是旧的，
+       * 第 3 次连点就判成「不是连击」立即加载（5 连点发 3 次取流）。
+       */
+      lastLoadScheduledAt = performance.now()
+      if (loadDebounceTimer !== null) clearTimeout(loadDebounceTimer)
       loadDebounceTimer = setTimeout(() => {
         loadDebounceTimer = null
         doLoad()
       }, LOAD_DEBOUNCE_MS)
+    } else {
+      // 距上次切歌超过 debounce 窗口（阶段 3.7）：这不是连击，立即加载
+      lastLoadScheduledAt = performance.now()
+      doLoad()
     }
 
     // React effect 清理：组件卸载或依赖变化时，取消未执行的 debounce 并清理事件

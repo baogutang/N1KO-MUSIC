@@ -22,6 +22,7 @@ const loaders = {
   settings: () => import('../pages/Settings'),
   recommendations: () => import('../pages/Recommendations'),
   songDetail: () => import('../pages/SongDetail'),
+  topLists: () => import('../pages/TopLists'),
   topListDetail: () => import('../pages/TopListDetail'),
   fullscreenPlayer: () => import('../components/player/FullscreenPlayer'),
 }
@@ -46,7 +47,7 @@ export const SettingsPage = lazy(loaders.settings)
 export const RecommendationsPage = lazy(loaders.recommendations)
 export const SongDetailPage = lazy(loaders.songDetail)
 export const TopListDetailPage = lazy(loaders.topListDetail)
-export const TopListsPage = lazy(() => import('@/pages/TopLists').then(m => ({ default: m.default })))
+export const TopListsPage = lazy(loaders.topLists)
 
 const prefetched = new Set<string>()
 function prefetchOnce(key: string, loader: Loader) {
@@ -77,6 +78,7 @@ const routeMatchers: Array<{ test: (path: string) => boolean; key: string; loade
   { test: p => p === '/stats', key: 'route:stats', loader: loaders.stats },
   { test: p => p === '/settings', key: 'route:settings', loader: loaders.settings },
   { test: p => /^\/songs\/[^/]+$/.test(p), key: 'route:song-detail', loader: loaders.songDetail },
+  { test: p => p === '/toplists', key: 'route:toplists', loader: loaders.topLists },
   { test: p => /^\/toplists\/[^/]+\/[^/]+$/.test(p), key: 'route:toplist-detail', loader: loaders.topListDetail },
 ]
 

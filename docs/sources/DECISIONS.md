@@ -278,3 +278,8 @@
 ## 2026-10-12 · 第四轮 · 阶段 5 的取舍
 - **只拆了 playerStore 的队列数学**（generateShuffledIndexes / resolveShuffleCursor / appendHistory → store/queueMath.ts，13 条纯函数测试，82 条 store 测试全绿）。这是四个文件里唯一「纯函数 + 必须有测试」的明确部分，行为可机械验证。
 - useAudioEngine / Settings / SongList 的拆分**未做**：三个文件的核心逻辑都缠在 React 闭包（doLoad 1000 行 effect、Settings 的 9 个 Section 依赖 12 个 store、SongList 的虚拟列表与行菜单共享 renderRow 闭包），拆分只能靠「行为不变」的肉眼判断，且本轮已叠了 3.1/3.5/6.12/D5 等多处对 useAudioEngine 的修改，再大动没有回归网兜底。列入未做清单，建议单独一轮（先补 useAudioEngine 的行为测试再拆）。
+
+## 2026-10-12 · 第四轮复核 F19 补记（stage1 撤断言的纠正）
+- 冲突：阶段 1 提交（b39da73）为迁就 website/ 另一方的未提交改版，删掉了 static.test.ts 的 A10（默认皮肤口径）与 B13（sources.note 整句）两组断言，PROGRESS 写「DECISIONS 已记」但当时并未记。
+- 选择：恢复两组断言，原样不变；核对过已提交的 website/index.html 与 script.js 均满足。门禁改在干净 worktree（`git worktree add ../n1ko-gate fix/audit-2026-10-12`）里跑——那边看到的就是已提交的 website 文件，与对方工作区的未提交改动互不打架；主工作区里对方改动若让这两组断言红，属其改版要处理的口径，不在本分支迁就范围。
+- 影响：frontend/src/website/static.test.ts；门禁流程（见任务书第 0 节复核 F19 后的执行方式）。

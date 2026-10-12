@@ -81,18 +81,22 @@ export function splitGroups<T>(
  * 每日推荐合并前的分组处理（复审 B1，纯函数可测）：
  * 插件源的每日推荐 queryKey 不含屏蔽指纹（10 分钟缓存），合并前必须
  * 过一遍 filterRecommendable，否则屏蔽后缓存期内照样出现。
+ * 分组的 serverId 原样带出（复核 F1：推荐页展开版的来源筛选要用）。
  */
 export function recommendationGroupsForMerge(
-  sourceGroups: Array<{ data: import('@/api/types').Song[] }>,
+  sourceGroups: Array<{ serverId?: string; data: import('@/api/types').Song[] }>,
   librarySongs: import('@/api/types').Song[] | undefined,
   constraints?: RecommendationConstraints
-): Array<{ songs: import('@/api/types').Song[] }> {
+): Array<{ serverId?: string; songs: import('@/api/types').Song[] }> {
   const groups = sourceGroups
-    .map(g => ({ songs: constraints
-      ? applyRecommendationConstraints(g.data, constraints)
-      : filterRecommendable(g.data) }))
+    .map(g => ({
+      serverId: g.serverId,
+      songs: constraints
+        ? applyRecommendationConstraints(g.data, constraints)
+        : filterRecommendable(g.data),
+    }))
     .filter(g => g.songs.length > 0)
-  if (librarySongs?.length) groups.unshift({ songs: librarySongs })
+  if (librarySongs?.length) groups.unshift({ serverId: undefined, songs: librarySongs })
   return groups
 }
 

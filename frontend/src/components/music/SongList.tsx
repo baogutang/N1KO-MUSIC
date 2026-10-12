@@ -57,6 +57,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { Song } from '@/api/types'
+import { detailPath } from '@/utils/detailPath'
 
 /**
  * 选择集的键。
@@ -693,7 +694,7 @@ const SongRow = React.memo(function SongRow({
     if (song.artistId) {
       e.stopPropagation()
       // 混合列表里 artistId 属于 song.serverId 那个源，跳转必须带上，否则详情页按主库查会落空
-      navigate(`/artists/${song.artistId}?src=${encodeURIComponent(song.serverId)}`)
+      navigate(detailPath('artists', song.artistId, song.serverId))
     }
     // 无 artistId 时不 stopPropagation，click 冒泡到行级 onClick → 触发播放
   }
@@ -701,7 +702,7 @@ const SongRow = React.memo(function SongRow({
   const handleNavigateAlbum = (e: React.MouseEvent) => {
     if (song.albumId) {
       e.stopPropagation()
-      navigate(`/albums/${song.albumId}?src=${encodeURIComponent(song.serverId)}`)
+      navigate(detailPath('albums', song.albumId, song.serverId))
     }
   }
 
@@ -926,7 +927,7 @@ const SongRow = React.memo(function SongRow({
                里有意义，不带 ?src= 的话详情页按主库去查，一查一个空 */
             onClick={(e) => {
               e.stopPropagation()
-              navigate(`/songs/${song.id}?src=${encodeURIComponent(song.serverId)}`, { state: { song } })
+              navigate(detailPath('songs', song.id, song.serverId), { state: { song } })
             }}
             className="gap-2"
           >

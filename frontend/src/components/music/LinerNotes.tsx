@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import type { AlbumDetail, Contributor, Song } from '@/api/types'
 import { buildSpecLine } from '@/utils/audioSpec'
 import { useT } from '@/i18n'
+import { detailPath } from '@/utils/detailPath'
 
 /** 角色的展示顺序与中文名。未列出的角色排在后面，按原名显示。 */
 const ROLE_LABELS: Record<string, string> = {
@@ -142,7 +143,7 @@ export function LinerNotes({ album }: { album: AlbumDetail }) {
                         {i > 0 && <span className="mx-2 text-ink-faint">·</span>}
                         {artistId ? (
                           <button
-                            onClick={() => navigate(`/artists/${artistId}?src=${encodeURIComponent(album.serverId)}`)}
+                            onClick={() => navigate(detailPath('artists', artistId, album.serverId))}
                             className="border-b border-transparent transition-colors hover:border-primary hover:text-primary"
                           >
                             {name}
@@ -250,7 +251,7 @@ export function SongCredits({
             <button
               onClick={() =>
                 c.artistId
-                  ? navigate(`/artists/${c.artistId}${serverId ? `?src=${encodeURIComponent(serverId)}` : ''}`)
+                  ? navigate(detailPath('artists', c.artistId, serverId))
                   : navigate(`/search?q=${encodeURIComponent(c.name)}`)
               }
               className="border-b border-transparent transition-colors hover:border-primary hover:text-primary"

@@ -4,7 +4,7 @@ import { getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
 import { useServerStore , useHistoryScope } from '@/store/serverStore'
 import { useRecommendationCursorStore } from '@/store/recommendationCursorStore'
 import { readMutedSets, useTasteStore } from '@/store/tasteStore'
-import { readListeningEvents } from '@/services/listeningHistory'
+import { readListeningEventsWithSnapshot } from '@/services/listeningHistory'
 import {
   artistSeedCountFor,
   deriveRecommendationSeeds,
@@ -91,9 +91,11 @@ async function fetchDirectedCandidates(
   return results.flatMap(result => (result.status === 'fulfilled' ? result.value : []))
 }
 
-/** 画像基于**所有已连接音源**的收听行为，不是只看主库那一份 */
+/** 画像基于**所有已连接音源**的收听行为，不是只看主库那一份。
+ *  带上底层快照引用（复核 F15）：scope 过滤每次出新数组，画像缓存
+ *  按返回值引用比对从未命中过。 */
 function readHistorySnapshot(scopeIds: readonly string[], _revision: number) {
-  return readListeningEvents(scopeIds)
+  return readListeningEventsWithSnapshot(scopeIds)
 }
 
 /**
@@ -178,12 +180,18 @@ export function usePersonalizedRecommendations(size = 30) {
   }, [serverId])
 
   const historyScope = useHistoryScope()
-  const events = useMemo(
+  const historyRead = useMemo(
     () => readHistorySnapshot(historyScope, historyRevision),
     [historyScope, historyRevision]
   )
-  /* 画像走模块级缓存（阶段 3.9）：同一份历史快照只算一次 */
-  const profile = useMemo(() => cachedRecommendationProfile(events), [events])
+  const events = historyRead.events
+  /* 画像走模块级缓存（阶段 3.9）：同一份历史快照只算一次。
+   * 键 = 快照引用 + scope 字符串（复核 F15） */
+  const scopeKey = historyScope.join(',')
+  const profile = useMemo(
+    () => cachedRecommendationProfile(events, { snapshot: historyRead.snapshot, scope: scopeKey }),
+    [events, historyRead, scopeKey]
+  )
 
   /**
    * 屏蔽名单要参与缓存作用域（阶段 1.5）：否则屏蔽一位歌手后，

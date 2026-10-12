@@ -157,13 +157,13 @@ export default function RecommendationsPage() {
               selected={source === null}
               onSelect={() => setPickedSource(null)}
             />
-            {grouped.map(group => (
+            {grouped.map(group => group.serverId && (
               <SourceChip
                 key={group.serverId}
                 serverId={group.serverId}
                 label={sources.find(s => s.serverId === group.serverId)?.name ?? group.serverId}
                 selected={source === group.serverId}
-                onSelect={() => setPickedSource(group.serverId)}
+                onSelect={() => setPickedSource(group.serverId ?? null)}
               />
             ))}
           </div>

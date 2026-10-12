@@ -6,7 +6,6 @@
  * 全部落本地混合歌单，且 toast 说明去处；不再把整队 id 发给一个
  * 没有歌单写入能力的主库。
  */
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
@@ -74,6 +73,7 @@ function mountDrawer(queue: Song[]) {
 }
 
 beforeEach(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   useServerStore.setState({
     activeServerId: 'nas',
     connectedServerIds: ['nas', 'wy'],
@@ -129,7 +129,7 @@ describe('队列存为歌单按 caps 分流（F7）', () => {
 
     expect(serverCreatePlaylist, '不向主库发歌单写入').not.toHaveBeenCalled()
     expect(createLocal).toHaveBeenCalledTimes(1)
-    const [name, songs] = createLocal.mock.calls[0] as [string, Song[]]
+    const [name, songs] = createLocal.mock.calls[0] as unknown as [string, Song[]]
     expect(name).toBe('我的队列')
     expect(songs.map(s => s.id), '主库歌与外源歌都落本地').toEqual(['a', 'b'])
     // toast 说明了去处（不是只说「已保存」）
@@ -146,7 +146,7 @@ describe('队列存为歌单按 caps 分流（F7）', () => {
 
     expect(serverCreatePlaylist).toHaveBeenCalledTimes(1)
     expect(createLocal).toHaveBeenCalledTimes(1)
-    const [, localSongs] = createLocal.mock.calls[0] as [string, Song[]]
+    const [, localSongs] = createLocal.mock.calls[0] as unknown as [string, Song[]]
     expect(localSongs.map(s => s.id)).toEqual(['b'])
   })
 })

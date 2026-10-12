@@ -282,13 +282,23 @@ export function useLyricsQuery(
 
   // lyricsPreferRemote=true：远程有内容就用远程，否则用服务器
   // lyricsPreferRemote=false：服务器有内容就用服务器，否则用远程
+  // 加载态合并两路（复核 F18）：旧实现只继承单边的 isLoading——服务器已回
+  // 空、远程还在途时就急着给 undefined data，全屏歌词栏提前亮「无歌词」。
   if (!lyricsPreferRemote) {
     const serverHasData = serverQuery.data && serverQuery.data.lines.length > 0
     const data = serverHasData ? serverQuery.data : remoteQuery.data
+    const stillLoading = serverQuery.isLoading || (!serverHasData && remoteQuery.isLoading)
+    if (stillLoading) {
+      return { ...serverQuery, data, isPending: true, isLoading: true, isFetching: true, fetchStatus: 'fetching' as const }
+    }
     return { ...serverQuery, data }
   } else {
     const remoteHasData = remoteQuery.data && (remoteQuery.data as Lyrics).lines.length > 0
     const data = remoteHasData ? remoteQuery.data : serverQuery.data
+    const stillLoading = remoteQuery.isLoading || (!remoteHasData && serverQuery.isLoading)
+    if (stillLoading) {
+      return { ...remoteQuery, data, isPending: true, isLoading: true, isFetching: true, fetchStatus: 'fetching' as const }
+    }
     return { ...remoteQuery, data }
   }
 }
@@ -482,12 +492,15 @@ export function useAlbumDetail(albumId: string, serverId?: string) {
 
 /** 获取最近专辑（首页推荐）*/
 export function useRecentAlbums(size = 20) {
+  /* 订阅连接状态（复核 F17）：enabled 只写 hasAdapter() 是一次性快照，
+     主库后连上时不重估——此前 Home 能重拉只是碰巧经别的 hook 订阅了 servers。 */
+  const isConnected = useServerStore(s => s.isConnected)
   return useQuery({
     queryKey: queryKeys.recentAlbums(size),
     queryFn: ({ signal }) => getAdapter().getRecentAlbums(size, signal),
     /* 适配器就绪才发（阶段 3.1）：冷启动主库先连、其它源还在并行装沙箱时，
        这里不该同步抛错落进 error 让首页头条空掉。 */
-    enabled: hasAdapter(),
+    enabled: isConnected && hasAdapter(),
     staleTime: 5 * 60 * 1000,
   })
 }

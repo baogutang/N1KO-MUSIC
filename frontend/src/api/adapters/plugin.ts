@@ -155,8 +155,7 @@ export class PluginAdapter implements MusicServerAdapter {
       if (!info || !isMusicItemShape(info) || !info.title) return null
       return mapMusicItem({ ...info, id: songId }, this.serverId, this.hosts)
     } catch (err) {
-      const code = (err as { code?: string } | null)?.code
-      if (code === 'not-found') return null
+      if (pluginErrorCode(err) === 'not-found') return null
       throw err
     }
   }

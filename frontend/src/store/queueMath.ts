@@ -43,5 +43,12 @@ export function resolveShuffleCursor(
 
 /** 上一首历史追加（null 安全）。 */
 export function appendHistory(history: Song[], song: Song | null): Song[] {
-  return song ? [song, ...history] : history
+  if (!song) return history
+  /*
+   * 已存在的条目删掉再插头部（阶段 3.7，复核 F10 补做）：重听同一首
+   * 不再堆出重复行——「上一首」列表该是最近去重的播放序，不是流水账。
+   * 身份连来源一起比：同名同 id 的另一个音源版本是另一条记录。
+   */
+  const rest = history.filter(s => !(s.id === song.id && (s.serverId ?? '') === (song.serverId ?? '')))
+  return [song, ...rest]
 }

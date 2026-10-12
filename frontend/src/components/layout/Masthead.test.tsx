@@ -6,7 +6,6 @@
  * 点另一台 → 出确认框 → 确认后才真正切换。
  * （此前：插件行也提供「设为主库」、点当前主库也弹确认。）
  */
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
@@ -15,6 +14,7 @@ import { MemoryRouter } from 'react-router-dom'
 
 // Radix 菜单在 happy-dom 里需要的指针 API
 beforeEach(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   window.HTMLElement.prototype.hasPointerCapture = () => false
   window.HTMLElement.prototype.setPointerCapture = () => undefined
   window.HTMLElement.prototype.releasePointerCapture = () => undefined

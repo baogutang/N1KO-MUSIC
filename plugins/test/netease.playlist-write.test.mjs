@@ -7,6 +7,22 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { loadPlugin } from './harness.mjs'
 
+/** 与 sandbox-call.test.mjs / runtime.ts 的 collectMethodPaths 同形（复核 F21） */
+function collectMethodPaths(exports) {
+  const paths = []
+  const walk = (obj, prefix, depth) => {
+    for (const key of Object.keys(obj)) {
+      if (prefix === '' && (key === 'platform' || key === 'version')) continue
+      const value = obj[key]
+      const path = prefix ? `${prefix}.${key}` : key
+      if (typeof value === 'function') paths.push(path)
+      else if (value && typeof value === 'object' && depth < 2) walk(value, path, depth + 1)
+    }
+  }
+  walk(exports, '', 0)
+  return paths
+}
+
 const cred = JSON.stringify({ MUSIC_U: 'cookie-a' })
 const CRED = { credentials: cred }
 
@@ -27,9 +43,19 @@ test('宿主能力探测路径：n1ko.user.createPlaylist 存在且真能调通'
   }
   try {
     const { plugin } = await loadPlugin('plugins/netease', CRED)
-    // 宿主（plugin.ts）的挂载判定就是 hasMethod('n1ko.user.createPlaylist')
-    const methods = ['n1ko.user.createPlaylist', 'n1ko.user.addToPlaylist', 'n1ko.user.removeFromPlaylist']
-    for (const m of methods) assert.ok(true, `method path ${m} 由下方真调验证`)
+    /*
+     * 按宿主的能力表探测路径（复核 F21：旧写法是 assert.ok(true) 的空断言，
+     * 方法挪丢也照样绿）。宿主（plugin.ts）的挂载判定就是
+     * hasMethod('n1ko.user.createPlaylist')——三条写方法必须在 n1ko.user 下，
+     * 顶层 user.* 不得再出现写方法（宿主唯一调用面）。
+     */
+    const paths = collectMethodPaths(plugin)
+    for (const m of ['n1ko.user.createPlaylist', 'n1ko.user.addToPlaylist', 'n1ko.user.removeFromPlaylist']) {
+      assert.ok(paths.includes(m), `方法路径 ${m} 必须存在（宿主只认这条路径）`)
+    }
+    for (const m of ['user.createPlaylist', 'user.addToPlaylist', 'user.removeFromPlaylist']) {
+      assert.ok(!paths.includes(m), `顶层 ${m} 必须不存在（宿主不调用这个面）`)
+    }
 
     const sheet = await plugin.n1ko.user.createPlaylist('新单')
     assert.equal(sheet.id, '991')

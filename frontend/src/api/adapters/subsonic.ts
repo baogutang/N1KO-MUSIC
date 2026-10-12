@@ -7,6 +7,7 @@
 
 import axios, { type AxiosInstance } from 'axios'
 import { parseLrc } from '@/utils/lrc'
+import { httpStatus, pluginErrorCode } from '@/services/errors'
 import md5 from 'md5'
 import type {
   MusicServerAdapter,
@@ -393,9 +394,8 @@ export class SubsonicAdapter implements MusicServerAdapter {
       if (!data.song) return null
       return this.mapSong(data.song)
     } catch (err) {
-      const status = (err as { response?: { status?: number } } | null)?.response?.status
-      const code = (err as { code?: string } | null)?.code
-      if (status === 404 || code === 'not-found') return null
+      const status = httpStatus(err)
+      if (status === 404 || pluginErrorCode(err) === 'not-found') return null
       throw err
     }
   }

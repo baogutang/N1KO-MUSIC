@@ -32,6 +32,8 @@ const ROUTE_TITLES: Array<[string, string]> = [
   ['/stats', 'nav.stats'],
   ['/issue', 'nav.issue'],
   ['/recommendations', 'nav.recommendations'],
+  ['/toplists/', 'sources.topListDetail'],
+  ['/toplists', 'sources.topLists'],
   ['/settings', 'nav.settings'],
 ]
 

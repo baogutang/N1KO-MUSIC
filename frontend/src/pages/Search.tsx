@@ -30,6 +30,7 @@ import { EmptyState } from '@/components/common/EmptyState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
 import { useT } from '@/i18n'
+import { detailPath } from '@/utils/detailPath'
 
 type SearchView = 'all' | 'grouped'
 
@@ -468,7 +469,7 @@ export default function SearchPage() {
           {!isLoading && groups.filter(g => g.status === 'loading').map(g => (
             <p key={g.serverId} className="mt-6 flex items-center gap-2 text-[12px] text-ink-faint">
               <SourceBadge serverId={g.serverId} />
-              <span className="animate-pulse">{g.name}：{t('search.sourcePending')}</span>
+              <span className="animate-pulse">{t('search.sourcePendingLine', { name: g.name })}</span>
             </p>
           ))}
 
@@ -501,7 +502,7 @@ export default function SearchPage() {
                       </span>
                     )}
                     <button
-                      onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
+                      onClick={() => navigate(detailPath('artists', artist.id, artist.serverId))}
                       className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                     >
                       {spaceCJK(artist.name)}
@@ -636,7 +637,7 @@ export default function SearchPage() {
                       </span>
                     )}
                     <button
-                      onClick={() => navigate(`/artists/${artist.id}?src=${encodeURIComponent(artist.serverId)}`)}
+                      onClick={() => navigate(detailPath('artists', artist.id, artist.serverId))}
                       className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200"
                     >
                       {spaceCJK(artist.name)}
