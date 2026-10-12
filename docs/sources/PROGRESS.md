@@ -238,3 +238,9 @@
 
 **门禁**：lint/tsc/vitest 915/build、backend 29、plugins 51+3skip、lint:plugins、check:versions、audit×2 全绿。
 **提交**：refactor(audit-2): 阶段 4。
+
+## 2026-10-12 第四轮 · 阶段 5（大文件拆分）
+
+**做了**：playerStore 的队列数学 → queueMath.ts（纯函数 + 13 条测试；store 测试 82 条全绿）。
+**未做**：useAudioEngine / Settings / SongList（理由记 DECISIONS：闭包缠绕、缺行为测试网、本轮已叠多改）。
+**门禁**：全绿（前端 920、backend 29、plugins 51+3skip、audit×2）。
