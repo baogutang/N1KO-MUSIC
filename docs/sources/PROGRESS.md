@@ -220,3 +220,21 @@
 
 **门禁**：lint/tsc/vitest 902/build（precache 2688KB）、backend 27、plugins 51+3skip、lint:plugins、check:versions、audit×2 全绿。
 **提交**：perf(audit-2): 阶段 3。
+
+## 2026-10-12 第四轮 · 阶段 4（代码债）
+
+**做了**：4.1–4.4、4.7–4.12 核心完成；4.5/4.6 与部分子项记未做。
+- 4.1 capabilitiesOfAdapter 唯一真源 + rowCapsOf 行级回落统一（测试 5 条）。
+- 4.2 useRecommendationConstraints（屏蔽名单 + accountVip 两维），删两处手写指纹与 eslint-disable。
+- 4.3 customApi 模板填空：全局替换修正（旧 .replace 同一占位符出现两次时漏换第二个）。
+- 4.4 probePluginUser 合成（清定时器、三态、测试 3 条）；5 处调用点替换因语义差异（Login 4 秒放行/逐源 diagnose）记未做。
+- 4.7 删 6 项死代码；accentColor 从 themeStore 删除 + persist v2 migrate 剥除（首个带版本 store，作 4.6 模板）；LRC 统一 utils/lrc。
+- 4.8 bestEffortPluginLogout（500ms 不拦断开）。
+- 4.9 validation.ts 共用 optionalServerId/scopeSql；/health 移到限流前（测试验证）；v4 迁移疑点未复现。
+- 4.10 lib/log.ts 落地（测试 2 条）；46 处 console 迁移记未做。
+- 4.11 三处 IIFE 补 catch；收藏镜像 60s 重试队列。
+- 4.12 后端 playlists 隔离 + DELETE history 两条用例（29 通过）。
+- 4.3 判定：歌词「搜索对话框」与「自动查询」是不同职责，不强行合并，模板部分已收敛。
+
+**门禁**：lint/tsc/vitest 915/build、backend 29、plugins 51+3skip、lint:plugins、check:versions、audit×2 全绿。
+**提交**：refactor(audit-2): 阶段 4。
