@@ -18,6 +18,7 @@ import type { PluginHost } from '@/plugins/host/PluginHost'
 import type { PluginQrCheckResult } from '@/plugins/types'
 import { PluginCallError } from '@/plugins/host/PluginHost'
 import { safeResourceUrl } from '@/plugins/host/whitelist'
+import { describeError } from '@/services/errors'
 import { cn } from '@/lib/utils'
 
 const POLL_INTERVAL_MS = 2000
@@ -123,9 +124,9 @@ export function QrLogin({
     } catch (err) {
       if (cancelledRef.current || requestId !== qrRequestIdRef.current) return
       setPhase('error')
-      setErrorText(err instanceof Error ? err.message : String(err))
+      setErrorText(describeError(err) ?? t('sources.qr.error'))
     }
-  }, [host])
+  }, [host, t])
 
   useEffect(() => {
     void startQr(activeMethod)
@@ -203,7 +204,8 @@ export function QrLogin({
           setPhase('expired')
         } else {
           setPhase('error')
-          setErrorText(err instanceof Error ? err.message : String(err))
+          /* 文案走唯一映射（阶段 2.4）：插件/网络的原始 message 不直接上屏 */
+          setErrorText(describeError(err) ?? t('sources.qr.error'))
         }
         return
       } finally {
@@ -224,7 +226,7 @@ export function QrLogin({
       clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [phase, host, onAuthorized])
+  }, [phase, host, onAuthorized, t])
 
   const phaseText: string = {
     loading: t('sources.qr.loading'),
@@ -276,7 +278,7 @@ export function QrLogin({
         >
           <img src={qrImage} alt={t('sources.qr.alt')} className="w-full h-full object-contain" />
         </div>
-        {phase === 'expired' && (
+        {(phase === 'expired' || phase === 'error') && (
           <button
             onClick={() => void startQr(activeMethod)}
             className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[13px] font-medium text-foreground"

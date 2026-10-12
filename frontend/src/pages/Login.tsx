@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { describeError } from '@/services/errors'
 import { pluginErrorCode } from '@/services/errors'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CaretRight, CircleNotch, Eye, EyeSlash, Plus, X } from '@phosphor-icons/react'
@@ -117,7 +118,7 @@ export default function LoginPage() {
       setAuthHost(host)
       setStep('plugin-auth')
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(describeError(err) ?? t('login.errorNetwork'))
     }
   }
 
@@ -259,7 +260,7 @@ export default function LoginPage() {
       if (!activeServerId) setPrimaryServer(serverId)
       navigate('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(describeError(err) ?? t('login.errorNetwork'))
     } finally {
       setIsLoading(false)
     }
@@ -399,7 +400,7 @@ export default function LoginPage() {
 
       navigate('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('login.errorNetwork'))
+      setError(describeError(err) ?? t('login.errorNetwork'))
     } finally {
       setIsLoading(false)
     }

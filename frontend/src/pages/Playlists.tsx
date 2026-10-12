@@ -82,13 +82,19 @@ export default function Playlists() {
     : [{
         serverId: srcFilter ?? activeServerId ?? '',
         name: sources.find(s => s.serverId === (srcFilter ?? activeServerId))?.name ?? '',
-        status: 'success' as const,
+        /* 单源分支的 status 不许写死 success（阶段 2.1）：主库失败时
+           「创建第一个歌单」是在把故障说成空库。 */
+        status: primary.isError ? 'error' as const
+          : primary.isLoading ? 'loading' as const
+          : 'success' as const,
         items: primary.data ?? [],
         // ?src= 指向别的源时这一节不是主库的：删除这类主库动作不在此提供
         //（外源歌单的删除/退订语义不同），与多源分节的判据保持一致
         isPrimary: (srcFilter ?? activeServerId) === activeServerId,
       }]
-  const totalCount = sections.reduce((sum, s) => sum + s.items.length, 0)
+  /* 加载中不显示计数（阶段 2.1）：0 个歌单在撒谎 */
+  const anyLoading = sections.some(s => s.status === 'loading')
+  const totalCount = anyLoading ? -1 : sections.reduce((sum, s) => sum + s.items.length, 0)
 
   async function handleCreate() {
     if (!newName.trim()) return
@@ -149,7 +155,7 @@ export default function Playlists() {
               PLAYLISTS
             </span>
           </h1>
-          {!isLoading && (
+          {!isLoading && totalCount >= 0 && (
             <p className="mt-1.5 font-num text-sm text-ink-faint">
               {t('playlist.count', { count: totalCount })}
             </p>
@@ -204,6 +210,12 @@ export default function Playlists() {
           description={t('sources.allFailed.description')}
           action={{ label: t('action.retry'), onClick: () => void refetchAll() }}
         />
+      ) : totalCount === -1 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="aspect-square rounded-md bg-skeleton animate-pulse" />
+          ))}
+        </div>
       ) : totalCount === 0 && localPlaylists.length === 0 ? (
         <EmptyState
           title={t('empty.playlists.title')}
@@ -274,9 +286,11 @@ export default function Playlists() {
                 <h2 className="flex items-center gap-2.5">
                   <SourceBadge serverId={section.serverId} withName />
                 </h2>
-                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-                  {t('playlist.count', { count: section.items.length })}
-                </span>
+                {section.status === 'success' && (
+                  <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
+                    {t('playlist.count', { count: section.items.length })}
+                  </span>
+                )}
               </div>
             )}
             {section.status === 'error' && (
@@ -408,7 +422,10 @@ export default function Playlists() {
               placeholder={t('playlist.namePlaceholder')}
               value={newName}
               onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+              onKeyDown={e => {
+                /* 组词中的 Enter 是确认候选词，不是提交（阶段 2.5） */
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) handleCreate()
+              }}
               autoFocus
             />
             <div className="flex gap-2 justify-end">

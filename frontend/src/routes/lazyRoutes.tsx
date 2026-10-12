@@ -46,6 +46,7 @@ export const SettingsPage = lazy(loaders.settings)
 export const RecommendationsPage = lazy(loaders.recommendations)
 export const SongDetailPage = lazy(loaders.songDetail)
 export const TopListDetailPage = lazy(loaders.topListDetail)
+export const TopListsPage = lazy(() => import('@/pages/TopLists').then(m => ({ default: m.default })))
 
 const prefetched = new Set<string>()
 function prefetchOnce(key: string, loader: Loader) {

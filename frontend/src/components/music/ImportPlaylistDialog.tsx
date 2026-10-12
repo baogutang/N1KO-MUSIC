@@ -92,15 +92,32 @@ export function ImportPlaylistDialog({
   }, [t])
 
   const handleCreate = useCallback(async () => {
-    if (!name.trim() || !matched.length) return
+    /*
+     * matched===0 也允许建（阶段 2.2）：全未匹配时把**全部条目**放进
+     * 本地混合歌单——「答应过的本地混合歌单」不能因为一条都匹配不上就灰掉。
+     * matched>0 时维持原语义：服务端单 + 外源落本地。
+     */
+    /* matched===0 时把未匹配条目转成最小 Song（仅本地歌单展示/播放入口用） */
+    const missingAsSongs: Song[] = missing.map((entry, i) => ({
+      id: `unmatched-${i}`,
+      serverId: '',
+      title: entry.title ?? entry.location,
+      artist: entry.artist ?? '',
+      album: entry.album ?? '',
+      duration: entry.durationSeconds ?? 0,
+    }))
+    const localSongs = matched.length === 0 ? missingAsSongs : foreign
+    if (!name.trim() || (!matched.length && !localSongs.length)) return
     setStage('creating')
     try {
-      const adapter = getAdapter()
-      await adapter.createPlaylist(name.trim(), matched.map(song => song.id))
-      queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
-      const localCount = foreign.length
+      if (matched.length) {
+        const adapter = getAdapter()
+        await adapter.createPlaylist(name.trim(), matched.map(song => song.id))
+        queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
+      }
+      const localCount = localSongs.length
       if (localCount > 0) {
-        await useLocalPlaylistStore.getState().create(`${name.trim()} · ${t('sources.import.localSuffix')}`, foreign)
+        await useLocalPlaylistStore.getState().create(`${name.trim()} · ${t('sources.import.localSuffix')}`, localSongs)
       }
       toast({
         title: t('playlist.import.done', { count: matched.length, name: name.trim() }),
@@ -112,7 +129,7 @@ export function ImportPlaylistDialog({
       toast({ title: t('playlist.createFailed'), variant: 'destructive' })
       setStage('review')
     }
-  }, [name, matched, foreign, queryClient, onOpenChange, reset, t])
+  }, [name, matched, foreign, missing, queryClient, onOpenChange, reset, t])
 
   return (
     <Dialog
@@ -238,10 +255,10 @@ export function ImportPlaylistDialog({
               <Button variant="ghost" onClick={reset} disabled={stage === 'creating'}>
                 {t('playlist.import.anotherFile')}
               </Button>
-              <Button onClick={handleCreate} disabled={!matched.length || !name.trim() || stage === 'creating'}>
+              <Button onClick={handleCreate} disabled={(!(matched.length || missing.length) || !name.trim() || stage === 'creating')}>
                 {stage === 'creating'
                   ? t('action.creating')
-                  : t('playlist.import.create', { count: matched.length })}
+                  : t('playlist.import.create', { count: matched.length || missing.length })}
               </Button>
             </div>
           </div>

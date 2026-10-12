@@ -8,6 +8,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
+import { describeError } from '@/services/errors'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -308,7 +309,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
       setSelectedIndex(0)
       setPreviewLrc(sorted[0].lrcText)
     } catch (err) {
-      toast({ title: t('lyrics.searchFailed'), description: (err as Error).message, variant: 'destructive' })
+      toast({ title: t('lyrics.searchFailed'), description: describeError(err), variant: 'destructive' })
     } finally {
       setSearching(false)
     }
@@ -326,7 +327,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
       await onSave(previewLrc)
       onClose()
     } catch (err) {
-      toast({ title: t('lyrics.saveFailed'), description: (err as Error).message, variant: 'destructive' })
+      toast({ title: t('lyrics.saveFailed'), description: describeError(err), variant: 'destructive' })
     } finally {
       setSaving(false)
     }

@@ -382,7 +382,10 @@ export function QueueDrawer() {
             autoFocus
             value={saveName}
             onChange={e => setSaveName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') void handleSaveAsPlaylist() }}
+            onKeyDown={e => {
+              /* 组词中的 Enter 是确认候选词，不是提交（阶段 2.5） */
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) void handleSaveAsPlaylist()
+            }}
             placeholder={t('queue.savePlaceholder')}
             aria-label={t('playlist.name')}
           />

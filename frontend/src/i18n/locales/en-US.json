@@ -345,6 +345,9 @@
   "action.creating": "Creating…",
   "action.deleting": "Deleting...",
   "action.more": "More actions",
+  "common.listSeparator": ", ",
+  "common.quoteL": "“",
+  "common.quoteR": "”",
   "song.count": "{count} tracks",
   "song.count_one": "{count} track",
   "album.count": "{count} albums",
@@ -787,6 +790,7 @@
   "search.viewAll": "All",
   "search.viewGrouped": "By source",
   "search.sourceError": "Search failed on this source",
+  "search.sourceErrorLine": "{name}: {message}",
   "search.section.albums": "albums",
   "search.section.artists": "artists",
   "search.section.playlists": "playlists",
@@ -1033,5 +1037,6 @@
   "sources.authExpired": "This source needs a fresh sign-in",
   "sources.goRelogin": "Go to sign-in",
   "masthead.disconnectDesc": "Disconnecting returns you to the sign-in page; connected sources and their local caches are cleared.",
-  "lyrics.viewHere": "View lyrics for this track"
+  "lyrics.viewHere": "View lyrics for this track",
+  "sources.topListsNone": "No connected source provides charts yet."
 }

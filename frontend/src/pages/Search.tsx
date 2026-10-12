@@ -27,6 +27,7 @@ import { mergeSongs, normalizeText } from '@/plugins/match'
 import type { Album, Artist, Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
+import { ErrorState } from '@/components/common/ErrorState'
 import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
 import { useT } from '@/i18n'
 
@@ -382,8 +383,13 @@ export default function SearchPage() {
         </div>
       )}
 
+      {/* 单源搜索失败 ≠ 没结果（阶段 2.1）：断网/凭据过期说「没找到 X」是在撒谎 */}
+      {showResults && !multi && single.isError && (
+        <ErrorState retry={() => { void single.refetch() }} />
+      )}
+
       {/* 无结果（等待防抖或请求进行中时不提前展示；全失败态已单独处理） */}
-      {showResults && !isLoading && !isFetching && !hasResults
+      {showResults && !isLoading && !isFetching && !hasResults && !single.isError
         && !(multi && failedGroups.length === groups.length && groups.length > 0) && (
         <EmptyState
           title={t('empty.searchNoResult.title', { query })}
@@ -397,7 +403,7 @@ export default function SearchPage() {
           {failedGroups.map(g => (
             <p key={g.serverId} className="mt-6 flex items-center gap-2 text-[12px] text-ink-faint">
               <SourceBadge serverId={g.serverId} />
-              {g.name}：{t('search.sourceError')}
+              {t('search.sourceErrorLine', { name: g.name, message: t('search.sourceError') })}
               {import.meta.env.DEV && g.error ? `（${g.error.slice(0, 120)}）` : ''}
             </p>
           ))}
@@ -406,7 +412,7 @@ export default function SearchPage() {
               歌曲结果照常，空分区不再无声——按错误码给一行说明 */}
           {groups.filter(g => g.status === 'success' && g.data?.sectionFailures?.length).map(g => {
             const failures = g.data!.sectionFailures!
-            const sections = failures.map(f => t(SECTION_LABEL_KEYS[f.section])).join('、')
+            const sections = failures.map(f => t(SECTION_LABEL_KEYS[f.section])).join(t('common.listSeparator'))
             const authish = failures.some(f => f.code === 'unauthorized' || f.code === 'forbidden')
             return (
               <p key={`sec-${g.serverId}`} className="mt-2 flex items-center gap-2 text-[12px] text-ink-faint">

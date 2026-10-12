@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { describeError } from '@/services/errors'
 import { Copy, Check, Trash, LinkSimple } from '@phosphor-icons/react'
 import { findAdapterFor } from '@/api'
 import { toast } from '@/components/ui/use-toast'
@@ -125,7 +126,7 @@ export function ShareDialog({
         title: disabled ? t('share.serverDisabled') : t('share.createFailed'),
         description: disabled
           ? t('share.serverDisabledHint')
-          : err instanceof Error ? err.message : undefined,
+          : describeError(err),
         variant: 'destructive',
       })
     } finally {

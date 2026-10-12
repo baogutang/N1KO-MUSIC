@@ -254,7 +254,7 @@ export function ConnectionBanner() {
 
   /** 沙箱越界被停用的音源：重试与重新登录都救不回来，出口是重装插件 */
   function renderCompromisedBanner() {
-    const names = compromisedSources.map(s => s.name).join('、')
+    const names = compromisedSources.map(s => s.name).join(t('common.listSeparator'))
     return (
       <div role="status" aria-live="polite" className={BANNER_CLASS}>
         <Warning size={13} aria-hidden="true" className="text-destructive flex-shrink-0" />
@@ -272,7 +272,7 @@ export function ConnectionBanner() {
 
   /** 插件音源的扫码凭据过期：直达该插件的扫码步，并给一个会话级「暂不」 */
   function renderSourceAuthBanner() {
-    const names = visibleExpired.map(s => s.name).join('、')
+    const names = visibleExpired.map(s => s.name).join(t('common.listSeparator'))
     const first = visibleExpired[0]
     return (
       <div role="status" aria-live="polite" className={BANNER_CLASS}>

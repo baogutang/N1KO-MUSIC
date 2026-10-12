@@ -10,6 +10,7 @@
  */
 
 import { parseLrcText } from './subsonic'
+import { pluginErrorCode } from '@/services/errors'
 import type {
   Album,
   AlbumDetail,
@@ -125,8 +126,8 @@ export class PluginAdapter implements MusicServerAdapter {
       const user = await this.host.call<{ id?: string | number; name?: string } | null>('n1ko.auth.getUser')
       return user ? 'ok' : 'unauthorized'
     } catch (e) {
-      const code = (e as { code?: string }).code
-      return code === 'unauthorized' ? 'unauthorized' : 'unreachable'
+      /* pluginErrorCode 对 null/字符串安全（阶段 2.7：裸 .code 遇 null 抛 TypeError） */
+      return pluginErrorCode(e) === 'unauthorized' ? 'unauthorized' : 'unreachable'
     }
   }
 
@@ -203,17 +204,17 @@ export class PluginAdapter implements MusicServerAdapter {
     if (albums.status === 'fulfilled') {
       result.albums = (albums.value?.data ?? []).map(i => mapAlbumItem(i, this.serverId, this.hosts))
     } else if ((albums.reason as { name?: string } | null)?.name !== 'AbortError') {
-      sectionFailures.push({ section: 'albums', code: (albums.reason as { code?: string } | null)?.code ?? 'unknown' })
+      sectionFailures.push({ section: 'albums', code: pluginErrorCode(albums.reason) ?? 'unknown' })
     }
     if (artists.status === 'fulfilled') {
       result.artists = (artists.value?.data ?? []).map(i => mapArtistItem(i, this.serverId, this.hosts))
     } else if ((artists.reason as { name?: string } | null)?.name !== 'AbortError') {
-      sectionFailures.push({ section: 'artists', code: (artists.reason as { code?: string } | null)?.code ?? 'unknown' })
+      sectionFailures.push({ section: 'artists', code: pluginErrorCode(artists.reason) ?? 'unknown' })
     }
     if (sheets.status === 'fulfilled') {
       result.playlists = (sheets.value?.data ?? []).map(i => mapSheetItem(i, this.serverId, this.hosts))
     } else if ((sheets.reason as { name?: string } | null)?.name !== 'AbortError') {
-      sectionFailures.push({ section: 'playlists', code: (sheets.reason as { code?: string } | null)?.code ?? 'unknown' })
+      sectionFailures.push({ section: 'playlists', code: pluginErrorCode(sheets.reason) ?? 'unknown' })
     }
     if (sectionFailures.length) result.sectionFailures = sectionFailures
 

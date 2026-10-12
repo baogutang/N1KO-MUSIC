@@ -7,7 +7,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { describeError } from '@/services/errors'
 import { useQueryClient } from '@tanstack/react-query'
+import { ErrorState } from '@/components/common/ErrorState'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -131,7 +133,7 @@ export function ImportFromSourceDialog({
     } catch (err) {
       toast({
         title: t('sources.import.failed'),
-        description: err instanceof Error ? err.message : String(err),
+        description: describeError(err),
         variant: 'destructive',
       })
       reset()
@@ -165,7 +167,7 @@ export function ImportFromSourceDialog({
     } catch (err) {
       toast({
         title: t('sources.import.createFailed'),
-        description: err instanceof Error ? err.message : String(err),
+        description: describeError(err),
         variant: 'destructive',
       })
     } finally {
@@ -217,7 +219,21 @@ export function ImportFromSourceDialog({
               </div>
             </div>
 
-            {activeSource && sourceGroup?.status === 'success' && (
+            {/* 三态（阶段 2.2）：加载 / 失败不再是一片空白 */}
+            {activeSource && sourceGroup?.status === 'loading' && (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-9 rounded-sm bg-skeleton animate-pulse" />
+                ))}
+              </div>
+            )}
+            {activeSource && sourceGroup?.status === 'error' && (
+              <ErrorState retry={() => { void queryClient.invalidateQueries({ queryKey: [activeSource, 'playlists'] }) }} />
+            )}
+            {activeSource && sourceGroup?.data?.length === 0 && (
+              <p className="py-4 text-center text-[13px] text-ink-faint">{t('sources.import.noSheets')}</p>
+            )}
+            {activeSource && sourceGroup?.status === 'success' && sourceGroup.data && sourceGroup.data.length > 0 && (
               <div>
                 <p className="text-[11px] tracking-[0.12em] text-ink-faint mb-2">{t('sources.import.pickSheet')}</p>
                 <div className="max-h-56 overflow-y-auto border-t border-hair">

@@ -54,8 +54,8 @@ export default function Favorites() {
         albums: g.data?.albums ?? [],
       }))
     : srcFilter
-      ? [{ serverId: srcFilter, name: sources.find(s => s.serverId === srcFilter)?.name ?? '', status: 'success' as const, songs: singleSongs, albums: singleAlbums }]
-      : [{ serverId: '', name: '', status: 'success' as const, songs: singleSongs, albums: singleAlbums }]
+      ? [{ serverId: srcFilter, name: sources.find(s => s.serverId === srcFilter)?.name ?? '', status: single.isError ? 'error' as const : single.isLoading ? 'loading' as const : 'success' as const, songs: singleSongs, albums: singleAlbums }]
+      : [{ serverId: '', name: '', status: single.isError ? 'error' as const : single.isLoading ? 'loading' as const : 'success' as const, songs: singleSongs, albums: singleAlbums }]
 
   if (!multi && single.isLoading) {
     return (

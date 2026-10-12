@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { describeError } from '@/services/errors'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Play, Shuffle, MusicNote, DownloadSimple } from '@phosphor-icons/react'
 import {
@@ -249,7 +250,7 @@ export default function PlaylistDetail() {
                 } catch (err) {
                   toast({
                     title: t('playlist.removeSongFailed'),
-                    description: err instanceof Error ? err.message : undefined,
+                    description: describeError(err),
                     variant: 'destructive',
                   })
                 } finally {

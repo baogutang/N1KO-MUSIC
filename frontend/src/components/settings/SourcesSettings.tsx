@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { describeError } from '@/services/errors'
 import { pluginErrorCode } from '@/services/errors'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -175,8 +176,16 @@ export function SourcesSettings() {
    * 一步装完再提示的话，用户看到「新增了域名」时新白名单已经生效了。
    */
   const doUpdate = async (plugin: InstalledPluginSummary) => {
+    if (updateBusy) return
     setPendingUpdate(null)
-    const updates = await checkUpdates().catch(() => [])
+    /* 断网不再伪装成「已是最新」（阶段 2.3）；busy 全程生效，防连点 */
+    setUpdateBusy(true)
+    try {
+    const updates = await checkUpdates().catch(() => null)
+    if (updates === null) {
+      toast({ title: t('sources.settings.catalogFailed'), variant: 'destructive' })
+      return
+    }
     const candidate = updates.find(u => u.id === plugin.id)
     if (!candidate) {
       toast({ title: t('sources.settings.upToDate') })
@@ -192,6 +201,9 @@ export function SourcesSettings() {
       return
     }
     await applyUpdate(prepared.pending, candidate.nextVersion)
+     } finally {
+      setUpdateBusy(false)
+    }
   }
 
   const applyUpdate = async (pending: PendingInstall, nextVersion: string) => {
@@ -221,7 +233,7 @@ export function SourcesSettings() {
     } catch (err) {
       toast({
         title: t('sources.settings.catalogFailed'),
-        description: err instanceof Error ? err.message : String(err),
+        description: describeError(err),
         variant: 'destructive',
       })
     } finally {

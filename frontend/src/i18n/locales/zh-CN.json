@@ -345,6 +345,9 @@
   "action.creating": "创建中…",
   "action.deleting": "删除中...",
   "action.more": "更多操作",
+  "common.listSeparator": "、",
+  "common.quoteL": "「",
+  "common.quoteR": "」",
   "song.count": "{count} 首",
   "song.count_one": "{count} 首",
   "album.count": "{count} 张专辑",
@@ -787,6 +790,7 @@
   "search.viewAll": "全部",
   "search.viewGrouped": "按音源",
   "search.sourceError": "此音源搜索失败",
+  "search.sourceErrorLine": "{name}：{message}",
   "search.section.albums": "专辑",
   "search.section.artists": "歌手",
   "search.section.playlists": "歌单",
@@ -1033,5 +1037,6 @@
   "sources.authExpired": "此音源需要重新登录",
   "sources.goRelogin": "去登录",
   "masthead.disconnectDesc": "断开后回到登录页；已连接的音源与它们的本地缓存会被清空。",
-  "lyrics.viewHere": "查看本曲歌词"
+  "lyrics.viewHere": "查看本曲歌词",
+  "sources.topListsNone": "还没有能看榜单的音源。"
 }

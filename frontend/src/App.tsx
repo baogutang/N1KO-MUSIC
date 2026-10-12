@@ -26,6 +26,7 @@ import {
   RecommendationsPage,
   SongDetailPage,
   TopListDetailPage,
+  TopListsPage,
 } from './routes/lazyRoutes'
 
 function RouteLoading() {
@@ -118,6 +119,7 @@ export default function App() {
               <Route path="open" element={<OpenLinkPage />} />
               <Route path="settings" element={<SettingsPage />} />
                     <Route path="songs/:id" element={<SongDetailPage />} />
+                    <Route path="toplists" element={<TopListsPage />} />
                     <Route path="toplists/:serverId/:topListId" element={<TopListDetailPage />} />
                     <Route path="songs/detail" element={<Navigate to="/library" replace />} />
             </Route>

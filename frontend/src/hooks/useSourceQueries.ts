@@ -10,6 +10,7 @@
  */
 
 import { useMemo } from 'react'
+import { pluginErrorCode } from '@/services/errors'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { getAdapterFor, hasAdapterFor } from '@/api'
 import type { Album, Artist, Playlist, SearchResult, ServerConfig, Song, SourceCapabilities } from '@/api/types'
@@ -165,7 +166,7 @@ export function zipQueryResults<T>(
       ...source,
       status: 'error' as const,
       error: r.error instanceof Error ? r.error.message : String(r.error ?? 'unknown'),
-      errorCode: (r.error as { code?: string } | null | undefined)?.code,
+      errorCode: pluginErrorCode(r.error),
     }
   })
 }

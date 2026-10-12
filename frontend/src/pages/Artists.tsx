@@ -16,6 +16,7 @@ import { SourceBadge } from '@/components/sources/SourceBadge'
 import { buildIndexBuckets, IndexRail } from '@/components/common/IndexRail'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
+import { ErrorState } from '@/components/common/ErrorState'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
 
@@ -25,7 +26,7 @@ export default function ArtistsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const srcParam = sourceParam(searchParams)
   const { available, current } = useBrowseSource(srcParam)
-  const { data: artists, isLoading } = useArtists(current?.serverId)
+  const { data: artists, isLoading, isError, refetch } = useArtists(current?.serverId)
   const [filter, setFilter] = useState('')
 
   const filtered = useMemo(
@@ -132,6 +133,10 @@ export default function ArtistsPage() {
             </div>
           ))}
         </div>
+      ) : isError ? (
+        /* 加载失败 ≠ 空态（阶段 2.1）：空过滤框配「没有名字相符的歌手」
+           是在撒谎——真话是「没读到」。 */
+        <ErrorState retry={() => { void refetch() }} />
       ) : filtered.length === 0 ? (
         <EmptyState ruled title={t('empty.artists.title')} description={t('empty.artists.description')} />
       ) : (

@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react'
+import { describeError } from '@/services/errors'
 import { CaretDown } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -34,7 +35,7 @@ export function CookieLogin({
       const result = await host.call<{ credentials: string }>('n1ko.auth.loginWithCookie', trimmed)
       onAuthorized(result.credentials)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(describeError(err) ?? t('error.unknown'))
     } finally {
       setBusy(false)
     }

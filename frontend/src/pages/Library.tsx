@@ -71,7 +71,7 @@ export default function Library() {
   // 专辑/歌手只取计数：页头那行是曲库的体量说明，展开各自在 /albums、/artists。
   // 不可浏览时连请求都不发——渲染的是引导页，这三条查询的结果没有任何去处，
   // 却要让插件源白跑三次注定失败的全库枚举。
-  const { data: albumsData, hasNextPage: hasNextAlbums } =
+  const { data: albumsData, isLoading: albumsLoading, hasNextPage: hasNextAlbums } =
     useAlbumsInfinite(50, 'alphabeticalByName', undefined, { enabled: canBrowse })
   const { data: artists } = useArtists(undefined, { enabled: canBrowse })
   const {
@@ -136,13 +136,16 @@ export default function Library() {
       <div className="flex items-end justify-between gap-6">
         <div className="min-w-0">
           <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('nav.library')}</h1>
-          <p className="num text-sm text-ink-soft mt-1.5">
-            {t('library.counts', {
-              songs: songCountText,
-              albums: albumCountText,
-              artists: (artists ?? []).length,
-            })}
-          </p>
+          {/* 加载中不显示 0 计数（阶段 2.1） */}
+          {!(songsLoading || albumsLoading) && !songsError && (
+            <p className="num text-sm text-ink-soft mt-1.5">
+              {t('library.counts', {
+                songs: songCountText,
+                albums: albumCountText,
+                artists: (artists ?? []).length,
+              })}
+            </p>
+          )}
         </div>
       </div>
 

@@ -280,11 +280,11 @@ export function SourceTopListsRail() {
         <h2 id="home-toplists">
           {t('sources.topLists')}<small>CHARTS</small>
         </h2>
-        {truncated && (
-          <button className="more" onClick={() => navigate('/recommendations')}>
-            {t('action.viewAll')} →
-          </button>
-        )}
+        {/* 「查看全部」去榜单列表页（阶段 2.6）：此前跳到每日推荐页，
+            一个榜单都没有；被截掉的榜在这里有去处 */}
+        <button className="more" onClick={() => navigate('/toplists')}>
+          {t('action.viewAll')} →
+        </button>
       </div>
       <div className="border-t border-hair divide-y divide-hair-soft">
         {groups.map(g =>

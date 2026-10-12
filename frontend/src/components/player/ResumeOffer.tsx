@@ -29,7 +29,7 @@ export function ResumeOffer() {
     >
       <span className="text-ink-soft">
         {t('resume.prefix')}
-        <span className="text-ink-faint">{offer.changedBy ? `「${offer.changedBy}」` : t('resume.otherDevice')}</span>
+        <span className="text-ink-faint">{offer.changedBy ? `${t('common.quoteL')}${offer.changedBy}${t('common.quoteR')}` : t('resume.otherDevice')}</span>
         {t('resume.suffix')}
         <span className="mx-1 font-serif font-semibold text-ink">{current.title}</span>
         <span className="font-num text-ink-faint">{formatDuration(offer.positionMs / 1000)}</span>
