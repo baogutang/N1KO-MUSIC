@@ -7,6 +7,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { detailPath } from '@/utils/detailPath'
 import { getAdapter } from '@/api'
 import { useServerStore } from '@/store/serverStore'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
@@ -53,7 +54,7 @@ export function NowPlayingOnServer() {
               {entry.username}
             </span>
             <button
-              onClick={() => navigate(`/songs/${entry.song.id}`, { state: { song: entry.song } })}
+              onClick={() => navigate(detailPath('songs', entry.song.id, entry.song.serverId), { state: { song: entry.song } })}
               className="min-w-0 flex-1 truncate text-left font-serif text-[15px] font-semibold transition-colors hover:text-primary"
             >
               {spaceCJK(entry.song.title)}

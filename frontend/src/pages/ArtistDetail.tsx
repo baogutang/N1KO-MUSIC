@@ -5,6 +5,7 @@
  */
 
 import { Fragment, useEffect, useState, useMemo, useCallback } from 'react'
+import { detailPath } from '@/utils/detailPath'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Play, Shuffle, CaretDown, CaretUp, MicrophoneStage } from '@phosphor-icons/react'
 import { DiscographyRail, type ArtistMarginalia } from '@/components/music/DiscographyRail'
@@ -245,7 +246,7 @@ export default function ArtistDetailPage() {
               <Fragment key={similar.id}>
                 {i > 0 && <span className="text-ink-faint">{t('artist.listSeparator')}</span>}
                 <button
-                  onClick={() => navigate(`/artists/${similar.id}`)}
+                  onClick={() => navigate(detailPath('artists', similar.id, similar.serverId ?? serverId))}
                   className="border-b border-transparent transition-colors duration-200 hover:border-primary hover:text-primary"
                 >
                   {similar.name}

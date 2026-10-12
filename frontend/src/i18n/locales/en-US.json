@@ -192,6 +192,7 @@
   "queue.savePlaceholder": "Name this playlist",
   "queue.saving": "Saving…",
   "queue.saved": "Saved “{name}”",
+  "queue.savedMixed": "{server} track(s) saved to the server playlist, {local} from streaming sources saved to a local mixed playlist",
   "queue.saveFailed": "Could not save the playlist",
   "queue.clear": "Clear",
   "queue.close": "Close queue",
@@ -264,6 +265,9 @@
   "lyrics.scrollHint": "Scroll to read",
   "lyrics.savedLocally": "Lyrics saved to the local cache",
   "lyrics.viewOrSearch": "View / search lyrics",
+  "lyrics.loading": "Loading lyrics…",
+  "lyrics.none": "Instrumental, or no lyrics available",
+  "lyrics.loadFailed": "Could not load lyrics",
   "lyrics.customParams": "Search with custom fields",
   "issue.hours": "{value} hrs",
   "issue.minutes": "{value} min",
@@ -736,7 +740,7 @@
   "history.skipped": "Skipped",
   "history.loadMore": "Load earlier entries",
   "history.clearConfirmTitle": "Clear the play history?",
-  "history.clearConfirmDescription": "This cannot be undone. Every local play record for this server will be deleted.",
+  "history.clearConfirmDescription": "This cannot be undone. Local play history of every connected source (servers and streaming sources) will be deleted.",
   "home.featuredAlbum": "FEATURED ALBUM",
   "home.playWholeAlbum": "Play the whole album",
   "home.shuffleAll": "Surprise me",
@@ -886,7 +890,6 @@
   "resume.suffix": " —",
   "resume.continue": "Continue",
   "resume.dismiss": "Dismiss this resume prompt",
-  "lyrics.none": "Instrumental, or no lyrics available",
   "album.total": "{count} albums in all",
   "audio.mono": "Mono",
   "audio.quality.lossless": "Lossless (original file)",
@@ -1028,5 +1031,7 @@
   "sources.settings.catalogFailed": "Failed to fetch catalog",
   "sources.relogin": "Sign in again",
   "sources.authExpired": "This source needs a fresh sign-in",
-  "sources.goRelogin": "Go to sign-in"
+  "sources.goRelogin": "Go to sign-in",
+  "masthead.disconnectDesc": "Disconnecting returns you to the sign-in page; connected sources and their local caches are cleared.",
+  "lyrics.viewHere": "View lyrics for this track"
 }

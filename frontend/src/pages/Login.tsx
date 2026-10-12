@@ -248,6 +248,12 @@ export default function LoginPage() {
       setAuthHost(null)
       if (!connected) {
         setError(t('login.errorFailed'))
+        /*
+         * 回到选择步（阶段 1.2）：plugin-auth 分支的渲染条件带 authHost，
+         * 置空后整块（含返回键）消失，只剩标题和红字，桌面壳里出不去。
+         * type 步有完整表单与重试入口。
+         */
+        setStep('type')
         return
       }
       if (!activeServerId) setPrimaryServer(serverId)

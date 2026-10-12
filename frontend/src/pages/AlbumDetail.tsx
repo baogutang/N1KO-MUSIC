@@ -5,6 +5,7 @@
  */
 
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { detailPath } from '@/utils/detailPath'
 import { useState, useEffect } from 'react'
 import { Play, Shuffle, Heart } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
@@ -110,7 +111,7 @@ export default function AlbumDetailPage() {
           <p className="mt-3 text-sm tracking-[0.06em] text-ink-soft">
             {album.artistId ? (
               <button
-                onClick={() => navigate(`/artists/${album.artistId}`)}
+                onClick={() => navigate(detailPath('artists', album.artistId, album.serverId))}
                 className="border-b border-hair pb-0.5 transition-colors duration-200 hover:border-primary hover:text-primary"
               >
                 {spaceCJK(album.artist)}

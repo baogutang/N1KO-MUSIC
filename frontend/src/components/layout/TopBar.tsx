@@ -13,6 +13,7 @@ import {
 } from '@phosphor-icons/react'
 import { useThemeStore, SKINS, SKIN_LABEL_KEYS } from '@/store/themeStore'
 import { useServerStore } from '@/store/serverStore'
+import { useDestructiveConfirm } from '@/components/layout/useDestructiveConfirm'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,6 +72,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
   const navigate = useNavigate()
   const { resolvedTheme, toggleTheme, skin, toggleSkin } = useThemeStore()
   const { username, disconnect } = useServerStore()
+  const confirm = useDestructiveConfirm()
   const themeLabel = resolvedTheme === 'dark' ? t('settings.theme.toLight') : t('settings.theme.toDark')
   // 皮肤切换放在工具条而不是只留在设置页：它是一次「换个心情」的动作，
   // 不是一次配置——埋三层里就等于没有。
@@ -173,7 +175,11 @@ export function TopBar({ children }: { children?: ReactNode }) {
                 {t('nav.history')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={disconnect}>
+              <DropdownMenuItem className="text-destructive" onClick={() => confirm.request({
+                title: t('settings.disconnect.confirm'),
+                description: t('masthead.disconnectDesc'),
+                onConfirm: disconnect,
+              })}>
                 <SignOut size={16} className="mr-2" />
                 {t('settings.disconnect.action')}
               </DropdownMenuItem>
@@ -181,6 +187,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
           </DropdownMenu>
         </div>
       </div>
+      {confirm.dialog}
     </header>
   )
 }

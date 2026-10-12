@@ -147,6 +147,7 @@ test('favorites reject malformed input', async () => {
   })
   assert.equal(unknownField.response.status, 400)
 
+  // 阶段 1.5：快钟不再 400（拒绝会让收藏镜像被当毒丸丢弃），钳制后照常落库
   const future = await request('/api/favorites', {
     method: 'PUT',
     headers: authHeaders,
@@ -157,7 +158,11 @@ test('favorites reject malformed input', async () => {
       favoritedAt: Math.floor(Date.now() / 1000) + 86_400,
     }),
   })
-  assert.equal(future.response.status, 400)
+  assert.equal(future.response.status, 201)  // 新建（此前同歌曲未收藏过）
+  // 且落库时间被钳到 now+300 以内
+  const list = await request('/api/favorites?serverId=s', { headers: authHeaders })
+  const stored = list.body.items.find(i => i.id === 'x')
+  assert.ok(stored.favoritedAt <= Math.floor(Date.now() / 1000) + 300, '落库时间被钳制')
 
   const deleteWithoutServer = await request('/api/favorites?songId=x', {
     method: 'DELETE',

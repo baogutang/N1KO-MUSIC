@@ -558,6 +558,50 @@ async function fetchSheetPage(env, deviceId, sheetId, page) {
   }
 }
 
+
+/* ---- 歌单写入（阶段 1.1：实现收进模块作用域，导出面在 n1ko.user 下） ---- */
+async function createPlaylistImpl(name) {
+  requireLogin()
+  var deviceId = await ensureDeviceId(env)
+  var res = await weapiRequest(env, '/api/playlist/create', {
+    name: name,
+    privacy: '0',
+    type: 'NORMAL',
+  }, deviceId)
+  var playlist = res.body.playlist || res.body
+  /* platform 必填：宿主把返回的 SheetItem 当原始项缓存，
+     缺 platform 时跨源跳转会按主库 id 解析 */
+  return { platform: 'netease', id: String(playlist.id), title: playlist.name }
+}
+
+async function addToPlaylistImpl(musicSheet, musicItems) {
+  requireLogin()
+  var res = await eapiRequest(env, '/api/playlist/manipulate/tracks', {
+    op: 'add',
+    pid: musicSheet.id,
+    trackIds: JSON.stringify(musicItems.map(function (s) { return s.id })),
+    imme: 'true',
+  }, await ensureDeviceId(env))
+  if (res.body.body && res.body.body.code === 401) {
+    throw pluginError('unknown', '部分曲目加入失败（可能重复或无权）')
+  }
+  return { status: 200 }
+}
+
+async function removeFromPlaylistImpl(musicSheet, musicItems) {
+  requireLogin()
+  var res = await eapiRequest(env, '/api/playlist/manipulate/tracks', {
+    op: 'del',
+    pid: musicSheet.id,
+    trackIds: JSON.stringify(musicItems.map(function (s) { return s.id })),
+    imme: 'true',
+  }, await ensureDeviceId(env))
+  if (res.body.body && res.body.body.code === 401) {
+    throw pluginError('unknown', '部分曲目移除失败')
+  }
+  return { status: 200 }
+}
+
 /** 每日推荐（api-enhanced recommend_songs：weapi v3/discovery/recommend/songs，需登录） */
 async function fetchDailyRecommend(env, deviceId) {
   requireLogin()
@@ -827,6 +871,20 @@ module.exports = {
     return mapSong(song)
   },
 
+  /* ---------- 按 id 补全一条曲目（阶段 1.4：分享链接 /songs/:id 依赖它） ----------
+     与搜索结果同形（mapSong），网易的 v3/song/detail 匿名可用。 */
+  async getMusicInfo(musicItem) {
+    var id = musicItem && musicItem.id
+    if (!id) return null
+    var deviceId = await ensureDeviceId(env)
+    var res = await weapiRequest(env, '/api/v3/song/detail', {
+      c: '[{"id":' + Number(id) + '}]',
+    }, deviceId)
+    var song = res.body.songs && res.body.songs[0]
+    if (!song) return null
+    return mapSong(song)
+  },
+
   /* ---------- 用户域（需要登录） ----------
      导出这一份只是为了让 module.exports.requireLogin() 那几处调用继续可用；
      实现在模块作用域，见文件上方。 */
@@ -868,45 +926,6 @@ module.exports = {
       }
     },
 
-    async createPlaylist(name) {
-      requireLogin()
-      var deviceId = await ensureDeviceId(env)
-      var res = await weapiRequest(env, '/api/playlist/create', {
-        name: name,
-        privacy: '0',
-        type: 'NORMAL',
-      }, deviceId)
-      var playlist = res.body.playlist || res.body
-      return { id: String(playlist.id), title: playlist.name }
-    },
-
-    async addToPlaylist(musicSheet, musicItems) {
-      requireLogin()
-      var res = await eapiRequest(env, '/api/playlist/manipulate/tracks', {
-        op: 'add',
-        pid: musicSheet.id,
-        trackIds: JSON.stringify(musicItems.map(function (s) { return s.id })),
-        imme: 'true',
-      }, await ensureDeviceId(env))
-      if (res.body.body && res.body.body.code === 401) {
-        throw pluginError('unknown', '部分曲目加入失败（可能重复或无权）')
-      }
-      return { status: 200 }
-    },
-
-    async removeFromPlaylist(musicSheet, musicItems) {
-      requireLogin()
-      var res = await eapiRequest(env, '/api/playlist/manipulate/tracks', {
-        op: 'del',
-        pid: musicSheet.id,
-        trackIds: JSON.stringify(musicItems.map(function (s) { return s.id })),
-        imme: 'true',
-      }, await ensureDeviceId(env))
-      if (res.body.body && res.body.body.code === 401) {
-        throw pluginError('unknown', '部分曲目移除失败')
-      }
-      return { status: 200 }
-    },
   },
 
   /* ---------- 登录（扫码状态机） ----------
@@ -996,6 +1015,14 @@ module.exports = {
         var start = (pageNum - 1) * size
         return { data: songs.slice(start, start + size), isEnd: start + size >= songs.length }
       },
+      /*
+       * 歌单写入挂在 n1ko.user 下（阶段 1.1）：原先只在顶层 user:，
+       * 宿主只调 n1ko.user.*，playlistWrite 能力被判成未声明——
+       * 「加入/移出歌单」在 app 里根本到不了。
+       */
+      createPlaylist(name) { return createPlaylistImpl(name) },
+      addToPlaylist(musicSheet, musicItems) { return addToPlaylistImpl(musicSheet, musicItems) },
+      removeFromPlaylist(musicSheet, musicItems) { return removeFromPlaylistImpl(musicSheet, musicItems) },
       async setFavorite(musicItem, liked) {
         module.exports.requireLogin()
         /* 只接受歌曲（阶段 5 / F10）：like 接口只认 trackId，专辑/歌手条目

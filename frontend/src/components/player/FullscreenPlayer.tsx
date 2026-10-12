@@ -14,6 +14,7 @@ import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { Song } from '@/api/types'
 import { useNavigate } from 'react-router-dom'
+import { detailPath } from '@/utils/detailPath'
 import {
   Play, Pause, SkipBack, SkipForward, Heart,
   Repeat, RepeatOnce, Shuffle, ArrowsDownUp,
@@ -257,6 +258,7 @@ export function FullscreenPlayer() {
   const sleepTimerAt = usePlayerStore(s => s.sleepTimerAt)
   const setSleepTimer = usePlayerStore(s => s.setSleepTimer)
   const capabilities = useServerCapabilities()
+  const activeServerId = useServerStore(s => s.activeServerId)
   const isMobile = useIsMobileLayout()
   // 移动端封面 / 歌词 视图切换（桌面双列布局歌词常显，无需切换）
   /**
@@ -313,7 +315,9 @@ export function FullscreenPlayer() {
     return () => { alive = false }
   }, [resolvedCoverUrl, coverUrl, isLight])
 
-  const { data: lyrics } = useLyricsQuery(
+  /* 三态（阶段 1.8）：加载中 / 无歌词 / 出错都要有可见说法，
+   * 不能让歌词栏永远空白。 */
+  const lyricsQuery = useLyricsQuery(
     currentSong?.id ?? '',
     currentSong?.title,
     currentSong?.artist,
@@ -323,6 +327,12 @@ export function FullscreenPlayer() {
     !!currentSong,  // 组件已由 MainLayout 条件挂载，无需检查 isFullscreen
     currentSong?.serverId  // 歌词要向这首歌自己的音源要，不能问主库
   )
+  const lyrics = lyricsQuery.data
+  const lyricsPlaceholder = lyricsQuery.isLoading
+    ? <p className="flex-1 grid place-items-center text-[13px] text-ink-faint animate-pulse">{t('lyrics.loading')}</p>
+    : lyricsQuery.isError
+      ? <p className="flex-1 grid place-items-center text-[13px] text-destructive">{t('lyrics.loadFailed')}</p>
+      : <p className="flex-1 grid place-items-center text-[13px] text-ink-faint">{t('lyrics.none')}</p>
 
   const cycleRepeatMode = () => {
     const modes: RepeatMode[] = ['none', 'all', 'one']
@@ -441,13 +451,13 @@ export function FullscreenPlayer() {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => { toggleFullscreen(); navigate(`/songs/${currentSong.id}`, { state: { song: currentSong } }) }}
+              onClick={() => { toggleFullscreen(); navigate(detailPath('songs', currentSong.id, currentSong.serverId), { state: { song: currentSong } }) }}
               className="gap-2 cursor-pointer"
             >
               <FileText size={16} />
               {t('player.viewSongDetail')}
             </DropdownMenuItem>
-            {capabilities.shares && (
+            {capabilities.shares && currentSong.serverId === activeServerId && (
               <DropdownMenuItem
                 onClick={() => setShareSong(currentSong)}
                 className="gap-2 cursor-pointer"
@@ -609,7 +619,7 @@ export function FullscreenPlayer() {
                   className="flex-1 min-h-0"
                 />
               ) : (
-                <div className="flex-1" />
+                lyricsPlaceholder
               )}
             </div>
           )}
@@ -901,8 +911,8 @@ export function FullscreenPlayer() {
               className="flex-1 min-h-0"
             />
           ) : (
-            // 歌词查询未返回前保持空列，避免布局跳动
-            <div className="flex-1" />
+            // 加载中 / 无歌词 / 出错都有说法（阶段 1.8），不再永远空列
+            lyricsPlaceholder
           )}
         </div>
       </div>
@@ -947,7 +957,7 @@ export function FullscreenPlayer() {
       <ShareDialog
         open={shareSong !== null}
         onOpenChange={open => { if (!open) setShareSong(null) }}
-        target={shareSong ? { ids: [shareSong.id], label: shareSong.title, kind: 'song' } : null}
+        target={shareSong ? { ids: [shareSong.id], label: shareSong.title, kind: 'song', serverId: shareSong.serverId } : null}
       />
 
       <AddToPlaylistDialog

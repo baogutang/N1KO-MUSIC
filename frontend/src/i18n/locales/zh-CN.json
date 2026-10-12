@@ -192,6 +192,7 @@
   "queue.savePlaceholder": "给这个歌单起个名字",
   "queue.saving": "保存中…",
   "queue.saved": "已保存「{name}」",
+  "queue.savedMixed": "主库歌进了服务端歌单（{server} 首），插件源歌进了本地混合歌单（{local} 首）",
   "queue.saveFailed": "保存歌单失败",
   "queue.clear": "清空",
   "queue.close": "关闭队列",
@@ -264,6 +265,9 @@
   "lyrics.scrollHint": "可滚动查看",
   "lyrics.savedLocally": "歌词已保存到本地缓存",
   "lyrics.viewOrSearch": "查看 / 搜索歌词",
+  "lyrics.loading": "歌词加载中…",
+  "lyrics.none": "纯音乐，或无歌词可用",
+  "lyrics.loadFailed": "歌词加载失败",
   "lyrics.customParams": "自定义参数搜索",
   "issue.hours": "{value} 小时",
   "issue.minutes": "{value} 分钟",
@@ -736,7 +740,7 @@
   "history.skipped": "跳过",
   "history.loadMore": "加载更早的记录",
   "history.clearConfirmTitle": "清除播放历史？",
-  "history.clearConfirmDescription": "此操作不可撤销，当前服务器的本地播放记录将被全部删除。",
+  "history.clearConfirmDescription": "此操作不可撤销，所有已连接音源（含服务器与流媒体音源）的本地播放记录将被全部删除。",
   "home.featuredAlbum": "本期封面",
   "home.playWholeAlbum": "播放整张专辑",
   "home.shuffleAll": "随便听听",
@@ -886,7 +890,6 @@
   "resume.suffix": "上听到",
   "resume.continue": "继续播放",
   "resume.dismiss": "忽略这条续播提示",
-  "lyrics.none": "纯音乐，或无歌词可用",
   "album.total": "共 {count} 张",
   "audio.mono": "单声道",
   "audio.quality.lossless": "无损原码（原始格式）",
@@ -1028,5 +1031,7 @@
   "sources.settings.catalogFailed": "拉取目录失败",
   "sources.relogin": "重新登录",
   "sources.authExpired": "此音源需要重新登录",
-  "sources.goRelogin": "去登录"
+  "sources.goRelogin": "去登录",
+  "masthead.disconnectDesc": "断开后回到登录页；已连接的音源与它们的本地缓存会被清空。",
+  "lyrics.viewHere": "查看本曲歌词"
 }

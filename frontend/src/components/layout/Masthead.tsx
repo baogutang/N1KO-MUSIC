@@ -11,6 +11,7 @@
 import { useNavigate } from 'react-router-dom'
 import { CaretDown, MusicNote, Plus, SignOut } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { useDestructiveConfirm } from '@/components/layout/useDestructiveConfirm'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
 import {
   DropdownMenu,
@@ -29,6 +30,7 @@ export function Masthead() {
   const { t, locale } = useT()
   const navigate = useNavigate()
   const { servers, activeServerId, disconnect, activateServer } = useServerStore()
+  const confirm = useDestructiveConfirm()
   const activeServer = servers.find(s => s.id === activeServerId)
 
   const now = new Date()
@@ -83,14 +85,24 @@ export function Masthead() {
             {servers.map(server => (
               <DropdownMenuItem
                 key={server.id}
-                onClick={async () => {
-                  if (!(await activateServer(server.id))) {
-                    toast({
-                      title: t('sources.relogin'),
-                      description: t('settings.server.reloginDesc'),
-                      variant: 'destructive',
-                    })
-                  }
+                onClick={() => {
+                  /* 切主库是破坏性动作（清队列/缓存）：与设置页一样先确认（1.7） */
+                  confirm.request({
+                    title: t('settings.primaryDialog.title'),
+                    description: t('settings.primaryDialog.desc', { name: server.name }),
+                    confirmLabel: t('settings.primaryDialog.confirm'),
+                    onConfirm: () => {
+                      void (async () => {
+                        if (!(await activateServer(server.id))) {
+                          toast({
+                            title: t('sources.relogin'),
+                            description: t('settings.server.reloginDesc'),
+                            variant: 'destructive',
+                          })
+                        }
+                      })()
+                    },
+                  })
                 }}
                 className={cn(activeServerId === server.id && 'text-primary')}
               >
@@ -111,7 +123,14 @@ export function Masthead() {
               {t('settings.server.add')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive" onClick={disconnect}>
+            <DropdownMenuItem className="text-destructive" onClick={() => {
+              /* 断开同样先确认（1.7）：点一下不该直接清空曲库入口 */
+              confirm.request({
+                title: t('settings.disconnect.confirm'),
+                description: t('masthead.disconnectDesc'),
+                onConfirm: disconnect,
+              })
+            }}>
               <SignOut size={16} className="mr-2" />
               {t('settings.disconnect.action')}
             </DropdownMenuItem>
@@ -134,6 +153,8 @@ export function Masthead() {
           <span className="hidden sm:inline">{dateLabel} {weekLabel}</span>
         </p>
       </div>
+      {/* 破坏性动作确认（1.7）：切主库 / 断开连接 */}
+      {confirm.dialog}
     </div>
   )
 }

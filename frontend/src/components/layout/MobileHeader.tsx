@@ -10,6 +10,7 @@ import {
 } from '@phosphor-icons/react'
 import { useThemeStore } from '@/store/themeStore'
 import { useServerStore } from '@/store/serverStore'
+import { useDestructiveConfirm } from '@/components/layout/useDestructiveConfirm'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +30,7 @@ export function MobileHeader() {
   const navigate = useNavigate()
   const { resolvedTheme, toggleTheme } = useThemeStore()
   const { username, disconnect } = useServerStore()
+  const confirm = useDestructiveConfirm()
   const themeLabel = resolvedTheme === 'dark' ? t('settings.theme.toLight') : t('settings.theme.toDark')
 
   return (
@@ -96,13 +98,18 @@ export function MobileHeader() {
               {t('nav.history')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive" onClick={disconnect}>
+            <DropdownMenuItem className="text-destructive" onClick={() => confirm.request({
+                title: t('settings.disconnect.confirm'),
+                description: t('masthead.disconnectDesc'),
+                onConfirm: disconnect,
+              })}>
               <SignOut size={16} className="mr-2" />
               {t('settings.disconnect.action')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {confirm.dialog}
     </header>
   )
 }

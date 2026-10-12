@@ -205,3 +205,8 @@ export function mapQuality(
   }
   return 'low'
 }
+
+/** 仅供测试：清空原始项缓存（各用例互不串） */
+export function resetRawCacheForTests(): void {
+  rawCache.clear()
+}

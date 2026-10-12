@@ -148,12 +148,15 @@ export class PluginAdapter implements MusicServerAdapter {
      * 而且这个桩还会被 mapMusicItem 写回缓存，之后起播递给插件的也是它。
      */
     if (!this.host.hasMethod('getMusicInfo')) return null
+    /* 只有「真的没有」转 null；unauthorized/断网原样抛（阶段 1.11） */
     try {
       const info = await this.host.call<MusicItem | null>('getMusicInfo', minimalMusicItem({ id: songId }, this.manifest.platform))
       if (!info || !isMusicItemShape(info) || !info.title) return null
       return mapMusicItem({ ...info, id: songId }, this.serverId, this.hosts)
-    } catch {
-      return null
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code
+      if (code === 'not-found') return null
+      throw err
     }
   }
 

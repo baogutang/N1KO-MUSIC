@@ -365,12 +365,17 @@ export class SubsonicAdapter implements MusicServerAdapter {
   }
 
   async getSong(songId: string): Promise<Song | null> {
+    /* 只有「真的没有」转 null；401/断网原样抛（阶段 1.11），
+     * 否则凭据过期会显示成「找不到这首歌」。 */
     try {
       const data = await this.request<{ song?: Record<string, unknown> }>('/getSong', { id: songId })
       if (!data.song) return null
       return this.mapSong(data.song)
-    } catch {
-      return null
+    } catch (err) {
+      const status = (err as { response?: { status?: number } } | null)?.response?.status
+      const code = (err as { code?: string } | null)?.code
+      if (status === 404 || code === 'not-found') return null
+      throw err
     }
   }
 

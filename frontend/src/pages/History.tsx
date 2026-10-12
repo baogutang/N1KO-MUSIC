@@ -65,7 +65,11 @@ export default function History() {
   }, [historyScope])
 
   function handleClear() {
-    if (activeServerId) clearListeningEvents(activeServerId)
+    /*
+     * 清的是**全部已连接源**（阶段 1.6）：列表读 historyScope（多源合并），
+     * 只清 activeServerId 的话，插件源的记录下一首播完又回来。
+     */
+    for (const serverId of historyScope) clearListeningEvents(serverId)
     setHistory([])
     setConfirmClear(false)
   }

@@ -16,7 +16,7 @@ import {
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/use-toast'
@@ -29,6 +29,7 @@ import { buildSpecLine } from '@/utils/audioSpec'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
 import { usePinnedCover } from '@/hooks/useCoverUrl'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
+import { useLyricsQuery } from '@/hooks/useServerQueries'
 import { useServerStore } from '@/store/serverStore'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { findAdapterFor, getAdapterFor, hasAdapterFor } from '@/api'
@@ -38,6 +39,7 @@ import type { Song } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { MarginNote } from '@/components/music/MarginNote'
 import { ShareDialog } from '@/components/music/ShareDialog'
+import { LyricDisplay } from '@/components/player/LyricDisplay'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
@@ -694,12 +696,30 @@ export default function SongDetailPage() {
   })
   const song = fetchedSong ?? stateSong
   const setFullscreen = usePlayerStore(s => s.setFullscreen)
+  /* 「正在播放的就是这首」才提供「进全屏」（阶段 1.8）：此前这个入口
+   * navigate(-1) 再 setFullscreen——打开的是正在播放那首的全屏，
+   * 不是用户正在看详情的这一首。其余情况直接在本页渲染歌词。 */
+  const playingSong = usePlayerStore(s => s.currentSong)
+  const isPlayingThis = !!song && !!playingSong
+    && playingSong.id === song.id && (playingSong.serverId ?? '') === serverId
   const { saveLyrics } = useLyricCacheStore()
   const saveCover = useCoverCacheStore(s => s.saveCover)
   const removeCover = useCoverCacheStore(s => s.removeCover)
   const pinnedCover = usePinnedCover(song?.id)
 
   const [lyricsSearchOpen, setLyricsSearchOpen] = useState(false)
+  /* 本曲歌词预览（阶段 1.8）：非正在播放的歌不再「后退再开别人的全屏」 */
+  const [lyricsPreviewOpen, setLyricsPreviewOpen] = useState(false)
+  const previewLyricsQuery = useLyricsQuery(
+    song?.id ?? '',
+    song?.title,
+    song?.artist,
+    song?.album,
+    song?.path,
+    song?.duration,
+    lyricsPreviewOpen && !!song,
+    serverId
+  )
   const [coverPickerOpen, setCoverPickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
 
@@ -828,8 +848,15 @@ export default function SongDetailPage() {
           {(rowCaps ? rowCaps.lyrics : true) && (
             <Row
               label={t('song.field.lyrics')}
-              value={t('lyrics.viewOrSearch')}
-              onClick={() => { navigate(-1); setTimeout(() => setFullscreen(true), 50) }}
+              value={isPlayingThis ? t('lyrics.viewOrSearch') : t('lyrics.viewHere')}
+              onClick={() => {
+                if (isPlayingThis) {
+                  navigate(-1)
+                  setTimeout(() => setFullscreen(true), 50)
+                } else {
+                  setLyricsPreviewOpen(true)
+                }
+              }}
               linkable
             />
           )}
@@ -940,6 +967,25 @@ export default function SongDetailPage() {
         song={song}
         onSave={handleLyricsSave}
       />
+
+      {/* 本曲歌词预览（阶段 1.8）：不是正在播放的那首，就在这页看 */}
+      <Dialog open={lyricsPreviewOpen} onOpenChange={setLyricsPreviewOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{t('player.lyrics')}</DialogTitle>
+            <DialogDescription>{spaceCJK(song.title)} · {spaceCJK(song.artist ?? '')}</DialogDescription>
+          </DialogHeader>
+          {previewLyricsQuery.data ? (
+            <LyricDisplay lines={previewLyricsQuery.data.lines} variant="panel" />
+          ) : previewLyricsQuery.isLoading ? (
+            <p className="py-8 text-center text-[13px] text-ink-faint animate-pulse">{t('lyrics.loading')}</p>
+          ) : previewLyricsQuery.isError ? (
+            <p className="py-8 text-center text-[13px] text-destructive">{t('lyrics.loadFailed')}</p>
+          ) : (
+            <p className="py-8 text-center text-[13px] text-ink-faint">{t('lyrics.none')}</p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 本地封面 */}
       <CoverPickerDialog

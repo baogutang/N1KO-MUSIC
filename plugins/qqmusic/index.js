@@ -1366,6 +1366,18 @@ module.exports = {
     return songs.slice(0, 2000)
   },
 
+  /* ---------- 按 id 补全一条曲目（阶段 1.4） ----------
+     与 importMusicItem 同策略：mid 当关键词搜，精确匹配同 mid 的那条。
+     pf_song_detail_yqq 需要登录态且键名会变，搜索链路是已在用的稳的。 */
+  async getMusicInfo(musicItem) {
+    var mid = musicItem && musicItem.id
+    if (!mid) return null
+    // 不能用 this：沙箱是非绑定调用（见 plugins/test/sandbox-call.test.mjs）
+    var result = await module.exports.search(mid, 1, 'music')
+    var hit = (result.data || []).find(function (s) { return s.id === mid })
+    return hit || null
+  },
+
   async importMusicItem(urlLike) {
     /* 歌曲 mid 是 14 位字母数字串；按非字母数字切段取第一个 14 长度段 */
     var tokens = String(urlLike || '').split(/[^A-Za-z0-9]+/).filter(function (t) { return t.length === 14 })

@@ -148,15 +148,17 @@ test('auth, playlists and history enforce their data contracts', async () => {
       playedAt: Math.floor(Date.now() / 1000) + 600,
     }),
   })
-  assert.equal(futurePlay.response.status, 400)
+  // 阶段 1.5：快钟不再 400（拒绝会让客户端丢记录），钳制后照常落库
+  assert.equal(futurePlay.response.status, 201)
 
   const summary = await request('/api/stats/summary?serverId=server-a&tzOffsetMinutes=480', {
     headers: authHeaders,
   })
   assert.equal(summary.response.status, 200)
   assert.equal(summary.response.headers.get('cache-control'), 'no-store')
-  assert.equal(summary.body.totalPlays, 1)
-  assert.equal(summary.body.totalDuration, 120)
+  // 阶段 1.5：快钟那条（eventId event-00000003）现在也计入——钳制后正常落库
+  assert.equal(summary.body.totalPlays, 2)
+  assert.equal(summary.body.totalDuration, 240)
   assert.equal(summary.body.topArtists[0].name, 'Artist')
 })
 

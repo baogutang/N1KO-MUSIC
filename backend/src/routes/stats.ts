@@ -43,9 +43,12 @@ router.post('/scrobble', (req: Request, res: Response) => {
   if (!parsed.success) return
   const { eventId, songId, serverId, songData, duration, playedAt } = parsed.data
   const now = Math.floor(Date.now() / 1000)
-  if (playedAt !== undefined && playedAt > now + 300) {
-    return res.status(400).json({ error: 'playedAt must not be more than 5 minutes in the future' })
-  }
+  /*
+   * 快钟设备钳制（阶段 1.5，与 notes 的 A4 同款）：原样拒绝 400 的话，
+   * 客户端毒丸逻辑会把这条收听丢弃——快钟用户的历史静默缺失。
+   * 钳到 now+300 以内落库。
+   */
+  const clampedPlayedAt = playedAt === undefined ? undefined : Math.min(playedAt, now + 300)
 
   const userId = req.user!.userId
   /**
@@ -72,7 +75,7 @@ router.post('/scrobble', (req: Request, res: Response) => {
       songId,
       serverId,
       JSON.stringify(songData),
-      playedAt ?? now,
+      clampedPlayedAt ?? now,
       duration ?? null,
     )
 

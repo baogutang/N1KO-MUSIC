@@ -7,6 +7,7 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { detailPath } from '@/utils/detailPath'
 import { CaretLeft, CaretRight, Play } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useServerStore , useHistoryScope } from '@/store/serverStore'
@@ -199,15 +200,15 @@ export default function IssuePage() {
           <div className="grid grid-cols-1 gap-x-12 lg:grid-cols-3">
             <RankTable
               title={t('section.tracks')} tag="TRACKS" entries={issue.topSongs}
-              onOpen={e => e.id && navigate(`/songs/${e.id}`)}
+              onOpen={e => e.id && navigate(detailPath('songs', e.id, e.serverId))}
             />
             <RankTable
               title={t('nav.artists')} tag="ARTISTS" entries={issue.topArtists}
-              onOpen={e => e.id && navigate(`/artists/${e.id}`)}
+              onOpen={e => e.id && navigate(detailPath('artists', e.id, e.serverId))}
             />
             <RankTable
               title={t('section.albums')} tag="ALBUMS" entries={issue.topAlbums}
-              onOpen={e => e.id && navigate(`/albums/${e.id}`)}
+              onOpen={e => e.id && navigate(detailPath('albums', e.id, e.serverId))}
             />
           </div>
 
@@ -240,7 +241,7 @@ export default function IssuePage() {
                       </span>
                     )}
                     <button
-                      onClick={() => d.id && navigate(`/artists/${d.id}`)}
+                      onClick={() => d.id && navigate(detailPath('artists', d.id, d.serverId))}
                       className="border-b border-transparent transition-colors duration-200 hover:border-primary hover:text-primary"
                     >
                       {spaceCJK(d.title)}

@@ -12,6 +12,8 @@ import { X, DotsSixVertical, Play, CaretUp, CaretDown, Shuffle, BookmarkSimple }
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
+import type { Song } from '@/api/types'
+import { useLocalPlaylistStore } from '@/store/localPlaylistStore'
 import { useServerStore } from '@/store/serverStore'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { VipTag } from '@/components/sources/VipTag'
@@ -65,6 +67,8 @@ export function QueueDrawer() {
    * 开着随机时，用户想留住的正是他刚听到的那个顺序。
    */
   const createPlaylist = useCreatePlaylist()
+  const primaryServerId = useServerStore(s => s.activeServerId)
+  const createLocal = useLocalPlaylistStore(s => s.create)
   const [saveOpen, setSaveOpen] = useState(false)
   const [saveName, setSaveName] = useState('')
 
@@ -131,12 +135,30 @@ export function QueueDrawer() {
   const handleSaveAsPlaylist = useCallback(async () => {
     const name = saveName.trim()
     if (!name) return
+    /*
+     * 混源队列分家（阶段 1.10）：主库的歌进服务端歌单（id 有意义）；
+     * 插件源的歌 id 只在自己源里有效——发主库会建出指向别的曲子的歌单。
+     * 落本地混合歌单（跨源安全的去处，与「加入歌单」的跨源策略一致）。
+     */
+    const songsInOrder = order.map(qi => queue[qi]).filter((song): song is Song => !!song)
+    const primarySongs = songsInOrder.filter(song => song.serverId === primaryServerId)
+    const foreignSongs = songsInOrder.filter(song => song.serverId !== primaryServerId)
     try {
-      // 按 order 取，而不是 queue：随机时用户想留住的是他刚听到的顺序
-      const songIds = order.map(qi => queue[qi]?.id).filter((id): id is string => !!id)
-      await createPlaylist.mutateAsync({ name, songIds })
+      if (primarySongs.length) {
+        await createPlaylist.mutateAsync({ name, songIds: primarySongs.map(song => song.id) })
+      }
+      if (foreignSongs.length) {
+        // 外源歌也存：有服务端单就并进同名本地单，没有就建（本地单收一切来源）
+        const local = await createLocal(name, foreignSongs)
+        void local
+      }
       setSaveOpen(false)
-      toast({ title: t('queue.saved', { name }) })
+      toast({
+        title: t('queue.saved', { name }),
+        ...(primarySongs.length && foreignSongs.length
+          ? { description: t('queue.savedMixed', { server: primarySongs.length, local: foreignSongs.length }) }
+          : {}),
+      })
     } catch (err) {
       toast({
         title: t('queue.saveFailed'),
@@ -145,7 +167,7 @@ export function QueueDrawer() {
         variant: 'destructive',
       })
     }
-  }, [saveName, order, queue, createPlaylist, t])
+  }, [saveName, order, queue, createPlaylist, createLocal, primaryServerId, t])
 
   const renderRow = useCallback((qi: number, pos: number) => {
             const song = queue[qi]

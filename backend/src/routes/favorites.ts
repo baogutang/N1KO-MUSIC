@@ -147,9 +147,8 @@ router.put('/', (req: Request, res: Response) => {
   if (!parsed.success) return
   const { songId, serverId, songData, favoritedAt } = parsed.data
   const now = Math.floor(Date.now() / 1000)
-  if (favoritedAt !== undefined && favoritedAt > now + 300) {
-    return res.status(400).json({ error: 'favoritedAt must not be more than 5 minutes in the future' })
-  }
+  /* 快钟钳制（阶段 1.5）：拒绝会让客户端把收藏镜像当毒丸丢弃 */
+  const clampedFavoritedAt = favoritedAt === undefined ? undefined : Math.min(favoritedAt, now + 300)
 
   const userId = req.user!.userId
   // ON CONFLICT DO UPDATE 时 changes 同样是 1，无法据此区分新增与更新，
@@ -172,7 +171,7 @@ router.put('/', (req: Request, res: Response) => {
                             THEN favorites.favorited_at
                             ELSE excluded.favorited_at END,
         deleted_at = NULL
-    `).run(userId, songId, serverId, JSON.stringify(songData), favoritedAt ?? now, now)
+    `).run(userId, songId, serverId, JSON.stringify(songData), clampedFavoritedAt ?? now, now)
 
     // 复活也算「新增」：客户端此前收到过删除，这次应当看到 201
     return !existing || existing.deleted_at !== null

@@ -358,6 +358,8 @@ function RecentAlbumRow({
         tabIndex={0}
         onClick={onOpen}
         onKeyDown={e => {
+          /* 内层播放键的按键不归卡片管（阶段 1.12，A6 同款） */
+          if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
             onOpen()

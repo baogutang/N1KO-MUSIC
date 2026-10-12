@@ -243,3 +243,9 @@
 ## 2026-10-12 · 第三轮复核 E1 · QQ 音乐刷新后续期
 - A8① 的合并规则跳过响应里的空 / 0 字段，而 QQ 扫码链路的刷新响应只回 musickey/refresh_key（无 expired_in）→ 合并后沿用旧的、仍在 10 分钟窗口内的 expiresAt → 窗口内每笔数据请求都再打一次 LoginServer。现在刷新成功即按旧 expired_in 续期；两边都没有寿命就退回 0（不主动刷新，交给 1000/104400 被动刷新）。qqmusic 0.1.16。
 - 同轮顺手：`artistSet` 的 feat/ft/with 分隔符要求前面是空白或左括号（串首的「With Confidence」「Feat」是乐队名，不拆），补「Without You」断言。
+
+## 2026-10-12 · 第四轮 · 阶段 1 的取舍
+- 1.10 保存队列的混源分家：主库歌进服务端歌单、插件源歌进本地混合歌单（各自独立保存，两条提示合一）。任务书给的另一选项「明确提示」不做——AddToPlaylistDialog 的跨源策略就是本地混合歌单，保持一致。
+- 1.9 与 1.3 是同一根因（navigate 缺 ?src=），1.3 抽 detailPath 时已覆盖 Issue/AlbumDetail/ArtistDetail/NowPlayingOnServer/FullscreenPlayer 全部 8 处，1.9 无剩余工作。
+- 1.11 Jellyfin 的 getSong 把 400 也视作 not-found：Jellyfin 对不存在的 Items id 常回 400 而非 404（与 postUserData 双路由的观察一致）。
+- 1.7 抽 useDestructiveConfirm hook 而非复制 Settings 的两个 Dialog：三个报头（Masthead/TopBar/MobileHeader）+ 两种动作共用一份确认 UI；文案复用 settings.primaryDialog.* / settings.disconnect.confirm 既有词条，新增 masthead.disconnectDesc 一条。

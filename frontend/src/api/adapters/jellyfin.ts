@@ -295,6 +295,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
   }
 
   async getSong(songId: string): Promise<Song | null> {
+    /* 只有「真的没有」转 null；401/断网原样抛（阶段 1.11） */
     try {
       const resp = await this.client.get(`/Items/${songId}`, {
         params: {
@@ -303,8 +304,10 @@ export class JellyfinAdapter implements MusicServerAdapter {
         },
       })
       return this.mapSong(resp.data as Record<string, unknown>)
-    } catch {
-      return null
+    } catch (err) {
+      const status = (err as { response?: { status?: number } } | null)?.response?.status
+      if (status === 404 || status === 400) return null
+      throw err
     }
   }
 

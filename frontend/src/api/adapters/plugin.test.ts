@@ -3,11 +3,11 @@
  * 沙箱真链路由阶段 1.6 的浏览器走查覆盖。
  */
 
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { PluginAdapter, type PluginHostLike } from './plugin'
 import type { PluginManifest, Paged, MediaDetailResult, SheetItem, MusicItem, TopListGroup } from '@/plugins/types'
 import { PluginCallError } from '@/plugins/host/PluginHost'
-import { getRawItem, putRawItem } from '@/plugins/mapping'
+import { getRawItem, putRawItem, resetRawCacheForTests } from '@/plugins/mapping'
 
 function makeManifest(overrides: Partial<PluginManifest> = {}): PluginManifest {
   return {
@@ -490,5 +490,32 @@ describe('searchAll 并发 / 取消 / 分区失败（阶段 5 / F13）', () => {
       { section: 'albums', code: 'network' },
       { section: 'artists', code: 'unauthorized' },
     ])
+  })
+})
+
+describe('getSong 的错误分流（复审 1.11：401 不再显示「找不到」）', () => {
+  beforeEach(() => {
+    // 前面用例的 search 会把 s1 写进原始项缓存——不清掉 getSong 直接命中缓存
+    resetRawCacheForTests()
+  })
+
+  it('getMusicInfo 抛 unauthorized 时原样抛出，不吞成 null', async () => {
+    const adapter = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({
+        getMusicInfo: async () => { throw new PluginCallError('unauthorized', '凭据过期') },
+      }),
+    })
+    await expect(adapter.getSong('s1')).rejects.toMatchObject({ code: 'unauthorized' })
+  })
+
+  it('getMusicInfo 抛 not-found 时返回 null（真的没有）', async () => {
+    const adapter = new PluginAdapter({
+      serverId: 'srv', manifest: makeManifest(),
+      host: makeFakeHost({
+        getMusicInfo: async () => { throw new PluginCallError('not-found', '没有这首') },
+      }),
+    })
+    await expect(adapter.getSong('s1')).resolves.toBeNull()
   })
 })
