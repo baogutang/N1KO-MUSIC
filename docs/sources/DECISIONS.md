@@ -226,7 +226,7 @@
   - 8.3 的其余 6 处裸 message toast 逐个换 describeError（映射已就位）。
 
 ## 2026-10-10 · 复审 B9 · 边注同步的最低后端版本
-- 客户端 PUT /api/notes 现在会带 updatedAt（旧盖新保护，需要**含 679dd57 的后端版本（v1.11.6 之后；backend/package.json 仍为 1.5.0 未发版）**的 .strict() schema 接受该字段）。老后端遇未知字段回 400 时客户端自动去掉 updatedAt 用旧形状重试一次（见 syncClient.pushNote）——**代价是老后端上没有旧盖新保护**，最后写入者赢。想要冲突保护请把后端升到本仓库当前版本。
+- 客户端 PUT /api/notes 现在会带 updatedAt（旧盖新保护，需要**后端 v1.6.0+** 的 .strict() schema 接受该字段）。老后端遇未知字段回 400 时客户端自动去掉 updatedAt 用旧形状重试一次（见 syncClient.pushNote）——**代价是老后端上没有旧盖新保护**，最后写入者赢。想要冲突保护请把后端升到本仓库当前版本。
 
 ## 2026-10-10 · 复审 C 节 · 顺延项登记（不阻塞合并）
 - useAudioEngine denied 含 unauthorized：换源链上对 unauthorized 也白发至多 3 档降档取流（应只对 forbidden 降档）；清 preloadEl 后 preloadedIdRef 未复位，下一首可能被误判「已预热」。

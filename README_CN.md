@@ -347,6 +347,9 @@ docker run -d --name n1ko-music-backend \
 `TRUST_PROXY_HOPS`、`RATE_LIMIT_MAX`、`AUTH_RATE_LIMIT_MAX`、`ALLOW_REGISTRATION`、
 `LOGIN_ATTEMPT_MAX`、`LOGIN_ATTEMPT_WINDOW_MS`。
 
+> **跑在反向代理（Nginx / Caddy / traefik）后面？必须设置 `TRUST_PROXY_HOPS`**
+> （通常为 `1`）。不设的话，限流与登录锁会按代理地址记账——所有用户共用一个桶。
+
 任何迁移执行前都会在数据目录里做一份一致性备份；并且有一个测试专门断言
 「从老版本升级上来的库」与「今天全新建的库」逐列、逐索引、逐约束完全一致。
 

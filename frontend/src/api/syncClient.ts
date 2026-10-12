@@ -206,8 +206,8 @@ export async function pushNote(
   }
 ): Promise<PushNoteResult> {
   /*
-   * 老后端兼容（复审 B9）：边注 PUT 的 updatedAt 是 679dd57 才加的字段
-   * （v1.11.6 之后；backend 仍为 1.5.0 未发版）。更早的后端 zod .strict()
+   * 老后端兼容（复审 B9）：边注 PUT 的 updatedAt 需要后端 v1.6.0+。
+   * 更早的后端 zod .strict()
    * 会把带它的请求直接 400——边注从此静默推不上去。遇 400 去掉
    * updatedAt 用旧形状重试一次（旧后端没有旧盖新保护，那是它的语义，
    * 能同步总比静默丢强）。

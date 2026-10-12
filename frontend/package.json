@@ -56,7 +56,6 @@
     "@tanstack/react-query-persist-client": "^5.101.4",
     "@tanstack/react-virtual": "^3.14.10",
     "@tauri-apps/api": "~2.10.1",
-    "@tauri-apps/cli": "~2.10.1",
     "@tauri-apps/plugin-http": "^2.6.0",
     "axios": "^1.7.2",
     "capacitor-music-controls-plugin": "^8.0.0",
@@ -78,6 +77,7 @@
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.2",
+    "@tauri-apps/cli": "~2.10.1",
     "@types/crypto-js": "^4.2.2",
     "@types/he": "^1.2.3",
     "@types/md5": "^2.3.5",

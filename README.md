@@ -381,6 +381,10 @@ comma-separated `FRONTEND_URLS`, `TRUST_PROXY_HOPS`, `RATE_LIMIT_MAX`,
 `AUTH_RATE_LIMIT_MAX`, `ALLOW_REGISTRATION`, `LOGIN_ATTEMPT_MAX`,
 `LOGIN_ATTEMPT_WINDOW_MS`.
 
+> **Running behind a reverse proxy (Nginx / Caddy / traefik)?** You must set
+> `TRUST_PROXY_HOPS` (usually `1`). Without it, rate limiting and login lockout
+> key on the proxy's address — every user shares one bucket.
+
 A consistent backup is taken in the data directory before any migration runs,
 and a test asserts that a database upgraded from an old release converges —
 column for column, index for index, constraint for constraint — with one
