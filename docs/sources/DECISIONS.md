@@ -274,3 +274,7 @@
 - 4.9 迁移 v4 复现：**未复现，跳过**。database.ts:224 的 v4 迁移代码在迁移事务中先 drop 再重建，事务失败会整体回滚；「跳过重建后仍记已应用」需要在 v4 迁移中途注入失败，现有测试基建（内存库 + 一次性 init）做不到中途注入。记入未做清单待人工复核。
 - 4.12 pickPluginRow 抽取：**未做**。finishPluginAuth 的行匹配逻辑与 1.1 的 addServer 复用判定交织（Login.tsx:198-210），抽出需要先写用例再重构；本轮先补了后端两条隔离用例，前端抽取列入未做清单。
 - 4.3 歌词接口两份收敛（useLyricsQuery vs SongDetail 的 LyricsSearchDialog）：LyricsSearchDialog 是**自定义搜索**（用户触发、带 apiAuthToken），与 useLyricsQuery 的自动查询语义不同；模板填空部分（buildRemoteLyricsUrl/CoverUrl）已收进 customApi，搜索对话框保留独立实现——两份不是同一职责。记此判定。
+
+## 2026-10-12 · 第四轮 · 阶段 5 的取舍
+- **只拆了 playerStore 的队列数学**（generateShuffledIndexes / resolveShuffleCursor / appendHistory → store/queueMath.ts，13 条纯函数测试，82 条 store 测试全绿）。这是四个文件里唯一「纯函数 + 必须有测试」的明确部分，行为可机械验证。
+- useAudioEngine / Settings / SongList 的拆分**未做**：三个文件的核心逻辑都缠在 React 闭包（doLoad 1000 行 effect、Settings 的 9 个 Section 依赖 12 个 store、SongList 的虚拟列表与行菜单共享 renderRow 闭包），拆分只能靠「行为不变」的肉眼判断，且本轮已叠了 3.1/3.5/6.12/D5 等多处对 useAudioEngine 的修改，再大动没有回归网兜底。列入未做清单，建议单独一轮（先补 useAudioEngine 的行为测试再拆）。

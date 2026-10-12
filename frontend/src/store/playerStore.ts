@@ -8,6 +8,7 @@ import { persist } from 'zustand/middleware'
 import { createPersistStorage } from '@/store/persistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 import type { Song } from '@/api/types'
+import { generateShuffledIndexes, resolveShuffleCursor, appendHistory } from '@/store/queueMath'
 
 export type RepeatMode = 'none' | 'one' | 'all'
 
@@ -101,11 +102,6 @@ function canSwitch(): boolean {
   return true
 }
 
-function appendHistory(history: Song[], song: Song | null): Song[] {
-  if (!song) return history
-  const filtered = history.filter(s => s.id !== song.id)
-  return [song, ...filtered].slice(0, MAX_HISTORY)
-}
 
 interface PlayerState {
   currentSong: Song | null
@@ -970,17 +966,6 @@ export const usePlayerStore = create<PlayerState>()(
  * currentIndex >= 0 时把该曲锚定在首位——「从这首开始随机播放」的语义；
  * 传 -1 表示不锚定，用于列表循环绕回时整体重洗（此时没有「当前曲」要保留在首位）。
  */
-function generateShuffledIndexes(length: number, currentIndex: number): number[] {
-  if (length <= 0) return []
-  const anchored = currentIndex >= 0
-  const safeCurrent = anchored ? Math.min(currentIndex, length - 1) : -1
-  const indexes = Array.from({ length }, (_, i) => i).filter(i => i !== safeCurrent)
-  for (let i = indexes.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[indexes[i], indexes[j]] = [indexes[j], indexes[i]]
-  }
-  return anchored ? [safeCurrent, ...indexes] : indexes
-}
 
 /**
  * 随机游标自愈。
@@ -990,13 +975,3 @@ function generateShuffledIndexes(length: number, currentIndex: number): number[]
  * 反查会让 jumpToIndex 之后的 next() 跳到目标曲在随机序列里的原位置，
  * 从而永久跳过中间未播的一段，所以正常路径必须让游标保持权威。
  */
-function resolveShuffleCursor(
-  shuffledIndexes: number[],
-  queueIndex: number,
-  cursor: number
-): number {
-  if (cursor >= 0 && cursor < shuffledIndexes.length && shuffledIndexes[cursor] === queueIndex) {
-    return cursor
-  }
-  return shuffledIndexes.indexOf(queueIndex)
-}
