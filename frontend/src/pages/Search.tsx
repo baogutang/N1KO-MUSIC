@@ -10,7 +10,7 @@
  */
 
 import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import { AlbumCard } from '@/components/music/AlbumCard'
@@ -115,7 +115,12 @@ export default function SearchPage() {
   // 多源模式下聚合分组才是数据源；单源 hook 关掉（否则设了曲库范围时
   // 两套查询键不同，主库同一请求会打两遍）
   const single = useSearch(debouncedQuery, { enabled: !multi })
-  const [page, setPage] = useState(1)
+  /* 页数与累积结果按 location.key 记（阶段 3.12）：返回列表保住已翻的页 */
+  const locationKey = useLocation().key
+  const [page, setPage] = useState(() => {
+    const saved = history.state?.mspSearchPage as { key?: string; page?: number } | undefined
+    return saved?.key === locationKey && saved.page ? saved.page : 1
+  })
   /* 已到尾页的源（阶段 5 / F13）：加载更多不再对它们重发请求 */
   const [endedSources, setEndedSources] = useState<ReadonlySet<string>>(new Set())
   useEffect(() => {
@@ -146,6 +151,16 @@ export default function SearchPage() {
    */
   const [swaps, setSwaps] = useState<Record<string, Song>>({})
   useEffect(() => { setSwaps({}); setPage(1); setAcc({}); setAccMeta({ artists: [], albums: [] }) }, [debouncedQuery])
+
+  // 页数变化写进 history.state（阶段 3.12）：后退回来时恢复
+  useEffect(() => {
+    try {
+      window.history.replaceState({
+        ...window.history.state,
+        mspSearchPage: { key: locationKey, page },
+      }, '')
+    } catch { /* 无 history 时退化 */ }
+  }, [locationKey, page])
 
   // 各源结果累积（跨页保留、按 id 去重）：page>1 到达时并入已有结果
   const [acc, setAcc] = useState<Record<string, Song[]>>({})

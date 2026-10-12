@@ -7,7 +7,7 @@
  * 页头出现源切换 chip（?src=）——与专辑页同一套语义。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useDeferredValue, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass } from '@phosphor-icons/react'
 import { useArtists } from '@/hooks/useServerQueries'
@@ -29,9 +29,11 @@ export default function ArtistsPage() {
   const { data: artists, isLoading, isError, refetch } = useArtists(current?.serverId)
   const [filter, setFilter] = useState('')
 
+  /* 输入过滤用 deferred 值（阶段 3.8）：千级歌手下每键重建分组会卡输入 */
+  const deferredFilter = useDeferredValue(filter)
   const filtered = useMemo(
-    () => artists?.filter(a => a.name.toLowerCase().includes(filter.toLowerCase())) ?? [],
-    [artists, filter]
+    () => artists?.filter(a => a.name.toLowerCase().includes(deferredFilter.toLowerCase())) ?? [],
+    [artists, deferredFilter]
   )
 
   const buckets = useMemo(
@@ -143,7 +145,7 @@ export default function ArtistsPage() {
         <div className="flex gap-3">
           <div className="min-w-0 flex-1 border-t border-hair">
             {buckets.map(bucket => (
-              <section key={bucket.letter}>
+              <section key={bucket.letter} style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 600px' }}>
                 <h2
                   data-letter-head={bucket.letter}
                   ref={el => {

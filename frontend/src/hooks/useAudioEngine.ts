@@ -117,6 +117,9 @@ function songServerId(song: Pick<Song, 'serverId'>): string {
  * 解析（或命中缓存的）流地址。过期或 skipCache 时重取。
  * 适配器未注册（音源已断开）会抛错，由调用方决定如何降级。
  */
+/** 在途请求表（阶段 3.10）：同一 (serverId, songId, quality) 的并发解析只发一次 */
+const inflightStreams = new Map<string, Promise<ResolvedStream>>()
+
 async function resolveStream(
   song: Song,
   quality: AudioQuality,
@@ -127,24 +130,31 @@ async function resolveStream(
   if (!opts.skipCache) {
     const cached = streamCache.get(key)
     if (cached && !isStreamExpired(cached.expiresAt, Date.now())) return cached
+    const inflight = inflightStreams.get(key)
+    if (inflight) return inflight
   }
-  const resolved = await resolveStreamFromAdapter(
-    getAdapterFor(serverId),
-    song.id,
-    {
-      maxBitrate: QUALITY_MAX_BITRATE[quality],
-      quality,
-      contentType: song.contentType,
-      path: song.path,
-      suffix: song.suffix,
+  const request = (async () => {
+    const resolved = await resolveStreamFromAdapter(
+      getAdapterFor(serverId),
+      song.id,
+      {
+        maxBitrate: QUALITY_MAX_BITRATE[quality],
+        quality,
+        contentType: song.contentType,
+        path: song.path,
+        suffix: song.suffix,
+      }
+    )
+    if (streamCache.size >= STREAM_CACHE_MAX) {
+      const oldest = streamCache.keys().next().value
+      if (oldest !== undefined) streamCache.delete(oldest)
     }
-  )
-  if (streamCache.size >= STREAM_CACHE_MAX) {
-    const oldest = streamCache.keys().next().value
-    if (oldest !== undefined) streamCache.delete(oldest)
-  }
-  streamCache.set(key, resolved)
-  return resolved
+    streamCache.set(key, resolved)
+    return resolved
+  })()
+  inflightStreams.set(key, request)
+  request.then(() => inflightStreams.delete(key), () => inflightStreams.delete(key))
+  return request
 }
 
 /**
@@ -243,6 +253,12 @@ let isSwitchingSong = false
  */
 let loadDebounceTimer: ReturnType<typeof setTimeout> | null = null
 const LOAD_DEBOUNCE_MS = 120  // 120ms：足以吸收快速连击，又不影响正常点击的响应速度
+
+/**
+ * 上次真正执行加载的时刻（阶段 3.7）：距上次切歌已超过 debounce 窗口时
+ * 立即加载——非首播不该一律等 120ms，正常听歌每首之间都白等一拍。
+ */
+let lastLoadStartedAt = 0
 
 /**
  * 模块级播放统计状态 — 完全脱离 React 生命周期
@@ -597,6 +613,28 @@ export function useAudioEngine() {
       }
       return
     }
+    /* 已预解析（未拉流）的下一首地址：切歌时直接命中 streamCache */
+    const preResolved = new Set<string>()
+    const resolveAheadTimer = setInterval(() => {
+      const st = usePlayerStore.getState()
+      if (!st.isPlaying || st.duration <= 0) return
+      const next = peekNextSong(st)
+      if (!next || !hasAdapterFor(songServerId(next))) return
+      const nextServer = songServerId(next)
+      // 只对异步取流的插件源做（NAS 直链拼 URL 零成本）
+      const nextAdapter = getAdapterFor(nextServer)
+      if (!nextAdapter.resolveStreamUrl) return
+      const key = buildStreamCacheKey(nextServer, next.id, effectiveQuality)
+      if (preResolved.has(key)) return
+      const cached = streamCache.get(key)
+      if (cached && !isStreamExpired(cached.expiresAt, Date.now())) return
+      preResolved.add(key)
+      // 只解析不拉流（阶段 3.10b）：手动切歌省一次插件往返
+      resolveStream(next, effectiveQuality).catch(() => {
+        preResolved.delete(key) // 失败允许下轮再试
+      })
+    }, 8000)
+
     const timer = setInterval(() => {
       const st = usePlayerStore.getState()
       const remaining = (st.duration || 0) - (st.currentTime || 0)
@@ -624,7 +662,10 @@ export function useAudioEngine() {
           // 预热失败无所谓，正常加载路径会再拉一次
         })
     }, 2000)
-    return () => clearInterval(timer)
+    return () => {
+      clearInterval(timer)
+      clearInterval(resolveAheadTimer)
+    }
   }, [preloadNext, isPlaying, metered, effectiveQuality])
 
   // --- 核心：歌曲变化 / 连接就绪 / 音质变化 时加载音频 ---
@@ -734,6 +775,7 @@ export function useAudioEngine() {
       // 检查 store 当前状态是否还是同一首歌，避免 debounce 期间又切走了
       const latestSong = usePlayerStore.getState().currentSong
       if (!latestSong || latestSong.id !== capturedSongId) return
+      if (!reattachOnly) lastLoadStartedAt = performance.now()
       // 新一次加载接管了：之前留下的「按播放需重载」标记作废（复审 A9）
       needsReloadOnPlay = false
 
@@ -1242,10 +1284,13 @@ export function useAudioEngine() {
         }
         clearStallWatch()
         if (nowPlayingSent) reportPrecise('stop', Math.max(0, bestKnownTime() * 1000))
-        maybeSubmitPlay()
-        persistListeningSession('completed')
-        resetListeningSession()
+        // 先切歌、历史延后落盘（阶段 3.7）：2 万条 map+sort+广播不该
+        // 挡在 advanceOnEnded 前面——那是「下一首什么时候出声」的路径
+        const endedSession = { persist: persistListeningSession, reset: resetListeningSession, submit: maybeSubmitPlay }
         usePlayerStore.getState().advanceOnEnded()
+        endedSession.submit()
+        endedSession.persist('completed')
+        endedSession.reset()
       }
 
       stallWatchInterval = setInterval(() => {
@@ -1314,6 +1359,30 @@ export function useAudioEngine() {
         )
       }, 900)
 
+      /*
+       * 断网恢复（阶段 3.11）：离线期间的失败不是流坏了——不消耗恢复次数，
+       * 暂停并等 online（5 分钟内）从原位置续播。地铁/电梯场景不用手动点播放。
+       */
+      const handleOfflineError = (): boolean => {
+        if (typeof navigator !== 'undefined' && navigator.onLine) return false
+        const resumeAt = bestKnownTime()
+        usePlayerStore.getState().pause()
+        const onBack = () => {
+          window.removeEventListener('online', onBack)
+          if (performance.now() - offlineAtMs > 5 * 60 * 1000) return // 超窗不再抢方向盘
+          const stillSame = usePlayerStore.getState().currentSong?.id === capturedSongId
+          if (!stillSame) return
+          /* reloadForRecovery 自带 seek 恢复点（bestKnownTime），这里只负责续播 */
+          reloadForRecovery(audio.currentSrc || streamUrl, 400, 'Network back online')
+          setTimeout(() => {
+            if (usePlayerStore.getState().isPlaying) void audio.play().catch(() => {})
+          }, 600)
+        }
+        const offlineAtMs = performance.now()
+        window.addEventListener('online', onBack)
+        return true
+      }
+
       const onError = () => {
         const err = audio.error
         // WebKit/Safari 部分版本把标准 MediaError code 报成负数（如 -4）
@@ -1322,6 +1391,8 @@ export function useAudioEngine() {
 
         // code=1 是 load() 中止旧播放，不是真正错误
         if (code === 1) return
+        // 离线：挂起等网，不消耗恢复次数（阶段 3.11）
+        if (code === 2 && handleOfflineError()) return
 
         // 网络错误(2) / 解码失败(3，转码流坏块常见) / 音频源不可用(4)：
         // 按策略恢复（见文件头 206 vs code 4 说明）。恢复点由 reloadForRecovery
@@ -1612,6 +1683,9 @@ export function useAudioEngine() {
 
     if (isFirstPlay) {
       // 首次播放：同步执行，不经过 setTimeout（消除 macrotask 排队延迟）
+      doLoad()
+    } else if (performance.now() - lastLoadStartedAt >= LOAD_DEBOUNCE_MS) {
+      // 距上次加载已超过 debounce 窗口（阶段 3.7）：这不是连击，立即加载
       doLoad()
     } else {
       // 后续切歌：120ms debounce 吸收连续点击

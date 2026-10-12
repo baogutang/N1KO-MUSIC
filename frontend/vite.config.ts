@@ -427,7 +427,13 @@ export default defineConfig(({ mode }) => ({
                * hosts 白名单与版本更新链，预缓存把它们冻在 SW 里一版，
                * 更新与安全修复都会被旧缓存顶掉。
                */
-              globIgnores: ['**/plugins/**', 'plugins/**'],
+              globIgnores: [
+                '**/plugins/**', 'plugins/**',
+                // 非拉丁子集（阶段 3.4）：unicode-range 按需取，不该进首装预缓存（−558KB）
+                '**/*-subset-cyrillic*.woff2',
+                '**/*-subset-greek*.woff2',
+                '**/*-subset-vietnamese*.woff2',
+              ],
               runtimeCaching: [
                 {
                   // 封面按 URL 缓存：音乐服务器的封面接口稳定且体积可观。

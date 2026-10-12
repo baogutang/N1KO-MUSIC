@@ -249,3 +249,12 @@
 - 1.9 与 1.3 是同一根因（navigate 缺 ?src=），1.3 抽 detailPath 时已覆盖 Issue/AlbumDetail/ArtistDetail/NowPlayingOnServer/FullscreenPlayer 全部 8 处，1.9 无剩余工作。
 - 1.11 Jellyfin 的 getSong 把 400 也视作 not-found：Jellyfin 对不存在的 Items id 常回 400 而非 404（与 postUserData 双路由的观察一致）。
 - 1.7 抽 useDestructiveConfirm hook 而非复制 Settings 的两个 Dialog：三个报头（Masthead/TopBar/MobileHeader）+ 两种动作共用一份确认 UI；文案复用 settings.primaryDialog.* / settings.disconnect.confirm 既有词条，新增 masthead.disconnectDesc 一条。
+
+## 2026-10-12 · 第四轮 · 阶段 3 的取舍
+- 3.3（入口只带一份词表）：**未做，跳过**。i18n 模块被 97 个文件同步 import（t 是普通函数，模块初始化即取词表）；改成「静态带当前语言 + 另一份动态 import」需要把 CATALOGS 的同步读取改为异步可空形状，牵动全部 97 处的首帧取词（t() 在词表未到位时返回键名，等于首屏闪键名）。正确做法是把 i18n 改成 useSyncExternalStore 驱动的懒加载 store + 首帧 fallback，属于一个独立的小项目，收益 −55KB gz −16KB 不值这个回归面。记为后续项。
+- 3.6（phosphor 三套字重剔除）：**未做，跳过**。transform 剔除 `dist/defs/*` 字重需要重写 import 语句指向单字重入口；phosphor 的入口是聚合桶（`@phosphor-icons/react` index 重导出全部），Rollup tree-shake 后 vendor 里实际留下的字重需先量化。按任务书「做之前先量，收益不到 20% 就跳过」——量得 vendor-*.js 406KB 中 defs 相关未单独成块，无法在不破坏 85 处 import 的情况下廉价剔除。记为后续项（换 `@phosphor-icons/react/dist/ssr` 风格的按字重入口是正解）。
+- 3.2 沙箱 minify：开启 esbuild + charset:'ascii'，assertSandboxSyntax（只解析不执行）实测通过；432KB → 195KB（gz 77.8KB）。
+
+## 2026-10-12 · 第四轮 · 阶段 3 的取舍（补 3.4/3.5 复核）
+- 3.4（woff2 子集瘦身）：**已做**。实测 public/fonts 37 个 woff2 共 1.27MB，其中 cyrillic/cyrillic-ext/greek/vietnamese 子集 23 个共 558KB，且被 SW precache 的 `**/*.woff2` glob 全量收进首装。23 个子集文件名加 `-subset-{名}` 标签、fonts.css 同步、globIgnores 排除三组标签。浏览器按 unicode-range 仍会在需要时取到（运行时缓存），只有「无差别预装」消失。PWA 首装 −558KB。
+- 3.5（qrcode 移出首屏 vendor）：**实测后跳过**。manualChunks（vite.config.ts:478）并无把 qrcode 归并 vendor 的规则——qrcode 只被懒加载的 QrLogin/Login 引用，本来就跟随懒 chunk，不在首屏。任务书前提不成立，记「未复现，跳过」。

@@ -53,9 +53,14 @@ export default defineConfig({
     // public/ 里还有 PWA 图标等既有资产，绝不能清空
     emptyOutDir: false,
     sourcemap: false,
-    // 不能压缩：he 包的实体表用「代理对转义串」做属性名（合法），esbuild 压缩
-    // 会把它们去引号成星层字符裸标识符（如 𝕞）——ES 语法里非法，整份产物
-    // 直接 SyntaxError（沙箱 iframe 里才暴露，浏览器走查抓到）。
-    minify: false,
+    /*
+     * minify:'esbuild' + charset:'ascii'（阶段 3.2）：432KB → 预期减半。
+     * 历史上关 minify 是因为 he 包的实体表用「代理对转义串」做属性名，
+     * esbuild 去引号后成裸星层标识符（ES 语法非法）。charset:'ascii' 让
+     * 非拉丁字符以 \uXXXX 转义输出，恰好绕开该坑；构建结束仍有
+     * assertSandboxSyntax 兜底——它只解析不执行，拿的正是解析器判断。
+     */
+    minify: 'esbuild',
+    charset: 'ascii',
   },
 })

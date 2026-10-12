@@ -7,11 +7,11 @@ import { readMutedSets, useTasteStore } from '@/store/tasteStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import {
   artistSeedCountFor,
-  buildRecommendationProfile,
   deriveRecommendationSeeds,
   recommendSongs,
   type RecommendationProfile,
 } from '@/services/recommendationEngine'
+import { cachedRecommendationProfile } from '@/services/recommendationProfileCache'
 import type { ListeningEvent } from '@/services/listeningHistory'
 import type { MusicServerAdapter } from '@/api/types'
 import { RECOMMENDATION_CACHE_PREFIX, HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
@@ -182,7 +182,8 @@ export function usePersonalizedRecommendations(size = 30) {
     () => readHistorySnapshot(historyScope, historyRevision),
     [historyScope, historyRevision]
   )
-  const profile = useMemo(() => buildRecommendationProfile(events), [events])
+  /* 画像走模块级缓存（阶段 3.9）：同一份历史快照只算一次 */
+  const profile = useMemo(() => cachedRecommendationProfile(events), [events])
 
   /**
    * 屏蔽名单要参与缓存作用域（阶段 1.5）：否则屏蔽一位歌手后，

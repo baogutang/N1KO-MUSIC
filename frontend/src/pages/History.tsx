@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
 import { HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import { Play, Trash } from '@phosphor-icons/react'
 import { usePlayerStore } from '@/store/playerStore'
@@ -42,7 +43,11 @@ export default function History() {
   const [history, setHistory] = useState<ListeningEvent[]>(() =>
     readListeningEvents(historyScope)
   )
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const locationKey = useLocation().key
+  const [visibleCount, setVisibleCount] = useState<number>(() => {
+    const saved = window.history.state?.mspHistoryDepth as { key?: string; count?: number } | undefined
+    return saved?.key === locationKey && saved.count && saved.count > PAGE_SIZE ? saved.count : PAGE_SIZE
+  })
   const [confirmClear, setConfirmClear] = useState(false)
 
   // 进入页面时刷新，并监听音频引擎写入历史后的通知事件
@@ -63,6 +68,16 @@ export default function History() {
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
   }, [historyScope])
+
+  // 已见条数按 location.key 记（阶段 3.12）：返回保住翻过的深度
+  useEffect(() => {
+    try {
+      window.history.replaceState({
+        ...window.history.state,
+        mspHistoryDepth: { key: locationKey, count: visibleCount },
+      }, '')
+    } catch { /* ignore */ }
+  }, [locationKey, visibleCount])
 
   function handleClear() {
     /*

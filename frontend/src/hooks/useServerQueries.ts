@@ -486,6 +486,9 @@ export function useRecentAlbums(size = 20) {
   return useQuery({
     queryKey: queryKeys.recentAlbums(size),
     queryFn: ({ signal }) => getAdapter().getRecentAlbums(size, signal),
+    /* 适配器就绪才发（阶段 3.1）：冷启动主库先连、其它源还在并行装沙箱时，
+       这里不该同步抛错落进 error 让首页头条空掉。 */
+    enabled: hasAdapter(),
     staleTime: 5 * 60 * 1000,
   })
 }

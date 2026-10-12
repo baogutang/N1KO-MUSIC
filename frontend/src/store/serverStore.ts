@@ -391,13 +391,21 @@ export const useServerStore = create<ServerState>()(
             if (state.servers.some(s => s.type === 'plugin')) {
               await usePluginStore.getState().load()
             }
-            for (const server of state.servers) {
-              if (server.autoConnect === false) continue
-              await state.connectServer(server.id)
+            /*
+             * 先连主库并立刻 setPrimary，其余源并行（阶段 3.1）：
+             * 原先逐个 await——插件沙箱 ready 最坏 10s/个，主库要等它们
+             * 全完才 setPrimary，期间 getAdapter() 一直抛、首页/引擎干等。
+             */
+            const connectible = state.servers.filter(s2 => s2.autoConnect !== false)
+            const primaryId = state.activeServerId
+            const others = connectible.filter(s2 => s2.id !== primaryId)
+            let primaryConnected = false
+            if (primaryId && connectible.some(s2 => s2.id === primaryId)) {
+              primaryConnected = await state.connectServer(primaryId)
+              if (primaryConnected) state.setPrimaryServer(primaryId)
             }
-            if (state.activeServerId) {
-              state.setPrimaryServer(state.activeServerId)
-            }
+            await Promise.allSettled(others.map(s2 => state.connectServer(s2.id)))
+            void primaryConnected
           } finally {
             useServerStore.setState({ startupConnectSettled: true })
           }
