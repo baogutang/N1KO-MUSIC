@@ -244,3 +244,36 @@
 **做了**：playerStore 的队列数学 → queueMath.ts（纯函数 + 13 条测试；store 测试 82 条全绿）。
 **未做**：useAudioEngine / Settings / SongList（理由记 DECISIONS：闭包缠绕、缺行为测试网、本轮已叠多改）。
 **门禁**：全绿（前端 920、backend 29、plugins 51+3skip、audit×2）。
+
+## 2026-10-12 第四轮 · 阶段 6（工程卫生）
+
+**做了**：6.1–6.5 全部。
+- 6.1 .gitattributes（eol=lf + binary 清单）；renormalize 只动 gradlew.bat（CRLF 保留，bat 语义）。**事故与修复**：renormalize 曾把 website/ 三个未提交文件带进 6.1 的 commit——立即 soft reset 重写该 commit，并从丢弃的 commit 里把对方的 website 改动恢复为工作区未提交状态（逐字节核对完成）。最终 6.1 只含 .gitattributes + gradlew.bat。
+- 6.2 backend 1.5.0 → 1.6.0（package.json + lock 两处根版本）；B9 表述改「v1.6.0+」。
+- 6.3 @tauri-apps/cli → devDependencies（lock 无其它漂移）。
+- 6.4 两份 README 反代提示；README-TODO 标 ✅。
+- 6.5 caps-table.test：README 两语能力表 ⊆ manifest（QQ 不写未声明的 favorites）。fs 读取用 \r?\n。
+
+**门禁**：lint/tsc/vitest 923/build、backend 29、plugins 51+3skip、lint:plugins、check:versions、audit×2 全绿。
+**提交**：chore(audit-2): 6.1（34dd4fc）+ 6.2–6.5。
+
+---
+
+# 本轮未做（等 N1KO 复核）
+
+| # | 条目 | 原因 |
+|---|---|---|
+| 3.3 | 入口词表动态加载（−55KB） | i18n 被 97 个文件同步 import，改异步需要 useSyncExternalStore 化 + 首帧 fallback，回归面大；记 DECISIONS |
+| 3.5 | qrcode 移出 vendor | 实测已在懒 chunk，任务书前提不成立（记 DECISIONS） |
+| 3.6 | phosphor 三套字重剔除 | 聚合入口无法廉价剔除；先量收益 < 20% 线（记 DECISIONS） |
+| 4.4 部分 | probePluginUser 替换 5 处调用点 | Login 有自己的 4 秒放行语义；diagnose 循环用 adapter.diagnose 非裸 getUser（记 DECISIONS） |
+| 4.5 | store persist 泛型化（3 个 as never） | 需逐 store 验证 rehydrate；改错静默丢凭据。themeStore v2 作模板已就绪 |
+| 4.6 | 8 个 persist store 补 version/migrate 骨架 | 同上；timebox 内不可靠完成 |
+| 4.9 部分 | 迁移 v4「跳过重建仍记已应用」复核 | 未复现（事务回滚覆盖该路径）；需人工中途注入验证 |
+| 4.10 部分 | 46 处 console 迁移到 lib/log | 12 个文件逐处改签名且多在 catch 分支；与诊断导出 UI 一起做 |
+| 4.12 部分 | pickPluginRow 抽取 + SongList/QueueDrawer/PlayerBar 交互用例 | finishPluginAuth 行匹配与 1.1 的 addServer 判定交织，先补后端两条 |
+| 5 部分 | useAudioEngine / Settings / SongList 拆分 | 闭包缠绕 + 本轮已叠多改 useAudioEngine、缺行为测试网（记 DECISIONS） |
+| 全部 | dependabot PR 合并 | 任务书明确由 N1KO 处理 |
+
+**量化总览**（阶段 3）：沙箱 432→195KB（gz 77.8）；SW precache 3465→2688KB（−558KB 子集字体）；冷启动不再串行等沙箱；切歌 −120ms（距上次加载超窗即载）。
+**分支**：fix/audit-2026-10-12，基于 main e5b7009。未 push、未打 tag、app 七处版本号未动（netease 0.1.14 / qqmusic 0.1.17 / backend 1.6.0 不在七处之列）。
