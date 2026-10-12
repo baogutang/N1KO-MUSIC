@@ -1,4 +1,4 @@
-import { Response } from 'express'
+import type { Request, Response } from 'express'
 import { z, ZodType } from 'zod'
 
 export const boundedId = z.string().trim().min(1).max(512)
@@ -56,4 +56,21 @@ export function safeJsonObject(value: string): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+/** 查询参数 serverId 可选（stats/favorites 共用，阶段 4.9）：invalid 时已写响应 */
+export function optionalServerId(
+  req: Request,
+  res: Response
+): { valid: boolean; value: string | null } {
+  if (req.query.serverId === undefined) return { valid: true, value: null }
+  const parsed = parseRequest(serverIdSchema, req.query.serverId, res)
+  return parsed.success ? { valid: true, value: parsed.data } : { valid: false, value: null }
+}
+
+/** 用户域 SQL 作用域（user / user+server 两种 where，阶段 4.9） */
+export function scopeSql(serverId: string | null): { where: string; params: string[] } {
+  return serverId
+    ? { where: 'user_id = ? AND server_id = ?', params: [serverId] }
+    : { where: 'user_id = ?', params: [] }
 }

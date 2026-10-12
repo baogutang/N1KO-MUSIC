@@ -9,7 +9,7 @@
  * getStreamUrl 同步语义下直接抛错，播放引擎（0.3 起）会优先走 resolveStreamUrl。
  */
 
-import { parseLrcText } from './subsonic'
+import { parseLrc } from '@/utils/lrc'
 import { pluginErrorCode } from '@/services/errors'
 import type {
   Album,
@@ -233,7 +233,7 @@ export class PluginAdapter implements MusicServerAdapter {
     const raw = this.rawSong({ id: songId, title, artist })
     const lyric = await this.host.call<{ rawLrc?: string; translation?: string }>('getLyric', raw)
     if (!lyric?.rawLrc) return null
-    const lines = parseLrcText(lyric.rawLrc)
+    const lines = parseLrc(lyric.rawLrc)
     return { songId, lines, synced: lines.some(l => l.time > 0) }
   }
 

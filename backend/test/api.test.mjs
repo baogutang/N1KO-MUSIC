@@ -206,3 +206,31 @@ test('repeated scrobbles of one session correct the duration instead of being dr
   assert.equal(afterStale.body.totalPlays, 1)
   assert.equal(afterStale.body.totalDuration, 240)
 })
+
+test('DELETE /api/stats/history 只清自己的历史（阶段 4.12）', async () => {
+  const reg = (n) => request('/api/auth/register', {
+    method: 'POST', body: JSON.stringify({ username: `delhist-${n}`, password: 'correct-horse' }),
+  })
+  const a = await reg('a'); const b = await reg('b')
+  const authA = { authorization: `Bearer ${a.body.token}` }
+  const authB = { authorization: `Bearer ${b.body.token}` }
+
+  // 各自写一条
+  const mkSong = (id) => JSON.stringify({
+    eventId: `event-0000-${id}`, songId: id, serverId: 'server-a',
+    songData: { id, title: `S ${id}`, artist: 'X', duration: 100 },
+    duration: 100, playedAt: Math.floor(Date.now() / 1000),
+  })
+  await request('/api/stats/scrobble', { method: 'POST', headers: authA, body: mkSong('a1') })
+  await request('/api/stats/scrobble', { method: 'POST', headers: authB, body: mkSong('b1') })
+
+  // A 清空
+  const del = await request('/api/stats/history', { method: 'DELETE', headers: authA })
+  assert.ok([200, 204].includes(del.response.status), `清空应成功，得到 ${del.response.status}`)
+
+  // B 的还在
+  const summaryB = await request('/api/stats/summary', { headers: authB })
+  assert.equal(summaryB.body.totalPlays, 1, 'B 的历史不受 A 清空影响')
+  const summaryA = await request('/api/stats/summary', { headers: authA })
+  assert.equal(summaryA.body.totalPlays, 0, 'A 的历史已清空')
+})

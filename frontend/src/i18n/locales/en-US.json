@@ -1038,5 +1038,6 @@
   "sources.goRelogin": "Go to sign-in",
   "masthead.disconnectDesc": "Disconnecting returns you to the sign-in page; connected sources and their local caches are cleared.",
   "lyrics.viewHere": "View lyrics for this track",
-  "sources.topListsNone": "No connected source provides charts yet."
+  "sources.topListsNone": "No connected source provides charts yet.",
+  "sources.settings.uninstallFailed": "Uninstall failed"
 }

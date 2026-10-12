@@ -73,8 +73,3 @@ export function computeReplayGainScalar(song: Song | null, ctx: GainContext): nu
   return Math.max(0, Math.min(1, scalar))
 }
 
-/** 当前曲目是否有可用的 ReplayGain 数据（用于设置页显示覆盖情况） */
-export function hasReplayGainData(song: Song | null): boolean {
-  const rg = song?.ext?.replayGain
-  return !!(rg && (rg.trackGain !== undefined || rg.albumGain !== undefined))
-}

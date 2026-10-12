@@ -40,6 +40,7 @@ import { spaceCJK } from '@/utils/cjkTypography'
 import { useToggleStar } from '@/hooks/useServerQueries'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
+import { rowCapsOf } from '@/services/capabilities'
 import { ShareDialog } from '@/components/music/ShareDialog'
 import { StarRating } from '@/components/music/StarRating'
 import { startRadio } from '@/services/radio'
@@ -206,6 +207,7 @@ export function SongList({
     favorites: primaryFavorites,
     radio: primaryRadio,
   } = useServerCapabilities()
+  const primaryCaps = useServerCapabilities()
   const handleShare = useCallback((song: Song) => setShareSong(song), [])
   const handleRadio = useCallback(async (song: Song) => {
     const ok = await startRadio({ kind: 'song', id: song.id, name: song.title, serverId: song.serverId })
@@ -297,8 +299,9 @@ export function SongList({
            * star——请求发错地方，而用户看到的只是一片红心里少了几颗，说不出
            * 是哪几首没成。这里先按来源筛一遍，跳过了几首就明说几首。
            */
+          // 行级能力回落统一走 rowCapsOf（阶段 4.1）：歌曲自己的源 > 主库 > 全空
           const supported = list.filter(
-            song => sourceCaps[song.serverId]?.favorites ?? primaryFavorites
+            song => rowCapsOf(sourceCaps, song.serverId, primaryCaps).favorites
           )
           const skipped = list.length - supported.length
           if (!supported.length) {

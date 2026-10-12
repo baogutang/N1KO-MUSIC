@@ -114,7 +114,9 @@ export function SourcesSettings() {
         }
       }
       if (!cancelled) setAuthExpiredIds(bad)
-    })()
+    })().catch(() => {
+      // 探测本身失败（沙箱未 ready 等）不算任何账号过期——静默，下一轮再探
+    })
     return () => { cancelled = true }
   }, [servers])
 
@@ -422,9 +424,13 @@ export function SourcesSettings() {
                       size="sm"
                       onClick={() => {
                         void (async () => {
-                          await uninstall(plugin.id)
-                          setPendingRemove(null)
-                          toast({ title: t('sources.settings.uninstalled') })
+                          try {
+                            await uninstall(plugin.id)
+                            setPendingRemove(null)
+                            toast({ title: t('sources.settings.uninstalled') })
+                          } catch (err) {
+                            toast({ title: t('sources.settings.uninstallFailed'), description: describeError(err), variant: 'destructive' })
+                          }
                         })()
                       }}
                     >

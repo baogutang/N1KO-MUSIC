@@ -545,7 +545,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       }>('/getLyrics', { id: songId, title, artist })
       const raw = (data.lyrics as Record<string, unknown> | undefined)?.value as string | undefined
       if (!raw) return null
-      const lines = parseLrcText(raw)
+      const lines = parseLrc(raw)
       return {
         songId,
         title: (data.lyrics as Record<string, unknown> | undefined)?.title as string | undefined,
@@ -1035,11 +1035,5 @@ export class SubsonicAdapter implements MusicServerAdapter {
   }
 }
 
-/**
- * LRC 解析已抽到 utils/lrc（阶段 4.2，F11）：这里是适配器侧的兼容出口，
- * subsonic / jellyfin / emby / plugin 四个适配器共用的导入路径。
- */
-export function parseLrcText(text: string): LyricLine[] {
-  return parseLrc(text)
-}
+
 

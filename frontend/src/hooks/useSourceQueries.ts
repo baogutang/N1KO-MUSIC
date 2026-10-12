@@ -11,6 +11,7 @@
 
 import { useMemo } from 'react'
 import { pluginErrorCode } from '@/services/errors'
+import { sourceCapabilitiesOf } from '@/services/capabilities'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { getAdapterFor, hasAdapterFor } from '@/api'
 import type { Album, Artist, Playlist, SearchResult, ServerConfig, Song, SourceCapabilities } from '@/api/types'
@@ -85,7 +86,7 @@ export function usePlaybackPriorityOrder(): SourceRef[] {
 // 能力快照（同步推断；探测型能力不进聚合范围）
 // ===================================================
 
-/** 适配器 → 聚合关心的能力子集；与 useServerCapabilities 同一套推断规则 */
+/* 聚合关心的源级能力子集：唯一真源在 services/capabilities（阶段 4.1） */
 function capabilitiesOf(serverId: string): SourceCapabilities {
   const a = hasAdapterFor(serverId) ? getAdapterFor(serverId) : null
   if (!a) {
@@ -96,26 +97,9 @@ function capabilitiesOf(serverId: string): SourceCapabilities {
       importSheet: false, libraryBrowse: false, radio: false,
     }
   }
-  const declared = a.getSourceCapabilities?.()
-  return {
-    search: declared?.search ?? typeof a.searchAll === 'function',
-    album: declared?.album ?? typeof a.getAlbumDetail === 'function',
-    artist: declared?.artist ?? typeof a.getArtistDetail === 'function',
-    lyrics: declared?.lyrics ?? typeof a.getLyrics === 'function',
-    userPlaylists: declared?.userPlaylists ?? typeof a.getPlaylists === 'function',
-    favorites: declared?.favorites ?? typeof a.getStarred === 'function',
-    playlistWrite: declared?.playlistWrite ?? typeof a.createPlaylist === 'function',
-    topLists: declared?.topLists ?? typeof a.getTopLists === 'function',
-    recommendSheets: declared?.recommendSheets ?? typeof a.getRecommendSheets === 'function',
-    recommendSongs: declared?.recommendSongs ?? typeof a.getRecommendSongs === 'function',
-    importSheet: declared?.importSheet ?? false,
-    libraryBrowse: declared?.libraryBrowse ?? true,
-    radio: declared?.radio
-      ?? (typeof a.getSimilarSongs === 'function' || typeof a.getArtistSongs === 'function'),
-  }
+  return sourceCapabilitiesOf(a)
 }
 
-/** 各已连接音源的能力快照；适配器不在册的源全部 false */
 export function useSourceCapabilities(): Record<string, SourceCapabilities> {
   const sources = useConnectedSources()
   return useMemo(() => {

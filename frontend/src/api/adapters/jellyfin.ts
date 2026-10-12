@@ -25,7 +25,7 @@ import type {
   ServerCapabilities,
   SourceCapabilities,
 } from '../types'
-import { parseLrcText } from './subsonic'
+import { parseLrc } from '@/utils/lrc'
 
 export class JellyfinAdapter implements MusicServerAdapter {
   readonly type: ServerType = 'jellyfin'
@@ -389,7 +389,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
         const resp = await this.client.get(`/Items/${songId}/Lyrics`)
         const rawLrc = typeof resp.data === 'string' ? resp.data : ''
         if (rawLrc) {
-          const lines = parseLrcText(rawLrc)
+          const lines = parseLrc(rawLrc)
           return { songId, lines, synced: lines.some(l => l.time > 0) }
         }
       } catch {

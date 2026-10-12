@@ -60,15 +60,8 @@ app.use(cors({
   },
   credentials: false,
 }))
-app.use(rateLimit({
-  windowMs: RATE_LIMIT_WINDOW_MS,
-  limit: RATE_LIMIT_MAX,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-}))
-app.use(express.json({ limit: JSON_BODY_LIMIT, strict: true }))
-if (process.env.NODE_ENV !== 'test') app.use(morgan('combined'))
-
+/* /health 在全局限流之前注册（阶段 4.9）：监控探活（uptime robot / k8s
+ * probe）不该被限流挡——被限流时它们会误判服务挂了。 */
 app.get('/health', (_req, res) => {
   try {
     db.prepare('SELECT 1').get()
@@ -77,6 +70,16 @@ app.get('/health', (_req, res) => {
     return res.status(503).json({ status: 'unavailable', version, timestamp: new Date().toISOString() })
   }
 })
+
+
+app.use(rateLimit({
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  limit: RATE_LIMIT_MAX,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+}))
+app.use(express.json({ limit: JSON_BODY_LIMIT, strict: true }))
+if (process.env.NODE_ENV !== 'test') app.use(morgan('combined'))
 
 app.use('/api', (_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store')

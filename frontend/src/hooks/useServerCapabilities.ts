@@ -11,6 +11,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getAdapter, hasAdapter } from '@/api'
+import { capabilitiesOfAdapter } from '@/services/capabilities'
 import type { SourceCapabilities } from '@/api/types'
 import { useServerStore } from '@/store/serverStore'
 
@@ -61,35 +62,8 @@ export function useServerCapabilities(): ClientCapabilities & { folders: Array<{
 
   const methods = useMemo<ClientCapabilities>(() => {
     if (!hasAdapter()) return NONE
-    const a = getAdapter()
-    // 音源级能力优先取适配器声明；未声明 getSourceCapabilities 的适配器按方法存在性推断
-    const declared = a.getSourceCapabilities?.()
-    return {
-      search: declared?.search ?? typeof a.searchAll === 'function',
-      album: declared?.album ?? typeof a.getAlbumDetail === 'function',
-      artist: declared?.artist ?? typeof a.getArtistDetail === 'function',
-      lyrics: declared?.lyrics ?? typeof a.getLyrics === 'function',
-      userPlaylists: declared?.userPlaylists ?? typeof a.getPlaylists === 'function',
-      favorites: declared?.favorites ?? typeof a.getStarred === 'function',
-      playlistWrite: declared?.playlistWrite ?? typeof a.createPlaylist === 'function',
-      topLists: declared?.topLists ?? typeof a.getTopLists === 'function',
-      recommendSheets: declared?.recommendSheets ?? typeof a.getRecommendSheets === 'function',
-      recommendSongs: declared?.recommendSongs ?? typeof a.getRecommendSongs === 'function',
-      importSheet: declared?.importSheet ?? false,
-      libraryBrowse: declared?.libraryBrowse ?? true,
-      radio: declared?.radio
-        ?? (typeof a.getSimilarSongs === 'function' || typeof a.getArtistSongs === 'function'),
-      shares: typeof a.createShare === 'function',
-      rating: typeof a.setRating === 'function',
-      bookmarks: typeof a.createBookmark === 'function',
-      nowPlaying: typeof a.getNowPlaying === 'function',
-      musicFolders: typeof a.getMusicFolders === 'function',
-      scan: typeof a.startScan === 'function',
-      playQueue: typeof a.savePlayQueue === 'function',
-    }
-    // activeServerId 是必要依赖：getAdapter() 在切换服务器后会返回另一个实例，
-    // 而 lint 看不到这层间接关系，只能显式说明。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // 推导唯一真源在 services/capabilities（阶段 4.1），两处共用
+    return capabilitiesOfAdapter(getAdapter())
   }, [activeServerId])
 
   // 探测一次分享是否真的开着。probeShares 只在服务器明确回答时 resolve；

@@ -288,34 +288,5 @@ export const useSettingsStore = create<SettingsState>()(
   )
 )
 
-/**
- * 根据歌曲信息和模板生成远程封面 URL
- * 支持占位符: {artist} {album} {title} {id}
- */
-export function buildRemoteCoverUrl(
-  template: string,
-  song: { artist?: string; album?: string; title?: string; id?: string }
-): string {
-  if (!template) return ''
-  return template
-    .replace('{artist}', encodeURIComponent(song.artist ?? ''))
-    .replace('{album}', encodeURIComponent(song.album ?? ''))
-    .replace('{title}', encodeURIComponent(song.title ?? ''))
-    .replace('{id}', encodeURIComponent(song.id ?? ''))
-}
-
-/**
- * 根据模板生成远程歌词 URL
- * 支持占位符: {artist} {title} {album} {id}
- */
-export function buildRemoteLyricsUrl(
-  template: string,
-  song: { artist?: string; title?: string; album?: string; id?: string }
-): string {
-  if (!template) return ''
-  return template
-    .replace('{artist}', encodeURIComponent(song.artist ?? ''))
-    .replace('{title}', encodeURIComponent(song.title ?? ''))
-    .replace('{album}', encodeURIComponent(song.album ?? ''))
-    .replace('{id}', encodeURIComponent(song.id ?? ''))
-}
+/* 模板填空的唯一实现在 services/customApi（阶段 4.3：全局替换修正多次占位符漏换） */
+export { buildRemoteCoverUrl, buildRemoteLyricsUrl } from '@/services/customApi'

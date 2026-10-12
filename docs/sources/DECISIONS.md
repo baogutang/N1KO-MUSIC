@@ -258,3 +258,19 @@
 ## 2026-10-12 · 第四轮 · 阶段 3 的取舍（补 3.4/3.5 复核）
 - 3.4（woff2 子集瘦身）：**已做**。实测 public/fonts 37 个 woff2 共 1.27MB，其中 cyrillic/cyrillic-ext/greek/vietnamese 子集 23 个共 558KB，且被 SW precache 的 `**/*.woff2` glob 全量收进首装。23 个子集文件名加 `-subset-{名}` 标签、fonts.css 同步、globIgnores 排除三组标签。浏览器按 unicode-range 仍会在需要时取到（运行时缓存），只有「无差别预装」消失。PWA 首装 −558KB。
 - 3.5（qrcode 移出首屏 vendor）：**实测后跳过**。manualChunks（vite.config.ts:478）并无把 qrcode 归并 vendor 的规则——qrcode 只被懒加载的 QrLogin/Login 引用，本来就跟随懒 chunk，不在首屏。任务书前提不成立，记「未复现，跳过」。
+
+## 2026-10-12 · 第四轮 · 阶段 4 的取舍
+- 4.1 电台入口接 canStartRadio：canStartRadio 生产零引用是因为入口按 caps.radio 放行（getSimilarSongs‖getArtistSongs），比 canStartRadio 的分种子判定更宽。歌手行的「电台」在种子是歌手时用 getArtistSongs，与 canStartRadio('artist') 一致；歌曲行电台只有 getSimilarSongs（radio.ts 只认它），caps.radio 对 song 行偏宽。**选择**：保留 caps.radio 作为入口闸（现状），radio.ts 的 refill 内部已有硬校验（无 getSimilarSongs 的歌手种子走 getArtistSongs 收集），不收紧——收紧会把「歌手电台（用 getArtistSongs）」也藏掉。记此偏离。
+- 4.1 SongList 心形回落：改成 rowCapsOf 的统一规则（歌曲自己的源 > 主库 > 全空），行为与旧 `?? primaryFavorites` 一致但单一实现。
+- 4.5 / 4.6 / 4.7 / 4.9 / 4.12 部分子项改动面大（store 泛型重写涉及 11 个 persist、46 处 console 迁移），本轮做 4.1–4.4、4.8、4.10–4.12 的核心；其余列入未做清单。
+
+## 2026-10-12 · 第四轮 · 阶段 4 补充取舍
+- 4.10 lib/log.ts 已落地（级别 + 200 条环 + 测试）；**46 处 console 全量迁移未做**——涉及 12 个文件逐处改签名，且多数在 catch 分支里（改错一句就吞异常）。列入未做清单，等诊断导出 UI（SourcesSettings 的「请求日志」入口旁）一起做，迁移时逐文件验证。
+- 4.4 probePluginUser 已合成（含清定时器 + 三态测试）；**5 处调用点替换未做**——Login 的 pluginCredentialsExpired 有自己的 4 秒放行语义（沙箱刚装载时 getUser 必超时），直接换会改变登录页行为；ConnectionBanner/SourcesSettings 的逐源 diagnose 循环用的是 adapter.diagnose 而非裸 getUser。列入未做清单。
+- 4.7 死代码删除：isPassthrough / hasReplayGainData / readNotes / resetDeviceKeyCache / parseLrcText 包装 / 过期 TODO 已删；accentColor 从 state 与接口删除 + persist v2 migrate 剥除。buildRemoteLyricsUrl 在 useLyricsQuery 内有真实调用（阶段 4.3 收进 customApi 后仍是 settingsStore 的再导出），不是死代码——保留。
+
+## 2026-10-12 · 第四轮 · 阶段 4 剩余取舍（终版）
+- 4.5/4.6（store persist 泛型化 + 8 个无版本 store 补 version/migrate）：**未做**。11 个 store 逐个改 `persist<S, [], [], P>` 的类型对齐需要逐 store 验证 rehydrate，本轮时间不足且改错会静默丢凭据。列入未做清单。themeStore 因 4.7 删 accentColor 已带 version 2 + migrate（第一个带版本的 store，作模板）。
+- 4.9 迁移 v4 复现：**未复现，跳过**。database.ts:224 的 v4 迁移代码在迁移事务中先 drop 再重建，事务失败会整体回滚；「跳过重建后仍记已应用」需要在 v4 迁移中途注入失败，现有测试基建（内存库 + 一次性 init）做不到中途注入。记入未做清单待人工复核。
+- 4.12 pickPluginRow 抽取：**未做**。finishPluginAuth 的行匹配逻辑与 1.1 的 addServer 复用判定交织（Login.tsx:198-210），抽出需要先写用例再重构；本轮先补了后端两条隔离用例，前端抽取列入未做清单。
+- 4.3 歌词接口两份收敛（useLyricsQuery vs SongDetail 的 LyricsSearchDialog）：LyricsSearchDialog 是**自定义搜索**（用户触发、带 apiAuthToken），与 useLyricsQuery 的自动查询语义不同；模板填空部分（buildRemoteLyricsUrl/CoverUrl）已收进 customApi，搜索对话框保留独立实现——两份不是同一职责。记此判定。

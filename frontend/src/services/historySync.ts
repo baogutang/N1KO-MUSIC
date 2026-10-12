@@ -264,11 +264,40 @@ export async function mirrorFavorite(
     }
   } catch (error) {
     // 取消收藏时服务端可能本来就没有这条记录（404），不值得打扰用户
-    if (isUnauthorized(error)) useSyncStore.getState().invalidateToken()
-    else if (!axios.isAxiosError(error) || error.response?.status !== 404) {
-      console.warn('[Sync] 镜像收藏状态失败：', error)
+    if (isUnauthorized(error)) {
+      useSyncStore.getState().invalidateToken()
+      return
     }
+    if (axios.isAxiosError(error) && error.response?.status === 404) return
+    /* 阶段 4.11：网络/5xx 失败不再只 warn——排进重试队列（复用历史
+     * 同步的定时冲刷节奏），下一轮 flush 时随 outbox 一起再试 */
+    pendingFavoriteMirrors.push({ songId, starred, song })
+    scheduleFavoriteMirrorRetry()
   }
+}
+
+/** 待重试的收藏镜像（阶段 4.11）：只留每条 songId 的最新状态 */
+const pendingFavoriteMirrors: Array<{ songId: string; starred: boolean; song?: Song }> = []
+let favoriteMirrorTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleFavoriteMirrorRetry(): void {
+  if (favoriteMirrorTimer !== null) return
+  favoriteMirrorTimer = setTimeout(() => {
+    favoriteMirrorTimer = null
+    const pending = [...pendingFavoriteMirrors]
+    pendingFavoriteMirrors.length = 0
+    const credentials = activeSyncCredentials()
+    if (!credentials) {
+      // 没凭据了：状态放回去等下一次配置同步后再试
+      pendingFavoriteMirrors.push(...pending)
+      return
+    }
+    for (const item of pending) {
+      void mirrorFavorite(item.songId, item.starred, item.song).catch(() => {
+        pendingFavoriteMirrors.push(item)
+      })
+    }
+  }, 60_000)
 }
 
 /**

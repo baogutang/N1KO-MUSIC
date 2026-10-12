@@ -10,6 +10,8 @@ import {
   safeJsonObject,
   serverIdSchema,
   songDataSchema,
+  optionalServerId,
+  scopeSql,
 } from '../validation'
 
 const router = Router()
@@ -23,20 +25,6 @@ const scrobbleSchema = z.object({
   duration: z.number().int().min(0).max(86_400).nullable().optional(),
   playedAt: z.number().int().min(946_684_800).optional(),
 }).strict()
-
-function optionalServerId(req: Request, res: Response): { valid: boolean; value: string | null } {
-  if (req.query.serverId === undefined) return { valid: true, value: null }
-  const parsed = parseRequest(serverIdSchema, req.query.serverId, res)
-  return parsed.success
-    ? { valid: true, value: parsed.data }
-    : { valid: false, value: null }
-}
-
-function scopeSql(serverId: string | null): { where: string; params: string[] } {
-  return serverId
-    ? { where: 'user_id = ? AND server_id = ?', params: [serverId] }
-    : { where: 'user_id = ?', params: [] }
-}
 
 router.post('/scrobble', (req: Request, res: Response) => {
   const parsed = parseRequest(scrobbleSchema, req.body, res)

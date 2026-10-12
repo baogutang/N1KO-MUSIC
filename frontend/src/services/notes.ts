@@ -75,12 +75,6 @@ export function readNote(target: NoteTarget, targetId: string, serverId: string)
   return note && !note.deleted ? note : null
 }
 
-/** 全部还活着的边注，最近写的在前 */
-export function readNotes(serverId?: string): Note[] {
-  return Object.values(readAll())
-    .filter(note => !note.deleted && (!serverId || note.serverId === serverId))
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-}
 
 function syncTarget(): { baseUrl: string; token: string } | null {
   const state = useSyncStore.getState()

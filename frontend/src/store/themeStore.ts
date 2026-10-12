@@ -59,7 +59,6 @@ function normalizeSkin(value: unknown): Skin {
 
 /**
  * @deprecated 编辑风只保留单一朱红 accent（DESIGN v2 §1.3），多色 accent 预设已移除。
- * 该类型与 accentColor 字段仅为兼容 Settings 页旧 UI 与旧持久化数据而暂时保留，
  * store 不再向 DOM 注入任何 --primary/--ring 覆盖；设置页 accent UI 随后续 Phase 删除。
  */
 export type AccentColor = 'green' | 'red' | 'blue' | 'purple' | 'orange'
@@ -71,7 +70,6 @@ interface ThemeState {
   /** 当前实际应用的主题（解析 system 后）*/
   resolvedTheme: 'dark' | 'light'
   /** @deprecated 见 AccentColor 注释，仅作持久化兼容保留，不产生任何视觉效果 */
-  accentColor: AccentColor
   /** 是否显示侧边栏（移动端收起）*/
   sidebarCollapsed: boolean
   /** 播放器可视化效果 */
@@ -81,7 +79,6 @@ interface ThemeState {
   setSkin: (skin: Skin) => void
   toggleSkin: () => void
   /** @deprecated 不再注入 accent 覆盖，仅更新字段（后续 Phase 随设置页一并移除）*/
-  setAccentColor: (color: AccentColor) => void
   toggleTheme: () => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebar: () => void
@@ -126,7 +123,6 @@ export const useThemeStore = create<ThemeState>()(
       theme: 'light',
       skin: DEFAULT_SKIN,
       resolvedTheme: 'light',
-      accentColor: 'green',
       sidebarCollapsed: false,
       visualizerEnabled: true,
 
@@ -151,8 +147,6 @@ export const useThemeStore = create<ThemeState>()(
         set({ skin: next })
       },
 
-      setAccentColor: (color) => set({ accentColor: color }),
-
       toggleTheme: () => {
         const { resolvedTheme, skin } = get()
         const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
@@ -167,6 +161,15 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: STORAGE_KEYS.themeStore,
+      version: 2,
+      // 旧数据里的 accentColor 已废弃（阶段 4.7）：剥掉再落盘
+      migrate: (persisted, version) => {
+        if (version < 2) {
+          const state = (persisted as { state?: Record<string, unknown> })?.state ?? {}
+          delete state.accentColor
+        }
+        return persisted as ThemeState
+      },
       // index.html 启动脚本会同步读取此键以避免闪白，不能延迟写入
       storage: createPersistStorage({ debounceMs: 0 }),
       onRehydrateStorage: () => (state) => {

@@ -1038,5 +1038,6 @@
   "sources.goRelogin": "去登录",
   "masthead.disconnectDesc": "断开后回到登录页；已连接的音源与它们的本地缓存会被清空。",
   "lyrics.viewHere": "查看本曲歌词",
-  "sources.topListsNone": "还没有能看榜单的音源。"
+  "sources.topListsNone": "还没有能看榜单的音源。",
+  "sources.settings.uninstallFailed": "卸载失败"
 }

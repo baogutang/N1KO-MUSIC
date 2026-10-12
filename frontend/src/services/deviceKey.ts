@@ -141,7 +141,3 @@ export async function openText(sealed: SealedText): Promise<string | null> {
   }
 }
 
-/** 仅供测试重置模块级缓存 */
-export function resetDeviceKeyCache(): void {
-  keyPromise = null
-}

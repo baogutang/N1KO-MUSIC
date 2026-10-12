@@ -32,7 +32,7 @@ import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { useTasteStore } from '@/store/tasteStore'
-import { filterRecommendable } from '@/services/recommendationFilters'
+import { filterRecommendable, applyRecommendationConstraints, useRecommendationConstraints, type RecommendationConstraints } from '@/services/recommendationFilters'
 
 /**
  * 单个音源某个区块的重试：失效该源该族 query，TanStack 按挂载状态重取。
@@ -83,10 +83,13 @@ export function splitGroups<T>(
  */
 export function recommendationGroupsForMerge(
   sourceGroups: Array<{ data: import('@/api/types').Song[] }>,
-  librarySongs: import('@/api/types').Song[] | undefined
+  librarySongs: import('@/api/types').Song[] | undefined,
+  constraints?: RecommendationConstraints
 ): Array<{ songs: import('@/api/types').Song[] }> {
   const groups = sourceGroups
-    .map(g => ({ songs: filterRecommendable(g.data) }))
+    .map(g => ({ songs: constraints
+      ? applyRecommendationConstraints(g.data, constraints)
+      : filterRecommendable(g.data) }))
     .filter(g => g.songs.length > 0)
   if (librarySongs?.length) groups.unshift({ songs: librarySongs })
   return groups
@@ -145,18 +148,15 @@ export function MergedDailyRail() {
   const { data: librarySongs } = usePersonalizedRecommendations(20)
 
   /*
-   * 屏蔽指纹参与合并（复审 B1）：插件源每日推荐的 queryKey 没有屏蔽
-   * 指纹（10 分钟缓存），主库那份在 1.5 已做渲染端过滤，插件源这份
-   * 合并前同样过一遍 filterRecommendable——指纹一变这里就重算。
+   * 约束对象参与合并（阶段 4.2 取代手写指纹）：插件源每日推荐的 queryKey
+   * 没有屏蔽指纹（10 分钟缓存），合并前过一遍 filterRecommendable。
+   * useRecommendationConstraints 随屏蔽名单**与账号会员状态**变化，
+   * 比原指纹多了 accountVip 维度（会员信息晚到时 VIP 曲也滤得掉）。
    */
-  const mutedFingerprint = useTasteStore(s =>
-    [...s.mutedArtists, ...s.mutedGenres].map(x => x.trim().toLowerCase()).sort().join('|')
-  )
+  const constraints = useRecommendationConstraints()
   const merged = useMemo(
-    () => interleaveRecommendations(recommendationGroupsForMerge(sourceGroups, librarySongs), 20),
-    // mutedFingerprint 进依赖：屏蔽名单变化时插件源结果立即重滤（B1）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sourceGroups, librarySongs, mutedFingerprint]
+    () => interleaveRecommendations(recommendationGroupsForMerge(sourceGroups, librarySongs, constraints), 20),
+    [sourceGroups, librarySongs, constraints]
   )
 
   // 一个源都没成、也没有要说明的失败/过期时才整节不渲染

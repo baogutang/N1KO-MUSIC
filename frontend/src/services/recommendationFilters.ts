@@ -70,3 +70,26 @@ export function applyRecommendationConstraints(
 export function filterRecommendable(songs: readonly Song[]): Song[] {
   return applyRecommendationConstraints(songs, currentConstraints())
 }
+
+/**
+ * 推荐约束的响应式入口（阶段 4.2）：
+ * 返回一个随屏蔽名单与账号会员状态变化的稳定对象，
+ * 调用方把它放进 memo 依赖即可——不再手写指纹、不再 eslint-disable。
+ */
+import { useMemo } from 'react'
+import { useTasteStore } from '@/store/tasteStore'
+
+export function useRecommendationConstraints(): RecommendationConstraints {
+  const mutedArtists = useTasteStore(s => s.mutedArtists)
+  const mutedGenres = useTasteStore(s => s.mutedGenres)
+  const servers = useServerStore(s => s.servers)
+  return useMemo(
+    () => ({
+      mutedArtists: new Set(mutedArtists),
+      mutedGenres: new Set(mutedGenres),
+      accountVip: Object.fromEntries(servers.map(s => [s.id, s.accountVip])),
+    }),
+    // mutedArtists/mutedGenres/servers 引用变化即重算；这就是原来手写指纹想表达的事
+    [mutedArtists, mutedGenres, servers]
+  )
+}

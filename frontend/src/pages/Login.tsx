@@ -140,7 +140,7 @@ export default function LoginPage() {
       } else {
         setStep('plugin-disclaimer')
       }
-    })()
+    })().catch(() => setError(t('login.errorNetwork')))
   }
 
   /*

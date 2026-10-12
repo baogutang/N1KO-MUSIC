@@ -17,7 +17,7 @@ import type { MusicServerAdapter } from '@/api/types'
 import { RECOMMENDATION_CACHE_PREFIX, HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import { pruneRecommendationCache, recommendationDayKey } from '@/services/storageMaintenance'
 import type { Song } from '@/api/types'
-import { filterRecommendable } from '@/services/recommendationFilters'
+import { filterRecommendable, applyRecommendationConstraints, useRecommendationConstraints } from '@/services/recommendationFilters'
 
 /** 缓存最长保留一天，跨天后 dayKey 变化自然失效，此处只是兜底 */
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
@@ -290,10 +290,11 @@ export function usePersonalizedRecommendations(size = 30) {
    * 在 placeholderData（上一批）或缓存秒开路径上仍可能带着刚屏蔽的歌手，
    * 这里保证「用户此刻看到的」一定符合「用户此刻的屏蔽名单」。
    */
+  /* 渲染端约束（阶段 4.2）：对象含屏蔽名单与账号会员两维，随 store 变化 */
+  const constraints = useRecommendationConstraints()
   const visibleData = useMemo(
-    () => (query.data ? filterRecommendable(query.data).slice(0, size) : query.data),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 指纹变即重滤，其余依赖都在 data 里
-    [query.data, mutedFingerprint]
+    () => (query.data ? applyRecommendationConstraints(query.data, constraints).slice(0, size) : query.data),
+    [query.data, constraints]
   )
 
   return {

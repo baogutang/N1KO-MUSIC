@@ -22,7 +22,7 @@ import { clearCacheForServer } from '@/services/libraryCacheDb'
 import { useSettingsStore } from '@/store/settingsStore'
 import { createSecurePersistStorage } from '@/store/securePersistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
-import { disposePluginHost, ensurePluginHost, createPluginAdapterFor } from '@/plugins/host/pluginRuntime'
+import { disposePluginHost, ensurePluginHost, createPluginAdapterFor, getPluginHost } from '@/plugins/host/pluginRuntime'
 import type { PluginHost } from '@/plugins/host/PluginHost'
 import { usePluginStore } from '@/plugins/host/pluginStore'
 
@@ -119,6 +119,7 @@ export const useServerStore = create<ServerState>()(
       },
 
       removeServer: (id) => {
+        bestEffortPluginLogout(id)
         disposePluginHost(id)
         unregisterAdapter(id)
         /*
@@ -201,6 +202,7 @@ export const useServerStore = create<ServerState>()(
 
       disconnectServer: (id) => {
         const wasPrimary = get().activeServerId === id
+        bestEffortPluginLogout(id)
         disposePluginHost(id)
         unregisterAdapter(id)
         // 适配器没了，这个源的歌就取不到流了：把它们从队列与历史里摘掉，
@@ -278,6 +280,7 @@ export const useServerStore = create<ServerState>()(
         // 登出全部必须拆掉每个插件沙箱（removeServer/disconnectServer 都拆，这里不能漏）：
         // 否则带凭据的 iframe 与消息监听在「已登出」后继续存活，仍能让宿主代发请求
         for (const id of [...get().connectedServerIds]) {
+          bestEffortPluginLogout(id)
           disposePluginHost(id)
         }
         // 登出时清空查询缓存，避免下次登录其他服务器时命中旧数据
@@ -490,4 +493,23 @@ export function getServerTypeLabel(type: ServerType): string {
     emby: 'Emby',
   }
   return labels[type] ?? type
+}
+
+
+/**
+ * 断开前尽力调一次 n1ko.auth.logout（阶段 4.8：协议承诺了 logout，
+ * 宿主此前一次都没调）。best-effort：失败/超时 500ms 都不拦断开——
+ * 清凭据的主语始终是本机（拆沙箱 + 清存储），服务端登出是锦上添花。
+ */
+function bestEffortPluginLogout(serverId: string): void {
+  try {
+    const host = getPluginHost(serverId)
+    if (!host?.hasMethod('n1ko.auth.logout')) return
+    void Promise.race([
+      host.call('n1ko.auth.logout'),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 500)),
+    ]).catch(() => { /* 尽力而为 */ })
+  } catch {
+    /* host 不可用就算了 */
+  }
 }

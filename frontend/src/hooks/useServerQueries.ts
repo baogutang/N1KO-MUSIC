@@ -158,7 +158,6 @@ export function useSongDetail(songId: string, initialData?: Song) {
 export function useSearch(query: string, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.search(query),
-    // TODO(sources): 聚合搜索——阶段 2 的 useSourceQueries 对所有声明 search 能力的音源并发，此处只覆盖主库
     queryFn: ({ signal }) => getAdapter().searchAll(query, signal),
     enabled: (options.enabled ?? true) && query.trim().length >= 1,
     staleTime: 2 * 60 * 1000,

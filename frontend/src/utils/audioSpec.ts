@@ -36,13 +36,6 @@ export function formatChannels(count?: number): string | null {
   return `${count}ch`
 }
 
-/**
- * 本次播放是直通原始文件还是被服务器转码。
- * 无损档位（maxBitRate = 0）请求原始文件，其余档位一律是转码流。
- */
-export function isPassthrough(quality: AudioQuality): boolean {
-  return QUALITY_MAX_BITRATE[quality] === 0
-}
 
 /** 组装成一行等宽小字，如 `24bit · 96kHz · FLAC · 2ch · 1411kbps` */
 export function buildSpecLine(song: Song | null): string[] {

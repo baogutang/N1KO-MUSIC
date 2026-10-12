@@ -124,13 +124,17 @@ test('CORS：名单外 Origin 不给 ACAO 头，名单内给', async () => {
   assert.equal(allowed.headers.get('access-control-allow-origin'), 'http://localhost:5173')
 })
 
-test('全局限流：超过阈值回 429', async () => {
-  // 前面的测试已消耗配额；连续打满直到出现 429
+test('全局限流：超过阈值回 429；/health 不受限流（阶段 4.9）', async () => {
+  // /health 移到了限流之前（监控探活不能被限流挡）——验证 health 永远 200，
+  // 限流用会过限流器的端点（未认证 /api/notes 打 401 但计入配额）
   let saw429 = false
-  for (let i = 0; i < 45 && !saw429; i++) {
-    const res = await fetch(`${baseUrl}/health`)
+  for (let i = 0; i < 50 && !saw429; i++) {
+    const res = await fetch(`${baseUrl}/api/notes`)
     if (res.status === 429) saw429 = true
   }
   assert.ok(saw429, '连续请求应触发 429 限流')
+  // 限流生效后 /health 依然放行
+  const health = await fetch(`${baseUrl}/health`)
+  assert.equal(health.status, 200)
 })
 
