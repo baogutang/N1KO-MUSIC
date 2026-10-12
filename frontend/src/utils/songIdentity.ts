@@ -20,12 +20,13 @@
 import type { Song } from '@/api/types'
 
 /*
- * 合作者分隔（复审 B8 + D6）：**先 NFKC 再拆**——全角 ＆ ， ／ 与（）
- * 在 NFKC 后归成半角。feat/ft/with 用 \b 词边界（D6：裸 "A feat B" /
- * "A ft B" 无点形态要拆，"feature"/"featuring" 不误伤；"(with B)" 括号
- * 形态也拆）；残留括号由 normalizeText 剥掉。
+ * 合作者分隔（复审 B8 + D6 + E）：**先 NFKC 再拆**——全角 ＆ ， ／ 与（）
+ * 在 NFKC 后归成半角。feat/ft/with 要求前面是空白或左括号、后面是词边界
+ * （D6：裸 "A feat B" / "A ft B" 无点形态要拆，"(with B)" 括号形态也拆；
+ * "feature"/"featuring" 不误伤；E：串首的 "With Confidence" / "Feat" 是
+ * 乐队名，不拆）；残留括号由 normalizeText 剥掉。
  */
-const ARTIST_SEPARATORS = /[&,;/、]|\bfeat\b\.?|\bft\b\.?|\bwith\b(?![a-z])/gi
+const ARTIST_SEPARATORS = /[&,;/、]|(?<=[\s(])feat\b\.?|(?<=[\s(])ft\b\.?|(?<=[\s(])with\b/gi
 
 /** 全角 → 半角、去空白与常见标点、小写。标题与歌手共用。null 安全（缺元数据的歌不炸）。 */
 export function normalizeText(text: string | null | undefined): string {

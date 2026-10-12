@@ -224,6 +224,17 @@ async function refreshCredentials(cred) {
   }
   next.loginType = loginType
   next.str_musicid = String(next.str_musicid || cred.str_musicid || next.musicid || '')
+  /*
+   * 续期（第三轮复核 E1）：QQ 扫码链路的刷新响应只回 musickey/refresh_key，
+   * fresh.expiresAt 是 0、被上面的合并跳过，于是沿用旧的（仍在刷新窗口内的）
+   * expiresAt——下一笔数据请求又触发刷新，窗口内每个请求都打一次 LoginServer。
+   * 刷新成功即按同样寿命续期；两边都没有寿命就退回 0（不主动刷新，
+   * 交给数据接口 1000/104400 的被动刷新兜底）。
+   */
+  if (!fresh.expiresAt) {
+    var lifetimeSec = Number(next.expired_in) || 0
+    next.expiresAt = lifetimeSec > 0 ? Date.now() + lifetimeSec * 1000 : 0
+  }
   liveCredentials = next
   env.setCredentials(JSON.stringify(next))
   return next

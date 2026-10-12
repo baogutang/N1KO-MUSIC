@@ -45,7 +45,7 @@ test('qqmusic 刷新后的合并凭据靠 liveCredentials 生效（删掉兜底�
       openid: 'OPENID-1', refresh_token: 'RT-1', access_token: 'AT-1',
       expired_in: 7776000, expiresAt: Date.now() + 60 * 1000, loginType: 2,
     })
-    const { plugin, env } = await loadPlugin('plugins/qqmusic', { credentials: credJson })
+    const { plugin, env, credentialsWrites } = await loadPlugin('plugins/qqmusic', { credentials: credJson })
     await plugin.n1ko.user.getPlaylists()
     await plugin.n1ko.user.getPlaylists()
 
@@ -57,9 +57,12 @@ test('qqmusic 刷新后的合并凭据靠 liveCredentials 生效（删掉兜底�
     assert.equal(env.credentials, credJson, 'env.credentials 仍是 init 快照')
     assert.equal(dataCalls.length, 2)
     assert.equal(dataCalls[0].comm.authst, 'KEY-1', '刷新后的 key 经 liveCredentials 立即生效')
-    // 响应没给 expired_in → 合并凭据沿用旧 expiresAt（仍在刷新窗口），
-    // 第二笔请求再刷一次：KEY-2。两次都不是 OLD-KEY，liveCredentials 在起作用。
-    assert.equal(dataCalls[1].comm.authst, 'KEY-2')
+    // E1：响应没给 expired_in 也按旧寿命（expired_in）续期——第二笔请求
+    // 已在刷新窗口外，不再刷新，仍用 KEY-1（原先这里是 KEY-2：逐请求刷新风暴）。
+    assert.equal(dataCalls[1].comm.authst, 'KEY-1', '续期后不再逐请求刷新')
+    assert.equal(refreshCount, 1, '整个过程只刷新一次')
+    const renewed = JSON.parse(credentialsWrites.at(-1))
+    assert.ok(renewed.expiresAt > Date.now() + 60 * 60 * 1000, '回写的凭据已按 expired_in 续期')
   } finally {
     globalThis.fetch = realFetch
   }

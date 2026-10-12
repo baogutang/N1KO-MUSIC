@@ -145,5 +145,12 @@ describe('词边界与无点形态（复审 D6）', () => {
   it('词边界不误伤：feature / featuring / Without You 不是分隔符', () => {
     expect([...artistSet('The Featuring Project')]).toEqual(['thefeaturingproject'])
     expect([...artistSet('DJ Feature')]).toEqual(['djfeature'])
+    expect([...artistSet('Without You')]).toEqual(['withoutyou'])
+  })
+
+  it('串首的 with / feat 是乐队名，不拆（第三轮复核）', () => {
+    expect([...artistSet('With Confidence')]).toEqual(['withconfidence'])
+    expect([...artistSet('Feat')]).toEqual(['feat'])
+    expect([...artistSet('Ft. Lauderdale Band')]).toEqual(['ftlauderdaleband'])
   })
 })

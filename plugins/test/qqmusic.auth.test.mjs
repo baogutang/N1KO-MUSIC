@@ -343,8 +343,14 @@ test('复审 A8①：刷新响应只有 musickey/refresh_key 时与旧凭据合�
   assert.equal(stored.musicid, 12345)
   assert.equal(stored.musickey, 'KEY-2')
 
-  // 第二次数据请求（快过期的合并凭据）再触发一次刷新：param 仍带得齐全
-  await plugin.n1ko.user.getPlaylists()
+  // E1 之后刷新成功即按 expired_in 续期，同一实例不会再刷（否则就是逐请求风暴）。
+  // 模拟 90 天后再次临近到期：拿回写的合并凭据把 expiresAt 调回窗口内重新加载，
+  // 再触发一次刷新——param 仍带得齐全。
+  assert.ok(stored.expiresAt > Date.now() + 60 * 60 * 1000, 'E1：刷新成功即续期')
+  const again = await loadPlugin('plugins/qqmusic', {
+    credentials: JSON.stringify(Object.assign({}, stored, { expiresAt: Date.now() + 60 * 1000 })),
+  })
+  await again.plugin.n1ko.user.getPlaylists()
   const second = bodies.filter(b => b.req_0.module === 'music.login.LoginServer')[1]
   assert.equal(second.req_0.param.openid, 'OPENID-1')
   assert.equal(second.req_0.param.refresh_token, 'REFRESH-TOKEN-1')

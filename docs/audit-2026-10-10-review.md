@@ -79,3 +79,5 @@ A 节 12 项全部核实到位。B 节 10 项到位、下面 6 条收尾；lint 
 
 - `frontend/src/utils/songIdentity.ts:28` `\bwith\b` 不再要求前面有空白：串首的 `With Confidence`（真有这个乐队）现在拆成 `confidence`，main 的 `\s+with\s+` 原本保留整串；`Feat` / `Ft. Lauderdale Band` 同理被吃掉首词。可选修法：`(?<=[\s(])with\b`、`(?<=[\s(])feat\b\.?`、`(?<=[\s(])ft\b\.?`（保留括号形态，串首不拆）；另 `\bwith\b` 之后的 `(?![a-z])` 与 `\b` 重复，可删。
 - `frontend/src/utils/songIdentity.test.ts:146` 用例标题写了「Without You 不是分隔符」但没断言；补一行 `expect([...artistSet('Without You')]).toEqual(['withoutyou'])`。
+
+**处理（v1.11.7）**：E1 与两条顺延均已修——qqmusic 刷新成功即按 `expired_in` 续期（0.1.16），分隔符改为前置 `(?<=[\s(])`，补「Without You」「With Confidence」断言。退回续期块实测 b16 + A8① 两条用例变红。本地门禁：`check:versions` / tsc / lint / vitest 887 / build / test:plugins / lint:plugins 全过（本机无 cargo，`cargo check --locked` 交给 CI desktop job）。

@@ -239,3 +239,7 @@
 - 官网：画廊 player 图说明写「柠檬黄荧光笔」但 gif 实为软陶皮肤；applyLang 不刷新 gallery 图 alt；og:image 需要绝对 URL 才被社交卡片识别。
 - 合入 main 前需在仓库 Settings → Pages 把 Source 设为 GitHub Actions，否则 pages.yml 首发部署失败。
 - 阶段 1.8 补记：边注翻页用的是 offset 而非 cursor（服务端两参数都支持）；客户端「采服务端时钟」只在推送成功回显时成立，纯拉取路径仍未对时。
+
+## 2026-10-12 · 第三轮复核 E1 · QQ 音乐刷新后续期
+- A8① 的合并规则跳过响应里的空 / 0 字段，而 QQ 扫码链路的刷新响应只回 musickey/refresh_key（无 expired_in）→ 合并后沿用旧的、仍在 10 分钟窗口内的 expiresAt → 窗口内每笔数据请求都再打一次 LoginServer。现在刷新成功即按旧 expired_in 续期；两边都没有寿命就退回 0（不主动刷新，交给 1000/104400 被动刷新）。qqmusic 0.1.16。
+- 同轮顺手：`artistSet` 的 feat/ft/with 分隔符要求前面是空白或左括号（串首的「With Confidence」「Feat」是乐队名，不拆），补「Without You」断言。
