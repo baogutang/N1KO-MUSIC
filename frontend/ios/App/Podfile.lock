@@ -1,29 +1,41 @@
 PODS:
-  - Capacitor (8.4.2):
+  - Capacitor (8.5.3):
     - CapacitorCordova
   - CapacitorApp (8.1.1):
     - Capacitor
-  - CapacitorCordova (8.4.2)
+  - CapacitorCordova (8.5.3)
+  - CapacitorFilesystem (8.1.3):
+    - Capacitor
+    - IONFilesystemLib (~> 1.1.1)
   - CapacitorHaptics (8.0.2):
     - Capacitor
   - CapacitorKeyboard (8.0.5):
     - Capacitor
   - CapacitorMusicControlsPlugin (8.0.0):
     - Capacitor
+  - CapacitorNetwork (8.0.1):
+    - Capacitor
   - CapacitorSplashScreen (8.0.2):
     - Capacitor
   - CapacitorStatusBar (8.0.3):
     - Capacitor
+  - IONFilesystemLib (1.1.4)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
   - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
   - "CapacitorKeyboard (from `../../node_modules/@capacitor/keyboard`)"
   - CapacitorMusicControlsPlugin (from `../../node_modules/capacitor-music-controls-plugin`)
+  - "CapacitorNetwork (from `../../node_modules/@capacitor/network`)"
   - "CapacitorSplashScreen (from `../../node_modules/@capacitor/splash-screen`)"
   - "CapacitorStatusBar (from `../../node_modules/@capacitor/status-bar`)"
+
+SPEC REPOS:
+  trunk:
+    - IONFilesystemLib
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -32,27 +44,34 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/app"
   CapacitorCordova:
     :path: "../../node_modules/@capacitor/ios"
+  CapacitorFilesystem:
+    :path: "../../node_modules/@capacitor/filesystem"
   CapacitorHaptics:
     :path: "../../node_modules/@capacitor/haptics"
   CapacitorKeyboard:
     :path: "../../node_modules/@capacitor/keyboard"
   CapacitorMusicControlsPlugin:
     :path: "../../node_modules/capacitor-music-controls-plugin"
+  CapacitorNetwork:
+    :path: "../../node_modules/@capacitor/network"
   CapacitorSplashScreen:
     :path: "../../node_modules/@capacitor/splash-screen"
   CapacitorStatusBar:
     :path: "../../node_modules/@capacitor/status-bar"
 
 SPEC CHECKSUMS:
-  Capacitor: 52f999235b8bd6a7d01694753f4f4d54d182e3a3
+  Capacitor: 2f67eaeb8ed79909cd35b5e7439a5c2a9ca58e0f
   CapacitorApp: 305bd13c44f6f9d164e2ee66a4faa956ed8c0e06
-  CapacitorCordova: 345eacdc4c8282415446aea4acd8c77d82480bd4
+  CapacitorCordova: 0b7326439c7a09fc5d20eced5e0dab986327a493
+  CapacitorFilesystem: b2bbd84bb91c177906c9dbc252864cb71ab9957b
   CapacitorHaptics: 296f771ecd89c7a1bd92a7b6826a7d268e2e70f5
   CapacitorKeyboard: b6b0744890cdb1d9a96e2cafcc9253fdcc55de3b
   CapacitorMusicControlsPlugin: d53efb6c32ca2621715eb373bb87d2f8c5472a54
+  CapacitorNetwork: 8812ce60d11fb63d8f2e4ba51a49b2e59892ebe2
   CapacitorSplashScreen: 7bf61c2001557ff9e195e601c6b87344480d3c65
   CapacitorStatusBar: eca7bc2b58d9f886f1ef9edb66e57a9b29c121af
+  IONFilesystemLib: e6610c2b260d15e4b9cb9d5e37a87095479b669e
 
-PODFILE CHECKSUM: 1bf76b10cc0d314d5fb1581eed1a69ca37f2c3c1
+PODFILE CHECKSUM: dd941fde68f558f6439431155e4dbffba9af65df
 
 COCOAPODS: 1.17.0
