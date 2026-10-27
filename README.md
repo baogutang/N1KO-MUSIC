@@ -47,8 +47,8 @@ leave open all day. In v5 the three old skins became one design:
 | | |
 |---|---|
 | **The window decides, not the device** | Narrow windows get a bottom tab bar, medium ones a side rail, wide ones an iPadOS sidebar plus a Now Playing panel. iPhone, an unfolded iPhone Duo, iPad Split View and any Stage Manager window you drag around all get the layout that fits. |
-| **Artwork is the only colour** | Warm white paper, raised sheets and one terracotta accent. Sections are separated by elevation and space, not lines; album covers are the only large colour fields. |
-| **Two things you remember** | A rubber play key set in its bezel, and a faint sheet of grid paper under the lyrics. |
+| **Artwork is the only colour** | Warm white paper, raised sheets and one lime accent. Sections are separated by elevation and space, not lines; album covers are the only large colour fields. |
+| **Two things you remember** | A flat lime play key, and a faint sheet of grid paper under the lyrics. |
 | **Self-hosted type** | Schibsted Grotesk for headings and text, Young Serif for exactly one large figure; CJK falls back to the system face. |
 | **Nothing is invented** | Every generated sentence (the editor's note, rediscovery captions, taste weights) is assembled from real numbers. When the data won't support a sentence, it doesn't appear. |
 
@@ -72,7 +72,7 @@ The design contract (tokens, components, layout rules) lives in
 </tr>
 <tr>
 <td><b>Now Playing</b>: in a landscape window the cover and controls sit on the left and the lyrics on grid paper to the right; tap any line to seek.</td>
-<td><b>Dark</b>: a warm umber night with the same terracotta one step brighter, following the system.</td>
+<td><b>Dark</b>: a warm umber night where the lime glows brighter, following the system.</td>
 </tr>
 </table>
 

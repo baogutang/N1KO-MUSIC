@@ -5,6 +5,7 @@
  * N1KO MUSIC 官网，v5 暖纸。
  * token 与应用同值（frontend/src/index.css），颜色写成 oklch 三通道，用的地方再包 oklch()。
  * 明暗跟随系统；没有换肤，没有吉祥物。零构建，GitHub Pages 直接托管。
+ * 强调色两层（与应用一致）：--vivid 青柠只做填色，--accent 叶绿是落在纸面上的文字色。按钮扁平。
  */
 
 :root {
@@ -18,8 +19,11 @@
   --ink-faint: 47% 0.02 56;
   --hair: 88% 0.014 64;
   --hair-soft: 92% 0.012 66;
-  --accent: 53% 0.145 36;
-  --accent-deep: 46% 0.14 34;
+  --vivid: 87% 0.19 127;
+  --vivid-deep: 82.5% 0.2 129;
+  --vivid-ink: 24% 0.05 135;
+  --accent: 50% 0.135 138;
+  --accent-deep: 43% 0.125 140;
   --accent-ink: 98.5% 0.008 72;
   --hi: 99.6% 0.006 80;
   --shade: 21% 0.024 40;
@@ -35,7 +39,7 @@
 
   --shadow-card: 0 1px 2px oklch(var(--shade) / 0.06), 0 18px 36px -18px oklch(var(--shade) / 0.26);
   --shadow-float: 0 2px 4px oklch(var(--shade) / 0.07), 0 36px 72px -32px oklch(var(--shade-warm) / 0.4);
-  --shadow-press: 0 0 0 1px oklch(var(--shade) / 0.06), 0 8px 18px -10px oklch(var(--shade) / 0.18), inset 0 1px 0 oklch(var(--hi) / 0.75);
+  --shadow-press: 0 0 0 1px oklch(var(--shade) / 0.05), 0 2px 6px -2px oklch(var(--shade) / 0.16);
 
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-micro: 120ms;
@@ -56,15 +60,18 @@
     --ink-faint: 70% 0.02 60;
     --hair: 31% 0.02 45;
     --hair-soft: 26% 0.018 45;
-    --accent: 66% 0.14 38;
-    --accent-deep: 71% 0.13 40;
+    --vivid: 86% 0.19 127;
+    --vivid-deep: 90% 0.17 125;
+    --vivid-ink: 20% 0.04 135;
+    --accent: 86% 0.19 127;
+    --accent-deep: 90% 0.17 125;
     --accent-ink: 17% 0.015 45;
     --hi: 99% 0.006 80;
     --shade: 5% 0.01 45;
     --shade-warm: 5% 0.02 40;
     --shadow-card: 0 1px 2px oklch(var(--shade) / 0.4), 0 18px 36px -18px oklch(var(--shade) / 0.75);
     --shadow-float: 0 2px 4px oklch(var(--shade) / 0.5), 0 36px 72px -32px oklch(var(--shade-warm) / 0.85);
-    --shadow-press: 0 0 0 1px oklch(var(--hi) / 0.06), 0 8px 18px -10px oklch(var(--shade) / 0.6), inset 0 1px 0 oklch(var(--hi) / 0.08);
+    --shadow-press: 0 0 0 1px oklch(var(--hi) / 0.07), 0 2px 6px -2px oklch(var(--shade) / 0.6);
     --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.9 0 0 0 0 0.85 0 0 0 0.04 0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
   }
 }
@@ -94,7 +101,7 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-::selection { background: oklch(var(--accent) / 0.2); }
+::selection { background: oklch(var(--vivid) / 0.45); }
 
 img { max-width: 100%; }
 
@@ -151,23 +158,21 @@ code {
   transition: background-color var(--dur-micro) var(--ease), color var(--dur-micro) var(--ease), transform var(--dur-micro) var(--ease);
 }
 
-.btn:active { transform: translateY(1px); }
+.btn:active { transform: scale(0.97); }
 
 .btn-primary {
-  color: oklch(var(--accent-ink));
-  background: oklch(var(--accent));
-  box-shadow: 0 10px 22px -12px oklch(var(--accent-deep) / 0.7), inset 0 1px 0 oklch(var(--hi) / 0.3);
+  color: oklch(var(--vivid-ink));
+  background: oklch(var(--vivid));
 }
 
-.btn-primary:hover { background: oklch(var(--accent-deep)); }
+.btn-primary:hover { background: oklch(var(--vivid-deep)); }
 
 .btn-secondary {
   color: oklch(var(--ink));
-  background: oklch(var(--sheet));
-  box-shadow: var(--shadow-press);
+  background: oklch(var(--paper-3));
 }
 
-.btn-secondary:hover { background: oklch(var(--paper-deep)); }
+.btn-secondary:hover { background: oklch(var(--hair)); }
 
 .btn-quiet {
   color: oklch(var(--ink-soft));
