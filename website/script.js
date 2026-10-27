@@ -1,7 +1,10 @@
 /**
  * N1KO MUSIC 官网的全部交互：
  *  - 中 / 英切换（data-i18n 节点换 innerHTML，语言存 localStorage）
- *  - 界面画廊的 tab 切换（含键盘左右键、caption 与 alt 跟随）
+ *  - 整站换肤：糖果·波普 / 纸·墨·朱 / 奶油·软陶，只改 <html> 的 data-skin，
+ *    并联动更换封面截图（和产品一样，"三张皮肤，一键切换"）
+ *  - 界面画廊 tab 切换（含键盘左右键、caption 与 alt 跟随）
+ *  - IntersectionObserver 入场动效（CSS 侧已按 prefers-reduced-motion 兜底）
  * 没有框架、没有构建步骤——GitHub Pages 推上去就能跑。
  */
 ;(function () {
@@ -11,22 +14,22 @@
   var ZH = {
     'nav.gallery': '界面', 'nav.departments': '栏目', 'nav.sources': '音源',
     'nav.privacy': '隐私', 'nav.download': '下载', 'nav.github': 'GitHub',
-    'hero.tag': 'VOL.3 · NO.36 · 本期封面',
-    'hero.title': '一本可以播放的<br />音乐杂志',
-    'hero.sub': '连上 Navidrome / Subsonic / Jellyfin / Emby，把自己的曲库读成一本排好版的刊物——报头、刊号、封面故事、书眉、版记，一样不少。',
+    'cover.rule.mid': '2026 年 10 月 · 逢月出刊',
+    'cover.deck': '一本可以播放的音乐杂志',
+    'cover.decksub': 'A MUSIC MAGAZINE YOU CAN PLAY — 把你的曲库，读成一本排好版的刊物',
+    'cover.line1': '连上你的曲库——NAS 与流媒体，并排而坐',
+    'cover.line2': '三张皮肤，一键切换——本页右上角就能试',
+    'cover.line3': '四个栏目：播放 · 操作 · 曲库 · 你自己的',
+    'cover.line4': '隐私，直接说清楚——TELEMETRY: NONE.',
+    'cover.caption.pop': '封面图 — 首页 · 糖果·波普：糖果色各自绑定一个含义',
+    'cover.caption.editorial': '封面图 — 首页 · 纸·墨·朱：暖纸、衬线、一种朱色',
+    'cover.caption.clay': '封面图 — 首页 · 奶油·软陶（应用内默认皮肤）：粉彩黏土，阿糯住在问候横幅里',
     'hero.cta1': '↓ 免费下载', 'hero.cta2': '★ 给个 Star',
     'hero.meta': 'macOS · Windows · Linux · Android · iOS · Web — 免费 · 开源 · 无账号 · 无埋点',
-    'hero.caption': '图 1 — 首页 · 奶油·软陶（默认皮肤）',
-    'sources.title': '连上你的曲库',
-    'sources.sub': '两种来源并排而坐，不是二选一。搜索按来源分组，队列里混着放。',
-    'sources.nas': '自建服务器 · YOUR SERVER', 'sources.recommended': '推荐',
-    'sources.streaming': '流媒体音源 · STREAMING（扫码登录）',
-    'sources.netease': '网易云音乐', 'sources.qq': 'QQ 音乐', 'sources.note': '可选能力是<b>探测出来的，不是假设的</b>——服务器没实现哪一项，那个入口就整个不出现。流媒体只放你账号有权听的内容，VIP 曲目会标明原因，不做任何「解析」。',
-    'sandbox.1t': '脚本沙箱', 'sandbox.1b': '音源是兼容 MusicFree 协议的插件，不能碰页面，不能自己联网。',
-    'sandbox.2t': '白名单代理', 'sandbox.2b': '一切请求经宿主代理，manifest 列出的域名才放行，重定向逐跳复查。',
-    'sandbox.3t': '凭据本机加密', 'sandbox.3b': '与服务器密码同一把 AES-GCM 设备密钥，只存在本机，不经过第三方。',
+    'rh.gallery': '版面 · LAYOUTS', 'rh.dept': '栏目 · DEPARTMENTS',
+    'rh.sources': '音源 · SOURCES', 'rh.privacy': '隐私 · PRIVACY', 'rh.dl': '下载 · DOWNLOAD',
     'gallery.title': '界面',
-    'gallery.sub': '三张皮肤共用同一套组件，一键切换，各自有浅色与深色。',
+    'gallery.sub': '三张皮肤共用同一套组件，一键切换，各自有浅色与深色——点报头右侧的三个圆点，整张网页也会跟着换。',
     'gallery.tab.player': '正在播放', 'gallery.tab.pop': '首页 · 糖果·波普',
     'gallery.tab.editorial': '首页 · 纸·墨·朱', 'gallery.tab.clay': '首页 · 奶油·软陶',
     'gallery.tab.album': '专辑页', 'gallery.tab.login': '连接',
@@ -61,6 +64,15 @@
     'dept.yours.3': '边注：唯一不能被重算的数据，优先同步与备份',
     'dept.yours.4': '可改的口味画像：权重摊开看，歌手曲风可永久关掉',
     'dept.yours.5': '导入 ListenBrainz / Last.fm；导出 M3U8 / XSPF / JSON / CSV',
+    'sources.title': '连上你的曲库',
+    'sources.sub': '两种来源并排而坐，不是二选一。搜索按来源分组，队列里混着放。',
+    'sources.nas': '自建服务器 · YOUR SERVER', 'sources.recommended': '推荐',
+    'sources.streaming': '流媒体音源 · STREAMING（扫码登录）',
+    'sources.netease': '网易云音乐', 'sources.qq': 'QQ 音乐',
+    'sources.note': '可选能力是<b>探测出来的，不是假设的</b>——服务器没实现哪一项，那个入口就整个不出现。流媒体只放你账号有权听的内容，VIP 曲目会标明原因，不做任何「解析」。',
+    'sandbox.1t': '脚本沙箱', 'sandbox.1b': '音源是兼容 MusicFree 协议的插件，不能碰页面，不能自己联网。',
+    'sandbox.2t': '白名单代理', 'sandbox.2b': '一切请求经宿主代理，manifest 列出的域名才放行，重定向逐跳复查。',
+    'sandbox.3t': '凭据本机加密', 'sandbox.3b': '与服务器密码同一把 AES-GCM 设备密钥，只存在本机，不经过第三方。',
     'privacy.title': '隐私，直接说清楚',
     'privacy.stamp1': 'TELEMETRY: NONE.',
     'privacy.stamp2': '没有埋点，没有崩溃上报——也没有可以发过去的服务器。',
@@ -82,22 +94,22 @@
   var EN = {
     'nav.gallery': 'Gallery', 'nav.departments': 'Departments', 'nav.sources': 'Sources',
     'nav.privacy': 'Privacy', 'nav.download': 'Download', 'nav.github': 'GitHub',
-    'hero.tag': 'VOL.3 · NO.36 · COVER STORY',
-    'hero.title': 'A music magazine<br />you can play',
-    'hero.sub': 'Point it at Navidrome / Subsonic / Jellyfin / Emby and read your own library like a beautifully typeset issue — masthead, issue number, cover story, running heads, colophon.',
+    'cover.rule.mid': 'OCTOBER 2026 · PUBLISHED MONTHLY',
+    'cover.deck': 'A music magazine you can play',
+    'cover.decksub': '一本可以播放的音乐杂志 — YOUR LIBRARY, TYPESET LIKE AN ISSUE',
+    'cover.line1': 'Connect your library — NAS and streaming, side by side',
+    'cover.line2': 'Three skins, one click apart — try the dots, top right',
+    'cover.line3': 'Four departments: Playback · Control · Library · Yours',
+    'cover.line4': 'Privacy, stated plainly — TELEMETRY: NONE.',
+    'cover.caption.pop': 'Cover art — Home, Candy Pop: every candy colour is bound to a meaning',
+    'cover.caption.editorial': 'Cover art — Home, Paper & Ink: warm paper, serifs, one vermilion',
+    'cover.caption.clay': 'Cover art — Home, Soft Clay (default): pastel claymorphism, home to Nuo the mascot',
     'hero.cta1': '↓ Download free', 'hero.cta2': '★ Star on GitHub',
     'hero.meta': 'macOS · Windows · Linux · Android · iOS · Web — free · open source · no account · no telemetry',
-    'hero.caption': 'Fig. 1 — Home, Soft Clay (default skin)',
-    'sources.title': 'Point it at your library',
-    'sources.sub': 'Two kinds of sources side by side, not either-or. Search grouped by source; the queue mixes freely.',
-    'sources.nas': 'Your server · SELF-HOSTED', 'sources.recommended': 'recommended',
-    'sources.streaming': 'Streaming sources · STREAMING (QR sign-in)',
-    'sources.netease': 'NetEase Cloud Music', 'sources.qq': 'QQ Music', 'sources.note': 'Optional capabilities are <b>probed, never assumed</b> — if the server does not implement one, its entry simply never appears. Streaming plays only what your own account may hear; VIP tracks say why, no “unlocking”.',
-    'sandbox.1t': 'Script sandbox', 'sandbox.1b': 'Each source is a MusicFree-compatible plugin — no DOM access, no direct networking.',
-    'sandbox.2t': 'Allow-listed proxy', 'sandbox.2b': 'Every request is proxied by the host; only manifest-listed hosts are reached, redirects re-checked per hop.',
-    'sandbox.3t': 'Credentials stay on-device', 'sandbox.3b': 'Encrypted with the same AES-GCM device key as server passwords — never sent anywhere else.',
+    'rh.gallery': 'LAYOUTS · 版面', 'rh.dept': 'DEPARTMENTS · 栏目',
+    'rh.sources': 'SOURCES · 音源', 'rh.privacy': 'PRIVACY · 隐私', 'rh.dl': 'DOWNLOAD · 下载',
     'gallery.title': 'Gallery',
-    'gallery.sub': 'Three skins, one set of components, one click apart — each with light and dark.',
+    'gallery.sub': 'Three skins, one set of components, one click apart — each with light and dark. Try the three dots in the masthead: the whole site switches too.',
     'gallery.tab.player': 'Now Playing', 'gallery.tab.pop': 'Home · Candy Pop',
     'gallery.tab.editorial': 'Home · Paper & Ink', 'gallery.tab.clay': 'Home · Soft Clay',
     'gallery.tab.album': 'Album page', 'gallery.tab.login': 'Connect',
@@ -132,6 +144,15 @@
     'dept.yours.3': 'Marginalia: the one thing that cannot be recomputed — synced and backed up first',
     'dept.yours.4': 'An editable taste profile: weights in the open, artists and genres muteable forever',
     'dept.yours.5': 'Import ListenBrainz / Last.fm; export M3U8 / XSPF / JSON / CSV',
+    'sources.title': 'Point it at your library',
+    'sources.sub': 'Two kinds of sources side by side, not either-or. Search grouped by source; the queue mixes freely.',
+    'sources.nas': 'Your server · SELF-HOSTED', 'sources.recommended': 'recommended',
+    'sources.streaming': 'Streaming sources · STREAMING (QR sign-in)',
+    'sources.netease': 'NetEase Cloud Music', 'sources.qq': 'QQ Music',
+    'sources.note': 'Optional capabilities are <b>probed, never assumed</b> — if the server does not implement one, its entry simply never appears. Streaming plays only what your own account may hear; VIP tracks say why, no “unlocking”.',
+    'sandbox.1t': 'Script sandbox', 'sandbox.1b': 'Each source is a MusicFree-compatible plugin — no DOM access, no direct networking.',
+    'sandbox.2t': 'Allow-listed proxy', 'sandbox.2b': 'Every request is proxied by the host; only manifest-listed hosts are reached, redirects re-checked per hop.',
+    'sandbox.3t': 'Credentials stay on-device', 'sandbox.3b': 'Encrypted with the same AES-GCM device key as server passwords — never sent anywhere else.',
     'privacy.title': 'Privacy, stated plainly',
     'privacy.stamp1': 'TELEMETRY: NONE.',
     'privacy.stamp2': 'No analytics, no crash reports — there is no server to send them to.',
@@ -151,8 +172,11 @@
   }
 
   var DICTS = { zh: ZH, en: EN }
-  var STORAGE_KEY = 'n1ko-site-lang'
+  var LANG_KEY = 'n1ko-site-lang'
+  var SKIN_KEY = 'n1ko-site-skin'
   var currentLang = 'zh'
+
+  function t(key) { return DICTS[currentLang][key] || '' }
 
   function applyLang(lang) {
     currentLang = lang === 'en' ? 'en' : 'zh'
@@ -164,10 +188,9 @@
     }
     document.documentElement.setAttribute('data-lang', currentLang)
     document.documentElement.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'zh-CN')
-    try { localStorage.setItem(STORAGE_KEY, currentLang) } catch (e) { /* 私密模式无所谓 */ }
+    try { localStorage.setItem(LANG_KEY, currentLang) } catch (e) { /* 私密模式无所谓 */ }
   }
 
-  /* ── 语言切换 ── */
   var toggle = document.getElementById('langToggle')
   if (toggle) {
     toggle.addEventListener('click', function () {
@@ -175,10 +198,57 @@
     })
   }
 
-  /* 记住上次的语言 */
+  /* 初始语言：?lang= 参数 > 上次选择 > 跟随系统（中文系统给中文，其它给英文） */
   try {
-    var saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'en' || saved === 'zh') applyLang(saved)
+    var urlLang = (location.search.match(/[?&]lang=(zh|en)/) || [])[1]
+    var saved = localStorage.getItem(LANG_KEY)
+    if (urlLang) applyLang(urlLang)
+    else if (saved === 'en' || saved === 'zh') applyLang(saved)
+    else if (typeof navigator !== 'undefined' && !/^zh/i.test(navigator.language || '')) applyLang('en')
+  } catch (e) { /* ignore */ }
+
+  /* ── 整站换肤：只改 data-skin，联动换封面截图 ── */
+  var SKINS = {
+    pop:       { img: 'assets/home-pop.png',       themeColor: '#f6f0dc' },
+    editorial: { img: 'assets/home-editorial.png', themeColor: '#f4efe3' },
+    clay:      { img: 'assets/home.png',           themeColor: '#f5eee4' },
+  }
+  var heroImg = document.getElementById('heroImg')
+  var heroCaption = document.getElementById('heroCaption')
+  var skinDots = Array.prototype.slice.call(document.querySelectorAll('.skin-dot[data-skin]'))
+
+  function applySkin(skin) {
+    if (!SKINS[skin]) skin = 'clay'
+    document.documentElement.setAttribute('data-skin', skin)
+    for (var i = 0; i < skinDots.length; i++) {
+      skinDots[i].setAttribute('aria-pressed', skinDots[i].getAttribute('data-skin') === skin ? 'true' : 'false')
+    }
+    if (heroImg) {
+      heroImg.src = SKINS[skin].img
+      heroImg.alt = t('cover.caption.' + skin).replace(/^封面图 — |^Cover art — /, '')
+    }
+    if (heroCaption) {
+      heroCaption.setAttribute('data-i18n', 'cover.caption.' + skin)
+      heroCaption.innerHTML = t('cover.caption.' + skin)
+    }
+    var meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', SKINS[skin].themeColor)
+    try { localStorage.setItem(SKIN_KEY, skin) } catch (e) { /* ignore */ }
+  }
+
+  for (var d = 0; d < skinDots.length; d++) {
+    ;(function (dot) {
+      dot.addEventListener('click', function () { applySkin(dot.getAttribute('data-skin')) })
+    })(skinDots[d])
+  }
+
+  /* 初始皮肤：?skin= 参数（可从 README/文档直接链到某张皮）> 上次选择 > 默认。
+     无论如何都在载入时完整应用一次：同步封面图、图注语言与主题色。 */
+  try {
+    var urlSkin = (location.search.match(/[?&]skin=(pop|editorial|clay)/) || [])[1]
+    var savedSkin = localStorage.getItem(SKIN_KEY)
+    var initialSkin = urlSkin || (SKINS[savedSkin] ? savedSkin : document.documentElement.getAttribute('data-skin'))
+    applySkin(initialSkin)
   } catch (e) { /* ignore */ }
 
   /* ── 画廊 ── */
@@ -197,12 +267,17 @@
   function selectShot(name) {
     var shot = SHOTS[name]
     if (!shot || !galleryImg) return
-    galleryImg.src = shot.src
-    galleryImg.alt = shot.alt[currentLang === 'en' ? 1 : 0]
+    galleryImg.classList.add('switching')
+    var swap = function () {
+      galleryImg.src = shot.src
+      galleryImg.alt = shot.alt[currentLang === 'en' ? 1 : 0]
+      galleryImg.classList.remove('switching')
+    }
+    setTimeout(swap, 180)
     if (galleryCaption) {
       var key = 'gallery.cap.' + name
       galleryCaption.setAttribute('data-i18n', key)
-      galleryCaption.innerHTML = DICTS[currentLang][key] || ''
+      galleryCaption.innerHTML = t(key)
     }
     for (var i = 0; i < tabs.length; i++) {
       var active = tabs[i].getAttribute('data-shot') === name
@@ -211,11 +286,12 @@
     }
   }
 
-  for (var t = 0; t < tabs.length; t++) {
+  for (var tb = 0; tb < tabs.length; tb++) {
     ;(function (tab) {
       tab.addEventListener('click', function () { selectShot(tab.getAttribute('data-shot')) })
-    })(tabs[t])
+    })(tabs[tb])
   }
+
   /* 画廊 tablist 支持左右键（WAI-ARIA tabs 模式的最小实现） */
   var tablist = document.querySelector('.gallery-tabs')
   if (tablist) {
@@ -226,5 +302,49 @@
       tabs[next].focus()
       selectShot(tabs[next].getAttribute('data-shot'))
     })
+  }
+
+  /* ── 入场动效：IntersectionObserver 驱动，进视口一次即定格 ── */
+  /* ?snap=1 跳过入场动效（截图/调试/无 JS 动画环境兜底） */
+  var SNAP = /[?&]snap\b/.test(location.search)
+  var revealGroups = [
+    ['.nameplate', 0], ['.deck', 60], ['.cover-lines', 120], ['.cover-art', 160],
+    ['.running-head', 0], ['.section-head', 0],
+    ['.gallery-tabs', 60], ['.gallery-stage', 120],
+    ['.source-group', 0], ['.note-line', 80],
+    ['.privacy-stamp', 0], ['.privacy-rows', 120],
+    ['.colophon-grid', 0],
+  ]
+  var staggered = ['.dept-card', '.mini-card', '.dl-card', '.prow', '.cline']
+
+  var observed = []
+  if (!SNAP) {
+    revealGroups.forEach(function (pair) {
+      document.querySelectorAll(pair[0]).forEach(function (el) {
+        el.classList.add('reveal')
+        el.style.setProperty('--reveal-delay', pair[1] + 'ms')
+        observed.push(el)
+      })
+    })
+    staggered.forEach(function (sel) {
+      document.querySelectorAll(sel).forEach(function (el, i) {
+        el.classList.add('reveal')
+        el.style.setProperty('--reveal-delay', (i % 6) * 60 + 'ms')
+        observed.push(el)
+      })
+    })
+  }
+
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return
+        entry.target.classList.add('in')
+        io.unobserve(entry.target)
+      })
+    }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' })
+    observed.forEach(function (el) { io.observe(el) })
+  } else {
+    observed.forEach(function (el) { el.classList.add('in') })
   }
 })()

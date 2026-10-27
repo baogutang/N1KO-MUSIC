@@ -49,7 +49,7 @@
 |---|---|
 | **结构是一本刊物** | 报头、刊号、封面故事、书眉、版记。换皮换的是语气，不是骨架。 |
 | **封面是唯一的颜色** | 专辑封面是版面上唯一的大色块，其余交给皮肤的底色与描边。 |
-| **三张皮，一键切换** | **奶油·软陶**（默认）：奶油底、圆头字、软鼓包投影，吉祥物阿糯住在问候横幅里。**糖果·波普**：奶油底 + 2px 墨描边 + 硬投影，糖果色全部绑定语义。**纸·墨·朱**：暖纸、宋体标题、一种朱色。三张皮共用同一套组件，切换只改 `<html>` 上的一个属性。 |
+| **三张皮，一键切换** | **[奶油·软陶](https://baogutang.github.io/N1KO-MUSIC/?skin=clay)**（默认）：奶油底、圆头字、软鼓包投影，吉祥物阿糯住在问候横幅里。**[糖果·波普](https://baogutang.github.io/N1KO-MUSIC/?skin=pop)**：奶油底 + 2px 墨描边 + 硬投影，糖果色全部绑定语义。**[纸·墨·朱](https://baogutang.github.io/N1KO-MUSIC/?skin=editorial)**：暖纸、宋体标题、一种朱色。三张皮共用同一套组件，切换只改 `<html>` 上的一个属性。 |
 | **自托管字体** | Source Serif 4 / Hanken Grotesk / JetBrains Mono —— 一切时长、序号、码率一律等宽。 |
 | **一个字都不编** | 应用里所有自动生成的句子——编者按、重听说明、口味权重——全部由真实数字拼成。数据撑不起某一句，那一句就不出现。 |
 
@@ -64,44 +64,29 @@
 
 <table>
 <tr>
-<td width="50%">
-
-**正在播放** —— 大封面、歌词流，当前行被高亮，点任意一行即可跳转。
-
-</td>
-<td width="50%">
-
-**专辑 · 档案页** —— 档案式元数据、曲目表、内页说明，以及一块可以写你自己
-那句话的页边。
-
-</td>
+<td width="50%"><img src="docs/screenshots/v4/player.gif" alt="正在播放" /></td>
+<td width="50%"><img src="docs/screenshots/v4/album.png" alt="专辑详情" /></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/v4/player.gif" alt="正在播放" /></td>
-<td><img src="docs/screenshots/v4/album.png" alt="专辑详情" /></td>
-</tr>
-<tr>
-<td>
-
-**首页 · 封面页** —— 头条专辑、编号排列的最近添加、文字化的歌手索引，
-以及**重听**。同一个首页，三张皮，每一张都各有浅色与深色。
-
-</td>
-<td>
-
-**连接服务器，或者登录一个流媒体音源** —— Navidrome / Subsonic / Jellyfin /
-Emby 几秒钟连上；网易云 / QQ 音乐扫个码。
-
-</td>
+<td><b>正在播放</b> —— 大封面、歌词流，当前行被高亮，点任意一行跳转。</td>
+<td><b>专辑 · 档案页</b> —— 档案式元数据、曲目表、内页说明，以及一块可以写你自己那句话的页边。</td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/v4/home.png" alt="首页 · 奶油·软陶" /></td>
 <td><img src="docs/screenshots/v4/login.png" alt="连接" /></td>
 </tr>
+<tr>
+<td><b>首页 · 封面页</b> —— 头条专辑、编号排列的最近添加、文字化的歌手索引，以及<b>重听</b>。</td>
+<td><b>连接</b> —— Navidrome / Subsonic / Jellyfin / Emby 几秒钟连上；网易云 / QQ 音乐扫个码。</td>
+</tr>
 </table>
 
-<sub>更多：[首页 · 糖果·波普](docs/screenshots/v4/home-pop.png) ·
-[首页 · 纸·墨·朱](docs/screenshots/v4/home-editorial.png)</sub>
+<sub>同一套组件，三张皮——直接在官网上切着看：
+**[奶油·软陶](https://baogutang.github.io/N1KO-MUSIC/?skin=clay)** ·
+**[糖果·波普](https://baogutang.github.io/N1KO-MUSIC/?skin=pop)** ·
+**[纸·墨·朱](https://baogutang.github.io/N1KO-MUSIC/?skin=editorial)**。
+更多截图：[糖果·波普首页](docs/screenshots/v4/home-pop.png) ·
+[纸·墨·朱首页](docs/screenshots/v4/home-editorial.png)</sub>
 
 <br/>
 

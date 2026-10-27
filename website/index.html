@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-lang="zh">
+<html lang="zh-CN" data-lang="zh" data-skin="clay">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,8 +7,10 @@
 <meta name="description" content="N1KO MUSIC — 一本可以播放的音乐杂志。连上 Navidrome / Subsonic / Jellyfin / Emby，把自己的曲库读成一本排好版的刊物；没有 NAS，网易云音乐 / QQ 音乐扫码登录一样能听。免费开源，全平台。" />
 <meta property="og:title" content="N1KO MUSIC · 一本可以播放的音乐杂志" />
 <meta property="og:description" content="A music magazine you can play. Navidrome / Subsonic / Jellyfin / Emby + 网易云音乐 / QQ 音乐，macOS · Windows · Linux · Android · iOS · Web。" />
-<meta property="og:image" content="assets/home-pop.png" />
+<meta property="og:image" content="https://baogutang.github.io/N1KO-MUSIC/assets/home.png" />
 <meta property="og:type" content="website" />
+<meta name="theme-color" content="#f6f0dc" />
+<link rel="canonical" href="https://baogutang.github.io/N1KO-MUSIC/" />
 <link rel="icon" type="image/png" href="assets/logo.png" />
 <link rel="stylesheet" href="assets/fonts/fonts.css" />
 <link rel="stylesheet" href="styles.css" />
@@ -31,6 +33,12 @@
   </nav>
 
   <div class="mast-actions">
+    <span class="issue-badge mono" aria-hidden="true"><i>VOL.3</i><b>NO.36</b></span>
+    <div class="skin-switch" role="group" aria-label="Skin">
+      <button class="skin-dot dot-clay"      data-skin="clay"      aria-label="奶油·软陶" title="奶油·软陶 Soft Clay" aria-pressed="true"></button>
+      <button class="skin-dot dot-pop"       data-skin="pop"       aria-label="糖果·波普" title="糖果·波普 Candy Pop" aria-pressed="false"></button>
+      <button class="skin-dot dot-editorial" data-skin="editorial" aria-label="纸·墨·朱" title="纸·墨·朱 Paper &amp; Ink" aria-pressed="false"></button>
+    </div>
     <button class="pill pill-ghost lang-toggle" id="langToggle" aria-label="Switch language">
       <span class="lang-opt" data-lang-opt="zh">中</span><span class="lang-sep">/</span><span class="lang-opt" data-lang-opt="en">EN</span>
     </button>
@@ -43,25 +51,102 @@
 
 <main>
 
-<!-- ======================= 封面故事 / Hero ======================= -->
-<section class="hero">
-  <div class="hero-copy">
-    <p class="tag-capsule"><span class="dot dot-grape" aria-hidden="true"></span><span data-i18n="hero.tag">VOL.3 · NO.36 · 本期封面</span></p>
-    <h1 class="hero-title" data-i18n="hero.title">一本可以播放的<br />音乐杂志</h1>
-    <p class="hero-sub" data-i18n="hero.sub">连上 Navidrome / Subsonic / Jellyfin / Emby，把自己的曲库读成一本排好版的刊物——报头、刊号、封面故事、书眉、版记，一样不少。</p>
-    <div class="hero-ctas">
-      <a class="pill pill-grape pill-lg" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener" data-i18n="hero.cta1">↓ 免费下载</a>
-      <a class="pill pill-ghost pill-lg" href="https://github.com/baogutang/N1KO-MUSIC" target="_blank" rel="noopener" data-i18n="hero.cta2">★ 给个 Star</a>
-    </div>
-    <p class="hero-meta mono" data-i18n="hero.meta">macOS · Windows · Linux · Android · iOS · Web — 免费 · 开源 · 无账号 · 无埋点</p>
+<!-- ======================= 封面 / The Cover (Hero) ======================= -->
+<section class="cover">
+  <div class="cover-rule mono" aria-hidden="true">
+    <span>VOL.3 · NO.36</span>
+    <span data-i18n="cover.rule.mid">2026 年 10 月 · 逢月出刊</span>
+    <span>FREE &amp; OPEN SOURCE</span>
   </div>
 
-  <figure class="hero-figure">
-    <div class="frame frame-hero">
-      <img src="assets/home.png" alt="N1KO MUSIC 首页 · 奶油·软陶（默认皮肤）" width="1600" height="1000" fetchpriority="high" />
+  <h1 class="nameplate">N1KO MUSIC</h1>
+
+  <p class="deck">
+    <span class="deck-main" data-i18n="cover.deck">一本可以播放的音乐杂志</span>
+    <span class="deck-sub mono" data-i18n="cover.decksub">A MUSIC MAGAZINE YOU CAN PLAY — 把你的曲库，读成一本排好版的刊物</span>
+  </p>
+
+  <div class="cover-body">
+    <div class="cover-lines">
+      <a class="cline" href="#sources">
+        <span class="mono cline-no">01</span>
+        <span class="cline-text" data-i18n="cover.line1">连上你的曲库——NAS 与流媒体，并排而坐</span>
+        <span class="cline-arrow" aria-hidden="true">→</span>
+      </a>
+      <a class="cline" href="#gallery">
+        <span class="mono cline-no">02</span>
+        <span class="cline-text" data-i18n="cover.line2">三张皮肤，一键切换——本页右上角就能试</span>
+        <span class="cline-arrow" aria-hidden="true">→</span>
+      </a>
+      <a class="cline" href="#departments">
+        <span class="mono cline-no">03</span>
+        <span class="cline-text" data-i18n="cover.line3">四个栏目：播放 · 操作 · 曲库 · 你自己的</span>
+        <span class="cline-arrow" aria-hidden="true">→</span>
+      </a>
+      <a class="cline" href="#privacy">
+        <span class="mono cline-no">04</span>
+        <span class="cline-text" data-i18n="cover.line4">隐私，直接说清楚——TELEMETRY: NONE.</span>
+        <span class="cline-arrow" aria-hidden="true">→</span>
+      </a>
+
+      <div class="hero-ctas">
+        <a class="pill pill-accent pill-lg" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener" data-i18n="hero.cta1">↓ 免费下载</a>
+        <a class="pill pill-ghost pill-lg" href="https://github.com/baogutang/N1KO-MUSIC" target="_blank" rel="noopener" data-i18n="hero.cta2">★ 给个 Star</a>
+      </div>
+      <p class="hero-meta mono" data-i18n="hero.meta">macOS · Windows · Linux · Android · iOS · Web</p>
     </div>
-    <figcaption class="mono caption" data-i18n="hero.caption">图 1 — 首页 · 奶油·软陶（默认皮肤）</figcaption>
-  </figure>
+
+    <figure class="cover-art">
+      <div class="frame-decor">
+        <div class="frame frame-hero">
+          <img id="heroImg" src="assets/home.png" alt="N1KO MUSIC 首页 · 奶油·软陶" width="1600" height="1000" fetchpriority="high" />
+        </div>
+        <span class="art-stamp mono" aria-hidden="true">NO.36</span>
+        <span class="art-nuo" aria-hidden="true">
+        <svg viewBox="0 0 120 120" width="96" height="96" class="nuo nuo-wave">
+          <defs>
+            <linearGradient id="nuo-fur" x1="16%" y1="4%" x2="82%" y2="98%">
+              <stop offset="0%" stop-color="#d6f0e3" /><stop offset="46%" stop-color="#addcc6" /><stop offset="100%" stop-color="#76ba9e" />
+            </linearGradient>
+            <linearGradient id="nuo-cup" x1="8%" y1="0%" x2="92%" y2="100%">
+              <stop offset="0%" stop-color="#accbe4" /><stop offset="100%" stop-color="#769ec5" />
+            </linearGradient>
+            <radialGradient id="nuo-gloss"><stop offset="0%" stop-color="rgb(255 255 255 / .62)" /><stop offset="100%" stop-color="rgb(255 255 255 / 0)" /></radialGradient>
+            <radialGradient id="nuo-shade"><stop offset="0%" stop-color="rgb(74 58 47 / .26)" /><stop offset="100%" stop-color="rgb(74 58 47 / 0)" /></radialGradient>
+          </defs>
+          <ellipse cx="55" cy="107" rx="30" ry="5.5" fill="url(#nuo-shade)" />
+          <g class="nuo-figure">
+            <path class="nuo-tail" d="M32 96C18 102 8 95 13 85" />
+            <path fill="#76ba9e" d="M28 48C24 26 31 13 42 20 49 25 52 36 53 45Z" />
+            <path fill="#f6bdaa" d="M34 44C31 29 36 21 42 27 46 31 48 37 48 43Z" />
+            <path fill="#76ba9e" d="M82 48C86 26 79 13 68 20 61 25 58 36 57 45Z" />
+            <path fill="#f6bdaa" d="M76 44C79 29 74 21 68 27 64 31 62 37 62 43Z" />
+            <path class="nuo-band" d="M20 68A35 40 0 0 1 90 68" />
+            <path class="nuo-band-gloss" d="M30 40A32 36 0 0 1 55 26" />
+            <ellipse cx="55" cy="68" rx="34" ry="33" fill="url(#nuo-fur)" />
+            <ellipse cx="41" cy="55" rx="17" ry="11" transform="rotate(-26 41 55)" fill="url(#nuo-gloss)" />
+            <ellipse fill="#addcc6" cx="40" cy="99" rx="9.5" ry="6.5" />
+            <ellipse fill="#addcc6" cx="70" cy="99" rx="9.5" ry="6.5" />
+            <g><rect x="8" y="52" width="26" height="30" rx="13" fill="url(#nuo-cup)" /><ellipse fill="#f8d57e" cx="21" cy="67" rx="6.8" ry="8.8" /></g>
+            <g><rect x="76" y="52" width="26" height="30" rx="13" fill="url(#nuo-cup)" /><ellipse fill="#f8d57e" cx="89" cy="67" rx="6.8" ry="8.8" /></g>
+            <g class="nuo-paw">
+              <ellipse cx="79" cy="47" rx="10.5" ry="6.5" transform="rotate(-30 79 47)" fill="url(#nuo-fur)" />
+              <circle cx="89" cy="40" r="8" fill="url(#nuo-fur)" />
+              <ellipse fill="#f6bdaa" cx="89" cy="42.4" rx="3.4" ry="2.4" />
+            </g>
+            <ellipse fill="#f3a088" opacity=".78" cx="36" cy="77" rx="6" ry="4" />
+            <ellipse fill="#f3a088" opacity=".78" cx="74" cy="77" rx="6" ry="4" />
+            <circle fill="#343c36" cx="44" cy="64" r="4.3" /><circle fill="#343c36" cx="66" cy="64" r="4.3" />
+            <circle fill="rgb(255 255 255 / .92)" cx="42.4" cy="62.2" r="1.5" /><circle fill="rgb(255 255 255 / .92)" cx="64.4" cy="62.2" r="1.5" />
+            <ellipse fill="#f6bdaa" cx="55" cy="72" rx="2.6" ry="2" />
+            <path class="nuo-smile" d="M48.6 76.5Q55 83.5 61.4 76.5" />
+          </g>
+        </svg>
+      </span>
+      </div>
+      <figcaption class="mono caption" id="heroCaption" data-i18n="cover.caption">封面图 — 首页 · 奶油·软陶（应用内默认皮肤）</figcaption>
+    </figure>
+  </div>
 </section>
 
 <!-- ======================= 滚动规格条 / Spec ticker ======================= -->
@@ -72,59 +157,12 @@
   </div>
 </div>
 
-<!-- ======================= 音源 / Sources ======================= -->
-<section class="section" id="sources">
-  <div class="section-head">
-    <h2 data-i18n="sources.title">连上你的曲库</h2>
-    <p class="section-sub" data-i18n="sources.sub">两种来源并排而坐，不是二选一。搜索按来源分组，队列里混着放。</p>
-  </div>
-
-  <div class="source-groups">
-    <div class="source-group">
-      <h3 class="mono group-label" data-i18n="sources.nas">自建服务器 · YOUR SERVER</h3>
-      <ul class="source-pills">
-        <li class="pill src mint"><span class="dot"></span>Navidrome<em class="mono" data-i18n="sources.recommended">推荐</em></li>
-        <li class="pill src"><span class="dot"></span>Subsonic</li>
-        <li class="pill src"><span class="dot"></span>Airsonic</li>
-        <li class="pill src"><span class="dot"></span>Jellyfin</li>
-        <li class="pill src"><span class="dot"></span>Emby</li>
-      </ul>
-    </div>
-    <div class="source-group">
-      <h3 class="mono group-label" data-i18n="sources.streaming">流媒体音源 · STREAMING（扫码登录）</h3>
-      <ul class="source-pills">
-        <li class="pill src lemon"><span class="dot"></span><span data-i18n="sources.netease">网易云音乐</span></li>
-        <li class="pill src lemon"><span class="dot"></span><span data-i18n="sources.qq">QQ 音乐</span></li>
-      </ul>
-    </div>
-  </div>
-
-  <p class="note-line" data-i18n="sources.note">可选能力是<b>探测出来的，不是假设的</b>——服务器没实现哪一项，那个入口就整个不出现。流媒体只放你账号有权听的内容，VIP 曲目会标明原因，不做任何「解析」。</p>
-
-  <div class="sandbox-grid">
-    <div class="mini-card">
-      <span class="mono mini-index">01</span>
-      <h4 data-i18n="sandbox.1t">脚本沙箱</h4>
-      <p data-i18n="sandbox.1b">音源是兼容 MusicFree 协议的插件，不能碰页面，不能自己联网。</p>
-    </div>
-    <div class="mini-card">
-      <span class="mono mini-index">02</span>
-      <h4 data-i18n="sandbox.2t">白名单代理</h4>
-      <p data-i18n="sandbox.2b">一切请求经宿主代理，manifest 列出的域名才放行，重定向逐跳复查。</p>
-    </div>
-    <div class="mini-card">
-      <span class="mono mini-index">03</span>
-      <h4 data-i18n="sandbox.3t">凭据本机加密</h4>
-      <p data-i18n="sandbox.3b">与服务器密码同一把 AES-GCM 设备密钥，只存在本机，不经过第三方。</p>
-    </div>
-  </div>
-</section>
-
 <!-- ======================= 界面 / Gallery ======================= -->
 <section class="section" id="gallery">
+  <p class="running-head mono" aria-hidden="true"><span>VOL.3 NO.36</span><span data-i18n="rh.gallery">版面 · LAYOUTS</span><span>P.01</span></p>
   <div class="section-head">
     <h2 data-i18n="gallery.title">界面</h2>
-    <p class="section-sub" data-i18n="gallery.sub">三张皮肤共用同一套组件，一键切换，各自有浅色与深色。</p>
+    <p class="section-sub" data-i18n="gallery.sub">三张皮肤共用同一套组件，一键切换，各自有浅色与深色——点报头右侧的三个圆点，整张网页也会跟着换。</p>
   </div>
 
   <div class="gallery-tabs" role="tablist" aria-label="Screenshots">
@@ -146,6 +184,7 @@
 
 <!-- ======================= 栏目 / Departments ======================= -->
 <section class="section" id="departments">
+  <p class="running-head mono" aria-hidden="true"><span>VOL.3 NO.36</span><span data-i18n="rh.dept">栏目 · DEPARTMENTS</span><span>P.02</span></p>
   <div class="section-head">
     <h2 data-i18n="dept.title">栏目</h2>
     <p class="section-sub" data-i18n="dept.sub">四个常设栏目，像一本杂志的版面分工。</p>
@@ -198,8 +237,58 @@
   </div>
 </section>
 
+<!-- ======================= 音源 / Sources ======================= -->
+<section class="section" id="sources">
+  <p class="running-head mono" aria-hidden="true"><span>VOL.3 NO.36</span><span data-i18n="rh.sources">音源 · SOURCES</span><span>P.03</span></p>
+  <div class="section-head">
+    <h2 data-i18n="sources.title">连上你的曲库</h2>
+    <p class="section-sub" data-i18n="sources.sub">两种来源并排而坐，不是二选一。搜索按来源分组，队列里混着放。</p>
+  </div>
+
+  <div class="source-groups">
+    <div class="source-group">
+      <h3 class="mono group-label" data-i18n="sources.nas">自建服务器 · YOUR SERVER</h3>
+      <ul class="source-pills">
+        <li class="pill src mint"><span class="dot"></span>Navidrome<em class="mono" data-i18n="sources.recommended">推荐</em></li>
+        <li class="pill src"><span class="dot"></span>Subsonic</li>
+        <li class="pill src"><span class="dot"></span>Airsonic</li>
+        <li class="pill src"><span class="dot"></span>Jellyfin</li>
+        <li class="pill src"><span class="dot"></span>Emby</li>
+      </ul>
+    </div>
+    <div class="source-group">
+      <h3 class="mono group-label" data-i18n="sources.streaming">流媒体音源 · STREAMING（扫码登录）</h3>
+      <ul class="source-pills">
+        <li class="pill src lemon"><span class="dot"></span><span data-i18n="sources.netease">网易云音乐</span></li>
+        <li class="pill src lemon"><span class="dot"></span><span data-i18n="sources.qq">QQ 音乐</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="note-line" data-i18n="sources.note">可选能力是<b>探测出来的，不是假设的</b>——服务器没实现哪一项，那个入口就整个不出现。流媒体只放你账号有权听的内容，VIP 曲目会标明原因，不做任何「解析」。</p>
+
+  <div class="sandbox-grid">
+    <div class="mini-card">
+      <span class="mono mini-index">01</span>
+      <h4 data-i18n="sandbox.1t">脚本沙箱</h4>
+      <p data-i18n="sandbox.1b">音源是兼容 MusicFree 协议的插件，不能碰页面，不能自己联网。</p>
+    </div>
+    <div class="mini-card">
+      <span class="mono mini-index">02</span>
+      <h4 data-i18n="sandbox.2t">白名单代理</h4>
+      <p data-i18n="sandbox.2b">一切请求经宿主代理，manifest 列出的域名才放行，重定向逐跳复查。</p>
+    </div>
+    <div class="mini-card">
+      <span class="mono mini-index">03</span>
+      <h4 data-i18n="sandbox.3t">凭据本机加密</h4>
+      <p data-i18n="sandbox.3b">与服务器密码同一把 AES-GCM 设备密钥，只存在本机，不经过第三方。</p>
+    </div>
+  </div>
+</section>
+
 <!-- ======================= 隐私 / Privacy ======================= -->
 <section class="section" id="privacy">
+  <p class="running-head mono" aria-hidden="true"><span>VOL.3 NO.36</span><span data-i18n="rh.privacy">隐私 · PRIVACY</span><span>P.04</span></p>
   <div class="section-head">
     <h2 data-i18n="privacy.title">隐私，直接说清楚</h2>
   </div>
@@ -221,6 +310,7 @@
 
 <!-- ======================= 下载 / Download ======================= -->
 <section class="section" id="download">
+  <p class="running-head mono" aria-hidden="true"><span>VOL.3 NO.36</span><span data-i18n="rh.dl">下载 · DOWNLOAD</span><span>P.05</span></p>
   <div class="section-head">
     <h2 data-i18n="dl.title">下载</h2>
     <p class="section-sub" data-i18n="dl.sub">完全免费，完全开源。挑你的平台，几秒钟开始。</p>
@@ -266,7 +356,45 @@
 
 <!-- ======================= 版记 / Colophon ======================= -->
 <footer class="colophon">
-  <p class="colophon-end serif" data-i18n="footer.end">—— 本期完 ——</p>
+  <p class="colophon-end serif">
+    <span class="nuo-sleep" aria-hidden="true">
+      <svg viewBox="0 0 120 120" width="72" height="72" class="nuo">
+        <defs>
+          <linearGradient id="nuo2-fur" x1="16%" y1="4%" x2="82%" y2="98%">
+            <stop offset="0%" stop-color="#d6f0e3" /><stop offset="46%" stop-color="#addcc6" /><stop offset="100%" stop-color="#76ba9e" />
+          </linearGradient>
+          <linearGradient id="nuo2-cup" x1="8%" y1="0%" x2="92%" y2="100%">
+            <stop offset="0%" stop-color="#accbe4" /><stop offset="100%" stop-color="#769ec5" />
+          </linearGradient>
+          <radialGradient id="nuo2-gloss"><stop offset="0%" stop-color="rgb(255 255 255 / .62)" /><stop offset="100%" stop-color="rgb(255 255 255 / 0)" /></radialGradient>
+        </defs>
+        <g class="nuo-figure">
+          <path class="nuo-tail" d="M32 96C18 102 8 95 13 85" />
+          <path fill="#76ba9e" d="M28 48C24 26 31 13 42 20 49 25 52 36 53 45Z" />
+          <path fill="#f6bdaa" d="M34 44C31 29 36 21 42 27 46 31 48 37 48 43Z" />
+          <path fill="#76ba9e" d="M82 48C86 26 79 13 68 20 61 25 58 36 57 45Z" />
+          <path fill="#f6bdaa" d="M76 44C79 29 74 21 68 27 64 31 62 37 62 43Z" />
+          <path class="nuo-band" d="M20 68A35 40 0 0 1 90 68" />
+          <path class="nuo-band-gloss" d="M30 40A32 36 0 0 1 55 26" />
+          <ellipse cx="55" cy="68" rx="34" ry="33" fill="url(#nuo2-fur)" />
+          <ellipse cx="41" cy="55" rx="17" ry="11" transform="rotate(-26 41 55)" fill="url(#nuo2-gloss)" />
+          <ellipse fill="#addcc6" cx="40" cy="99" rx="9.5" ry="6.5" />
+          <ellipse fill="#addcc6" cx="70" cy="99" rx="9.5" ry="6.5" />
+          <g><rect x="8" y="52" width="26" height="30" rx="13" fill="url(#nuo2-cup)" /><ellipse fill="#f8d57e" cx="21" cy="67" rx="6.8" ry="8.8" /></g>
+          <g><rect x="76" y="52" width="26" height="30" rx="13" fill="url(#nuo2-cup)" /><ellipse fill="#f8d57e" cx="89" cy="67" rx="6.8" ry="8.8" /></g>
+          <ellipse fill="#f3a088" opacity=".78" cx="36" cy="77" rx="6" ry="4" />
+          <ellipse fill="#f3a088" opacity=".78" cx="74" cy="77" rx="6" ry="4" />
+          <path class="nuo-smile" d="M39.5 63.5Q44 69.5 48.5 63.5" />
+          <path class="nuo-smile" d="M61.5 63.5Q66 69.5 70.5 63.5" />
+          <ellipse fill="#f6bdaa" cx="55" cy="72" rx="2.6" ry="2" />
+          <path class="nuo-smile" d="M48.6 76.5Q55 83.5 61.4 76.5" />
+        </g>
+        <path class="nuo-z nuo-z1" d="M89 25H100L89 36H100" />
+        <path class="nuo-z nuo-z2" d="M102 11H110L102 19H110" />
+      </svg>
+    </span>
+    <span data-i18n="footer.end">—— 本期完 ——</span>
+  </p>
 
   <div class="colophon-grid">
     <div class="colo-block">

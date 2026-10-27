@@ -51,7 +51,7 @@ N1KO MUSIC is built that way, all the way down:
 |---|---|
 | **The structure is a magazine** | Masthead, issue number, cover story, running heads, colophon. A skin changes the voice, not the skeleton. |
 | **Artwork is the only colour** | Album covers are the sole large colour fields; everything else is ground and strokes. |
-| **Three skins, one click apart** | **Soft Clay** (default): cream ground, rounded type, soft puffed shadows, home to Nuo the mascot. **Candy Pop**: cream ground, 2px ink strokes, hard shadows, every candy colour bound to a meaning. **Paper & Ink**: warm paper, serif headlines, one vermilion. Same components — switching flips a single attribute on `<html>`. |
+| **Three skins, one click apart** | **[Soft Clay](https://baogutang.github.io/N1KO-MUSIC/?skin=clay)** (default): cream ground, rounded type, soft puffed shadows, home to Nuo the mascot. **[Candy Pop](https://baogutang.github.io/N1KO-MUSIC/?skin=pop)**: 2px ink strokes, hard shadows, every candy colour bound to a meaning. **[Paper & Ink](https://baogutang.github.io/N1KO-MUSIC/?skin=editorial)**: warm paper, serif headlines, one vermilion. Same components — switching flips a single attribute on `<html>`. |
 | **Self-hosted type** | Source Serif 4 / Hanken Grotesk / JetBrains Mono — every duration, index and bitrate set in monospace. |
 | **Nothing is invented** | Every generated sentence — the editor's note, rediscovery captions, taste weights — is assembled from real numbers. When the data won't support a sentence, it doesn't appear. |
 
@@ -67,45 +67,28 @@ Fully free, fully open source. No accounts, no telemetry, no upsell.
 
 <table>
 <tr>
-<td width="50%">
-
-**Now playing** — an oversized cover and a lyric stream with the current line
-picked out; tap any line to seek.
-
-</td>
-<td width="50%">
-
-**Album · the dossier page** — archival metadata, tracklist, liner notes, and a
-margin where you can write your own.
-
-</td>
+<td width="50%"><img src="docs/screenshots/v4/player.gif" alt="Now playing" /></td>
+<td width="50%"><img src="docs/screenshots/v4/album.png" alt="Album detail" /></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/v4/player.gif" alt="Now playing" /></td>
-<td><img src="docs/screenshots/v4/album.png" alt="Album detail" /></td>
-</tr>
-<tr>
-<td>
-
-**Home · the cover page** — a featured-album headline, numbered recent adds, a
-typographic artist index, and **Rediscover**. The same page in three skins,
-each with its own light and dark.
-
-</td>
-<td>
-
-**Connect your server — or sign in to a streaming source** — Navidrome /
-Subsonic / Jellyfin / Emby in seconds; NetEase / QQ Music with a QR scan.
-
-</td>
+<td><b>Now playing</b> — an oversized cover and a lyric stream; tap any line to seek.</td>
+<td><b>Album · the dossier page</b> — archival metadata, tracklist, liner notes, and a margin where you can write your own.</td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/v4/home.png" alt="Home · Soft Clay" /></td>
 <td><img src="docs/screenshots/v4/login.png" alt="Connect" /></td>
 </tr>
+<tr>
+<td><b>Home · the cover page</b> — a featured-album headline, numbered recent adds, a typographic artist index, and <b>Rediscover</b>.</td>
+<td><b>Connect</b> — Navidrome / Subsonic / Jellyfin / Emby in seconds; NetEase / QQ Music with a QR scan.</td>
+</tr>
 </table>
 
-<sub>More: [Candy Pop home](docs/screenshots/v4/home-pop.png) ·
+<sub>The same components in three skins — try them on the site itself:
+**[Soft Clay](https://baogutang.github.io/N1KO-MUSIC/?skin=clay)** ·
+**[Candy Pop](https://baogutang.github.io/N1KO-MUSIC/?skin=pop)** ·
+**[Paper & Ink](https://baogutang.github.io/N1KO-MUSIC/?skin=editorial)**.
+More stills: [Candy Pop home](docs/screenshots/v4/home-pop.png) ·
 [Paper & Ink home](docs/screenshots/v4/home-editorial.png)</sub>
 
 <br/>
