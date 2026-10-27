@@ -12,6 +12,8 @@
 FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
+# npm ci 的 postinstall 要用它给原生插件打补丁（见脚本头注释）
+COPY scripts/patch-native-plugins.mjs ./scripts/
 RUN npm ci
 COPY . .
 RUN npm run build
