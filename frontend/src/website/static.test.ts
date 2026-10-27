@@ -1,5 +1,5 @@
 /**
- * 官网静态不变量（复审 A10 / A11 / B13）。
+ * 官网静态不变量（复审 A10 / A11 / B13；v5 起 A10 改为「只有一套暖纸」）。
  *
  * website/ 正由另一方并行改版（未提交的工作区改动不归本分支管）——
  * 这些断言核对的是**仓库里已提交的** website 文件；门禁在干净 worktree
@@ -17,7 +17,7 @@ describe('官网字体的相对 URL（A11：url 相对 css 自身解析）', () 
   it('fonts.css 引用的每个 woff2 都真实存在（相对路径，不带 assets/fonts/ 前缀）', () => {
     const css = readFileSync(website('assets/fonts/fonts.css'), 'utf8')
     const urls = [...css.matchAll(/url\('([^']+)'\)/g)].map(m => m[1])
-    expect(urls.length).toBeGreaterThanOrEqual(10)
+    expect(urls.length).toBeGreaterThanOrEqual(4)
     for (const url of urls) {
       expect(url.startsWith('assets/'), `${url} 仍是相对站点根的旧写法`).toBe(false)
       expect(existsSync(website(`assets/fonts/${url}`)), `${url} 文件不存在`).toBe(true)
@@ -25,17 +25,30 @@ describe('官网字体的相对 URL（A11：url 相对 css 自身解析）', () 
   })
 })
 
-describe('默认皮肤口径（A10：默认是奶油·软陶，不是糖果·波普）', () => {
-  it('官网 hero 用软陶截图，文案不再出现「工坊/Workshop」', () => {
+describe('v5 只有一套暖纸（A10 的后继：不再有皮肤，也不再有吉祥物）', () => {
+  it('官网 hero 用 v5 截图，页面与脚本里没有换肤入口和旧皮肤名', () => {
     const html = readFileSync(website('index.html'), 'utf8')
-    expect(html).toContain('src="assets/home.png"')
+    expect(html).toContain('src="assets/home.webp"')
+    expect(existsSync(website('assets/home.webp'))).toBe(true)
+    expect(html).not.toContain('data-skin')
     expect(html).not.toContain('工坊')
     const js = readFileSync(website('script.js'), 'utf8')
     expect(js).not.toContain('Workshop')
     expect(js).not.toContain('工坊')
-    // hero 图注两语都标软陶为默认
-    expect(js).toContain('奶油·软陶（默认皮肤）')
-    expect(js).toContain('Soft Clay (default skin)')
+    for (const legacy of ['软陶', '波普', 'Soft Clay', 'Candy Pop', 'SKIN_KEY']) {
+      expect(html, legacy).not.toContain(legacy)
+      expect(js, legacy).not.toContain(legacy)
+    }
+  })
+
+  it('页面引用的每张截图都真实存在', () => {
+    const html = readFileSync(website('index.html'), 'utf8')
+    const js = readFileSync(website('script.js'), 'utf8')
+    const refs = [...`${html}\n${js}`.matchAll(/assets\/[\w.-]+\.(?:webp|png|jpg)/g)].map(m => m[0])
+    expect(refs.length).toBeGreaterThanOrEqual(8)
+    for (const ref of new Set(refs)) {
+      expect(existsSync(website(ref)), `${ref} 文件不存在`).toBe(true)
+    }
   })
 })
 

@@ -4,11 +4,11 @@
 
 # N1KO MUSIC
 
-**A music magazine you can play**
+**Your own library, played well**
 
-Point it at Navidrome / Subsonic / Jellyfin / Emby and read your own library
-like a beautifully typeset issue. No NAS? Sign in with your own NetEase Cloud
-Music or QQ Music account (QQ or WeChat QR) and listen anyway.
+Point it at Navidrome / Subsonic / Jellyfin / Emby and play the music on your own NAS.
+No NAS? Sign in with your own NetEase Cloud Music or QQ Music account (QQ or WeChat QR)
+and listen anyway. iPhone, iPhone Duo, iPad and the desktop each get a layout that fits.
 
 [![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 [![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
@@ -22,7 +22,7 @@ Music or QQ Music account (QQ or WeChat QR) and listen anyway.
 
 <br/>
 
-<img src="docs/screenshots/v4/home.png" alt="N1KO MUSIC — home, Soft Clay skin (default)" width="860" />
+<img src="docs/screenshots/v5/home.png" alt="N1KO MUSIC on an iPad in landscape: sidebar, home page and the Now Playing panel side by side" width="860" />
 
 </div>
 
@@ -38,22 +38,19 @@ Music or QQ Music account (QQ or WeChat QR) and listen anyway.
 
 <br/>
 
-## Why a magazine
+## Warm paper
 
 Most music clients are admin dashboards with cover art bolted on, organised around
-*what the server has* — tables, filters, counts.
-
-A magazine is organised around *what is worth your attention this week*: a masthead,
-an issue number, a cover story, running heads, a colophon. It has a voice.
-N1KO MUSIC is built that way, all the way down:
+*what the server has*: tables, filters, counts. N1KO MUSIC wants to be a player you
+leave open all day. In v5 the three old skins became one design:
 
 | | |
 |---|---|
-| **The structure is a magazine** | Masthead, issue number, cover story, running heads, colophon. A skin changes the voice, not the skeleton. |
-| **Artwork is the only colour** | Album covers are the sole large colour fields; everything else is ground and strokes. |
-| **Three skins, one click apart** | **[Soft Clay](https://baogutang.github.io/N1KO-MUSIC/?skin=clay)** (default): cream ground, rounded type, soft puffed shadows, home to Nuo the mascot. **[Candy Pop](https://baogutang.github.io/N1KO-MUSIC/?skin=pop)**: 2px ink strokes, hard shadows, every candy colour bound to a meaning. **[Paper & Ink](https://baogutang.github.io/N1KO-MUSIC/?skin=editorial)**: warm paper, serif headlines, one vermilion. Same components — switching flips a single attribute on `<html>`. |
-| **Self-hosted type** | Source Serif 4 / Hanken Grotesk / JetBrains Mono — every duration, index and bitrate set in monospace. |
-| **Nothing is invented** | Every generated sentence — the editor's note, rediscovery captions, taste weights — is assembled from real numbers. When the data won't support a sentence, it doesn't appear. |
+| **The window decides, not the device** | Narrow windows get a bottom tab bar, medium ones a side rail, wide ones an iPadOS sidebar plus a Now Playing panel. iPhone, an unfolded iPhone Duo, iPad Split View and any Stage Manager window you drag around all get the layout that fits. |
+| **Artwork is the only colour** | Warm white paper, raised sheets and one terracotta accent. Sections are separated by elevation and space, not lines; album covers are the only large colour fields. |
+| **Two things you remember** | A rubber play key set in its bezel, and a faint sheet of grid paper under the lyrics. |
+| **Self-hosted type** | Schibsted Grotesk for headings and text, Young Serif for exactly one large figure; CJK falls back to the system face. |
+| **Nothing is invented** | Every generated sentence (the editor's note, rediscovery captions, taste weights) is assembled from real numbers. When the data won't support a sentence, it doesn't appear. |
 
 Sound is not sacrificed to any of it: FLAC / WAV / ALAC passthrough, 320 / 192 /
 128kbps tiers for when bandwidth matters, and ReplayGain applied from the values
@@ -61,35 +58,54 @@ your server already computed.
 
 Fully free, fully open source. No accounts, no telemetry, no upsell.
 
+The design contract (tokens, components, layout rules) lives in
+[`docs/redesign/v5/DESIGN.md`](docs/redesign/v5/DESIGN.md).
+
 <br/>
 
 ## Interface
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/v4/player.gif" alt="Now playing" /></td>
-<td width="50%"><img src="docs/screenshots/v4/album.png" alt="Album detail" /></td>
+<td width="50%"><img src="docs/screenshots/v5/player.png" alt="Now Playing in landscape" /></td>
+<td width="50%"><img src="docs/screenshots/v5/home-dark.png" alt="Home in dark mode" /></td>
 </tr>
 <tr>
-<td><b>Now playing</b> — an oversized cover and a lyric stream; tap any line to seek.</td>
-<td><b>Album · the dossier page</b> — archival metadata, tracklist, liner notes, and a margin where you can write your own.</td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/v4/home.png" alt="Home · Soft Clay" /></td>
-<td><img src="docs/screenshots/v4/login.png" alt="Connect" /></td>
-</tr>
-<tr>
-<td><b>Home · the cover page</b> — a featured-album headline, numbered recent adds, a typographic artist index, and <b>Rediscover</b>.</td>
-<td><b>Connect</b> — Navidrome / Subsonic / Jellyfin / Emby in seconds; NetEase / QQ Music with a QR scan.</td>
+<td><b>Now Playing</b>: in a landscape window the cover and controls sit on the left and the lyrics on grid paper to the right; tap any line to seek.</td>
+<td><b>Dark</b>: a warm umber night with the same terracotta one step brighter, following the system.</td>
 </tr>
 </table>
 
-<sub>The same components in three skins — try them on the site itself:
-**[Soft Clay](https://baogutang.github.io/N1KO-MUSIC/?skin=clay)** ·
-**[Candy Pop](https://baogutang.github.io/N1KO-MUSIC/?skin=pop)** ·
-**[Paper & Ink](https://baogutang.github.io/N1KO-MUSIC/?skin=editorial)**.
-More stills: [Candy Pop home](docs/screenshots/v4/home-pop.png) ·
-[Paper & Ink home](docs/screenshots/v4/home-editorial.png)</sub>
+<p align="center">
+<img src="docs/screenshots/v5/phone.png" alt="Home on iPhone" height="360" />&nbsp;
+<img src="docs/screenshots/v5/phone-player.png" alt="Now Playing on iPhone" height="360" />&nbsp;
+<img src="docs/screenshots/v5/duo-tabletop.png" alt="Now Playing on a half-folded iPhone Duo" height="360" />&nbsp;
+<img src="docs/screenshots/v5/ipad-portrait.png" alt="An album page on iPad in portrait" height="360" />
+</p>
+
+<sub>Left to right: iPhone home (bottom tab bar, swipe the mini player to skip), iPhone Now Playing,
+iPhone Duo half folded (lyrics above the hinge, covers and controls below), an iPad album page in portrait (side rail).
+There is also a [connect page](docs/screenshots/v5/login.png) still.</sub>
+
+<br/>
+
+## On iPad and iPhone Duo
+
+**iPad.** In landscape the sidebar, the page and the Now Playing panel sit side by side
+(the panel opens by default in windows wider than 1180 points). Portrait or half-screen
+Split View switches to a side rail; Slide Over gets the iPhone layout. With a Magic Keyboard
+or a trackpad attached:
+
+- Hold ⌘ for a second to see every shortcut
+- ⌘1 / ⌘2 / ⌘3 Home, For You, Library; ⌘F search; ⌘L full screen lyrics; ⌘[ / ⌘] back and forward
+- ⌃⌘S hides or shows the sidebar; ⌥⌘P toggles the Now Playing panel
+- Right-click a song for its menu (same as a long press); drag songs with the trackpad into Up Next or a sidebar playlist
+
+**iPhone Duo.** The cover screen gets the iPhone layout; unfolded you get a side rail, after
+the way QQ Music handles the Duo. Stand it half folded and Now Playing splits in two: lyrics
+above the hinge, the cover strip and controls below. Browsers report the fold through the
+Device Posture / Viewport Segments APIs; the native iOS shell cannot see it yet (WebKit does
+not expose the posture), so it needs a small native bridge, which is planned.
 
 <br/>
 
@@ -158,8 +174,8 @@ More stills: [Candy Pop home](docs/screenshots/v4/home-pop.png) ·
 Thin spaces between CJK and Latin runs, hanging punctuation, slashed-zero
 tabular numerals · credentials encrypted at rest with a non-extractable device
 key · a persistent offline banner with retry, not a toast that vanishes ·
-`aria-pressed` toggles, WCAG AA contrast, `motion-reduce` honoured · issue
-numbers, running heads and a colophon on every page.
+`aria-pressed` toggles, WCAG AA contrast, `prefers-reduced-motion` honoured ·
+the full shortcut set on an iPad keyboard, one held ⌘ away.
 
 <br/>
 
@@ -237,7 +253,7 @@ download from the latest run's Artifacts:
 | Platform | Package | Notes |
 |------|--------|------|
 | Android | `N1KO-MUSIC-android-debug` → `app-debug.apk` | Debug build, installs directly (allow unknown sources) |
-| iOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | Unsigned; sideload with AltStore / Sideloadly |
+| iOS / iPadOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | Unsigned; sideload with AltStore / Sideloadly |
 
 > Release-signed mobile builds (Play keystore / Apple Developer) are not set up
 > yet — the workflow slots them in without structural changes. On macOS, if you
@@ -292,7 +308,7 @@ flowchart LR
 
     subgraph app["N1KO MUSIC"]
         direction TB
-        UI["Magazine UI<br/><sub>React · Zustand · TanStack Query</sub>"]
+        UI["Warm paper UI<br/><sub>React · Zustand · TanStack Query</sub>"]
         AD["Adapter layer<br/><sub>capability detection</sub>"]
         LO["Local data<br/><sub>IndexedDB · history · notes · cache</sub>"]
     end
@@ -406,7 +422,7 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 | Layer | Technology |
 |------|-----|
 | Frontend | React 18 · TypeScript · Vite 5 · Tailwind CSS |
-| UI | Radix UI · Phosphor Icons · self-hosted fonts (Source Serif 4 / Hanken Grotesk / JetBrains Mono / Nunito) |
+| UI | Radix UI · Phosphor Icons · self-hosted fonts (Schibsted Grotesk / Young Serif) |
 | State and data | Zustand · TanStack Query v5 |
 | Audio engine | Native HTML5 Audio |
 | Streaming sources | Sandboxed plugins (MusicFree-compatible protocol + `n1ko` extensions); the host proxies network access through an allow-list |
@@ -438,7 +454,8 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 Pull requests welcome. Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first —
 especially the design-contract section. This project has a deliberate visual
 stance (one accent colour, no card stacking, Phosphor icons only), and colours
-always come from the tokens in `frontend/src/index.css`.
+always come from the tokens in `frontend/src/index.css`; see
+[`docs/redesign/v5/DESIGN.md`](docs/redesign/v5/DESIGN.md) for how to use them.
 
 Translating needs no React knowledge at all — see **[TRANSLATING.md](TRANSLATING.md)**.
 

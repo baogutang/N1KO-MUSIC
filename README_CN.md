@@ -4,11 +4,11 @@
 
 # N1KO MUSIC
 
-**一本可以播放的音乐杂志**
+**听自己的曲库**
 
-连上 Navidrome / Subsonic / Jellyfin / Emby，
-把自己的曲库读成一本排好版的刊物。
+连上 Navidrome / Subsonic / Jellyfin / Emby，听你自己 NAS 里的歌。
 没有 NAS？用自己的网易云音乐 / QQ 音乐账号（QQ 或微信扫码）登录，一样能听。
+iPhone、iPhone Duo、iPad 和桌面，各有合适的布局。
 
 [![Release](https://img.shields.io/github/v/release/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=release)](https://github.com/baogutang/N1KO-MUSIC/releases/latest)
 [![Stars](https://img.shields.io/github/stars/baogutang/N1KO-MUSIC?style=flat-square&color=4f46e5&label=stars)](https://github.com/baogutang/N1KO-MUSIC/stargazers)
@@ -22,7 +22,7 @@
 
 <br/>
 
-<img src="docs/screenshots/v4/home.png" alt="N1KO MUSIC — 首页 · 奶油·软陶（默认皮肤）" width="860" />
+<img src="docs/screenshots/v5/home.png" alt="N1KO MUSIC 在 iPad 横屏上：侧栏、首页和正在播放面板并排" width="860" />
 
 </div>
 
@@ -37,26 +37,25 @@
 
 <br/>
 
-## 为什么是杂志
+## 一张暖纸
 
-大多数音乐客户端是加了封面图的后台管理系统，按「服务器里有什么」组织：
-表格、筛选器、计数。
-
-而一本杂志按「这一期什么值得你看」组织：报头、刊号、封面故事、书眉、版记。
-它有语气。N1KO MUSIC 是照这个思路做到底的：
+大多数音乐客户端是加了封面图的后台管理系统，按「服务器里有什么」组织：表格、筛选器、计数。
+N1KO MUSIC 想做的是一个你愿意一直开着的播放器。v5 把以前的三张皮收成了一套：
 
 |  | |
 |---|---|
-| **结构是一本刊物** | 报头、刊号、封面故事、书眉、版记。换皮换的是语气，不是骨架。 |
-| **封面是唯一的颜色** | 专辑封面是版面上唯一的大色块，其余交给皮肤的底色与描边。 |
-| **三张皮，一键切换** | **[奶油·软陶](https://baogutang.github.io/N1KO-MUSIC/?skin=clay)**（默认）：奶油底、圆头字、软鼓包投影，吉祥物阿糯住在问候横幅里。**[糖果·波普](https://baogutang.github.io/N1KO-MUSIC/?skin=pop)**：奶油底 + 2px 墨描边 + 硬投影，糖果色全部绑定语义。**[纸·墨·朱](https://baogutang.github.io/N1KO-MUSIC/?skin=editorial)**：暖纸、宋体标题、一种朱色。三张皮共用同一套组件，切换只改 `<html>` 上的一个属性。 |
-| **自托管字体** | Source Serif 4 / Hanken Grotesk / JetBrains Mono —— 一切时长、序号、码率一律等宽。 |
-| **一个字都不编** | 应用里所有自动生成的句子——编者按、重听说明、口味权重——全部由真实数字拼成。数据撑不起某一句，那一句就不出现。 |
+| **只看窗口，不看设备** | 窄窗口是底部标签栏，中等宽度是左侧导航条，宽窗口是 iPadOS 式侧栏加右侧「正在播放」面板。iPhone、展开的 iPhone Duo、iPad 分屏、台前调度里随手拖的窗口，都拿到合适的那一套。 |
+| **封面是唯一的颜色** | 暖白纸面、抬起的纸片、一盏陶土色。界面靠纸片的高低和留白分区，不靠线；专辑封面是版面上唯一的大色块。 |
+| **两个记得住的部件** | 嵌在凹槽里的橡胶播放键；歌词底下一张淡淡的格纸。 |
+| **自托管字体** | Schibsted Grotesk 标题正文同族，Young Serif 全站只给一个大数字；中文走系统苹方。 |
+| **一个字都不编** | 应用里所有自动生成的句子（编者按、重听说明、口味权重）全部由真实数字拼成。数据撑不起某一句，那一句就不出现。 |
 
 音质没有为此让步：FLAC / WAV / ALAC 原码直通，带宽紧张时有 320 / 192 / 128kbps
 三档，ReplayGain 直接用服务器已经算好的增益。
 
 完全免费、完全开源，不需要账号，没有埋点，没有增值项。
+
+设计契约（token、组件、布局规则）见 [`docs/redesign/v5/DESIGN.md`](docs/redesign/v5/DESIGN.md)。
 
 <br/>
 
@@ -64,29 +63,41 @@
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/v4/player.gif" alt="正在播放" /></td>
-<td width="50%"><img src="docs/screenshots/v4/album.png" alt="专辑详情" /></td>
+<td width="50%"><img src="docs/screenshots/v5/player.png" alt="横屏的正在播放" /></td>
+<td width="50%"><img src="docs/screenshots/v5/home-dark.png" alt="深色的首页" /></td>
 </tr>
 <tr>
-<td><b>正在播放</b> —— 大封面、歌词流，当前行被高亮，点任意一行跳转。</td>
-<td><b>专辑 · 档案页</b> —— 档案式元数据、曲目表、内页说明，以及一块可以写你自己那句话的页边。</td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/v4/home.png" alt="首页 · 奶油·软陶" /></td>
-<td><img src="docs/screenshots/v4/login.png" alt="连接" /></td>
-</tr>
-<tr>
-<td><b>首页 · 封面页</b> —— 头条专辑、编号排列的最近添加、文字化的歌手索引，以及<b>重听</b>。</td>
-<td><b>连接</b> —— Navidrome / Subsonic / Jellyfin / Emby 几秒钟连上；网易云 / QQ 音乐扫个码。</td>
+<td><b>正在播放</b>：横着的窗口左边封面和控制，右边歌词落在格纸上，点任意一行跳过去。</td>
+<td><b>深色</b>：棕墨夜色，同一盏陶土色调亮一档，跟随系统切换。</td>
 </tr>
 </table>
 
-<sub>同一套组件，三张皮——直接在官网上切着看：
-**[奶油·软陶](https://baogutang.github.io/N1KO-MUSIC/?skin=clay)** ·
-**[糖果·波普](https://baogutang.github.io/N1KO-MUSIC/?skin=pop)** ·
-**[纸·墨·朱](https://baogutang.github.io/N1KO-MUSIC/?skin=editorial)**。
-更多截图：[糖果·波普首页](docs/screenshots/v4/home-pop.png) ·
-[纸·墨·朱首页](docs/screenshots/v4/home-editorial.png)</sub>
+<p align="center">
+<img src="docs/screenshots/v5/phone.png" alt="iPhone 上的首页" height="360" />&nbsp;
+<img src="docs/screenshots/v5/phone-player.png" alt="iPhone 上的正在播放" height="360" />&nbsp;
+<img src="docs/screenshots/v5/duo-tabletop.png" alt="iPhone Duo 半折时的正在播放" height="360" />&nbsp;
+<img src="docs/screenshots/v5/ipad-portrait.png" alt="iPad 竖屏上的专辑页" height="360" />
+</p>
+
+<sub>从左到右：iPhone 首页（底部标签栏，迷你播放条左右滑动切歌）、iPhone 正在播放、iPhone Duo 半折（歌词在折痕上方，封面和控制在下方）、iPad 竖屏专辑页（左侧导航条）。
+另有一张 [连接页](docs/screenshots/v5/login.png)。</sub>
+
+<br/>
+
+## 在 iPad 和 iPhone Duo 上
+
+**iPad。** 横屏是侧栏、页面、「正在播放」面板三栏并排（窗口宽于 1180 时面板默认展开）；
+竖屏或分屏到一半，自动换成左侧导航条；拖窄到侧拉，就是 iPhone 的样子。接上妙控键盘或触控板：
+
+- 按住 ⌘ 一秒，列出全部快捷键
+- ⌘1 / ⌘2 / ⌘3 首页、推荐、音乐库；⌘F 搜索；⌘L 全屏歌词；⌘[ / ⌘] 后退、前进
+- ⌃⌘S 收起或展开侧栏；⌥⌘P 开关「正在播放」面板
+- 歌曲行右键出菜单（和长按一样）；用触控板把歌拖进「接下来」或侧栏里的歌单
+
+**iPhone Duo。** 外屏是 iPhone 布局；展开后是左侧导航条，参考了 QQ 音乐在 Duo 上的做法。
+半折立在桌上时，正在播放分成上下两半：歌词在折痕上方，封面带和控制在下方。
+浏览器里通过 Device Posture / Viewport Segments 接口识别折叠姿态；iOS 原生壳暂时拿不到
+（WebKit 没有公开这个接口），需要补一个原生桥接，已经在计划里。
 
 <br/>
 
@@ -144,8 +155,8 @@
 
 中西文之间的细空格、标点悬挂、带斜杠的等宽数字 · 凭据用取不出来的设备密钥
 加密落盘 · 离线时是一条带重试按钮的常驻横幅，不是一闪而过的 toast ·
-`aria-pressed` 播放开关、WCAG AA 对比度、尊重 `motion-reduce` ·
-每一页都有刊号、书眉和版记。
+`aria-pressed` 播放开关、WCAG AA 对比度、尊重 `prefers-reduced-motion` ·
+iPad 外接键盘时整套快捷键都在，按住 ⌘ 就能看到。
 
 <br/>
 
@@ -214,7 +225,7 @@
 | 平台 | 包 | 说明 |
 |------|--------|------|
 | Android | `N1KO-MUSIC-android-debug` → `app-debug.apk` | Debug 包，可直接安装（需允许未知来源） |
-| iOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | 未签名，用 AltStore / Sideloadly 侧载 |
+| iOS / iPadOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | 未签名，用 AltStore / Sideloadly 侧载 |
 
 > 正式签名的移动端构建（Play keystore / Apple 开发者证书）还没配，工作流留好了位置，
 > 补上时不需要改结构。macOS 首次打开若提示「无法验证开发者」，到
@@ -266,7 +277,7 @@ flowchart LR
 
     subgraph app["N1KO MUSIC"]
         direction TB
-        UI["杂志化界面<br/><sub>React · Zustand · TanStack Query</sub>"]
+        UI["暖纸界面<br/><sub>React · Zustand · TanStack Query</sub>"]
         AD["适配器层<br/><sub>能力探测</sub>"]
         LO["本地数据<br/><sub>IndexedDB · 历史 · 边注 · 缓存</sub>"]
     end
@@ -369,7 +380,7 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 | 层 | 技术 |
 |------|-----|
 | 前端 | React 18 · TypeScript · Vite 5 · Tailwind CSS |
-| UI | Radix UI · Phosphor Icons · 自托管字体（Source Serif 4 / Hanken Grotesk / JetBrains Mono / Nunito） |
+| UI | Radix UI · Phosphor Icons · 自托管字体（Schibsted Grotesk / Young Serif） |
 | 状态与数据 | Zustand · TanStack Query v5 |
 | 音频引擎 | 原生 HTML5 Audio |
 | 流媒体音源 | 沙箱化插件（MusicFree 兼容协议 + `n1ko` 扩展），宿主按白名单代理出网 |
@@ -400,7 +411,8 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 
 欢迎 PR。动手前请先读 **[CONTRIBUTING.md](CONTRIBUTING.md)**，尤其是设计契约那一节。
 这个项目的视觉是有立场的（只有一种强调色、不叠卡片、只用 Phosphor 图标），
-颜色一律取自 `frontend/src/index.css` 里的 token。
+颜色一律取自 `frontend/src/index.css` 里的 token，用法见
+[`docs/redesign/v5/DESIGN.md`](docs/redesign/v5/DESIGN.md)。
 
 翻译完全不需要懂 React —— 见 **[TRANSLATING.md](TRANSLATING.md)**。
 
