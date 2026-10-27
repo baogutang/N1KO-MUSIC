@@ -6,8 +6,8 @@
  */
 
 import { useMemo } from 'react'
-import { useLocation, useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Play, Shuffle } from '@phosphor-icons/react'
+import { useLocation, useParams } from 'react-router-dom'
+import { Play, Shuffle } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { useSourceTopLists, useTopListDetail } from '@/hooks/useSourceQueries'
@@ -22,7 +22,6 @@ export default function TopListDetail() {
   const { serverId = '', topListId = '' } = useParams<{ serverId: string; topListId: string }>()
   const sourceId = decodeURIComponent(serverId)
   const listId = decodeURIComponent(topListId)
-  const navigate = useNavigate()
   const location = useLocation()
   const { data: songs, isLoading, isError, error, refetch } = useTopListDetail(sourceId, listId)
 
@@ -46,65 +45,44 @@ export default function TopListDetail() {
     return undefined
   }, [location.state, topLists, sourceId, listId])
 
-  const backLink = (
-    <button
-      onClick={() => navigate(-1)}
-      className="inline-flex items-center gap-2 text-[13px] text-ink-faint hover:text-primary transition-colors"
-      aria-label={t('action.back')}
-    >
-      <ArrowLeft size={14} />
-      {t('action.back')}
-    </button>
-  )
-
   /*
-   * 版式与其它详情页同一规格（阶段 7.2）：眉题（主词 + latin-tag 拉丁半边）、
-   * 大号衬线标题（长 CJK 名 truncate + min-w-0）、font-num 计数。
-   * 原先是一行 28px 小标题，连「这是榜单」的栏目感都没有。
+   * 页头：大标题（长 CJK 名 truncate + min-w-0）+ 来源徽标 + 曲目数，
+   * 播放全部 / 随机播放在标题下。返回在外壳的工具栏里，页面不再放返回键。
    */
   const header = (
-    <div className="pt-8 pb-8 border-b border-hair">
-      {backLink}
-      <div className="mt-4 flex items-start justify-between gap-5">
-        <div className="min-w-0">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">
-            {t('sources.topListEyebrow')}
-            <span className="latin-tag"> · CHARTS</span>
+    <header>
+      <h1 className="flex min-w-0 items-center gap-3 font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
+        <span className="truncate">{listName ?? t('sources.topListDetail')}</span>
+        <SourceBadge serverId={sourceId} className="flex-shrink-0" />
+      </h1>
+      {songs && songs.length > 0 && (
+        <>
+          <p className="num mt-3 text-sm text-ink-faint">
+            {t('song.trackCount', { count: songs.length })}
           </p>
-          <h1 className="mt-3 flex min-w-0 items-center gap-3 font-serif text-3xl font-black tracking-[-0.01em] text-ink lg:text-4xl">
-            <span className="truncate">{listName ?? t('sources.topListDetail')}</span>
-            <SourceBadge serverId={sourceId} className="flex-shrink-0" />
-          </h1>
-          {songs && songs.length > 0 && (
-            <p className="mt-3 font-num text-xs tracking-[0.06em] text-ink-faint">
-              {t('song.trackCount', { count: songs.length })}
-            </p>
-          )}
-        </div>
-        {songs && songs.length > 0 && (
-          <div className="flex flex-shrink-0 items-center gap-6 pt-6">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <button
-              className="more inline-flex items-center gap-1.5"
+              className="act-primary inline-flex items-center gap-2 text-[14px]"
               onClick={() => playAllInOrder(songs, 0)}
             >
-              <Play size={12} />
+              <Play size={14} weight="fill" />
               {t('player.playAll')}
             </button>
             <button
-              className="more inline-flex items-center gap-1.5"
+              className="act-secondary inline-flex items-center gap-2 text-[14px]"
               onClick={() => playAllShuffled(songs, 0)}
             >
-              <Shuffle size={12} />
+              <Shuffle size={15} />
               {t('player.shuffle')}
             </button>
           </div>
-        )}
-      </div>
-    </div>
+        </>
+      )}
+    </header>
   )
 
   return (
-    <div className="animate-fade-in">
+    <div className="pt-2 regular:pt-4 animate-fade-in">
       {header}
       <div className="mt-8">
         {isLoading ? (
@@ -126,7 +104,7 @@ export default function TopListDetail() {
         )}
         {/* 原始异常只给开发态 */}
         {import.meta.env.DEV && isError && (
-          <p className="mt-3 truncate font-mono text-[11px] text-ink-faint opacity-70">
+          <p className="mt-3 truncate text-[12px] text-ink-faint">
             {error instanceof Error ? error.message : String(error)}
           </p>
         )}

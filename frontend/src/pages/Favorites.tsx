@@ -1,6 +1,7 @@
 /**
- * 收藏页（PLAN 2.4）：多源时按音源分节（歌曲/专辑双 tab 保留），
+ * 收藏页（PLAN 2.4）：多源时按音源分节（歌曲/专辑双分段保留），
  * ?src=<serverId> 只看某一源；单源行为与原版一致。
+ * 版式：大标题 + 体量说明 + 播放全部；一枚分段控件切歌曲 / 专辑；专辑是封面网格。
  */
 
 import { useState } from 'react'
@@ -16,6 +17,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SourceGroupState } from '@/components/sources/SourceGroupState'
 import { EmptyState } from '@/components/common/EmptyState'
+import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
+import { CoverGrid } from '@/components/common/CoverCard'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
 
@@ -59,17 +62,11 @@ export default function Favorites() {
 
   if (!multi && single.isLoading) {
     return (
-      <div className="pt-8 animate-fade-in">
-        <div className="h-9 w-56 rounded-sm bg-paper-deep animate-pulse" />
-        <div className="mt-3 h-4 w-32 rounded-sm bg-paper-deep animate-pulse" />
-        <div className="mt-10 border-t border-hair divide-y divide-hair-soft">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-3 py-2.5">
-              <div className="h-4 w-6 rounded-sm bg-paper-deep animate-pulse" />
-              <div className="h-10 w-10 rounded-sm bg-paper-deep animate-pulse" />
-              <div className="h-4 flex-1 rounded-sm bg-paper-deep animate-pulse" />
-            </div>
-          ))}
+      <div className="pt-2 regular:pt-4 animate-fade-in" aria-hidden="true">
+        <div className="h-10 w-56 rounded-sm bg-skeleton animate-pulse" />
+        <div className="mt-4 h-4 w-32 rounded-sm bg-skeleton animate-pulse" />
+        <div className="mt-10">
+          <SongRowsSkeleton rows={8} />
         </div>
       </div>
     )
@@ -78,74 +75,69 @@ export default function Favorites() {
   const allSongs = sections.flatMap(s => s.songs)
   const allAlbums = sections.flatMap(s => s.albums)
 
+  const tabs: { key: FavTab; label: string; count: number }[] = [
+    { key: 'songs', label: t('library.songs'), count: allSongs.length },
+    { key: 'albums', label: t('library.albums'), count: allAlbums.length },
+  ]
+
   return (
-    <div className="pt-8 animate-fade-in">
-      {/* 页头：衬线标题 + mono 统计 + 文字级主操作（DESIGN v2 §3/§4.1） */}
-      <header className="flex items-end justify-between gap-6 border-b border-hair pb-6">
+    <div className="pt-2 regular:pt-4 animate-fade-in">
+      {/* 页头：大标题 + 体量说明（各自独立的 span）+ 陶土主操作 */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div>
-          <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
+          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
             {t('library.favoritesTitle')}
-            <span className="latin-tag ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
-              FAVORITES
-            </span>
           </h1>
-          <p className="mt-1.5 font-num text-sm text-ink-faint">
-            {t('library.favoritesCounts', { songs: allSongs.length, albums: allAlbums.length })}
+          <p className="num mt-3 flex flex-wrap gap-x-3 text-sm text-ink-faint">
+            <span>{t('library.songsCount', { count: allSongs.length })}</span>
+            <span>{t('library.albumsCount', { count: allAlbums.length })}</span>
           </p>
         </div>
         {allSongs.length > 0 && (
           <button
             onClick={() => playAllInOrder(allSongs, 0)}
-            className="inline-flex flex-shrink-0 items-center gap-2 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
+            className="act-primary inline-flex flex-shrink-0 items-center gap-2 text-sm"
           >
-            <Play className="w-3.5 h-3.5" weight="fill" />
+            <Play size={15} weight="fill" />
             {t('player.playAll')}
           </button>
         )}
       </header>
 
-      {/* 文字 tab：当前项 accent 短划线（同主导航范式） */}
-      <div className="mb-8 flex items-center gap-8">
-        <button
-          onClick={() => setTab('songs')}
-          className={cn(
-            'relative pb-2.5 pt-5 text-sm tracking-[0.08em] transition-colors',
-            tab === 'songs'
-              ? 'font-semibold text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:bg-primary'
-              : 'text-ink-soft hover:text-foreground'
-          )}
-        >
-          {t('library.songs')}
-          <span className="ml-1.5 font-num text-xs text-ink-faint">{allSongs.length}</span>
-        </button>
-        <button
-          onClick={() => setTab('albums')}
-          className={cn(
-            'relative pb-2.5 pt-5 text-sm tracking-[0.08em] transition-colors',
-            tab === 'albums'
-              ? 'font-semibold text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:bg-primary'
-              : 'text-ink-soft hover:text-foreground'
-          )}
-        >
-          {t('library.albums')}
-          <span className="ml-1.5 font-num text-xs text-ink-faint">{allAlbums.length}</span>
-        </button>
+      {/* 分段控件：歌曲 / 专辑，当前项是凹槽里被托起的一块纸片 */}
+      <div className="mt-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-paper-deep p-1 scrollbar-hide">
+        {tabs.map(item => (
+          <button
+            key={item.key}
+            onClick={() => setTab(item.key)}
+            aria-pressed={tab === item.key}
+            className={cn(
+              'seg-option inline-flex min-h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill px-5 text-[14px] font-medium transition-colors duration-150',
+              tab === item.key
+                ? 'is-on'
+                : 'text-ink-soft [@media(hover:hover)]:hover:text-ink'
+            )}
+          >
+            {item.label}
+            <span className="num text-[13px] text-ink-faint">{item.count}</span>
+          </button>
+        ))}
       </div>
 
-      {sections.map(section => {
-        const songs = tab === 'songs' ? section.songs : []
-        const albums = tab === 'albums' ? section.albums : []
-        return (
-          <section key={section.serverId || 'single'} className="mb-10">
-            {multi && (
-              <div className="section-head">
-                <h2 className="flex items-center gap-2.5">
-                  <SourceBadge serverId={section.serverId} withName />
-                </h2>
-              </div>
-            )}
-            {section.status !== 'success' && (
-              <div className="border-t border-hair">
+      <div className="mt-6">
+        {sections.map(section => {
+          const songs = tab === 'songs' ? section.songs : []
+          const albums = tab === 'albums' ? section.albums : []
+          return (
+            <section key={section.serverId || 'single'} className="mb-10">
+              {multi && (
+                <div className="section-head !pt-4">
+                  <h2 className="flex items-center gap-2.5">
+                    <SourceBadge serverId={section.serverId} withName />
+                  </h2>
+                </div>
+              )}
+              {section.status !== 'success' && (
                 <SourceGroupState
                   serverId={section.serverId}
                   status={section.status}
@@ -155,39 +147,39 @@ export default function Favorites() {
                     })
                   }
                 />
-              </div>
-            )}
-            {section.status === 'success' && tab === 'songs' && (
-              songs.length === 0 ? (
-                /* 多源下也要给空态：只留一个孤零零的音源名，
-                   「这个源没有收藏」和「这个源坏了」就分不出来了 */
-                <EmptyState
-                  ruled
-                  title={t('empty.favoriteSongs.title')}
-                  description={t('empty.favoriteSongs.description')}
-                />
-              ) : songs.length > 0 ? (
-                <SongList songs={songs} showAlbum sourceBadge={multi} />
-              ) : null
-            )}
-            {section.status === 'success' && tab === 'albums' && (
-              albums.length === 0 ? (
-                <EmptyState
-                  ruled
-                  title={t('empty.favoriteAlbums.title')}
-                  description={t('empty.favoriteAlbums.description')}
-                />
-              ) : albums.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
-                  {albums.map(album => (
-                    <AlbumCard key={`${section.serverId}:${album.id}`} album={album} />
-                  ))}
-                </div>
-              ) : null
-            )}
-          </section>
-        )
-      })}
+              )}
+              {section.status === 'success' && tab === 'songs' && (
+                songs.length === 0 ? (
+                  /* 多源下也要给空态：只留一个孤零零的音源名，
+                     「这个源没有收藏」和「这个源坏了」就分不出来了 */
+                  <EmptyState
+                    ruled
+                    title={t('empty.favoriteSongs.title')}
+                    description={t('empty.favoriteSongs.description')}
+                  />
+                ) : songs.length > 0 ? (
+                  <SongList songs={songs} showAlbum sourceBadge={multi} />
+                ) : null
+              )}
+              {section.status === 'success' && tab === 'albums' && (
+                albums.length === 0 ? (
+                  <EmptyState
+                    ruled
+                    title={t('empty.favoriteAlbums.title')}
+                    description={t('empty.favoriteAlbums.description')}
+                  />
+                ) : albums.length > 0 ? (
+                  <CoverGrid>
+                    {albums.map(album => (
+                      <AlbumCard key={`${section.serverId}:${album.id}`} album={album} />
+                    ))}
+                  </CoverGrid>
+                ) : null
+              )}
+            </section>
+          )
+        })}
+      </div>
     </div>
   )
 }

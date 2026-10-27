@@ -16,7 +16,7 @@
 
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowsClockwise } from '@phosphor-icons/react'
+import { ArrowsClockwise, Play, Shuffle } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { EmptyState } from '@/components/common/EmptyState'
@@ -35,6 +35,7 @@ import {
 } from '@/hooks/useSourceQueries'
 import { useRecommendationConstraints } from '@/services/recommendationFilters'
 import { formatDuration } from '@/utils/formatters'
+import { cn } from '@/lib/utils'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { useT } from '@/i18n'
 
@@ -108,47 +109,57 @@ export default function RecommendationsPage() {
   const totalDuration = songs.reduce((sum, song) => sum + song.duration, 0)
 
   return (
-    <div className="animate-fade-in">
+    <div className="pt-2 regular:pt-4 animate-fade-in">
       <section aria-labelledby="rec-today">
-        <div className="section-head">
-          <h2 id="rec-today">
-            {t('section.dailyPicks')}<small>DAILY PICKS</small>
-          </h2>
-          <div className="flex items-baseline gap-7">
-            {songs.length > 0 && (
-              <>
-                <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-                  {t('song.trackCountDuration', {
-                    count: songs.length,
-                    duration: formatDuration(totalDuration),
-                  })}
-                </span>
-                <button className="more" onClick={() => playAllInOrder(songs, 0)}>
-                  {t('player.playAll')}
-                </button>
-                <button className="more" onClick={() => playAllShuffled(songs, 0)}>
-                  {t('player.shuffle')}
-                </button>
-              </>
-            )}
-            <button
-              className="more inline-flex items-center gap-1.5"
-              onClick={handleNewBatch}
-              disabled={isFetching}
-            >
-              <ArrowsClockwise size={12} className={isFetching ? 'animate-spin' : undefined} />
-              {t('action.newBatch')}
-            </button>
-          </div>
-        </div>
-        <p className="-mt-2 mb-6 max-w-[52ch] text-[13px] text-ink-faint">
+        <h1
+          id="rec-today"
+          className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]"
+        >
+          {t('section.dailyPicks')}
+        </h1>
+        <p className="mt-3 max-w-[52ch] text-[14px] leading-relaxed text-ink-faint">
           {t('recommendations.lede')}
         </p>
+
+        <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-3">
+          {songs.length > 0 && (
+            <>
+              <button
+                className="act-primary inline-flex items-center gap-2 text-[14px]"
+                onClick={() => playAllInOrder(songs, 0)}
+              >
+                <Play size={14} weight="fill" />
+                {t('player.playAll')}
+              </button>
+              <button
+                className="act-secondary inline-flex items-center gap-2 text-[14px]"
+                onClick={() => playAllShuffled(songs, 0)}
+              >
+                <Shuffle size={15} />
+                {t('player.shuffle')}
+              </button>
+            </>
+          )}
+          <button
+            className="act-secondary inline-flex items-center gap-2 text-[14px]"
+            onClick={handleNewBatch}
+            disabled={isFetching}
+          >
+            <ArrowsClockwise size={15} className={isFetching ? 'animate-spin motion-reduce:animate-none' : undefined} />
+            {t('action.newBatch')}
+          </button>
+          {songs.length > 0 && (
+            <span className="num flex flex-wrap gap-x-3 text-[14px] text-ink-faint">
+              <span>{t('song.trackCount', { count: songs.length })}</span>
+              <span>{formatDuration(totalDuration)}</span>
+            </span>
+          )}
+        </div>
 
         {/* 来源筛选：只有真的跨了源才有意义，单源时这排 chip 只是噪声 */}
         {grouped.length > 1 && (
           <div
-            className="mb-6 flex flex-wrap items-center gap-4"
+            className="page-tabs mt-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-paper-deep p-1 scrollbar-hide"
             role="tablist"
             aria-label={t('recommendations.sourceFilter')}
           >
@@ -169,36 +180,38 @@ export default function RecommendationsPage() {
           </div>
         )}
 
-        {songs.length > 0 ? (
-          <div className={isFetching ? 'opacity-60 transition-opacity duration-200' : undefined}>
-            <SongList songs={songs} showCover showAlbum showIndex sourceBadge />
-          </div>
-        ) : isFetching ? (
-          <SongRowsSkeleton rows={8} />
-        ) : (
-          <EmptyState
-            ruled
-            title={t('empty.recommendations.title')}
-            description={t('empty.recommendations.description')}
-          />
-        )}
+        <div className="mt-6">
+          {songs.length > 0 ? (
+            <div className={isFetching ? 'opacity-60 transition-opacity duration-200' : undefined}>
+              <SongList songs={songs} showCover showAlbum showIndex sourceBadge />
+            </div>
+          ) : isFetching ? (
+            <SongRowsSkeleton rows={8} />
+          ) : (
+            <EmptyState
+              ruled
+              title={t('empty.recommendations.title')}
+              description={t('empty.recommendations.description')}
+            />
+          )}
 
-        {/* 失败/登录过期的源占一行（复核 F1）：静默消失比报错更糟，
-            这一页是首页那条的展开版，状态行的约定也与它一致 */}
-        <GroupStateRows
-          failed={failed}
-          loading={loading}
-          auth={auth}
-          showLoading={!songs.length}
-          retry={retry}
-          family="recommend-songs"
-        />
+          {/* 失败/登录过期的源占一行（复核 F1）：静默消失比报错更糟，
+              这一页是首页那条的展开版，状态行的约定也与它一致 */}
+          <GroupStateRows
+            failed={failed}
+            loading={loading}
+            auth={auth}
+            showLoading={!songs.length}
+            retry={retry}
+            family="recommend-songs"
+          />
+        </div>
       </section>
     </div>
   )
 }
 
-/** 来源 chip：与专辑/歌手浏览页同一套（徽标 + 名字 + 下缘 accent） */
+/** 来源分段：徽标 + 名字，当前项是一块托起的纸片（与浏览页的分段同一套） */
 function SourceChip({ serverId, label, selected, onSelect }: {
   serverId?: string
   label: string
@@ -212,15 +225,15 @@ function SourceChip({ serverId, label, selected, onSelect }: {
       // 点当前项不做任何事——与浏览页的 chip 同一条约定
       disabled={selected}
       onClick={onSelect}
-      className={
-        'inline-flex items-center gap-1.5 pb-1 border-b transition-colors ' +
-        (selected ? 'border-primary text-primary' : 'border-transparent text-ink-faint hover:text-foreground')
-      }
+      className={cn(
+        'seg-option inline-flex min-h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill px-4 text-[14px] font-medium transition-colors duration-150',
+        selected
+          ? 'is-on cursor-default'
+          : 'text-ink-soft [@media(hover:hover)]:hover:text-ink'
+      )}
     >
       {serverId && <SourceBadge serverId={serverId} />}
-      <span className="text-[12px]">{label}</span>
+      <span>{label}</span>
     </button>
   )
 }
-
-/** 曲目加载骨架：hair-soft 行闪烁（DESIGN §4.5） */

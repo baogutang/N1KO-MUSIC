@@ -4,7 +4,9 @@
  *   （SongList 的「查看详情」已经带上）。router state 里的 Song 只是首屏加速，
  *   直接刷新或从分享链接进来时没有 state，这一页要靠 `?src=` 自己查得回来。
  * - 展示歌曲元信息；仅允许操作歌词（搜索/保存），其余信息只读
- * 杂志编辑风（DESIGN v2）：「档案表」范式——衬线曲名 + 分组发丝线 definition rows。
+ * 暖纸版式（v5）：封面大片（cover-slab）＋ 曲名 ＋ 歌手/专辑链接 ＋ 元信息 ＋ 动作行，
+ * 其下是几张 sheet（基础 / 文件 / 规格 / 制作）的 definition rows；
+ * 歌词在对话框里的一张格纸（paper-grid）上读。
  */
 
 import { useState, useRef, useEffect } from 'react'
@@ -12,7 +14,7 @@ import { describeError, pluginErrorCode } from '@/services/errors'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  MusicNote, ArrowRight, MagnifyingGlass,
+  MusicNote, MagnifyingGlass, TextAlignLeft, ImageSquare, ShareNetwork,
   X, FloppyDisk, ArrowsClockwise, Key,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -49,15 +51,12 @@ import { detailPath } from '@/utils/detailPath'
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
-/** 档案分组：衬线标题 + 拉丁小标签 + 下缘发丝线 */
-function Section({ title, tag, children }: { title: string; tag: string; children: React.ReactNode }) {
+/** 信息分组：一张 sheet，同族粗体小标题 + definition rows，靠行距分隔，不画线 */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-12">
-      <div className="flex items-baseline justify-between border-b border-hair pb-2.5">
-        <h2 className="font-serif text-xl font-semibold">{title}</h2>
-        <span className="latin-tag text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
-      </div>
-      <dl className="divide-y divide-hair-soft">
+    <section className="sheet p-5 regular:p-6">
+      <h2 className="font-display text-[21px] font-semibold">{title}</h2>
+      <dl className="mt-2">
         {children}
       </dl>
     </section>
@@ -69,44 +68,31 @@ interface RowProps {
   value: React.ReactNode
   /** 数字/元数据值用等宽 tabular */
   mono?: boolean
-  onClick?: () => void
-  linkable?: boolean
 }
 
-/** 档案行：左 ink-faint 小标签（wide-tracking），右值 */
-function Row({ label, value, mono, onClick, linkable }: RowProps) {
-  const inner = (
-    <>
-      <dt className="w-28 flex-shrink-0 text-[11px] tracking-[0.2em] text-ink-faint">{label}</dt>
-      <dd className="flex-1 min-w-0 flex items-center justify-end gap-1.5 text-right">
-        <span
-          className={cn(
-            'text-sm truncate',
-            mono && 'num',
-            onClick && 'group-hover:text-primary group-hover:underline decoration-hair underline-offset-[6px]'
-          )}
-        >
-          {value}
-        </span>
-        {linkable && <ArrowRight className="w-3.5 h-3.5 text-ink-faint flex-shrink-0" />}
-      </dd>
-    </>
-  )
-
-  if (onClick) {
-    return (
-      <button type="button" onClick={onClick} className="group w-full flex items-center gap-4 py-3.5 text-left">
-        {inner}
-      </button>
-    )
-  }
-
+/** 档案行：左 ink-faint 说明，右值。值是字符串 / 数字时单行截断，其余（多段元信息）自己换行 */
+function Row({ label, value, mono }: RowProps) {
+  const plain = typeof value === 'string' || typeof value === 'number'
   return (
-    <div className="flex items-center gap-4 py-3.5">
-      {inner}
+    <div className="flex items-baseline gap-4 py-3">
+      <dt className="w-28 flex-shrink-0 text-[14px] text-ink-faint">{label}</dt>
+      <dd className={cn('m-0 min-w-0 flex-1 text-right text-[15px]', mono && 'num', plain && 'truncate')}>
+        {value}
+      </dd>
     </div>
   )
 }
+
+/** 一组并列的短值：独立 span、gap-x-3 换行，不用中点串联 */
+function Spans({ items }: { items: string[] }) {
+  return (
+    <span className="flex flex-wrap justify-end gap-x-3">
+      {items.map((item, i) => <span key={`${i}-${item}`}>{item}</span>)}
+    </span>
+  )
+}
+
+const LABEL_CLS = 'mb-1.5 block text-[13px] font-medium text-ink-faint'
 
 // ─── 歌词搜索对话框 ───────────────────────────────────────────────────────────
 
@@ -339,69 +325,70 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-2xl flex flex-col max-h-[85vh]" style={{ animation: 'none' }}>
+      <DialogContent className="flex max-h-[85vh] flex-col regular:max-w-2xl" style={{ animation: 'none' }}>
         <DialogHeader>
           <DialogTitle>{t('lyrics.search')}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2 flex-1 overflow-hidden flex flex-col">
-          <p className="text-xs text-ink-faint flex-shrink-0">
+        <div className="space-y-4 py-2 flex-1 overflow-y-auto flex flex-col">
+          <p className="text-[13px] text-ink-faint flex-shrink-0">
             {t('lyrics.searchHint')}
           </p>
 
           <div className="flex-shrink-0">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 regular:grid-cols-3 regular:gap-4">
               <div>
-                <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">{t('song.field.songTitle')}</label>
+                <label htmlFor="lyrics-search-title" className={LABEL_CLS}>{t('song.field.songTitle')}</label>
                 <Input
+                  id="lyrics-search-title"
                   type="text" value={searchTitle}
                   onChange={(e) => setSearchTitle(e.target.value)}
-                  className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
                 />
               </div>
               <div>
-                <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">{t('song.field.artist')}</label>
+                <label htmlFor="lyrics-search-artist" className={LABEL_CLS}>{t('song.field.artist')}</label>
                 <Input
+                  id="lyrics-search-artist"
                   type="text" value={searchArtist}
                   onChange={(e) => setSearchArtist(e.target.value)}
-                  className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
                 />
               </div>
               <div>
-                <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">{t('song.field.album')}</label>
+                <label htmlFor="lyrics-search-album" className={LABEL_CLS}>{t('song.field.album')}</label>
                 <Input
+                  id="lyrics-search-album"
                   type="text" value={searchAlbum}
                   onChange={(e) => setSearchAlbum(e.target.value)}
-                  className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
                 />
               </div>
             </div>
 
             <Button
               type="button"
+              variant="outline"
               onClick={handleSearch}
               disabled={searching || !searchTitle.trim()}
-              className="mt-4 gap-1.5 px-0"
+              className="mt-4"
             >
               {searching
-                ? <><ArrowsClockwise className="w-4 h-4 animate-spin" />{t('action.searching')}</>
+                ? <><ArrowsClockwise className="w-4 h-4 animate-spin motion-reduce:animate-none" />{t('action.searching')}</>
                 : <><MagnifyingGlass className="w-4 h-4" />{t('lyrics.search')}</>
               }
             </Button>
           </div>
 
-          {searchError && <p className="text-xs text-destructive flex-shrink-0">{searchError}</p>}
+          {searchError && <p className="text-[13px] text-destructive flex-shrink-0">{searchError}</p>}
 
           {searchResults.length > 0 && (
             <div className="flex-shrink-0 flex flex-col min-h-0">
               <div className="flex items-baseline justify-between mb-2 flex-shrink-0">
-                <p className="text-xs text-ink-faint">
+                <p className="text-[13px] text-ink-faint">
                   <span className="font-num">{t('lyrics.resultCount', { count: searchResults.length })}</span>
                 </p>
-                <p className="text-[10px] tracking-[0.18em] text-ink-faint">{t('lyrics.scoreAndDelta')}</p>
+                <p className="text-[12px] text-ink-faint">{t('lyrics.scoreAndDelta')}</p>
               </div>
               <div
-                className="mb-2 max-h-[min(15rem,32vh)] min-h-0 overflow-y-auto overscroll-y-contain border-y border-hair divide-y divide-hair-soft"
+                className="mb-2 max-h-[min(15rem,32vh)] min-h-0 overflow-y-auto overscroll-y-contain space-y-1"
                 role="listbox" aria-label={t('lyrics.resultsList')}
               >
                 {searchResults.map((result, index) => (
@@ -412,27 +399,28 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
                     aria-selected={selectedIndex === index}
                     onClick={() => handleSelectResult(index)}
                     className={cn(
-                      'w-full text-left px-3 py-2.5 border-l-2 transition-colors duration-150',
+                      'w-full rounded-sm px-3 py-2.5 text-left transition-colors duration-150',
                       selectedIndex === index
-                        ? 'border-primary bg-paper-deep/60'
-                        : 'border-transparent hover:bg-paper-deep/40'
+                        ? 'bg-paper-3'
+                        : 'hover:bg-paper-deep'
                     )}
                   >
                     <div className="flex items-baseline gap-3">
-                      <span className="num w-5 flex-shrink-0 text-[11px] text-ink-faint">
+                      <span className="num w-5 flex-shrink-0 text-[12px] text-ink-faint">
                         {String(index + 1).padStart(2, '0')}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-serif text-[15px] font-semibold">{result.title || t('song.untitled')}</p>
-                        <p className="text-xs text-ink-faint truncate mt-0.5">
-                          {result.artist || t('song.unknownArtist')}{result.album && ` · ${result.album}`}
+                        <p className="truncate text-[15px] font-semibold">{result.title || t('song.untitled')}</p>
+                        <p className="mt-0.5 flex gap-x-3 text-[13px] text-ink-faint">
+                          <span className="truncate">{result.artist || t('song.unknownArtist')}</span>
+                          {result.album && <span className="truncate">{result.album}</span>}
                         </p>
                       </div>
                       <div className="flex-shrink-0 text-right">
-                        <p className={cn('num text-xs', selectedIndex === index ? 'text-primary' : 'text-ink-soft')}>
+                        <p className={cn('num text-[13px]', selectedIndex === index ? 'text-primary' : 'text-ink-soft')}>
                           {t('lyrics.scoreValue', { score: result.score ?? 0 })}
                         </p>
-                        <p className="num text-[11px] text-ink-faint mt-0.5">
+                        <p className="num mt-0.5 text-[12px] text-ink-faint">
                           {formatDurationDiff(song.duration, result.lrcText)}
                         </p>
                       </div>
@@ -446,7 +434,7 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
           {previewLrc !== null && (
             <div className="mt-1 flex-shrink-0">
               <div className="flex items-baseline justify-between mb-2">
-                <p className="text-xs text-ink-faint">
+                <p className="text-[13px] text-ink-faint">
                   {t('lyrics.previewLines', { count: previewLrc.split('\n').filter(l => l.trim()).length })}
                   {selectedResult?.artist && (
                     <span className="ml-2">
@@ -456,10 +444,10 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
                     </span>
                   )}
                 </p>
-                <span className="text-[10px] tracking-[0.18em] text-ink-faint">{t('lyrics.scrollHint')}</span>
+                <span className="text-[12px] text-ink-faint">{t('lyrics.scrollHint')}</span>
               </div>
-              <ScrollArea className="h-48 rounded-sm border border-hair">
-                <pre ref={previewRef} className="num text-xs text-ink-soft whitespace-pre-wrap leading-6 px-3 py-2">
+              <ScrollArea className="paper-grid h-48 rounded-md bg-paper-deep">
+                <pre ref={previewRef} className="num text-[13px] text-ink-soft whitespace-pre-wrap leading-6 px-3 py-2">
                   {previewLrc}
                 </pre>
               </ScrollArea>
@@ -467,13 +455,13 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
           )}
         </div>
 
-        <div className="flex justify-end items-center gap-5 mt-2 flex-shrink-0">
-          <Button variant="ghost" onClick={onClose} disabled={saving} className="gap-1.5 px-0">
+        <div className="flex justify-end items-center gap-3 mt-2 flex-shrink-0">
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
             <X className="w-4 h-4" />{t('action.cancel')}
           </Button>
-          <Button onClick={handleConfirm} disabled={saving || previewLrc === null} className="gap-1.5 px-0">
+          <Button onClick={handleConfirm} disabled={saving || previewLrc === null}>
             {saving
-              ? <><ArrowsClockwise className="w-4 h-4 animate-spin" />{t('action.saving')}</>
+              ? <><ArrowsClockwise className="w-4 h-4 animate-spin motion-reduce:animate-none" />{t('action.saving')}</>
               : <><FloppyDisk className="w-4 h-4" />{t('action.confirmSave')}</>
             }
           </Button>
@@ -552,78 +540,78 @@ function CoverPickerDialog({ open, onClose, song, pinnedUrl, onSave, onClear }: 
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-xl flex flex-col max-h-[85vh]" style={{ animation: 'none' }}>
+      <DialogContent className="flex max-h-[85vh] flex-col regular:max-w-xl" style={{ animation: 'none' }}>
         <DialogHeader>
           <DialogTitle>{t('song.cover.setLocal')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2 flex-1 overflow-y-auto">
-          <p className="text-xs text-ink-faint">
+          <p className="text-[13px] text-ink-faint">
             {t('song.cover.localOnlyHint')}
           </p>
 
           {coverRemoteTemplate ? (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 regular:grid-cols-3 regular:gap-4">
               <div>
-                <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">{t('song.field.songTitle')}</label>
+                <label htmlFor="cover-pick-title" className={LABEL_CLS}>{t('song.field.songTitle')}</label>
                 <Input
+                  id="cover-pick-title"
                   type="text" value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
                 />
               </div>
               <div>
-                <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">{t('song.field.artist')}</label>
+                <label htmlFor="cover-pick-artist" className={LABEL_CLS}>{t('song.field.artist')}</label>
                 <Input
+                  id="cover-pick-artist"
                   type="text" value={artist}
                   onChange={(e) => setArtist(e.target.value)}
-                  className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
                 />
               </div>
               <div>
-                <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">{t('song.field.album')}</label>
+                <label htmlFor="cover-pick-album" className={LABEL_CLS}>{t('song.field.album')}</label>
                 <Input
+                  id="cover-pick-album"
                   type="text" value={album}
                   onChange={(e) => setAlbum(e.target.value)}
-                  className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
                 />
               </div>
             </div>
           ) : (
-            <p className="text-xs text-ink-soft">
+            <p className="text-[13px] text-ink-soft">
               {t('song.cover.noTemplateHint')}
             </p>
           )}
 
           <div>
-            <label className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5 block">{t('song.cover.imageUrl')}</label>
+            <label htmlFor="cover-pick-url" className={LABEL_CLS}>{t('song.cover.imageUrl')}</label>
             <Input
+              id="cover-pick-url"
               type="url" value={directUrl} placeholder={templateUrl || 'https://…'}
               onChange={(e) => setDirectUrl(e.target.value)}
-              className="h-9 rounded-none border-0 border-b border-hair bg-transparent px-0 text-sm focus-visible:border-primary"
             />
           </div>
 
           <Button
             type="button"
+            variant="outline"
             onClick={handlePreview}
             disabled={!resolvedUrl || status === 'loading'}
-            className="gap-1.5 px-0"
           >
             {status === 'loading'
-              ? <><ArrowsClockwise className="w-4 h-4 animate-spin" />{t('action.loading')}</>
+              ? <><ArrowsClockwise className="w-4 h-4 animate-spin motion-reduce:animate-none" />{t('action.loading')}</>
               : <><MagnifyingGlass className="w-4 h-4" />{t('song.cover.preview')}</>
             }
           </Button>
 
           {status === 'error' && (
-            <p className="text-xs text-destructive">{t('song.cover.loadFailed')}</p>
+            <p className="text-[13px] text-destructive">{t('song.cover.loadFailed')}</p>
           )}
 
           {previewUrl && (
             <div>
-              <p className="text-xs text-ink-faint mb-2">{t('song.cover.previewLabel')}</p>
-              <div className="w-40 h-40 rounded-md ring-1 ring-hair overflow-hidden bg-paper-deep">
+              <p className="text-[13px] text-ink-faint mb-2">{t('song.cover.previewLabel')}</p>
+              <div className="cover-slab h-40 w-40 overflow-hidden bg-paper-deep">
                 {/* 用原生 img 直接验证可加载性，不走 ImageWithFallback 的多来源合并 */}
                 <img
                   key={`${previewUrl}#${attempt}`}
@@ -638,21 +626,21 @@ function CoverPickerDialog({ open, onClose, song, pinnedUrl, onSave, onClear }: 
           )}
         </div>
 
-        <div className="flex justify-between items-center gap-5 mt-2 flex-shrink-0">
+        <div className="flex justify-between items-center gap-3 mt-2 flex-shrink-0">
           {pinnedUrl ? (
             <Button
               variant="ghost"
               onClick={() => { onClear(); onClose() }}
-              className="gap-1.5 px-0 text-destructive hover:text-destructive"
+              className="text-destructive hover:text-destructive"
             >
               <X className="w-4 h-4" />{t('song.cover.removeLocal')}
             </Button>
           ) : <span />}
-          <div className="flex items-center gap-5">
-            <Button variant="ghost" onClick={onClose} className="gap-1.5 px-0">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" onClick={onClose}>
               <X className="w-4 h-4" />{t('action.cancel')}
             </Button>
-            <Button onClick={handleConfirm} disabled={status !== 'ok'} className="gap-1.5 px-0">
+            <Button onClick={handleConfirm} disabled={status !== 'ok'}>
               <FloppyDisk className="w-4 h-4" />{t('action.confirmSave')}
             </Button>
           </div>
@@ -742,12 +730,18 @@ export default function SongDetailPage() {
 
   if (isLoading && !song) {
     return (
-      <div className="pt-9 pb-8 max-w-[720px] animate-fade-in">
-        <div className="h-3 w-20 bg-hair-soft rounded-sm animate-pulse" />
-        <div className="h-10 w-2/3 bg-hair-soft rounded-sm animate-pulse mt-5" />
-        <div className="mt-14 space-y-5">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-4 bg-hair-soft rounded-sm animate-pulse" />
+      <div className="animate-fade-in pb-8" aria-busy="true">
+        <div className="flex flex-col gap-6 regular:flex-row regular:items-end regular:gap-8">
+          <div className="cover-slab h-44 w-44 flex-none bg-skeleton animate-pulse motion-reduce:animate-none regular:h-56 regular:w-56" />
+          <div className="w-full max-w-[420px] space-y-4">
+            <div className="h-5 w-24 rounded-pill bg-skeleton animate-pulse motion-reduce:animate-none" />
+            <div className="h-10 w-2/3 rounded-sm bg-skeleton animate-pulse motion-reduce:animate-none" />
+            <div className="h-4 w-1/2 rounded-sm bg-skeleton animate-pulse motion-reduce:animate-none" />
+          </div>
+        </div>
+        <div className="sheet mt-8 space-y-5 p-6">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-4 rounded-sm bg-skeleton animate-pulse motion-reduce:animate-none" />
           ))}
         </div>
       </div>
@@ -763,13 +757,13 @@ export default function SongDetailPage() {
     const code = pluginErrorCode(queryError)
     if (code === 'unauthorized') {
       return (
-        <div className="pt-24 max-w-[720px] animate-fade-in">
-          <Key className="w-8 h-8 text-ink-faint mb-5" />
-          <p className="font-serif text-2xl font-semibold">{t('sources.authExpired')}</p>
+        <div className="sheet paper-grid mx-auto mt-6 max-w-[560px] animate-fade-in px-6 py-14 text-center">
+          <Key className="mx-auto mb-5 h-8 w-8 text-ink-faint" />
+          <p className="font-display text-[21px] font-semibold">{t('sources.authExpired')}</p>
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="mt-4 text-sm text-primary underline decoration-hair underline-offset-[6px] hover:decoration-primary transition-colors"
+            className="act-secondary mt-6 inline-flex items-center justify-center text-[15px]"
           >
             {t('action.back')}
           </button>
@@ -777,9 +771,9 @@ export default function SongDetailPage() {
       )
     }
     return (
-      <div className="pt-16 max-w-[720px] animate-fade-in">
+      <div className="sheet paper-grid mx-auto mt-6 max-w-[560px] animate-fade-in">
         <ErrorState
-          className="!pt-8"
+          ruled={false}
           retry={() => void refetch()}
           onBack={() => navigate(-1)}
         />
@@ -789,13 +783,13 @@ export default function SongDetailPage() {
 
   if (!song) {
     return (
-      <div className="pt-24 max-w-[720px] animate-fade-in">
-        <MusicNote className="w-8 h-8 text-ink-faint mb-5" />
-        <p className="font-serif text-2xl font-semibold">{t('empty.song.title')}</p>
+      <div className="sheet paper-grid mx-auto mt-6 max-w-[560px] animate-fade-in px-6 py-14 text-center">
+        <MusicNote className="mx-auto mb-5 h-8 w-8 text-ink-faint" />
+        <p className="font-display text-[21px] font-semibold">{t('empty.song.title')}</p>
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="mt-4 text-sm text-primary underline decoration-hair underline-offset-[6px] hover:decoration-primary transition-colors"
+          className="act-secondary mt-6 inline-flex items-center justify-center text-[15px]"
         >
           {t('action.back')}
         </button>
@@ -823,117 +817,147 @@ export default function SongDetailPage() {
     ? song.contentType.split('/')[1]?.toLowerCase() ?? song.contentType
     : undefined
 
-  return (
-    <div className="animate-fade-in">
-      <div className="pt-9 pb-8 max-w-[720px]">
+  /* 头部的元信息：年份 / 时长 / 格式，各占一个独立 span，缺哪项就少哪项 */
+  const heroMeta = [
+    song.year != null ? String(song.year) : '',
+    song.duration > 0 ? formatDuration(song.duration) : '',
+    contentTypeLabel ?? '',
+  ].filter(Boolean)
 
-        {/* 报头：封面 + 衬线曲名 */}
-        <div className="flex items-start gap-7">
-          <div className="w-36 h-36 rounded-md ring-1 ring-hair overflow-hidden flex-shrink-0 shadow-float bg-paper-deep">
-            <ImageWithFallback
-              src={song.coverArt ? (findAdapterFor(song.serverId)?.getCoverUrl(song.coverArt, 300) ?? undefined) : undefined}
-              alt={song.title}
-              fallbackType="album"
-              className="w-full h-full"
-              songId={song.id}
-              customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
-            />
+  /* 动作行共用的形状：图标 + 文字，居中，具体配色由 .act-* 给 */
+  const actionCls = 'inline-flex items-center justify-center gap-2 text-[15px]'
+
+  return (
+    <div className="animate-fade-in pb-8">
+      {/* 头部：封面大片 + 曲名 + 歌手/专辑链接 + 元信息 + 动作行 */}
+      <div className="flex flex-col gap-6 regular:flex-row regular:items-end regular:gap-8">
+        <div className="cover-slab h-44 w-44 flex-none overflow-hidden bg-paper-deep regular:h-56 regular:w-56">
+          <ImageWithFallback
+            src={song.coverArt ? (findAdapterFor(song.serverId)?.getCoverUrl(song.coverArt, 300) ?? undefined) : undefined}
+            alt={song.title}
+            fallbackType="album"
+            className="w-full h-full"
+            songId={song.id}
+            customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
+          />
+        </div>
+        <div className="min-w-0">
+          {/* 第一行就回答「这一版来自哪儿」：同一首歌在两个音源上的
+              时长、码率、专辑归属都可能不一样，不说明来源这一整页都读不准 */}
+          <div className="mb-3">
+            <SourceBadge serverId={serverId} withName />
           </div>
-          <div className="min-w-0 pt-1">
-            {/* 报头第一行就回答「这一版来自哪儿」：同一首歌在两个音源上的
-                时长、码率、专辑归属都可能不一样，不说明来源这一整页都读不准 */}
-            <div className="mb-2.5 flex items-center gap-2.5">
-              <p className="text-[11px] tracking-[0.3em] text-ink-faint">
-                {t('song.eyebrow')}
-                <span className="latin-tag"> · TRACK</span>
-              </p>
-              <SourceBadge serverId={serverId} withName />
-            </div>
-            <h1 className="font-serif text-4xl font-black tracking-tight leading-tight text-balance">{spaceCJK(song.title)}</h1>
-            <p className="text-sm text-ink-soft mt-3 truncate">
-              {spaceCJK(song.artist)}
-              {song.album && ` · ${song.album}`}
+          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em] text-balance">
+            {spaceCJK(song.title)}
+          </h1>
+
+          <p className="mt-3 flex flex-wrap items-center gap-x-3 text-[16px]">
+            {song.artistId ? (
+              <button
+                type="button"
+                onClick={() => navigate(detailPath('artists', song.artistId, song.serverId))}
+                className="inline-flex min-h-11 items-center rounded-sm font-medium text-ink transition-colors duration-150 hover:text-primary hover:underline hover:underline-offset-4"
+              >
+                {spaceCJK(song.artist)}
+              </button>
+            ) : (
+              <span className="font-medium text-ink">{spaceCJK(song.artist)}</span>
+            )}
+            {song.album && (song.albumId ? (
+              <button
+                type="button"
+                onClick={() => navigate(detailPath('albums', song.albumId, song.serverId))}
+                className="inline-flex min-h-11 items-center rounded-sm text-ink-soft transition-colors duration-150 hover:text-primary hover:underline hover:underline-offset-4"
+              >
+                {song.album}
+              </button>
+            ) : (
+              <span className="text-ink-soft">{song.album}</span>
+            ))}
+          </p>
+
+          {heroMeta.length > 0 && (
+            <p className="num flex flex-wrap gap-x-3 text-[14px] text-ink-faint">
+              {heroMeta.map(item => <span key={item}>{item}</span>)}
             </p>
+          )}
+
+          {/* 动作行：歌词是主操作（来源不提供歌词就没有可看的，入口整个不出现，
+              而不是让人点进播放器再看到一句「暂无歌词」）；其余是纸片胶囊 / 圆形纸片键。
+              本机的「歌词搜索」不受影响——那一条走的是自定义接口，与来源无关 */}
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {(rowCaps ? rowCaps.lyrics : true) && (
+              <button
+                type="button"
+                className={cn('act-primary', actionCls)}
+                onClick={() => {
+                  if (isPlayingThis) {
+                    navigate(-1)
+                    setTimeout(() => setFullscreen(true), 50)
+                  } else {
+                    setLyricsPreviewOpen(true)
+                  }
+                }}
+              >
+                <TextAlignLeft size={18} />
+                <span>{isPlayingThis ? t('lyrics.viewOrSearch') : t('lyrics.viewHere')}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className={cn('act-secondary', actionCls)}
+              title={t('lyrics.customParams')}
+              onClick={() => setLyricsSearchOpen(true)}
+            >
+              <MagnifyingGlass size={18} />
+              <span>{t('lyrics.search')}</span>
+            </button>
+            <button
+              type="button"
+              className={cn('act-icon inline-flex items-center justify-center', pinnedCover && 'is-on')}
+              aria-label={pinnedCover ? t('song.cover.change') : t('song.cover.setLocal')}
+              title={pinnedCover ? t('song.cover.change') : t('song.cover.setLocal')}
+              onClick={() => setCoverPickerOpen(true)}
+            >
+              <ImageSquare size={20} weight={pinnedCover ? 'fill' : 'regular'} />
+            </button>
+            {/* 只有主库服务器真的开着分享才出现（见 useServerCapabilities）。
+                ShareDialog 的写回打的是主库适配器：给一首网易云的歌摆出这个入口，
+                点下去只会拿它的 id 去让 NAS 建分享 */}
+            {isPrimarySource && capabilities.shares && (
+              <button
+                type="button"
+                className="act-icon inline-flex items-center justify-center"
+                aria-label={t('share.link')}
+                title={t('share.createHint')}
+                onClick={() => setShareOpen(true)}
+              >
+                <ShareNetwork size={20} />
+              </button>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* 边注：先于所有服务器给的字段——这一条是你写的，其余都是别人写的 */}
-        <MarginNote target="song" targetId={song.id} className="mt-10 max-w-[38em]" />
+      {/* 边注：先于所有服务器给的字段——这一条是你写的，其余都是别人写的 */}
+      <MarginNote target="song" targetId={song.id} className="mt-10 max-w-[38em]" />
 
+      {/* 信息分组：每组一张 sheet，宽窗口并排两列 */}
+      <div className="mt-6 grid items-start gap-5 wide:grid-cols-2">
         {/* 基础信息 */}
-        <Section title={t('section.basic')} tag="BASIC">
-          <Row label={t('song.field.title')} value={song.title} />
-
-          <Row
-            label={t('song.field.album')}
-            value={song.album || '—'}
-            onClick={song.albumId ? () => navigate(detailPath('albums', song.albumId, song.serverId)) : undefined}
-            linkable={!!song.albumId}
-          />
-
-          <Row
-            label={t('song.field.artist')}
-            value={song.artist || '—'}
-            onClick={song.artistId ? () => navigate(detailPath('artists', song.artistId, song.serverId)) : undefined}
-            linkable={!!song.artistId}
-          />
-
-          {/* 来源不提供歌词就没有可看的：入口整个不出现，
-              而不是让人点进播放器再看到一句「暂无歌词」。
-              本机的「歌词搜索」不受影响——那一条走的是自定义接口，与来源无关 */}
-          {(rowCaps ? rowCaps.lyrics : true) && (
-            <Row
-              label={t('song.field.lyrics')}
-              value={isPlayingThis ? t('lyrics.viewOrSearch') : t('lyrics.viewHere')}
-              onClick={() => {
-                if (isPlayingThis) {
-                  navigate(-1)
-                  setTimeout(() => setFullscreen(true), 50)
-                } else {
-                  setLyricsPreviewOpen(true)
-                }
-              }}
-              linkable
-            />
-          )}
-
-          <Row
-            label={t('lyrics.search')}
-            value={t('lyrics.customParams')}
-            onClick={() => setLyricsSearchOpen(true)}
-            linkable
-          />
-
-          <Row
-            label={t('song.field.localCover')}
-            value={pinnedCover ? t('song.cover.pinnedTapToChange') : t('song.cover.setLocal')}
-            onClick={() => setCoverPickerOpen(true)}
-            linkable
-          />
-
-          {/* 只有主库服务器真的开着分享才出现（见 useServerCapabilities）。
-              ShareDialog 的写回打的是主库适配器：给一首网易云的歌摆出这个入口，
-              点下去只会拿它的 id 去让 NAS 建分享 */}
-          {isPrimarySource && capabilities.shares && (
-            <Row
-              label={t('share.link')}
-              value={t('share.createHint')}
-              onClick={() => setShareOpen(true)}
-              linkable
-            />
-          )}
-
-          {song.year != null && (
-            <Row label={t('song.field.year')} value={String(song.year)} mono />
-          )}
-
-          {song.track != null && (
-            <Row label={t('song.field.track')} value={String(song.track)} mono />
-          )}
-        </Section>
+        {(song.year != null || song.track != null) && (
+          <Section title={t('section.basic')}>
+            {song.year != null && (
+              <Row label={t('song.field.year')} value={String(song.year)} mono />
+            )}
+            {song.track != null && (
+              <Row label={t('song.field.track')} value={String(song.track)} mono />
+            )}
+          </Section>
+        )}
 
         {/* 扩展信息 */}
-        <Section title={t('section.file')} tag="FILE">
+        <Section title={t('section.file')}>
           {song.path && (
             <Row label={t('song.field.path')} value={song.path} />
           )}
@@ -962,14 +986,14 @@ export default function SongDetailPage() {
 
         {/* 规格铭牌：服务器早就返回这些字段，此前被 mapSong 一律丢弃 */}
         {specLine.length > 0 && (
-          <Section title={t('section.spec')} tag="SPEC">
-            <Row label={t('song.field.audioSpec')} value={specLine.join(' · ')} mono />
+          <Section title={t('section.spec')}>
+            <Row label={t('song.field.audioSpec')} value={<Spans items={specLine} />} mono />
             {song.ext?.bpm ? <Row label="BPM" value={String(song.ext.bpm)} mono /> : null}
             {song.ext?.moods?.length ? (
-              <Row label={t('song.field.moods')} value={song.ext.moods.join(' · ')} />
+              <Row label={t('song.field.moods')} value={<Spans items={song.ext.moods} />} />
             ) : null}
             {song.ext?.isrc?.length ? (
-              <Row label="ISRC" value={song.ext.isrc.join(' · ')} mono />
+              <Row label="ISRC" value={<Spans items={song.ext.isrc} />} mono />
             ) : null}
             {song.ext?.musicBrainzId ? (
               <Row label="MusicBrainz" value={song.ext.musicBrainzId} mono />
@@ -979,7 +1003,7 @@ export default function SongDetailPage() {
 
         {/* 制作人员 */}
         {(song.ext?.contributors?.length || song.ext?.displayComposer) && (
-          <Section title={t('section.credits')} tag="CREDITS">
+          <Section title={t('section.credits')}>
             <SongCredits
               contributors={song.ext?.contributors}
               composer={song.ext?.displayComposer}
@@ -987,7 +1011,6 @@ export default function SongDetailPage() {
             />
           </Section>
         )}
-
       </div>
 
       {/* 歌词搜索 */}
@@ -1004,22 +1027,28 @@ export default function SongDetailPage() {
         onSave={handleLyricsSave}
       />
 
-      {/* 本曲歌词预览（阶段 1.8）：不是正在播放的那首，就在这页看 */}
+      {/* 本曲歌词预览（阶段 1.8）：不是正在播放的那首，就在这页看。
+          歌词读在一张格纸上（paper-grid），和全屏播放器里的歌词同一块工作纸 */}
       <Dialog open={lyricsPreviewOpen} onOpenChange={setLyricsPreviewOpen}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="max-h-[80vh] overflow-y-auto regular:max-w-xl">
           <DialogHeader>
             <DialogTitle>{t('player.lyrics')}</DialogTitle>
-            <DialogDescription>{spaceCJK(song.title)} · {spaceCJK(song.artist ?? '')}</DialogDescription>
+            <DialogDescription className="flex flex-wrap gap-x-3">
+              <span>{spaceCJK(song.title)}</span>
+              <span>{spaceCJK(song.artist ?? '')}</span>
+            </DialogDescription>
           </DialogHeader>
-          {previewLyricsQuery.data ? (
-            <LyricDisplay lines={previewLyricsQuery.data.lines} variant="panel" />
-          ) : previewLyricsQuery.isLoading ? (
-            <p className="py-8 text-center text-[13px] text-ink-faint animate-pulse">{t('lyrics.loading')}</p>
-          ) : previewLyricsQuery.isError ? (
-            <p className="py-8 text-center text-[13px] text-destructive">{t('lyrics.loadFailed')}</p>
-          ) : (
-            <p className="py-8 text-center text-[13px] text-ink-faint">{t('lyrics.none')}</p>
-          )}
+          <div className="paper-grid rounded-md bg-paper-deep px-3 py-2">
+            {previewLyricsQuery.data ? (
+              <LyricDisplay lines={previewLyricsQuery.data.lines} variant="panel" />
+            ) : previewLyricsQuery.isLoading ? (
+              <p className="py-8 text-center text-[14px] text-ink-faint animate-pulse motion-reduce:animate-none">{t('lyrics.loading')}</p>
+            ) : previewLyricsQuery.isError ? (
+              <p className="py-8 text-center text-[14px] text-destructive">{t('lyrics.loadFailed')}</p>
+            ) : (
+              <p className="py-8 text-center text-[14px] text-ink-faint">{t('lyrics.none')}</p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

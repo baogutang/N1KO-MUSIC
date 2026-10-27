@@ -5,9 +5,8 @@
 
 import { useState } from 'react'
 import { describeError } from '@/services/errors'
-import { CaretDown } from '@phosphor-icons/react'
+import { CaretDown, CaretUp } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import type { PluginHost } from '@/plugins/host/PluginHost'
 
@@ -42,17 +41,18 @@ export function CookieLogin({
   }
 
   return (
-    <div className="w-full border-t border-hair-soft pt-3">
+    <div className="w-full">
       <button
         onClick={() => setOpen(v => !v)}
-        className="flex w-full items-center justify-center gap-1.5 text-[12px] tracking-[0.14em] text-ink-faint hover:text-ink-soft transition-colors"
+        aria-expanded={open}
+        className="mx-auto flex min-h-11 items-center justify-center gap-1.5 rounded-pill px-4 text-[14px] text-ink-faint transition-colors duration-150 hover:bg-paper-deep hover:text-ink-soft"
       >
-        {t('sources.cookie.advanced')}
-        <CaretDown size={12} className={cn('transition-transform', open && 'rotate-180')} />
+        {t('sources.cookie.toggle')}
+        {open ? <CaretUp size={13} /> : <CaretDown size={13} />}
       </button>
       {open && (
-        <div className="mt-3 space-y-3">
-          <p className="text-center text-[12px] text-ink-faint">{cookieHint || t('sources.cookie.hint')}</p>
+        <div className="mt-2 space-y-3 rounded-md bg-paper-deep p-4">
+          <p className="text-[13px] text-ink-faint">{cookieHint || t('sources.cookie.hint')}</p>
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
@@ -61,10 +61,10 @@ export function CookieLogin({
             autoCapitalize="none"
             autoCorrect="off"
             placeholder={t('sources.cookie.placeholder')}
-            className="w-full rounded-md border border-hair bg-paper px-3 py-2 font-mono text-[12px] text-foreground placeholder:text-ink-faint/70 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-input bg-sheet px-3.5 py-2.5 font-mono text-[16px] text-ink placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 regular:text-[13px]"
           />
           {error && (
-            <p className="border-l-2 border-destructive pl-3 text-[12.5px] text-destructive">{error}</p>
+            <p className="rounded-sm bg-destructive/10 px-3 py-2 text-[13px] text-destructive">{error}</p>
           )}
           <div className="text-center">
             <Button onClick={submit} disabled={busy || !text.trim()}>

@@ -78,41 +78,39 @@ export function TasteProfile() {
   const hasProfile = artists.length > 0 || genres.length > 0
 
   return (
-    <section aria-labelledby="taste-profile" className="pt-12">
+    <section aria-labelledby="taste-profile">
       <div className="section-head">
-        <h2 id="taste-profile">
-          {t('section.tasteProfile')}<small>WHAT THE ENGINE THINKS</small>
-        </h2>
+        <h2 id="taste-profile">{t('section.tasteProfile')}</h2>
         {mutedCount > 0 && (
-          <button className="more" onClick={clearAll}>
-            <ArrowCounterClockwise size={12} className="mr-1.5 inline" />
+          <button className="more -my-3 inline-flex items-center gap-1.5 py-3" onClick={clearAll}>
+            <ArrowCounterClockwise size={14} />
             {t('stats.restoreMuted', { count: mutedCount })}
           </button>
         )}
       </div>
 
       {!hasProfile ? (
-        <p className="py-12 text-center font-serif text-[15px] text-ink-faint">
-          {t('empty.taste.title')}
-          <span className="mt-2 block text-[13px]">{t('empty.taste.description')}</span>
-        </p>
+        <div className="py-12 text-center">
+          <p className="text-[15px] font-medium text-ink-soft">{t('empty.taste.title')}</p>
+          <p className="mt-2 text-[13px] text-ink-faint">{t('empty.taste.description')}</p>
+        </div>
       ) : (
         <>
-          <p className="mb-7 max-w-[46em] text-[13px] leading-[1.9] text-ink-soft">
+          <p className="mb-6 max-w-[46em] text-[14px] leading-[1.8] text-ink-soft">
             {spaceCJK(t('stats.tasteIntro'))}
           </p>
 
-          <div className="grid grid-cols-1 gap-x-12 gap-y-9 md:grid-cols-3">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-4">
             <ProfileColumn
-              title={t('nav.artists')} tag="ARTISTS" rows={artists}
+              title={t('nav.artists')} rows={artists}
               muted={mutedArtists} onToggle={toggleArtist}
             />
             <ProfileColumn
-              title={t('stats.genres')} tag="GENRES" rows={genres}
+              title={t('stats.genres')} rows={genres}
               muted={mutedGenres} onToggle={toggleGenre}
             />
             <ProfileColumn
-              title={t('stats.decades')} tag="DECADES" rows={decades}
+              title={t('stats.decades')} rows={decades}
               muted={[]} onToggle={undefined}
             />
           </div>
@@ -123,10 +121,9 @@ export function TasteProfile() {
 }
 
 function ProfileColumn({
-  title, tag, rows, muted, onToggle,
+  title, rows, muted, onToggle,
 }: {
   title: string
-  tag: string
   rows: Row[]
   muted: string[]
   onToggle?: (key: string) => void
@@ -134,25 +131,22 @@ function ProfileColumn({
   const { t } = useT()
   if (!rows.length) return null
   return (
-    <div className="min-w-0">
-      <h3 className="mb-3 flex items-baseline gap-2.5 border-b border-hair pb-2 font-serif text-[17px] font-bold">
-        {title}
-        <span className="latin-tag font-num text-[9.5px] tracking-[0.22em] text-ink-faint">{tag}</span>
-      </h3>
+    <div className="sheet min-w-0 p-4 regular:p-5">
+      <h3 className="mb-2 text-[17px] font-semibold">{title}</h3>
       <ul>
         {rows.map(row => {
           const isMuted = muted.includes(row.key)
           return (
-            <li key={row.key} className="group border-b border-hair-soft py-2.5">
-              <div className="flex items-baseline justify-between gap-3">
+            <li key={row.key} className="group py-2.5">
+              <div className="flex items-center justify-between gap-3">
                 <span className={cn(
-                  'min-w-0 truncate text-[13.5px]',
+                  'min-w-0 truncate text-[14px]',
                   isMuted ? 'text-ink-faint line-through' : 'text-ink'
                 )}>
                   {spaceCJK(row.label)}
                 </span>
-                <span className="flex flex-none items-center gap-2">
-                  <span className="font-num text-[11px] text-ink-faint">
+                <span className="flex flex-none items-center gap-1">
+                  <span className="num text-[13px] text-ink-faint">
                     {row.weight.toFixed(2)}
                   </span>
                   {onToggle && (
@@ -163,21 +157,21 @@ function ProfileColumn({
                         : t('stats.mute', { name: row.label })}
                       aria-pressed={isMuted}
                       className={cn(
-                        'transition-opacity duration-200',
+                        '-my-3 -mr-3 grid h-11 w-11 place-items-center rounded-pill transition-[opacity,color] duration-200',
                         isMuted
-                          ? 'text-primary opacity-100'
-                          : 'text-ink-faint opacity-0 hover:text-primary group-hover:opacity-100 focus-visible:opacity-100'
+                          ? 'text-primary'
+                          : 'text-ink-faint hover:text-primary focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100'
                       )}
                     >
-                      <Prohibit size={13} />
+                      <Prohibit size={16} />
                     </button>
                   )}
                 </span>
               </div>
-              {/* 权重条：一根发丝线上的一段朱色，不引入图表也不引入新色 */}
-              <div className="mt-1.5 h-[2px] w-full bg-hair-soft">
+              {/* 权重条：一条纸槽里的一段陶土色，不引入图表也不引入新色 */}
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-pill bg-paper-3">
                 <div
-                  className={cn('h-full', isMuted ? 'bg-hair pop:bg-ink-faint/30' : 'bg-primary')}
+                  className={cn('h-full rounded-pill', isMuted ? 'bg-ink-faint/30' : 'bg-primary')}
                   style={{ width: `${Math.max(2, Math.min(100, row.weight * 100))}%` }}
                 />
               </div>

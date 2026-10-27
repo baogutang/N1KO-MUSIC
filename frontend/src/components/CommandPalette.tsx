@@ -4,8 +4,9 @@
  * ⌘K 此前只是 navigate('/search')，对一个以键盘快捷键为卖点的桌面播放器
  * 这是缺失的那块拼图。
  *
- * 刻意不引 cmdk：它自带的样式会和 v2 的 token 打架，而这里需要的
- * 键盘导航与筛选逻辑本身很薄。基于已有的 Dialog 与 Input 原语即可。
+ * 刻意不引 cmdk：它自带的样式会和暖纸的 token 打架，而这里需要的
+ * 键盘导航与筛选逻辑本身很薄。基于已有的 Dialog 与 Input 原语即可：
+ * 一张纸片面（ui/Dialog）＋ 大号胶囊输入框 ＋ 分组结果行 ＋ 底部快捷键提示。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -16,6 +17,7 @@ import {
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { usePlayerStore } from '@/store/playerStore'
 import { playListFrom, playAllShuffled } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
@@ -119,30 +121,30 @@ export function CommandPalette() {
   /** 静态命令：导航 + 播放控制 */
   const staticCommands = useMemo<Command[]>(() => {
     return [
-      { id: 'nav-home', label: t('nav.home'), keywords: 'home shouye', icon: <House size={15} />, run: () => navigate('/') },
-      { id: 'nav-library', label: t('nav.library'), keywords: 'library yinyueku', icon: <MusicNote size={15} />, run: () => navigate('/library') },
-      { id: 'nav-artists', label: t('nav.artists'), keywords: 'artists geshou', icon: <MicrophoneStage size={15} />, run: () => navigate('/artists') },
-      { id: 'nav-playlists', label: t('nav.playlists'), keywords: 'playlists gedan', icon: <ListBullets size={15} />, run: () => navigate('/playlists') },
-      { id: 'nav-recommend', label: t('nav.recommendations'), keywords: 'recommend tuijian', icon: <ArrowsClockwise size={15} />, run: () => navigate('/recommendations') },
-      { id: 'nav-favorites', label: t('nav.favorites'), keywords: 'favorites shoucang', icon: <Disc size={15} />, run: () => navigate('/favorites') },
-      { id: 'nav-stats', label: t('nav.stats'), keywords: 'stats tongji', icon: <Disc size={15} />, run: () => navigate('/stats') },
-      { id: 'nav-settings', label: t('nav.settings'), keywords: 'settings shezhi preferences', icon: <Gear size={15} />, run: () => navigate('/settings') },
+      { id: 'nav-home', label: t('nav.home'), keywords: 'home shouye', icon: <House size={18} />, run: () => navigate('/') },
+      { id: 'nav-library', label: t('nav.library'), keywords: 'library yinyueku', icon: <MusicNote size={18} />, run: () => navigate('/library') },
+      { id: 'nav-artists', label: t('nav.artists'), keywords: 'artists geshou', icon: <MicrophoneStage size={18} />, run: () => navigate('/artists') },
+      { id: 'nav-playlists', label: t('nav.playlists'), keywords: 'playlists gedan', icon: <ListBullets size={18} />, run: () => navigate('/playlists') },
+      { id: 'nav-recommend', label: t('nav.recommendations'), keywords: 'recommend tuijian', icon: <ArrowsClockwise size={18} />, run: () => navigate('/recommendations') },
+      { id: 'nav-favorites', label: t('nav.favorites'), keywords: 'favorites shoucang', icon: <Disc size={18} />, run: () => navigate('/favorites') },
+      { id: 'nav-stats', label: t('nav.stats'), keywords: 'stats tongji', icon: <Disc size={18} />, run: () => navigate('/stats') },
+      { id: 'nav-settings', label: t('nav.settings'), keywords: 'settings shezhi preferences', icon: <Gear size={18} />, run: () => navigate('/settings') },
       {
         id: 'act-play', label: isPlaying ? t('player.pause') : t('player.play'),
-        keywords: 'play pause bofang zanting', icon: <Play size={15} />,
+        keywords: 'play pause bofang zanting', icon: <Play size={18} />,
         run: () => usePlayerStore.getState().togglePlay(),
       },
       {
         id: 'act-next', label: t('player.next'), keywords: 'next xiayishou',
-        icon: <SkipForward size={15} />, run: () => usePlayerStore.getState().next(),
+        icon: <SkipForward size={18} />, run: () => usePlayerStore.getState().next(),
       },
       {
         id: 'act-shuffle', label: t('player.toggleShuffle'), keywords: 'shuffle suiji',
-        icon: <Shuffle size={15} />, run: () => usePlayerStore.getState().toggleShuffle(),
+        icon: <Shuffle size={18} />, run: () => usePlayerStore.getState().toggleShuffle(),
       },
       {
         id: 'act-shuffle-queue', label: t('queue.shuffleCurrent'), keywords: 'shuffle queue suiji duilie',
-        icon: <Shuffle size={15} />,
+        icon: <Shuffle size={18} />,
         run: () => {
           const { queue } = usePlayerStore.getState()
           if (queue.length) playAllShuffled(queue, 0)
@@ -151,7 +153,7 @@ export function CommandPalette() {
       {
         id: 'act-sleep-30', label: t('player.sleepAfterMinutes', { minutes: 30 }),
         keywords: 'sleep timer shuimian dingshi',
-        icon: <Moon size={15} />, run: () => usePlayerStore.getState().setSleepTimer(30),
+        icon: <Moon size={18} />, run: () => usePlayerStore.getState().setSleepTimer(30),
       },
     ]
   }, [t, navigate, isPlaying])
@@ -171,7 +173,7 @@ export function CommandPalette() {
       id: `song-${song.id}`,
       label: song.title,
       hint: song.artist,
-      icon: <MusicNote size={15} />,
+      icon: <MusicNote size={18} />,
       run: () => playListFrom(songs, index),
     }))
   }, [results])
@@ -181,7 +183,7 @@ export function CommandPalette() {
       id: `album-${album.id}`,
       label: album.name,
       hint: album.artist,
-      icon: <Disc size={15} />,
+      icon: <Disc size={18} />,
       run: () => navigate(detailPath('albums', album.id, album.serverId)),
     }))
   ), [results, navigate])
@@ -190,7 +192,7 @@ export function CommandPalette() {
     (results?.artists ?? []).slice(0, MAX_PER_GROUP).map(artist => ({
       id: `artist-${artist.id}`,
       label: artist.name,
-      icon: <MicrophoneStage size={15} />,
+      icon: <MicrophoneStage size={18} />,
       run: () => navigate(detailPath('artists', artist.id, artist.serverId)),
     }))
   ), [results, navigate])
@@ -240,37 +242,41 @@ export function CommandPalette() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className="top-[12%] max-w-xl translate-y-0 gap-0 p-0"
+        className="top-[12%] max-w-xl translate-y-0 gap-0 overflow-hidden p-0"
         onKeyDown={onKeyDown}
       >
         <DialogTitle className="sr-only">{t('search.paletteTitle')}</DialogTitle>
 
-        <div className="flex items-center gap-3 border-b border-hair px-4 py-3.5">
-          <MagnifyingGlass size={16} className="flex-none text-ink-faint" aria-hidden="true" />
-          <input
-            autoFocus
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder={t('search.palettePlaceholder')}
-            aria-label={t('search.paletteAria')}
-            className="min-w-0 flex-1 bg-transparent font-serif text-[15px] outline-none placeholder:text-ink-faint"
-          />
-          <kbd className="font-num flex-none rounded border border-hair px-1.5 py-0.5 text-[10px] text-ink-faint">
-            ESC
-          </kbd>
+        {/* 右侧让出 Dialog 自带的关闭键（absolute right-3 top-3，36px） */}
+        <div className="px-4 pb-2 pt-4 pr-14">
+          <div className="relative">
+            <MagnifyingGlass
+              size={20}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint"
+              aria-hidden="true"
+            />
+            <Input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={t('search.palettePlaceholder')}
+              aria-label={t('search.paletteAria')}
+              className="h-12 pl-12 text-[17px] sm:text-[17px]"
+            />
+          </div>
         </div>
 
-        <div ref={listRef} className="max-h-[52vh] overflow-y-auto py-1.5">
+        <div ref={listRef} className="max-h-[52vh] overflow-y-auto px-2 pb-2">
           {!flat.length && (
-            <p className="px-4 py-8 text-center text-[13px] text-ink-faint">
+            <p className="px-4 py-10 text-center text-[14px] text-ink-faint">
               {trimmed ? t('search.paletteEmpty') : t('search.paletteHint')}
             </p>
           )}
 
           {groups.map(group => (
             <div key={group.tag} className="mb-1">
-              <p className="px-4 pb-1 pt-2 text-[9.5px] uppercase tracking-[0.22em] text-ink-faint">
-                {group.title}<span className="latin-tag ml-2 opacity-60">{group.tag}</span>
+              <p className="px-3 pb-1 pt-3 text-[13px] font-medium text-ink-faint">
+                {group.title}
               </p>
               {group.items.map(item => {
                 cursor += 1
@@ -283,20 +289,23 @@ export function CommandPalette() {
                     onMouseEnter={() => setActive(index)}
                     onClick={() => { item.run(); close() }}
                     className={cn(
-                      'flex w-full items-center gap-3 px-4 py-2 text-left transition-colors duration-100',
-                      isActive ? 'bg-paper-deep text-primary' : 'text-foreground hover:bg-paper-deep/60'
+                      'flex min-h-11 w-full items-center gap-3 rounded-sm px-3 py-2 text-left text-ink transition-colors duration-100 hover:bg-paper-deep',
+                      isActive && 'bg-paper-deep'
                     )}
                   >
                     <span className={cn('flex-none', isActive ? 'text-primary' : 'text-ink-faint')}>
                       {item.icon}
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-serif text-[14px]">
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
                       {spaceCJK(item.label)}
                     </span>
                     {item.hint && (
-                      <span className="flex-none truncate text-[11.5px] text-ink-faint">
+                      <span className="flex-none truncate text-[13px] text-ink-faint">
                         {spaceCJK(item.hint)}
                       </span>
+                    )}
+                    {isActive && (
+                      <kbd aria-hidden="true" className="num flex-none text-[13px] text-ink-faint">↵</kbd>
                     )}
                   </button>
                 )
@@ -305,10 +314,11 @@ export function CommandPalette() {
           ))}
         </div>
 
-        <div className="flex items-center gap-4 border-t border-hair px-4 py-2 text-[10.5px] text-ink-faint">
-          <span><kbd className="font-num">↑↓</kbd> {t('search.paletteSelect')}</span>
-          <span><kbd className="font-num">↵</kbd> {t('search.paletteRun')}</span>
-          <span className="ml-auto"><kbd className="font-num">⌘K</kbd> {t('search.paletteToggle')}</span>
+        <div className="flex items-center gap-4 bg-paper-deep px-5 py-3 text-[13px] text-ink-faint">
+          <span><kbd className="num text-ink-faint">↑↓</kbd> {t('search.paletteSelect')}</span>
+          <span><kbd className="num text-ink-faint">↵</kbd> {t('search.paletteRun')}</span>
+          <span><kbd className="num text-ink-faint">esc</kbd> {t('dialog.close')}</span>
+          <span className="ml-auto"><kbd className="num text-ink-faint">⌘K</kbd> {t('search.paletteToggle')}</span>
         </div>
       </DialogContent>
     </Dialog>

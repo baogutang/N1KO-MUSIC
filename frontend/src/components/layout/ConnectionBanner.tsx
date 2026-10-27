@@ -3,7 +3,7 @@
  *
  * 此前拔掉服务器只有一个会自动消失的 toast，之后每个页面要么渲染陈旧缓存
  * 要么空白，用户没有任何持续可见的线索，也没有重试入口。
- * 这里做成一条常驻的发丝线横幅——不遮挡内容，但不会自己消失。
+ * 这里做成一条常驻的安静提示条（挂在吸顶工具栏下面）——不遮挡内容，但不会自己消失。
  *
  * 「音源登录失效」原本另有一条 SourceAccountBanner，只挂在桌面布局上：
  * 手机端因此从来看不到过期提示，而桌面上两条横幅并排、各自轮询同一个登录
@@ -19,7 +19,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { getAdapter, getAdapterFor, hasAdapter, hasAdapterFor } from '@/api'
 import { useServerStore } from '@/store/serverStore'
 import { useT } from '@/i18n'
-import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 /** 浏览器报离线后多久探一次服务器 */
 const PROBE_INTERVAL_MS = 20_000
@@ -60,11 +60,12 @@ interface ExpiredSource {
   pluginId?: string
 }
 
-/** 三条横幅同一副外形：一条发丝线上的一句话加一个出口 */
+/** 三条提示条同一副外形：下沉底的圆角条，一句话加一个文字出口；窄屏放不下时出口折到下一行 */
 const BANNER_CLASS =
-  'flex items-center justify-center gap-3 border-b border-hair bg-paper-deep px-4 py-1.5 text-[12px] text-ink-soft'
+  'mx-3 regular:mx-5 mt-1 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-paper-deep px-4 py-2.5 text-[13.5px] text-ink-soft'
+/** 文字按钮：陶土色，不加下划线，hover 才出现 */
 const ACTION_CLASS =
-  'inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary'
+  'inline-flex min-h-9 items-center gap-1.5 rounded-sm px-1 font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline disabled:pointer-events-none disabled:text-ink-faint motion-reduce:transition-none'
 
 export function ConnectionBanner() {
   const { t } = useT()
@@ -257,13 +258,13 @@ export function ConnectionBanner() {
     const names = compromisedSources.map(s => s.name).join(t('common.listSeparator'))
     return (
       <div role="status" aria-live="polite" className={BANNER_CLASS}>
-        <Warning size={13} aria-hidden="true" className="text-destructive flex-shrink-0" />
-        <span>
+        <Warning size={16} weight="fill" aria-hidden="true" className="flex-shrink-0 text-sem-error" />
+        <span className="min-w-[12rem] flex-1">
           {t('sources.banner.compromised', { names })}
           <span className="text-ink-faint">{t('sources.banner.compromisedHint')}</span>
         </span>
         <button onClick={() => navigate('/settings')} className={ACTION_CLASS}>
-          <ArrowsClockwise size={11} aria-hidden="true" />
+          <ArrowsClockwise size={14} aria-hidden="true" />
           {t('sources.banner.reinstall')}
         </button>
       </div>
@@ -276,26 +277,28 @@ export function ConnectionBanner() {
     const first = visibleExpired[0]
     return (
       <div role="status" aria-live="polite" className={BANNER_CLASS}>
-        <Key size={13} aria-hidden="true" className="text-primary flex-shrink-0" />
-        <span>
+        <Key size={16} aria-hidden="true" className="flex-shrink-0 text-primary" />
+        <span className="min-w-[12rem] flex-1">
           {t('empty.offline.sourceAuth', { names })}
           {/* 插件音源的失效原因是扫码凭据过期，不是「密码改了」——
               那句提示是给自建服务器写的，套到流媒体音源上是误导 */}
           <span className="text-ink-faint">{t('empty.offline.sourceAuthHint')}</span>
         </span>
         <button onClick={() => navigate(reloginPath(first.pluginId))} className={ACTION_CLASS}>
-          <Key size={11} aria-hidden="true" />
+          <Key size={14} aria-hidden="true" />
           {t('sources.relogin')}
         </button>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => dismiss(first)}
           aria-label={t('sources.banner.dismiss')}
           title={t('sources.banner.dismiss')}
-          className="inline-flex items-center gap-1 text-ink-faint transition-colors duration-200 hover:text-ink"
+          className="gap-1.5 font-medium text-ink-faint"
         >
-          <X size={11} aria-hidden="true" />
+          <X size={14} aria-hidden="true" />
           {t('sources.banner.dismiss')}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -318,9 +321,9 @@ export function ConnectionBanner() {
     return (
       <div role="status" aria-live="polite" className={BANNER_CLASS}>
         {showAuth
-          ? <Key size={13} aria-hidden="true" className="text-primary flex-shrink-0" />
-          : <WifiSlash size={13} aria-hidden="true" className="text-primary flex-shrink-0" />}
-        <span>
+          ? <Key size={16} aria-hidden="true" className="flex-shrink-0 text-primary" />
+          : <WifiSlash size={16} aria-hidden="true" className="flex-shrink-0 text-primary" />}
+        <span className="min-w-[12rem] flex-1">
           {message}
           <span className="text-ink-faint">{hint}</span>
         </span>
@@ -329,12 +332,12 @@ export function ConnectionBanner() {
             onClick={() => navigate(primaryPlugin ? reloginPath(primaryPlugin.pluginId) : '/login')}
             className={ACTION_CLASS}
           >
-            <Key size={11} aria-hidden="true" />
+            <Key size={14} aria-hidden="true" />
             {primaryPlugin ? t('sources.relogin') : t('sources.relogin')}
           </button>
         ) : (
-          <button onClick={retry} disabled={retrying} className={cn(ACTION_CLASS, 'disabled:opacity-50')}>
-            <ArrowsClockwise size={11} className={retrying ? 'animate-spin' : undefined} aria-hidden="true" />
+          <button onClick={retry} disabled={retrying} className={ACTION_CLASS}>
+            <ArrowsClockwise size={14} className={retrying ? 'animate-spin motion-reduce:animate-none' : undefined} aria-hidden="true" />
             {t('action.retry')}
           </button>
         )}

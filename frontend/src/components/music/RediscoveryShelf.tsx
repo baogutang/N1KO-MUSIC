@@ -12,7 +12,6 @@
 
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Play } from '@phosphor-icons/react'
 import { useHistoryScope } from '@/store/serverStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import { buildRediscovery, type RediscoveryEntry } from '@/services/rediscovery'
@@ -40,19 +39,16 @@ export function RediscoveryShelf() {
     {
       key: 'anniversary',
       title: t('section.onThisDay'),
-      tag: 'ON THIS DAY',
       entries: rediscovery.anniversary,
     },
     {
       key: 'dormant',
       title: t('section.longUnplayed'),
-      tag: 'LONG UNPLAYED',
       entries: rediscovery.dormant,
     },
     {
       key: 'onceOnly',
       title: t('section.heardOnce'),
-      tag: 'HEARD ONCE',
       entries: rediscovery.onceOnly,
     },
   ].filter(column => column.entries.length > 0)
@@ -62,34 +58,21 @@ export function RediscoveryShelf() {
   return (
     <section aria-labelledby="home-rediscovery">
       <div className="section-head">
-        <h2 id="home-rediscovery">
-          {t('section.rediscovery')}<small>FROM YOUR OWN SHELF</small>
-        </h2>
-        <span className="more num">{t('stats.rediscoverySource')}</span>
+        <h2 id="home-rediscovery">{t('section.rediscovery')}</h2>
+        <span className="text-[13px] text-ink-faint">{t('stats.rediscoverySource')}</span>
       </div>
 
-      <div
-        className={cn(
-          'grid grid-cols-1 gap-x-12',
-          columns.length === 2 && 'md:grid-cols-2',
-          columns.length === 3 && 'md:grid-cols-3'
-        )}
-      >
+      {/* 按实际可用宽度折列：窗口是宽档不等于内容区宽（右侧可能还开着面板） */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-4">
         {columns.map(column => (
-          <div key={column.key} className="min-w-0 pb-2">
-            <div className="mb-3 flex items-baseline justify-between gap-3 border-b border-hair pb-2">
-              <h3 className="flex items-baseline gap-2.5 font-serif text-[17px] font-bold">
-                {column.title}
-                <span className="latin-tag font-num text-[9.5px] tracking-[0.22em] text-ink-faint">
-                  {column.tag}
-                </span>
-              </h3>
+          <div key={column.key} className="sheet min-w-0 p-4 regular:p-5">
+            <div className="mb-2 flex items-baseline justify-between gap-3">
+              <h3 className="text-[17px] font-semibold">{column.title}</h3>
               {column.entries.length > 1 && (
                 <button
                   onClick={() => playAllInOrder(column.entries.map(entry => entry.song))}
-                  className="flex-none text-[11px] text-ink-faint transition-colors hover:text-primary"
+                  className="-my-3 flex-none py-3 text-[14px] font-medium text-primary hover:underline hover:underline-offset-4"
                 >
-                  <Play size={10} weight="fill" className="mr-1 inline" />
                   {t('player.playAllShort')}
                 </button>
               )}
@@ -114,6 +97,10 @@ export function RediscoveryShelf() {
   )
 }
 
+/**
+ * 一行：整行点了就播（曲名按钮用 ::after 铺满整行），歌手名是叠在上面的另一个按钮。
+ * 两个按钮并列而不是嵌套——嵌套的 button 是非法 HTML，React 会警告。
+ */
 function RediscoveryRow({
   entry, onPlay, onOpenArtist,
 }: {
@@ -122,28 +109,27 @@ function RediscoveryRow({
   onOpenArtist: () => void
 }) {
   return (
-    <li>
-      <div className="group flex items-baseline gap-3 border-b border-hair-soft py-2.5 transition-[background,transform] duration-200 hover:translate-x-1 hover:bg-paper-deep">
-        <button onClick={onPlay} className="min-w-0 flex-1 text-left">
-          <span className="block truncate font-serif text-[14.5px] font-semibold group-hover:text-primary">
-            {spaceCJK(entry.song.title)}
-          </span>
-          <span className="mt-0.5 flex items-baseline gap-2 text-[11px] text-ink-faint">
-            <button
-              type="button"
-              onClick={event => { event.stopPropagation(); onOpenArtist() }}
-              className={cn(
-                'min-w-0 truncate',
-                entry.song.artistId && 'hover:text-primary hover:underline'
-              )}
-            >
-              {spaceCJK(entry.song.artist)}
-            </button>
-            {/* 说明句由真实数据拼成，不做任何修辞 */}
-            <span className="flex-none text-primary/70">{entry.note}</span>
-          </span>
+    <li className="group relative min-h-[56px] rounded-sm px-2 py-2.5 transition-colors duration-200 [@media(hover:hover)]:hover:bg-paper-deep">
+      <button
+        onClick={onPlay}
+        className="block w-full truncate rounded-sm text-left text-[14.5px] font-semibold after:absolute after:inset-0 after:content-['']"
+      >
+        {spaceCJK(entry.song.title)}
+      </button>
+      <span className="mt-0.5 flex items-baseline gap-x-3 text-[13px] text-ink-faint">
+        <button
+          type="button"
+          onClick={onOpenArtist}
+          className={cn(
+            'relative -my-2 min-w-0 truncate py-2',
+            entry.song.artistId && 'hover:text-primary hover:underline'
+          )}
+        >
+          {spaceCJK(entry.song.artist)}
         </button>
-      </div>
+        {/* 说明句由真实数据拼成，不做任何修辞 */}
+        <span className="flex-none">{entry.note}</span>
+      </span>
     </li>
   )
 }

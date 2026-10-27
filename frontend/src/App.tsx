@@ -74,17 +74,13 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { resolvedTheme, skin } = useThemeStore()
+  const resolvedTheme = useThemeStore(s => s.resolvedTheme)
 
   useEffect(() => {
-    // 浅色为默认（无 class），深色为 'dark' class
+    // 浅色为默认；深色同时落 'dark' class（Tailwind 的 dark: 变体）与 data-theme（index.css 的 token 块）
     document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
+    document.documentElement.dataset.theme = resolvedTheme
   }, [resolvedTheme])
-
-  useEffect(() => {
-    // 皮肤走 data-skin 属性，与明暗正交（见 themeStore）
-    document.documentElement.dataset.skin = skin
-  }, [skin])
 
   return (
     <ErrorBoundary>

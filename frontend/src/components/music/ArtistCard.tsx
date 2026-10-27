@@ -1,6 +1,6 @@
 /**
- * 歌手卡片组件 —— 去卡片化（DESIGN v2 §3）
- * 圆形头像（歌手语境惯例，全站统一）+ 衬线歌手名 + mono 数量
+ * 歌手卡片组件
+ * 圆形头像（歌手语境惯例，全站统一，抬起一层卡片投影）+ 歌手名 + 专辑数
  */
 
 import { useNavigate } from 'react-router-dom'
@@ -44,7 +44,7 @@ export function ArtistCard({ artist, className }: ArtistCardProps) {
       }
       title={artist.name}
       {...(artist.albumCount !== undefined
-        ? { meta: <span className="font-num">{t('artist.albumCountShort', { count: artist.albumCount ?? 0 })}</span> }
+        ? { meta: <span className="num">{t('artist.albumCountShort', { count: artist.albumCount ?? 0 })}</span> }
         : {})}
     />
   )

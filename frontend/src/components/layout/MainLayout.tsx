@@ -1,21 +1,37 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { Outlet } from 'react-router-dom'
-import { TopBar } from './TopBar'
-import { Masthead } from './Masthead'
-import { TopNav } from './TopNav'
-import { ClaySidebar } from './ClaySidebar'
+/**
+ * 主布局：v5 只有一个外壳，按**窗口宽度**换导航形态（见 lib/platform 的 useWindowClass）。
+ *
+ *   compact  <600     内容 + 底部（迷你播放条 + 标签栏）
+ *   regular  600–1023 侧边导航条 | 内容 + 底部播放条
+ *   wide     ≥1024    侧栏 | 内容 | 正在播放面板，底部播放条横跨内容与面板
+ *
+ * 以前是「原生壳一律走手机外壳」，13 寸 iPad 也只有底部标签栏；而且两套外壳是两棵树，
+ * 窗口拖过断点就整棵换掉。现在 iPhone Duo 开合、iPad 分屏 / 台前调度改窗口大小，
+ * 只是同一棵树换几块导航，页面、滚动位置、播放状态都不动。
+ *
+ * 底部播放区浮在内容上方：内容滚到它下面去，滚动区底部留出它的实际高度（--dock-h，实测）。
+ */
+
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
+import { AppSidebar } from './AppSidebar'
+import { AppRail } from './AppRail'
+import { AppToolbar } from './AppToolbar'
+import { TabBar } from './TabBar'
 import { PlayerBar } from './PlayerBar'
+import { NowPlayingPanel } from './NowPlayingPanel'
+import { ShortcutSheet } from './ShortcutSheet'
 import { ConnectionBanner } from './ConnectionBanner'
 import { UpdatePrompt } from './UpdatePrompt'
-import { Colophon, RunningHead } from './Colophon'
+import { useShellLayout } from './useShellLayout'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ResumeOffer } from '@/components/player/ResumeOffer'
-import { MobileLayout } from './MobileLayout'
 import { QueueDrawer } from '@/components/player/QueueDrawer'
 import { FullscreenPlayerOverlay } from '@/components/player/FullscreenPlayerOverlay'
 import { useAudioEngine } from '@/hooks/useAudioEngine'
 import { useMediaSession } from '@/hooks/useMediaSession'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useShellShortcuts } from '@/hooks/useShellShortcuts'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useSleepTimer } from '@/hooks/useSleepTimer'
 import { useQueueSync } from '@/hooks/useQueueSync'
@@ -26,9 +42,8 @@ import { useAudioInterruptions } from '@/hooks/useAudioInterruptions'
 import { useDeepLinks } from '@/hooks/useDeepLinks'
 import { useOfflineLibraryCache } from '@/hooks/useOfflineLibraryCache'
 import { useScrollMemory } from '@/hooks/useScrollMemory'
-import { cn } from '@/lib/utils'
-import { useIsMobileLayout } from '@/lib/platform'
-import { useThemeStore } from '@/store/themeStore'
+import { useNativeAppIntegration } from '@/hooks/useNativeAppIntegration'
+import { useNativeMediaControls } from '@/services/nativeMediaControls'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
@@ -36,12 +51,11 @@ import {
   prefetchFullscreenPlayer,
 } from '@/routes/lazyRoutes'
 
-export default function MainLayout() {
-  const isMobile = useIsMobileLayout()
+/** 页面大标题大约这么高：滚过它，工具栏才浮现栏目名 */
+const TITLE_REVEAL_PX = 56
 
-  // 音频引擎必须挂在分支之上，只挂一次。
-  // 此前它挂在 DesktopLayout / MobileLayout 内部，把窗口拖过 768px 断点会让
-  // 组件树整个换掉、引擎重新挂载，当前曲跳回 0:00 并重新拉流。
+export default function MainLayout() {
+  // 音频引擎与各类会话只挂一次，挂在所有布局分支之上：换布局不会让当前曲重新拉流
   useAudioEngine()
   useMediaSession()
   useKeyboardShortcuts()
@@ -54,22 +68,47 @@ export default function MainLayout() {
   useAudioInterruptions()
   useDeepLinks()
   useOfflineLibraryCache()
+  // 原生壳集成：锁屏控制、状态栏、返回键……两者内部都先判断是否原生，网页上是空操作
+  useNativeMediaControls()
+  useNativeAppIntegration()
 
-  return (
-    <>
-      {/* 命令面板对两种布局都可用（外接键盘的平板同样受益） */}
-      <CommandPalette />
-      {isMobile ? <MobileLayout /> : <DesktopLayout />}
-    </>
-  )
-}
+  const { wc, sidebarVisible, panelVisible } = useShellLayout()
+  const { sheetOpen, closeSheet } = useShellShortcuts(panelVisible)
+  const location = useLocation()
 
-function DesktopLayout() {
-  const isClay = useThemeStore(state => state.skin === 'clay')
+  const shellRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLElement>(null)
+  const dockRef = useRef<HTMLDivElement>(null)
   const getMain = useCallback(() => mainRef.current, [])
   useScrollMemory(getMain)
 
+  /* 滚动边缘：内容滚到工具栏底下才铺纸色；大标题滚走才浮现栏目名 */
+  const [scrolled, setScrolled] = useState(false)
+  const [titled, setTitled] = useState(false)
+  const syncScroll = useCallback(() => {
+    const top = mainRef.current?.scrollTop ?? 0
+    setScrolled(top > 4)
+    setTitled(top > TITLE_REVEAL_PX)
+  }, [])
+  useEffect(() => {
+    // 换页后滚动位置由 useScrollMemory 还原（或归零），不一定会触发 scroll 事件
+    const id = requestAnimationFrame(syncScroll)
+    return () => cancelAnimationFrame(id)
+  }, [location.key, syncScroll])
+
+  /* 底部播放区的实际高度：内容区留白、面板底边、toast 的位置都按它来 */
+  useLayoutEffect(() => {
+    const dock = dockRef.current
+    const shell = shellRef.current
+    if (!dock || !shell) return
+    const apply = () => shell.style.setProperty('--dock-h', `${Math.ceil(dock.getBoundingClientRect().height)}px`)
+    apply()
+    const ro = new ResizeObserver(apply)
+    ro.observe(dock)
+    return () => ro.disconnect()
+  }, [wc])
+
+  /* 空闲时预取常用路由与全屏播放器 */
   useEffect(() => {
     const warmup = () => {
       prefetchCommonAuthenticatedRoutes()
@@ -89,70 +128,67 @@ function DesktopLayout() {
     return () => globalThis.clearTimeout(timer)
   }, [])
 
+  const leftColumn = sidebarVisible ? 'minmax(236px, 264px)' : wc === 'regular' ? '84px' : '0px'
+  const rightColumn = panelVisible ? 'minmax(300px, 340px)' : '0px'
+
   return (
     <TooltipProvider>
-      <div className="relative flex flex-col h-screen h-[100dvh] bg-background text-foreground overflow-hidden">
-        {/*
-          顶部工具条（含 macOS 拖拽区）/ 报头 / 主导航行（DESIGN v2 §3）。
+      {/* 命令面板对所有宽度都可用（接键盘的 iPad 同样受益） */}
+      <CommandPalette />
+      <div
+        ref={shellRef}
+        data-window-class={wc}
+        className="relative grid h-full overflow-hidden text-foreground"
+        style={{ gridTemplateColumns: `${leftColumn} minmax(0, 1fr) ${rightColumn}`, gridTemplateRows: 'minmax(0, 1fr)' }}
+      >
+        {sidebarVisible && <AppSidebar />}
+        {wc === 'regular' && <AppRail />}
 
-          软陶把报头塞进顶栏的中间插槽（DESIGN v4 C1+C4）：
-          原来的排法是「顶栏一行 + 报头横跨全宽一行 + 侧栏从报头下方开始」，
-          三条横向切割把窗口切成了千层饼，侧栏也就不可能通高。
-          软陶下这两行合成一条栏杆——返回/前进落在侧栏那一列的上方，
-          报头面板从内容列的左缘开始、一直铺到右端，工具组坐在它的右端。
-          于是侧栏从这条栏杆下面一路贯到播放条上方，中间不再有横切。
-
-          为什么不是把 <Masthead/> 放进内容列里再用负边距提上来：
-          内容列在 overflow-hidden 的那一行里（队列抽屉靠它裁剪），
-          负边距会被裁掉；改用绝对定位又要把顶栏抬到内容之上，
-          于是得给拖拽区补 pointer-events、给连接横幅让位——
-          为了「看起来在一行」欠下三笔债。塞插槽是同一个结果、零债务。
-        */}
-        <TopBar>{isClay ? <Masthead /> : null}</TopBar>
-        <UpdatePrompt />
-        {/* 离线 / 音源登录失效 / 插件异常同走这一条（手机端在 MobileLayout 里挂同一个） */}
-        <ConnectionBanner />
-        <ResumeOffer />
-        {/* 软陶的报头已经在顶栏的插槽里，这里不再渲染第二份 */}
-        {isClay ? null : <Masthead />}
-        {/*
-          版面骨架按皮肤分叉，全站只此一处。
-          编辑风 / 波普是「顶部一行横导航」的杂志骨架；软陶是「左侧一块竖面板」
-          的仪表盘骨架（理由见 ClaySidebar.tsx 的文件头）。横竖两种导航的 DOM
-          结构本就不同，用 CSS 互转只会得到两边都别扭的一份结构。
-        */}
-        {isClay ? null : <TopNav />}
-
-        <div className="relative flex flex-1 min-h-0 overflow-hidden">
-          {isClay && <ClaySidebar />}
+        <div className="relative col-start-2 row-start-1 min-h-0 min-w-0">
           <main
             ref={mainRef}
-            className={cn('flex-1 overflow-y-auto min-w-0', isClay && 'clay-main')}
+            onScroll={syncScroll}
+            className="absolute inset-0 overflow-y-auto overscroll-contain"
+            style={{ paddingBottom: 'calc(var(--dock-h, 96px) + 24px)' }}
           >
+            <AppToolbar scrolled={scrolled} titled={titled}>
+              <UpdatePrompt />
+              {/* 离线 / 音源登录失效 / 插件异常同走这一条 */}
+              <ConnectionBanner />
+              <ResumeOffer />
+            </AppToolbar>
             <div
-              className={cn(
-                'pb-16 w-full',
-                isClay ? 'max-w-[1180px] pr-8 pl-2' : 'max-w-[1180px] mx-auto px-10'
-              )}
+              className="mx-auto w-full max-w-[1240px] px-4 regular:px-6 wide:px-8"
+              style={wc === 'compact' ? {
+                paddingLeft: 'max(16px, env(safe-area-inset-left))',
+                paddingRight: 'max(16px, env(safe-area-inset-right))',
+              } : undefined}
             >
-              <RunningHead />
-              {/* clay-page：软陶下「每一页本身就是一张卡片」的挂载点。
-                  另外两张皮没有对应规则，它只是一层透明的 div。 */}
-              <div className="clay-page">
-                <Outlet />
-              </div>
-              <Colophon />
+              <Outlet />
             </div>
           </main>
           <QueueDrawer />
         </div>
 
-        {/* 底部播放条：docked 在布局流内，不再浮空 */}
-        <PlayerBar />
+        {panelVisible && <NowPlayingPanel />}
+
+        {/* 底部播放区：横跨内容列与面板列，浮在内容上方 */}
+        <div
+          ref={dockRef}
+          className="pointer-events-none sticky bottom-0 z-40 col-start-2 col-end-[-1] row-start-1 flex flex-col gap-2 self-end px-2 regular:px-3"
+          style={{
+            paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
+            paddingRight: 'calc(env(safe-area-inset-right) + 8px)',
+            paddingLeft: wc === 'compact' ? 'calc(env(safe-area-inset-left) + 8px)' : undefined,
+          }}
+        >
+          <PlayerBar wc={wc} />
+          {wc === 'compact' && <TabBar />}
+        </div>
 
         <FullscreenPlayerOverlay />
-
         <Toaster />
+        <ShortcutSheet open={sheetOpen} onClose={closeSheet} />
       </div>
     </TooltipProvider>
   )

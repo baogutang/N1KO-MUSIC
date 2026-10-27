@@ -22,44 +22,41 @@ export function PluginDisclaimer({
   const [checked, setChecked] = useState(false)
 
   return (
-    <div className="space-y-5 border-t border-hair pt-7">
-      <div className="flex items-center gap-2.5">
+    <div className="space-y-5">
+      <div className="flex items-center gap-x-3">
         <button
           onClick={onCancel}
-          className="inline-flex items-center gap-1.5 text-[12.5px] tracking-[0.08em] text-ink-soft hover:text-primary transition-colors"
+          className="-ml-3 inline-flex min-h-11 items-center rounded-pill px-3 text-[14px] text-ink-soft transition-colors duration-150 hover:bg-paper-deep hover:text-ink"
         >
           {t('action.back')}
         </button>
-        <span className="text-ink-faint">·</span>
-        <span className="font-serif text-[14px] font-semibold text-foreground">
+        <span className="font-display text-[17px] font-semibold text-ink">
           {pluginName}
         </span>
       </div>
 
-      <div className="border-l-2 border-primary/70 bg-paper-deep/40 px-4 py-3.5">
-        <p className="mb-1.5 text-[11px] tracking-[0.18em] text-ink-faint">
-          {t('sources.disclaimer.tag')}
+      <div className="rounded-md bg-paper-deep p-4">
+        <p className="mb-1.5 text-[15px] font-semibold text-ink">
+          {t('sources.disclaimer.title')}
         </p>
-        <p className="text-[13px] leading-relaxed text-ink-soft whitespace-pre-line">
+        <p className="whitespace-pre-line text-[14px] leading-relaxed text-ink-soft">
           {disclaimer}
         </p>
       </div>
 
-      <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-relaxed text-ink-soft">
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[14px] leading-relaxed text-ink-soft">
         <input
           type="checkbox"
           checked={checked}
           onChange={e => setChecked(e.target.checked)}
-          className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 accent-[var(--primary)]"
+          className="mt-0.5 h-5 w-5 flex-shrink-0 accent-primary"
         />
         {t('sources.disclaimer.acknowledge')}
       </label>
 
-      <div className="pt-2 text-center">
-        <Button onClick={onConfirm} disabled={!checked}>
-          {t('sources.disclaimer.continue')}
-        </Button>
-      </div>
+      <Button size="lg" className="w-full" onClick={onConfirm} disabled={!checked}>
+        {t('sources.disclaimer.continue')}
+      </Button>
     </div>
   )
 }

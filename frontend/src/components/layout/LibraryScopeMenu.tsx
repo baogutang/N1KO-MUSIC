@@ -40,14 +40,15 @@ export function LibraryScopeMenu({ className }: { className?: string }) {
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            'inline-flex items-center gap-1.5 text-[11px] tracking-[0.12em] text-ink-faint',
-            'transition-colors duration-200 hover:text-ink',
+            // 侧栏底部空间窄：小号纸片胶囊；视觉 36px，用伪元素把命中区撑到 ≥44px
+            "relative inline-flex h-9 max-w-full items-center gap-1.5 rounded-pill bg-sheet px-3 text-[12.5px] font-medium text-ink-soft shadow-press before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-['']",
+            'transition-colors duration-150 hover:bg-paper-deep hover:text-ink motion-reduce:transition-none',
             className
           )}
           aria-label={t('library.scopeSwitch')}
         >
-          <Books size={12} aria-hidden="true" />
-          {current?.name ?? t('library.scopeAll')}
+          <Books size={14} aria-hidden="true" className="flex-shrink-0" />
+          <span className="truncate">{current?.name ?? t('library.scopeAll')}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48 glass">

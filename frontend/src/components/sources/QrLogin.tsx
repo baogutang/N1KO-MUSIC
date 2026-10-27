@@ -113,9 +113,8 @@ export function QrLogin({
       } else {
         // 统一走 data URL <img>：SVG 注入会带固有宽高，URL 变长时溢出方框
         const dataUrl = await QRCode.toDataURL(created.content, {
-          margin: 1,
+          margin: 2,
           width: 440,
-          color: { dark: '#000000', light: '#ffffff' },
         })
         if (cancelledRef.current || requestId !== qrRequestIdRef.current) return
         setQrImage(dataUrl)
@@ -240,12 +239,12 @@ export function QrLogin({
   return (
     <div className="flex flex-col items-center gap-4 pt-2">
       {/* 多链路扫码（QQ / 微信）：分段切换，切换即换码。
-          皮肤差异走既有 token：默认细线胶囊，pop: 变圆角实底（不读 store） */}
+          凹槽里托起一片纸（.seg-option.is-on） */}
       {methods && methods.length > 1 && (
         <div
           role="tablist"
           aria-label={t('sources.qr.methodSwitch')}
-          className="inline-flex overflow-hidden border border-hair pop:rounded-pill pop:border-hair pop:shadow-press"
+          className="inline-flex gap-1 rounded-pill bg-paper-deep p-1"
         >
           {methods.map(method => {
             const active = method.id === activeMethod
@@ -256,11 +255,8 @@ export function QrLogin({
                 aria-selected={active}
                 onClick={() => switchMethod(method.id)}
                 className={cn(
-                  'min-w-[5.5em] px-4 py-1.5 text-[12.5px] transition-colors duration-200',
-                  'pop:not-first:border-y-0 pop:not-first:border-l pop:not-first:border-hair',
-                  active
-                    ? 'bg-paper-deep text-primary pop:bg-surface'
-                    : 'text-ink-faint hover:text-ink'
+                  'seg-option h-9 min-w-[5.5em] px-4 text-[13.5px] font-medium transition-colors duration-150',
+                  active ? 'is-on' : 'text-ink-soft hover:text-ink'
                 )}
               >
                 {methodLabel(method, t)}
@@ -270,20 +266,21 @@ export function QrLogin({
         </div>
       )}
       <div className="relative">
+        {/* 二维码放在纸片白底的圆角块里：图自带留白，块只负责托起 */}
         <div
           className={
-            'w-[220px] h-[220px] rounded-md ring-1 ring-hair bg-white p-2 transition-opacity ' +
+            'h-[232px] w-[232px] rounded-md bg-sheet p-3 shadow-card transition-opacity ' +
             (phase === 'expired' ? 'opacity-25' : 'opacity-100')
           }
         >
-          <img src={qrImage} alt={t('sources.qr.alt')} className="w-full h-full object-contain" />
+          <img src={qrImage} alt={t('sources.qr.alt')} className="h-full w-full rounded-sm object-contain" />
         </div>
         {(phase === 'expired' || phase === 'error') && (
           <button
             onClick={() => void startQr(activeMethod)}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[13px] font-medium text-foreground"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md text-[14px] font-medium text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <ArrowsClockwise size={22} className="text-primary" />
+            <ArrowsClockwise size={24} className="text-primary" />
             {t('sources.qr.refresh')}
           </button>
         )}
@@ -294,7 +291,7 @@ export function QrLogin({
         role="status"
         aria-live="polite"
         className={
-          'text-center text-[13px] leading-relaxed ' +
+          'text-center text-[14px] leading-relaxed ' +
           (phase === 'scanned' ? 'text-primary' : phase === 'error' ? 'text-destructive' : 'text-ink-soft')
         }
       >

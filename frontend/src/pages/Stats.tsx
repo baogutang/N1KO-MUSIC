@@ -1,7 +1,7 @@
 /**
- * 听歌统计页
- * 杂志编辑风（DESIGN v2）：数据行统计位 + 细柱日历图 + 编号 Top-5 榜单，
- * 发丝线与留白承担结构，无卡片盒。统计口径见 services/listeningStats。
+ * 听歌统计页（v5 暖纸）
+ * 规模纸片（收听时长是全站唯一的 font-figure 大数字）+ 行为纸片 + 细柱日历图 / 时段图 +
+ * 三张 Top-5 纸片。统计口径见 services/listeningStats。
  */
 
 import { useMemo, useState, useEffect } from 'react'
@@ -34,38 +34,30 @@ function splitAtPlaceholder(template: string, token: string): [string, string] {
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
-/** 分区标题：衬线标题 + 拉丁小标签 + 下缘发丝线 */
-function SectionHead({ title, tag }: { title: string; tag: string }) {
-  return (
-    <div className="flex items-baseline justify-between border-b border-hair pb-3">
-      <h2 className="font-serif text-[22px] font-semibold">{title}</h2>
-      <span className="latin-tag text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
-    </div>
-  )
+/** 分区标题：21px 半粗，靠上方留白分区，不画线 */
+function SectionHead({ title }: { title: string }) {
+  return <h2 className="text-[21px] font-semibold leading-tight">{title}</h2>
 }
 
-/** 编号榜单：mono 序号 + 衬线名 + mono 次数，行间 hair-soft */
-function RankedList({ title, tag, items }: { title: string; tag: string; items: RankedEntry[] }) {
+/** 编号榜单：一张纸片，序号 + 名称 + 次数，行间靠留白 */
+function RankedList({ title, items }: { title: string; items: RankedEntry[] }) {
   const { t } = useT()
   return (
-    <div>
-      <div className="flex items-baseline justify-between border-b border-hair pb-2.5">
-        <h3 className="font-serif text-lg font-semibold">{title}</h3>
-        <span className="latin-tag text-[10px] tracking-[0.24em] text-ink-faint">{tag}</span>
-      </div>
-      <ol className="divide-y divide-hair-soft">
+    <div className="sheet min-w-0 p-4 regular:p-5">
+      <SectionHead title={title} />
+      <ol className="mt-2">
         {items.map((item, i) => (
-          <li key={item.key} className="flex items-baseline gap-3 py-3">
-            <span className="num w-5 flex-shrink-0 text-[11px] text-ink-faint">
+          <li key={item.key} className="flex items-baseline gap-3 py-2.5">
+            <span className="num w-6 flex-shrink-0 text-[13px] text-ink-faint">
               {String(i + 1).padStart(2, '0')}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate font-serif text-[15px] font-semibold">{item.title}</p>
+              <p className="truncate text-[15px] font-semibold">{item.title}</p>
               {item.subtitle && (
-                <p className="mt-0.5 truncate text-xs text-ink-faint">{item.subtitle}</p>
+                <p className="mt-0.5 truncate text-[13px] text-ink-faint">{item.subtitle}</p>
               )}
             </div>
-            <span className="num flex-shrink-0 text-xs text-ink-soft">
+            <span className="num flex-shrink-0 text-[13px] text-ink-soft">
               {t('stats.playCount', { count: item.count })}
             </span>
           </li>
@@ -75,28 +67,26 @@ function RankedList({ title, tag, items }: { title: string; tag: string; items: 
   )
 }
 
-/** 统计位：mono 大数字 + wide-tracking 小标签 */
+/** 统计位：数字（font-display + num）在上，说明在下 */
 function StatCell({
   value,
   unit,
   label,
   hint,
-  className,
 }: {
   value: string | number
   unit?: string
   label: string
   hint?: string
-  className?: string
 }) {
   return (
-    <div className={cn('px-6 py-7', className)}>
-      <p className="num text-[32px] leading-none font-medium">
+    <div className="min-w-0">
+      <p className="num font-display text-[26px] font-semibold leading-tight regular:text-[30px]">
         {value}
-        {unit && <span className="text-base text-ink-faint ml-1">{unit}</span>}
+        {unit && <span className="ml-1 text-base font-normal text-ink-faint">{unit}</span>}
       </p>
-      <p className="text-[11px] tracking-[0.2em] text-ink-faint mt-3">{label}</p>
-      {hint && <p className="text-[11px] text-ink-faint/70 mt-1">{hint}</p>}
+      <p className="mt-2 text-[13px] text-ink-faint">{label}</p>
+      {hint && <p className="mt-0.5 text-[13px] text-ink-faint">{hint}</p>}
     </div>
   )
 }
@@ -138,17 +128,20 @@ export default function Stats() {
   const [peakHourBefore, peakHourAfter] = splitAtPlaceholder(t('stats.peakHour'), '{hour}')
 
   return (
-    <div className="min-h-full pt-9 pb-8 animate-fade-in">
-      {/* 报头 + 时间范围切换 */}
-      <header className="flex items-end justify-between gap-6">
+    <div className="min-h-full pt-2 regular:pt-4 pb-8 animate-fade-in">
+      {/* 页头 + 时间范围切换 */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div>
-          <p className="latin-tag text-[11px] tracking-[0.3em] text-ink-faint mb-2">LISTENING REPORT</p>
-          <h1 className="font-serif text-4xl font-bold tracking-tight text-balance">
+          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em] text-balance">
             {t('stats.title')}
           </h1>
-          <p className="text-sm text-ink-soft mt-2">{t('stats.subtitle')}</p>
+          <p className="mt-3 text-sm text-ink-faint">{t('stats.subtitle')}</p>
         </div>
-        <div className="flex flex-shrink-0 items-baseline gap-5" role="group" aria-label={t('stats.rangeLabel')}>
+        <div
+          className="inline-flex flex-shrink-0 gap-1 rounded-pill bg-paper-deep p-1"
+          role="group"
+          aria-label={t('stats.rangeLabel')}
+        >
           {RANGE_OPTIONS.map(option => (
             <button
               key={String(option.value)}
@@ -156,10 +149,10 @@ export default function Stats() {
               onClick={() => setRange(option.value)}
               aria-pressed={range === option.value}
               className={cn(
-                'pb-1 text-sm transition-colors',
+                'seg-option min-h-11 rounded-pill px-5 text-[14px] font-medium transition-colors duration-150',
                 range === option.value
-                  ? 'text-primary border-b border-primary'
-                  : 'text-ink-faint border-b border-transparent hover:text-ink-soft'
+                  ? 'is-on'
+                  : 'text-ink-soft [@media(hover:hover)]:hover:text-ink'
               )}
             >
               {t(option.labelKey)}
@@ -170,90 +163,72 @@ export default function Stats() {
 
       {!stats ? (
         <div className="py-24">
-          <p className="font-serif text-2xl font-semibold">{t('empty.stats.title')}</p>
-          <p className="text-sm text-ink-faint mt-3">{t('empty.stats.description')}</p>
+          <p className="text-2xl font-semibold">{t('empty.stats.title')}</p>
+          <p className="mt-3 text-sm text-ink-faint">{t('empty.stats.description')}</p>
         </div>
       ) : (
         <>
-          {/* 规模数据行 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 border-y border-hair mt-10">
-            <StatCell value={stats.plays} label={t('stats.plays')} className="pl-0" />
-            <StatCell
-              value={formatDurationNatural(stats.listenedSeconds)}
-              label={t('stats.listenedTime')}
-              className="border-l border-hair-soft"
-            />
-            <StatCell
-              value={stats.uniqueArtists}
-              unit={t('stats.unitArtists')}
-              label={t('stats.uniqueArtists')}
-              className="pl-0 md:pl-6 border-t border-hair-soft md:border-t-0 md:border-l"
-            />
-            <StatCell
-              value={stats.uniqueAlbums}
-              unit={t('stats.unitAlbums')}
-              label={t('stats.uniqueAlbums')}
-              className="border-t border-l border-hair-soft md:border-t-0"
-            />
-          </div>
+          {/* 规模：收听时长是这一页最重的数字，也是全站唯一的 font-figure */}
+          <section className="sheet mt-8 p-5 regular:p-7">
+            <div className="min-w-0">
+              <p className="font-figure text-[48px] leading-none regular:text-[64px]">
+                {formatDurationNatural(stats.listenedSeconds)}
+              </p>
+              <p className="mt-3 text-[14px] text-ink-faint">{t('stats.listenedTime')}</p>
+            </div>
+            <div className="mt-7 grid grid-cols-3 gap-x-4 gap-y-5">
+              <StatCell value={stats.plays} label={t('stats.plays')} />
+              <StatCell
+                value={stats.uniqueArtists}
+                unit={t('stats.unitArtists')}
+                label={t('stats.uniqueArtists')}
+              />
+              <StatCell
+                value={stats.uniqueAlbums}
+                unit={t('stats.unitAlbums')}
+                label={t('stats.uniqueAlbums')}
+              />
+            </div>
+          </section>
 
-          {/* 行为数据行：历史窗口变长后才有统计意义的口味指标 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 border-b border-hair">
-            <StatCell
-              value={formatRate(stats.completionRate)}
-              label={t('stats.completionRate')}
-              className="pl-0"
-            />
-            <StatCell
-              value={formatRate(stats.skipRate)}
-              label={t('stats.skipRate')}
-              className="border-l border-hair-soft"
-            />
-            <StatCell
-              value={formatRate(stats.repeatRate)}
-              label={t('stats.repeatRate')}
-              className="pl-0 md:pl-6 border-t border-hair-soft md:border-t-0 md:border-l"
-            />
+          {/* 行为：历史窗口变长后才有统计意义的口味指标 */}
+          <section className="sheet mt-4 grid grid-cols-2 gap-x-6 gap-y-6 p-5 regular:p-7">
+            <StatCell value={formatRate(stats.completionRate)} label={t('stats.completionRate')} />
+            <StatCell value={formatRate(stats.skipRate)} label={t('stats.skipRate')} />
+            <StatCell value={formatRate(stats.repeatRate)} label={t('stats.repeatRate')} />
             <StatCell
               value={formatDurationNatural(stats.dailyAverageSeconds)}
               label={t('stats.dailyAverage')}
               hint={t('stats.activeDaysHint', { count: stats.activeDays })}
-              className="border-t border-l border-hair-soft md:border-t-0"
             />
-          </div>
+          </section>
 
-          {/* 日历图：细柱，ink-faint 基底 + 峰值日 accent，hover 出 mono 数值 */}
-          <section className="mt-14">
-            <SectionHead
-              title={t('stats.recentDays', { count: range === 'all' ? 30 : range })}
-              tag={range === 'all' ? 'RECENT DAYS' : `LAST ${range} DAYS`}
-            />
-            <div className="flex items-end gap-1.5 pt-8 sm:gap-2">
+          {/* 日历图：细柱，浅墨基底 + 峰值日陶土，hover 出数值 */}
+          <section className="mt-10">
+            <SectionHead title={t('stats.recentDays', { count: range === 'all' ? 30 : range })} />
+            <div className="flex items-end gap-1.5 pt-6 regular:gap-2">
               {stats.daily.map(day => {
                 const isPeak = day.plays > 0 && day.plays === maxDailyPlays
                 return (
                   <div key={day.dayStart} className="group flex min-w-0 flex-1 flex-col items-center">
                     <span
                       className={cn(
-                        'num text-[11px] mb-2 transition-opacity duration-200',
+                        'num mb-2 text-[12px] transition-opacity duration-200',
                         day.plays > 0 ? 'opacity-0 group-hover:opacity-100' : 'opacity-0',
                         isPeak ? 'text-primary' : 'text-ink-soft'
                       )}
                     >
                       {day.plays}
                     </span>
-                    <div className="flex h-36 w-full items-end justify-center border-b border-hair-soft">
+                    <div className="flex h-36 w-full max-w-[14px] items-end overflow-hidden rounded-pill bg-paper-deep">
                       <div
-                        className={cn(
-                          'w-full max-w-[10px] transition-all duration-500',
-                          isPeak ? 'bg-primary' : 'bg-ink-faint/50'
-                        )}
+                        className={cn('w-full rounded-pill', isPeak ? 'bg-primary' : 'bg-ink-faint/50')}
                         style={{ height: `${(day.plays / maxDailyPlays) * 100}%` }}
                         title={t('stats.barTooltip', { label: day.label, count: day.plays })}
                       />
                     </div>
                     {/* 30 天时逐日标签会挤在一起，只标每 5 天 */}
-                    <span className="num mt-3 h-4 text-[11px] text-ink-faint">
+                    <span className="num mt-3 h-4 text-[12px] text-ink-faint">
                       {stats.daily.length <= 10 || new Date(day.dayStart).getDate() % 5 === 0
                         ? day.label
                         : ''}
@@ -265,32 +240,29 @@ export default function Stats() {
           </section>
 
           {/* 收听时段：24 小时分布，回答「你什么时候听歌」 */}
-          <section className="mt-14">
-            <SectionHead title={t('stats.byHour')} tag="BY HOUR" />
+          <section className="mt-10">
+            <SectionHead title={t('stats.byHour')} />
             {stats.peakHour !== null && (
-              <p className="pt-4 text-sm text-ink-soft">
+              <p className="pt-3 text-sm text-ink-soft">
                 {peakHourBefore}
                 <span className="num text-primary">{formatHourRange(stats.peakHour)}</span>
                 {peakHourAfter}
               </p>
             )}
-            <div className="flex items-end gap-1 pt-6">
+            <div className="flex items-end gap-1 pt-5">
               {stats.hourly.map((plays, hour) => {
                 const isPeak = plays > 0 && hour === stats.peakHour
                 return (
                   <div key={hour} className="flex min-w-0 flex-1 flex-col items-center">
-                    <div className="flex h-24 w-full items-end justify-center border-b border-hair-soft">
+                    <div className="flex h-24 w-full max-w-[12px] items-end overflow-hidden rounded-pill bg-paper-deep">
                       <div
-                        className={cn(
-                          'w-full max-w-[8px] transition-all duration-500',
-                          isPeak ? 'bg-primary' : 'bg-ink-faint/50'
-                        )}
+                        className={cn('w-full rounded-pill', isPeak ? 'bg-primary' : 'bg-ink-faint/50')}
                         style={{ height: `${(plays / maxHourlyPlays) * 100}%` }}
                         title={t('stats.barTooltip', { label: formatHourRange(hour), count: plays })}
                       />
                     </div>
                     {/* 每 6 小时标一次，避免 24 个标签挤在一起 */}
-                    <span className="num mt-3 h-4 text-[11px] text-ink-faint">
+                    <span className="num mt-3 h-4 text-[12px] text-ink-faint">
                       {hour % 6 === 0 ? String(hour).padStart(2, '0') : ''}
                     </span>
                   </div>
@@ -299,11 +271,11 @@ export default function Stats() {
             </div>
           </section>
 
-          {/* Top-5 三栏榜单 */}
-          <section className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-12 border-t border-hair pt-10">
-            <RankedList title={t('stats.topSongs')} tag="TOP SONGS" items={stats.topSongs} />
-            <RankedList title={t('stats.topArtists')} tag="TOP ARTISTS" items={stats.topArtists} />
-            <RankedList title={t('stats.topAlbums')} tag="TOP ALBUMS" items={stats.topAlbums} />
+          {/* Top-5 三张纸片：宽度够就三列，不够就折行 */}
+          <section className="mt-10 grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-4">
+            <RankedList title={t('stats.topSongs')} items={stats.topSongs} />
+            <RankedList title={t('stats.topArtists')} items={stats.topArtists} />
+            <RankedList title={t('stats.topAlbums')} items={stats.topAlbums} />
           </section>
 
           {/* 画像：上面几栏是「你听了什么」，这一栏是「引擎因此认为你是谁」，

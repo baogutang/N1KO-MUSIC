@@ -112,8 +112,8 @@ interface SettingsState {
   /** 暂停与切歌时做音量斜坡，而不是硬切 */
   smoothTransitions: boolean
   /** 全屏播放器在手机上默认展示封面还是歌词。偏爱歌词的人不该每次都重点一遍。 */
-  playerMobileView: 'cover' | 'lyrics'
-  setPlayerMobileView: (view: 'cover' | 'lyrics') => void
+  playerMobileView: 'cover' | 'lyrics' | 'queue'
+  setPlayerMobileView: (view: 'cover' | 'lyrics' | 'queue') => void
   /** 预加载下一首以逼近无缝（弱无缝，非真正 gapless）*/
   preloadNext: boolean
   /** 队列播完自动续接相似曲目，而不是直接停 */
@@ -203,7 +203,7 @@ export const useSettingsStore = create<SettingsState>()(
       playbackRate: 1,
       smoothTransitions: true,
       playerMobileView: 'cover' as const,
-      setPlayerMobileView: (view: 'cover' | 'lyrics') => set({ playerMobileView: view }),
+      setPlayerMobileView: (view: 'cover' | 'lyrics' | 'queue') => set({ playerMobileView: view }),
       preloadNext: true,
       autoContinueQueue: true,
       notificationActions: 'track',

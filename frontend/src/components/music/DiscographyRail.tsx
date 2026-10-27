@@ -1,11 +1,9 @@
 /**
- * 唱片目录 · 年份轨。
+ * 唱片目录 · 书架。
  *
- * 把三十年的作品读成一条生涯，而不是一片封面网格——后者恰恰是设计契约
- * 想避免的东西（卡片堆叠 + 大面积重复色块），却一直留在最该发挥的那一页上。
- *
- * 年份用等宽沿一条发丝线下行，专辑挂在轨上；外侧窄边栏放「你自己的历史」，
- * 像页边注一样。没有年份的专辑收在末尾的一格里，不丢。
+ * 一排横向滑动的专辑封面，按年份倒序摆放，每张标出年份与曲目数；
+ * 没有年份的专辑收在末尾，不丢。书架下面是一张 sheet 纸片，放「你自己的历史」——
+ * 全部来自本地收听历史，不需要任何额外请求。
  */
 
 import { useMemo } from 'react'
@@ -13,10 +11,11 @@ import { useNavigate } from 'react-router-dom'
 import { Play } from '@phosphor-icons/react'
 import type { Album } from '@/api/types'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { CoverCard, CoverShelf } from '@/components/common/CoverCard'
+import { CoverActionButton, CoverActions } from '@/components/music/AlbumCard'
 import { findAdapterFor } from '@/api'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { t as translate, useT } from '@/i18n'
-import { cn } from '@/lib/utils'
 import { detailPath } from '@/utils/detailPath'
 
 export interface ArtistMarginalia {
@@ -99,136 +98,112 @@ export function DiscographyRail({
     return max - min >= 2 ? { min, max } : null
   }, [albums])
 
+  /** 书架顺序：年份倒序，同年按名称，无年份的在最后 */
+  const shelf = useMemo(
+    () => groups.flatMap(group => group.albums.map(album => ({ album, year: group.year }))),
+    [groups]
+  )
+
   if (!albums.length) return null
 
   return (
     <section aria-labelledby="discography">
       <div className="section-head">
-        <h2 id="discography">
-          {t('section.discography')}<small>DISCOGRAPHY</small>
-        </h2>
-        <span className="more num">
-          {span
-            ? t('artist.discographySpan', {
-                from: span.min,
-                to: span.max,
-                count: albums.length,
-              })
-            : t('artist.discographyCount', { count: albums.length })}
+        <h2 id="discography">{t('section.discography')}</h2>
+        <span className="num flex flex-wrap justify-end gap-x-3 text-sm text-ink-faint">
+          {span && <span>{t('artist.discographyYears', { from: span.min, to: span.max })}</span>}
+          <span>{t('artist.discographyCount', { count: albums.length })}</span>
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-x-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,15rem)]">
-        {/* 主栏：年份轨 */}
-        <div className="min-w-0">
-          {groups.map(group => (
-            <div
-              key={String(group.year)}
-              className="grid grid-cols-[3.5rem_1fr] gap-x-5 border-l border-hair pl-0"
-            >
-              <div className="relative -ml-px border-l border-hair pl-4 pt-4">
-                <span className="font-num absolute -left-px top-4 block h-[2px] w-3 bg-primary" aria-hidden />
-                <span className="font-num text-[13px] font-semibold tracking-[0.06em] text-ink">
-                  {group.year === 'unknown' ? t('artist.unknownYear') : group.year}
-                </span>
-              </div>
-              <ul className="pt-3">
-                {group.albums.map(album => (
-                  <li key={album.id}>
-                    <div className="group flex items-center gap-3.5 border-b border-hair-soft py-2.5 transition-[background,transform] duration-200 hover:translate-x-1 hover:bg-paper-deep">
-                      <button
-                        onClick={() => navigate(detailPath('albums', album.id, album.serverId))}
-                        className="flex min-w-0 flex-1 items-center gap-3.5 text-left"
-                      >
-                        <span className="h-9 w-9 flex-none overflow-hidden rounded-sm ring-1 ring-hair-soft">
-                          <ImageWithFallback
-                            src={album.coverArt
-                              ? (findAdapterFor(album.serverId)?.getCoverUrl(album.coverArt, 96) ?? undefined)
-                              : undefined}
-                            alt={album.name}
-                            fallbackType="album"
-                            className="h-full w-full"
-                          />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-serif text-[15px] font-semibold group-hover:text-primary">
-                            {spaceCJK(album.name)}
-                          </span>
-                          {album.songCount != null && (
-                            <span className="font-num mt-0.5 block text-[11px] text-ink-faint">
-                              {t('album.trackCount', { count: album.songCount })}
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                      {onPlayAlbum && (
-                        <button
-                          onClick={() => onPlayAlbum(album)}
-                          aria-label={t('album.playNamed', { name: album.name })}
-                          className={cn(
-                            'grid h-7 w-7 flex-none place-items-center rounded-full border border-hair',
-                            'text-ink-soft opacity-0 transition-all duration-200',
-                            'group-hover:opacity-100 hover:border-primary hover:text-primary active:scale-95'
-                          )}
-                        >
-                          <Play size={11} weight="fill" className="ml-px" />
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+      <CoverShelf>
+        {shelf.map(({ album, year }) => (
+          <CoverCard
+            key={album.id}
+            aria-label={album.name}
+            onClick={() => navigate(detailPath('albums', album.id, album.serverId))}
+            tile={
+              <ImageWithFallback
+                src={album.coverArt
+                  ? (findAdapterFor(album.serverId)?.getCoverUrl(album.coverArt, 300) ?? undefined)
+                  : undefined}
+                alt={album.name}
+                fallbackType="album"
+                className="h-full w-full object-cover"
+                customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
+              />
+            }
+            overlay={
+              onPlayAlbum && (
+                <CoverActions>
+                  <CoverActionButton
+                    onClick={e => { e.stopPropagation(); onPlayAlbum(album) }}
+                    aria-label={t('album.playNamed', { name: album.name })}
+                  >
+                    <Play size={14} weight="fill" className="ml-px" />
+                  </CoverActionButton>
+                </CoverActions>
+              )
+            }
+            title={spaceCJK(album.name)}
+            meta={
+              <>
+                <span className="num">{year === 'unknown' ? t('artist.unknownYear') : year}</span>
+                {album.songCount != null && (
+                  <span className="num ml-2">{t('album.trackCount', { count: album.songCount })}</span>
+                )}
+              </>
+            }
+          />
+        ))}
+      </CoverShelf>
 
-        {/* 边栏：你自己的历史，像页边注 */}
-        {marginalia && marginalia.plays > 0 && (
-          <aside className="mt-8 border-t border-hair pt-4 lg:mt-4 lg:border-t-0 lg:border-l lg:pl-6 lg:pt-4">
-            <p className="mb-3 text-[10.5px] uppercase tracking-[0.24em] text-primary">
-              {t('artist.yourHistory')}
-            </p>
-            <dl className="space-y-3 text-[12.5px]">
-              {formatDate(marginalia.firstHeardAt) && (
-                <MarginRow
-                  label={t('artist.firstHeard')}
-                  value={formatDate(marginalia.firstHeardAt)!}
-                />
-              )}
+      {/* 你自己的历史：一张纸片 */}
+      {marginalia && marginalia.plays > 0 && (
+        <aside className="sheet mt-4 p-5 regular:p-6">
+          <p className="mb-4 font-display text-[17px] font-semibold">
+            {t('artist.yourHistory')}
+          </p>
+          <dl className="grid grid-cols-2 gap-x-8 gap-y-4 regular:grid-cols-3">
+            {formatDate(marginalia.firstHeardAt) && (
               <MarginRow
-                label={t('artist.totalPlays')}
-                value={t('artist.playCount', { count: marginalia.plays })}
+                label={t('artist.firstHeard')}
+                value={formatDate(marginalia.firstHeardAt)!}
+              />
+            )}
+            <MarginRow
+              label={t('artist.totalPlays')}
+              value={t('artist.playCount', { count: marginalia.plays })}
+              mono
+            />
+            {marginalia.favouriteAlbum && (
+              <MarginRow label={t('artist.mostPlayed')} value={marginalia.favouriteAlbum} />
+            )}
+            {relativeDays(marginalia.lastHeardAt) && (
+              <MarginRow
+                label={t('artist.lastHeard')}
+                value={relativeDays(marginalia.lastHeardAt)!}
+              />
+            )}
+            {marginalia.neverPlayedAlbums > 0 && (
+              <MarginRow
+                label={t('artist.neverPlayed')}
+                value={t('artist.albumCount', { count: marginalia.neverPlayedAlbums })}
                 mono
               />
-              {marginalia.favouriteAlbum && (
-                <MarginRow label={t('artist.mostPlayed')} value={marginalia.favouriteAlbum} />
-              )}
-              {relativeDays(marginalia.lastHeardAt) && (
-                <MarginRow
-                  label={t('artist.lastHeard')}
-                  value={relativeDays(marginalia.lastHeardAt)!}
-                />
-              )}
-              {marginalia.neverPlayedAlbums > 0 && (
-                <MarginRow
-                  label={t('artist.neverPlayed')}
-                  value={t('artist.albumCount', { count: marginalia.neverPlayedAlbums })}
-                  mono
-                />
-              )}
-            </dl>
-          </aside>
-        )}
-      </div>
+            )}
+          </dl>
+        </aside>
+      )}
     </section>
   )
 }
 
 function MarginRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div>
-      <dt className="text-[10.5px] tracking-[0.14em] text-ink-faint">{label}</dt>
-      <dd className={cn('mt-0.5 font-serif text-[14px]', mono && 'font-num text-[13px]')}>
+    <div className="min-w-0">
+      <dt className="text-[13px] text-ink-faint">{label}</dt>
+      <dd className={mono ? 'num mt-0.5 text-[15px] font-medium' : 'mt-0.5 text-[15px] font-medium'}>
         {spaceCJK(value)}
       </dd>
     </div>

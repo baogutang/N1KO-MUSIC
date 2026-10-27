@@ -1,3 +1,8 @@
+/* Hallmark · shape: app screen · genre: atmospheric · theme: Bloom (deal 3/3, seed personal-music-player-home-c863·faefcd3f·2026-10-27·r0) · redesign: full
+ * nav: sidebar from 1024px, side rail 600 to 1023px, tab bar under 600px, chosen by window width · signature: the rubber play key in its bezel, lyrics laid on the working grid · states: loading, empty, error (kept from the app)
+ * axes: light/grotesk-sans/warm · posture: committed · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: S, a sheet-and-shadow shell could front any player; the rubber key and the lyric grid carry the identity, and covers stay the only colour fields */
+
 /* 自托管字体注册（@import 必须位于文件最前，见 src/styles/fonts.css） */
 @import './styles/fonts.css';
 
@@ -6,706 +11,205 @@
 @tailwind utilities;
 
 /* ===================================================
-   全局设计 Token —— 三皮肤体系
+   v5 暖纸（Bloom）—— 唯一一套设计 token
    ---------------------------------------------------
-   三张皮共用一套语义 token，组件只认 token、不认具体值：
+   暖白纸面、抬起的纸片、一盏陶土色；封面是唯一的大面积色块。
+   明暗由 <html> 上的 data-theme（同时带 .dark 供 Tailwind 的 dark: 变体）决定。
 
-     糖果·波普工坊  html[data-skin='pop']        默认（DESIGN v3）
-     纸·墨·朱        html[data-skin='editorial']  变体（DESIGN v2）
-     奶油·软陶      html[data-skin='clay']       变体（DESIGN v4）
+   颜色一律写成 oklch 的三个通道（L C H），**不带 alpha**：
+   tailwind.config 用 `oklch(var(--x) / <alpha-value>)` 消费它们，
+   `bg-ink/40` 这类不透明度修饰符因此始终有效。
+   旧版 --hair 自带 alpha、写 `/70` 生成双斜杠无效声明的坑，从这里根除。
 
-   × 两种明暗：深色为 <html> 上的 'dark' class（沿用原机制）。
-
-   ---------------------------------------------------
-   三组变量：
-   1. 颜色 token（RGB 通道，配 rgb() 使用；--hair 自带 alpha）
-   2. shadcn 语义变量（HSL 通道，配 hsl() 使用，
-      供 Tailwind 语义类与旧组件内联 hsl(var(--x)) 消费）
-   3. 形状 / 字体 / 动效 token（描边宽度、圆角、投影、字族、缓动）
-      —— v3 新增。没有这一层，换皮只能换掉颜色，形还留在编辑风。
-
-   ---------------------------------------------------
-   优先级说明：:root 与 .dark 都是 (0,1,0)，
-   若皮肤块也写成 [data-skin='pop'] 就会和 .dark 打平、按源码顺序赢，
-   把深色覆盖掉。所以皮肤块一律写成两个复合选择器
-   （:not(.dark) / .dark），特异性 (0,2,1)，互斥且稳赢。
-   =================================================== */
-
-/* ===================================================
-   基线 = 纸·墨·朱（浅）
-   data-skin 缺失时（JS 未执行）落到这一档，版面仍然可读。
+   旧 token 名（paper / ink / hair / shadcn 语义名）全部保留并映射到暖纸，
+   没有逐个改写的组件也会跟着换色。
    =================================================== */
 :root {
-  --radius: 8px;
+  color-scheme: light;
 
-  /* ----- 颜色：浅色纸面（DESIGN v2 §1.1）----- */
-  --paper: 244 239 227;        /* #f4efe3 */
-  --paper-deep: 236 229 212;   /* #ece5d4 */
-  --ink: 29 26 21;             /* #1d1a15 */
-  --ink-soft: 92 86 74;        /* #5c564a */
-  --ink-faint: 111 105 91;     /* #6f695b — 纸面上 4.75:1，满足 WCAG AA */
-  --hair: 29 26 21 / 0.22;     /* rgba(29,26,21,.22) */
-  --hair-soft: 29 26 21 / 0.12;/* rgba(29,26,21,.12) */
-  /* 骨架屏专用：--hair-soft 自带 alpha，再写 `/70` 会生成 rgb(... / .12 / .7)
-     这种双斜杠的无效声明，整条被丢弃 → 骨架完全隐形。给它一个实心色。 */
-  --skeleton: 226 217 199;
-  --accent: 184 68 42;         /* #b8442a 朱红 */
-  --accent-deep: 156 53 32;    /* #9c3520 */
+  /* ----- 纸与墨 ----- */
+  --paper: 97% 0.010 72;          /* 底色 */
+  --paper-deep: 94.6% 0.013 70;   /* 下沉一档：hover 底、分组底 */
+  --paper-3: 91.5% 0.016 66;      /* 再沉一档：选中底、轨道 */
+  --sheet: 98.7% 0.007 78;        /* 抬起来的纸片：卡片、面板、浮层 */
+  --ink: 21% 0.024 40;
+  --ink-soft: 33% 0.022 46;
+  --ink-faint: 47% 0.02 56;       /* 纸面上 5.7:1 */
+  --hair: 88% 0.014 64;           /* 实心线色（不再自带 alpha） */
+  --hair-soft: 92% 0.012 66;
+  --skeleton: 92.5% 0.014 66;
+  --input-edge: 62% 0.02 56;      /* 输入框描边：对纸面 3.2:1 */
 
-  /* ----- 字体栈（DESIGN v2 §2.1，字体文件见 styles/fonts.css）----- */
-  --font-serif: 'Source Serif 4', 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
-  --font-sans: 'Hanken Grotesk', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
-  /* 分区大标题 / 头条的字重与字距（皮肤各自决定） */
-  --display-weight: 700;
-  --display-tracking: 0.02em;
+  /* ----- 唯一的强调色：陶土 ----- */
+  --accent: 53% 0.145 36;
+  --accent-deep: 46% 0.14 34;
+  --accent-2: 66% 0.10 55;
+  --accent-ink: 98.5% 0.008 72;
+  --danger: 49% 0.17 358;         /* 推到玫瑰 358°，与陶土 36° 拉开 */
+  --ok: 50% 0.11 150;
+  --warn: 76% 0.12 75;
 
-  /* ----- 形状（v3 新增）----- */
-  --stroke: 1px;               /* 全站描边/发丝线宽度，Tailwind borderWidth.DEFAULT */
-  --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 8px;
-  --r-pill: 5px;               /* 编辑风没有胶囊：退化成小圆角 */
+  /* ----- 实体部件：橡胶键、凹槽、受光边 ----- */
+  --rubber: 55% 0.15 34;
+  --rubber-hi: 66% 0.125 42;
+  --rubber-lo: 43% 0.125 31;
+  --bezel: 92.5% 0.014 68;
+  --hi: 99.6% 0.006 80;           /* 受光边，配 / 0.75 使用 */
+  --shade: 21% 0.024 40;          /* 投影墨，配不透明度使用 */
+  --shade-warm: 30% 0.06 40;
+
+  /* ----- 来源色板（多源徽标的小圆点） ----- */
+  --src-1: 50% 0.04 55;
+  --src-2: 48% 0.105 28;
+  --src-3: 70% 0.115 72;
+  --src-4: 65% 0.085 12;
+  --src-5: 55% 0.08 160;
+
+  /* ----- shadcn 语义名 → 暖纸 ----- */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--sheet);
+  --card-foreground: var(--ink);
+  --popover: var(--sheet);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-ink);
+  --secondary: var(--paper-3);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-deep);
+  --muted-foreground: var(--ink-faint);
+  --accent-surface: var(--paper-3);
+  --accent-surface-foreground: var(--ink);
+  --destructive: var(--danger);
+  --destructive-foreground: var(--accent-ink);
+  --border: var(--hair);
+  --input: var(--input-edge);
+  --ring: var(--accent);
+  --surface: var(--sheet);
+  --surface-hover: var(--paper-deep);
+  --sem-playing: var(--accent);
+  --sem-fav: var(--accent);
+  --sem-connected: var(--ok);
+  --sem-error: var(--danger);
+  /* 旧糖果色名：仍有少量调用方，映射到语义色 */
+  --candy-ok: var(--ok);
+  --candy-ok-fill: var(--ok);
+  --candy-ok-soft: 93% 0.03 150;
+  --candy-warn-fill: var(--warn);
+  --candy-warn-soft: 94% 0.04 80;
+  --candy-danger: var(--danger);
+  --candy-danger-fill: var(--danger);
+  --candy-danger-soft: 94% 0.03 358;
+
+  /* ----- 字体：标题与正文同族，Young Serif 只出现在一个大数字上 ----- */
+  --cjk: 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-sans: 'Schibsted Grotesk', var(--cjk);
+  --font-display: 'Schibsted Grotesk', var(--cjk);
+  --font-serif: var(--font-display);  /* 旧名：曲名 / 标题角色，暖纸里是同族粗体 */
+  --font-mono: var(--font-sans);      /* 旧名：数字，改由 tabular-nums 对齐 */
+  --font-figure: 'Young Serif', Georgia, 'Songti SC', serif;
+  --display-weight: 600;
+  --display-tracking: -0.02em;
+
+  /* ----- 形状 ----- */
+  --radius: 12px;
+  --stroke: 1px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
   --focus-width: 2px;
-  --press: 0px;                /* 按压位移；编辑风只缩放不位移 */
+  --press: 0px;
 
-  /* 唯一允许的浮层投影（DESIGN v2 §1.3） */
-  --shadow-float: 0 1px 2px rgb(29 26 21 / 0.06), 0 8px 24px rgb(29 26 21 / 0.08);
-  --shadow-press: none;        /* 按压态投影；编辑风无投影 */
+  /* ----- 纸片的光：上方受光，投影落在下方 ----- */
+  --shadow-card: 0 1px 2px oklch(var(--shade) / 0.06), 0 18px 36px -18px oklch(var(--shade) / 0.26);
+  --shadow-float: 0 2px 4px oklch(var(--shade) / 0.07), 0 36px 72px -32px oklch(var(--shade-warm) / 0.4);
+  --shadow-press: 0 0 0 1px oklch(var(--shade) / 0.06), 0 8px 18px -10px oklch(var(--shade) / 0.18), inset 0 1px 0 oklch(var(--hi) / 0.75);
+  --lit-edge: inset 0 1px 0 oklch(var(--hi) / 0.75);
 
-  /* ----- 动效（DESIGN v2 §5）----- */
+  /* ----- 动效 ----- */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
 
-  /* ----- 底纹：纸面噪点（demo 同款 feTurbulence data-URI）----- */
-  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.035 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
-  --texture-size: 140px 140px;
-  --selection-bg: rgb(var(--accent) / 0.18);
+  /* ----- 纸面颗粒（5%，只铺在底色上） ----- */
+  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.2 0 0 0 0 0.15 0 0 0 0.05 0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
+  --texture-size: 180px 180px;
+
+  /* ----- 格纸：歌词落在上面 ----- */
+  --grid-line: oklch(var(--shade) / 0.06);
+  --grid-line-soft: oklch(var(--shade) / 0.035);
+
+  --selection-bg: oklch(var(--accent) / 0.2);
   --selection-fg: inherit;
-  /* 正在播放页的封面取色晕染浓度（DESIGN v2 §1.3 允许的唯一渐变） */
-  --cover-bleed-opacity: 0.55;
-
-  /* ----- shadcn 语义映射（HSL 通道，浅色）----- */
-  --background: 43 36% 92%;    /* paper */
-  --foreground: 36 14% 10%;    /* ink */
-
-  --card: 43 36% 92%;
-  --card-foreground: 36 14% 10%;
-
-  --popover: 44 38% 94%;
-  --popover-foreground: 36 14% 10%;
-
-  --primary: 11 62% 44%;       /* 朱红 accent */
-  --primary-foreground: 43 36% 92%;
-  /* 语义状态色（阶段 7.5）：播放/收藏走主强调色，已连接是墨绿，错误归 destructive。
-     皮肤各给值；这里与 --primary 同源（单一强调色原则）。 */
-  --sem-playing: 11 62% 44%;
-  --sem-fav: 11 62% 44%;
-  --sem-connected: 150 22% 32%;
-  --sem-error: 13 66% 37%;
-
-  --secondary: 41 32% 88%;     /* paper-deep */
-  --secondary-foreground: 36 14% 10%;
-
-  --muted: 41 32% 88%;
-  --muted-foreground: 38 10% 33%;   /* ink-soft */
-
-  /* shadcn 的 accent 是「hover 底面」语义（非品牌色），映射 paper-deep；
-     品牌色请用 --primary / rgb(var(--accent)) */
-  --accent-surface: 41 32% 88%;
-  --accent-surface-foreground: 36 14% 10%;
-
-  --destructive: 13 66% 37%;   /* accent-deep */
-  --destructive-foreground: 43 36% 92%;
-
-  --border: 40 11% 74%;        /* hair 22% 在纸面上的合成色 */
-  --input: 40 11% 74%;
-  --ring: 11 62% 44%;
-
-  --surface: 44 38% 94%;
-  --surface-hover: 41 32% 88%;
-}
-
-/* ===================================================
-   纸·墨·朱（深）—— 同气质变体，非反色（DESIGN v2 §1.2）
-   =================================================== */
-.dark {
-  --paper: 26 23 18;           /* #1a1712 */
-  --paper-deep: 34 30 23;      /* #221e17 */
-  --ink: 236 229 212;          /* #ece5d4 */
-  --ink-soft: 168 159 140;     /* #a89f8c */
-  --ink-faint: 138 130 114;    /* #8a8272 — 深色底上 4.69:1，满足 WCAG AA */
-  --hair: 236 229 212 / 0.2;   /* rgba(236,229,212,.20) */
-  --hair-soft: 236 229 212 / 0.1;
-  --skeleton: 58 53 45;
-  --accent: 217 96 63;         /* #d9603f */
-  --accent-deep: 184 68 42;    /* #b8442a */
-
-  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
-
-  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
-  --selection-bg: rgb(var(--accent) / 0.28);
-  --cover-bleed-opacity: 0.4;
-
-  --background: 38 18% 9%;
-  --foreground: 43 39% 88%;
-
-  --card: 38 18% 9%;
-  --card-foreground: 43 39% 88%;
-
-  --popover: 38 19% 11%;
-  --popover-foreground: 43 39% 88%;
-
-  --primary: 13 67% 55%;
-  --primary-foreground: 36 14% 10%;
-  --sem-playing: 13 67% 55%;
-  --sem-fav: 13 67% 55%;
-  --sem-connected: 150 20% 52%;
-  --sem-error: 6 72% 62%;
-
-  --secondary: 38 19% 11%;
-  --secondary-foreground: 43 39% 88%;
-
-  --muted: 38 19% 11%;
-  --muted-foreground: 41 14% 60%;
-
-  --accent-surface: 38 19% 11%;
-  --accent-surface-foreground: 43 39% 88%;
-
-  /* 暗色下不能和 --primary 同值：朱色既是「主色/成功」又是「危险」时，
-     失败的分享和复制成功会是同一个提示样式，用户分不出成败。
-     这里往暖红偏移并压低明度，仍在朱的家族里，但一眼可辨。 */
-  /**
-   * 这个 token 有两种用法，必须同时过关：
-   *   - `text-destructive`（全站 23 处）——朱红字落在暗底上，
-   *     48% 时只有 3.60:1，远不到 AA。提到 62% 得到 5.35:1。
-   *   - `bg-destructive`——前景压在这块朱红上。提亮之后纸色前景只剩
-   *     3.08:1，所以前景换成墨色，5.23:1。
-   *
-   * 与 --primary（13 67% 55%）保持 7% 的明度差，和亮色主题里
-   * primary 44% / destructive 37%（accent-deep）是同一套逻辑。
-   */
-  --destructive: 6 72% 62%;
-  --destructive-foreground: 36 14% 10%;
-
-  --border: 38 9% 25%;
-  --input: 38 9% 25%;
-  --ring: 13 67% 55%;
-
-  --surface: 38 19% 11%;
-  --surface-hover: 39 20% 14%;
-}
-
-/* ===================================================
-   糖果·波普工坊（浅）—— 默认皮肤（DESIGN v3）
-   奶油底 + 2px 墨描边 + 硬投影；糖果色全部绑定语义。
-   =================================================== */
-html[data-skin='pop']:not(.dark) {
-  /* ----- 颜色 ----- */
-  --paper: 251 241 227;        /* #fbf1e3 奶油底 */
-  --paper-deep: 241 228 206;   /* #f1e4ce 沉底 / hover */
-  --ink: 27 26 25;             /* #1b1a19 描边 + 主文字，15.6:1 */
-  --ink-soft: 86 81 74;        /* #56514a 7.9:1 */
-  --ink-faint: 110 103 94;     /* #6e675e 5.0:1 */
-  /* 波普的「发丝线」不是发丝，是 2px 实心墨描边：alpha 拉满。
-     注意 --hair 自带 alpha，消费方不能再叠 `/70` 这类修饰符。 */
-  --hair: 27 26 25 / 1;
-  --hair-soft: 27 26 25 / 0.18;
-  --skeleton: 236 224 205;
-  --accent: 79 70 229;         /* #4f46e5 葡萄紫：正在播放 / 当前项 / 主操作，5.6:1 */
-  --accent-deep: 62 54 200;    /* #3e36c8 按压态 */
-
-  /* 糖果色的语义绑定（DESIGN v3 §1.3）。
-     浅色档只做底、绝不做文字；深色档才是文字安全色。 */
-  --candy-ok: 20 113 63;       /* #14713f 已连接 / 成功 / 在线，5.4:1 */
-  --candy-ok-fill: 91 190 123; /* #5bbe7b */
-  --candy-ok-soft: 180 231 198;
-  --candy-warn-fill: 240 198 60;  /* #f0c63c 收藏 / 星标 / 当前歌词 —— 只做底 */
-  --candy-warn-soft: 251 231 168;
-  --candy-danger: 194 50 23;   /* #c23217 断开 / 删除 / 错误，5.0:1 */
-  --candy-danger-fill: 232 112 90;
-  --candy-danger-soft: 251 199 185;
-
-  /* 来源徽标色板（PLAN 2.1）：非语义的装饰色，按音源 id 哈希取用。
-     只在 pop 皮肤做彩色底；纸·墨·朱的徽标是单色描边，不消费这套色板。 */
-  --src-1: 79 70 229;   /* #4f46e5 葡萄紫 */
-  --src-2: 20 113 63;   /* #14713f 苔绿 */
-  --src-3: 194 50 23;   /* #c23217 朱红 */
-  --src-4: 180 83 9;    /* #b45309 琥珀 */
-  --src-5: 2 105 124;   /* #02697c 青 */
-
-  /* ----- 字：标题换粗黑体（和纸·墨·朱的宋体正好相反，DESIGN v3 §2）
-     --font-serif 不改名、只改指向，全站 97 处 font-serif 随之翻面。
-     Hanken Grotesk 是 300–800 的可变字体，800 直接可用，无需新增字体文件。 ----- */
-  --font-serif: 'Hanken Grotesk', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
-  --display-weight: 800;
-  --display-tracking: -0.02em;
-
-  /* ----- 形 ----- */
-  --stroke: 2px;
-  --r-sm: 10px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-pill: 999px;
-  --focus-width: 3px;
-  --press: 2px;
-
-  /* 硬投影：零模糊，靠位移造实体感 */
-  --shadow-ink: 27 26 25;
-  --shadow-float: 4px 4px 0 rgb(var(--shadow-ink));
-  --shadow-press: 1px 1px 0 rgb(var(--shadow-ink));
-
-  --ease: cubic-bezier(0.2, 0.9, 0.28, 1.12);   /* 带一点点回弹 */
-
-  /* 底纹：22px 圆点网格，替掉纸面噪点 */
-  --texture: radial-gradient(circle at 50% 50%, rgb(27 26 25 / 0.10) 1.1px, transparent 1.3px);
-  --texture-size: 22px 22px;
-  --selection-bg: rgb(var(--accent));
-  --selection-fg: rgb(251 241 227);
-  /*
-   * 封面取色晕染在这张皮里直接关掉。
-   *
-   * 它是纸·墨·朱唯一允许的渐变——在纸面上是氛围。但波普是平涂体系：
-   * 一层模糊的暖色铺满奶油底，读起来不是氛围而是脏，还和 2px 硬边、
-   * 零模糊的投影正面打架。「这首歌是什么颜色」的信息已经由封面本身承担，
-   * 它在这张皮里被一圈墨描边框住，比一团晕染更清楚。
-   */
+  /* 正在播放页不做封面取色晕染：暖纸只允许两团固定的暖光 */
   --cover-bleed-opacity: 0;
+  --leading-cjk: 1.75;
+}
 
-  /* ----- shadcn 语义映射 ----- */
-  --background: 35 75% 94%;
-  --foreground: 30 4% 10%;
-
-  --card: 40 100% 98%;
-  --card-foreground: 30 4% 10%;
-
-  --popover: 40 100% 98%;
-  --popover-foreground: 30 4% 10%;
-
-  --primary: 243 75% 59%;
-  --sem-playing: 243 75% 59%;
-  --sem-fav: 243 75% 59%;
-  --sem-connected: 150 45% 42%;
-  --sem-error: 10 79% 43%;
-  --primary-foreground: 40 100% 97%;
-
-  --secondary: 38 56% 88%;
-  --secondary-foreground: 30 4% 10%;
-
-  --muted: 38 56% 88%;
-  --muted-foreground: 35 8% 31%;
-
-  --accent-surface: 38 56% 88%;
-  --accent-surface-foreground: 30 4% 10%;
-
-  --destructive: 10 79% 43%;
-  --destructive-foreground: 40 100% 97%;
-
-  /* 描边就是墨色本身，不再是纸上的合成灰 */
-  --border: 30 4% 10%;
-  --input: 30 4% 10%;
-  --ring: 243 75% 59%;
-
-  --surface: 40 100% 98%;
-  --surface-hover: 38 56% 88%;
+/* 暗色：棕墨夜色，同一盏陶土色调亮一档；纸片比底色亮，越抬越亮 */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: 17% 0.015 45;
+  --paper-deep: 24% 0.018 45;
+  --paper-3: 28% 0.02 45;
+  --sheet: 21.5% 0.017 45;
+  --ink: 93% 0.012 72;
+  --ink-soft: 83% 0.014 70;
+  --ink-faint: 70% 0.02 60;
+  --hair: 31% 0.02 45;
+  --hair-soft: 26% 0.018 45;
+  --skeleton: 25% 0.018 45;
+  --input-edge: 50% 0.02 55;
+  --accent: 66% 0.14 38;
+  --accent-deep: 71% 0.13 40;  /* 暗色下 hover 往亮处走一档，深色字在上面仍有 6:1 */
+  --accent-ink: 17% 0.015 45;
+  --danger: 70% 0.15 358;
+  --ok: 72% 0.12 150;
+  --warn: 80% 0.12 80;
+  --bezel: 27% 0.02 45;
+  --hi: 99% 0.006 80;
+  --shade: 5% 0.01 45;
+  --shade-warm: 5% 0.02 40;
+  --candy-ok-soft: 30% 0.05 150;
+  --candy-warn-soft: 32% 0.05 80;
+  --candy-danger-soft: 30% 0.05 358;
+  --destructive-foreground: 17% 0.015 45;
+  --shadow-card: 0 1px 2px oklch(var(--shade) / 0.4), 0 18px 36px -18px oklch(var(--shade) / 0.75);
+  --shadow-float: 0 2px 4px oklch(var(--shade) / 0.5), 0 36px 72px -32px oklch(var(--shade-warm) / 0.85);
+  --shadow-press: 0 0 0 1px oklch(var(--hi) / 0.06), 0 8px 18px -10px oklch(var(--shade) / 0.6), inset 0 1px 0 oklch(var(--hi) / 0.08);
+  --lit-edge: inset 0 1px 0 oklch(var(--hi) / 0.08);
+  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.9 0 0 0 0 0.85 0 0 0 0.04 0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
+  --grid-line: oklch(var(--ink) / 0.06);
+  --grid-line-soft: oklch(var(--ink) / 0.03);
 }
 
 /* ===================================================
-   糖果·波普工坊（深）
-   =================================================== */
-html[data-skin='pop'].dark {
-  --paper: 16 16 22;           /* #101016 */
-  --paper-deep: 10 10 14;      /* #0a0a0e */
-  --ink: 244 236 223;          /* #f4ecdf */
-  --ink-soft: 180 173 161;     /* #b4ada1 */
-  --ink-faint: 145 138 126;    /* #918a7e */
-  --hair: 239 230 216 / 1;     /* #efe6d8 描边换成奶油 */
-  --hair-soft: 239 230 216 / 0.22;
-  --skeleton: 42 42 54;
-  --accent: 166 162 255;       /* #a6a2ff */
-  --accent-deep: 132 126 240;
-
-  --candy-ok: 111 220 160;
-  --candy-ok-fill: 63 156 104;
-  --candy-ok-soft: 30 79 54;
-  --candy-warn-fill: 240 198 60;
-  --candy-warn-soft: 78 67 34;
-  --candy-danger: 255 138 114;
-  --candy-danger-fill: 194 72 47;
-  --candy-danger-soft: 90 42 32;
-
-  /* 来源徽标色板（暗色档）：亮度抬到奶油底上可辨即可 */
-  --src-1: 166 162 255;
-  --src-2: 111 220 160;
-  --src-3: 255 138 114;
-  --src-4: 240 198 60;
-  --src-5: 103 214 229;
-
-  --font-serif: 'Hanken Grotesk', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
-  --display-weight: 800;
-  --display-tracking: -0.02em;
-
-  --stroke: 2px;
-  --r-sm: 10px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-pill: 999px;
-  --focus-width: 3px;
-  --press: 2px;
-
-  /* 暗色下硬投影不能用纯黑：投影落在 #101016 的页面底上等于没有。
-     换成深葡萄紫——仍在糖果家族里，又能把「挤出来的实体」立住。 */
-  --shadow-ink: 59 54 132;     /* #3b3684 */
-  --shadow-float: 4px 4px 0 rgb(var(--shadow-ink));
-  --shadow-press: 1px 1px 0 rgb(var(--shadow-ink));
-
-  --ease: cubic-bezier(0.2, 0.9, 0.28, 1.12);
-
-  --texture: radial-gradient(circle at 50% 50%, rgb(244 236 223 / 0.08) 1.1px, transparent 1.3px);
-  --texture-size: 22px 22px;
-  --selection-bg: rgb(var(--accent));
-  --selection-fg: rgb(20 18 31);
-  --cover-bleed-opacity: 0;
-
-  --background: 240 16% 7%;
-  --foreground: 37 49% 92%;
-
-  --card: 240 14% 14%;
-  --card-foreground: 37 49% 92%;
-
-  --popover: 240 14% 14%;
-  --popover-foreground: 37 49% 92%;
-
-  --primary: 243 100% 82%;
-  --sem-playing: 243 100% 82%;
-  --sem-fav: 243 100% 82%;
-  --sem-connected: 150 45% 60%;
-  --sem-error: 10 100% 72%;
-  --primary-foreground: 249 27% 10%;
-
-  --secondary: 240 14% 14%;
-  --secondary-foreground: 37 49% 92%;
-
-  --muted: 240 14% 14%;
-  --muted-foreground: 38 11% 67%;
-
-  --accent-surface: 240 14% 14%;
-  --accent-surface-foreground: 37 49% 92%;
-
-  /* 与浅色档同一条规矩：珊瑚红既做文字色又做实底，两种用法都要过 AA。
-     #ff8a72 压在 #101016 上约 9:1；反过来做底时前景换成深墨。 */
-  --destructive: 10 100% 72%;
-  --destructive-foreground: 249 27% 10%;
-
-  --border: 37 42% 89%;
-  --input: 37 42% 89%;
-  --ring: 243 100% 82%;
-
-  --surface: 240 14% 14%;
-  --surface-hover: 240 13% 19%;
-}
-
-/* ===================================================
-   奶油·软陶（浅）—— DESIGN v4
-   ---------------------------------------------------
-   另外两张皮都靠「线」分层：编辑风是发丝线，波普是 2px 墨描边。
-   这一张不用线——它靠**软鼓包**：奶油底上摊开一块块圆角很大的暖白面，
-   底下压一层柔和暖影、上缘描一道近白的高光，看起来像捏出来的软陶。
-   因此描边几乎不可见（--hair 只有 0.14 的 alpha），--shadow-* 才是主角。
-
-   配色取自软陶塑形的那套粉彩：奶油、蜜桃、鼠尾草、奶油黄、雾蓝、薰衣草。
-   但粉彩全部只做底，绝不做文字——文字一律是可可棕（9.2:1）。
-   主色是陶土赭——软陶烧成之后的本色，也是参考里那颗主按钮的色，过 AA（5.2:1）。
-   鼠尾草绿退回「已连接」这类状态点，不再承担主操作。
-   =================================================== */
-html[data-skin='clay']:not(.dark) {
-  /* ----- 颜色 ----- */
-  /* 底色刻意比面板深一档：软陶的立体感来自「面浮在底上」，
-     底和面同色的话，投影再软也只是一圈脏边。 */
-  --paper: 238 226 209;        /* #eee2d1 奶油底 */
-  --paper-deep: 227 210 187;   /* #e3d2bb 沉底 / hover */
-  --ink: 74 58 47;             /* #4a3a2f 可可棕，9.2:1 —— 不用纯黑，黑在粉彩里太硬 */
-  --ink-soft: 111 92 77;       /* #6f5c4d 5.6:1 */
-  --ink-faint: 120 98 84;      /* #786254 在压深后的底上 4.9:1，不能再淡 */
-  /* 软陶没有描边，只有一道几乎看不见的边界。消费方不要再叠 alpha 修饰符。 */
-  --hair: 74 58 47 / 0.14;
-  --hair-soft: 74 58 47 / 0.07;
-  --skeleton: 238 227 212;
-  --accent: 172 69 39;         /* #ac4527 陶土赭 —— 软陶烧出来的那个色，5.2:1，可做文字 */
-  --accent-deep: 140 54 30;    /* #8c361e 按压态 */
-  --accent-fill: 238 140 110;  /* #ee8c6e 蜜桃：accent 的「只做底」版本，绝不做文字 */
-
-  /* 粉彩色板：只做底，绝不做文字（与波普的糖果色同一条规矩）。
-     语义色的「文字档」另给深色版本。 */
-  --candy-ok: 34 105 74;          /* #22694a 已连接 / 成功，5.6:1 */
-  --candy-ok-fill: 143 201 168;   /* #8fc9a8 鼠尾草 —— 只做状态点，不再是主操作色 */
-  --candy-ok-soft: 214 235 223;
-  --candy-warn-fill: 248 215 126; /* #f8d77e 奶油黄 —— 只做底 */
-  --candy-warn-soft: 252 238 205;
-  /* 危险色推到玫瑰这一侧（色相 346°）而不留在赭红家族：主操作已经是陶土赭，
-     一个更红的赭只会被读成「同一个东西的深一档」，成败分不出来。 */
-  --candy-danger: 160 51 77;      /* #a0334d 玫瑰赭，6.1:1 */
-  --candy-danger-fill: 224 122 148;
-  --candy-danger-soft: 248 214 223;
-
-  /* 来源徽标色板：粉彩实底 + 无描边小圆点。刻意避开 accent 的陶土赭——
-     徽标一旦和「当前 / 正在播放」同色，就没法读了。 */
-  --src-1: 122 186 150;  /* 鼠尾草 */
-  --src-2: 141 178 212;  /* 雾蓝 */
-  --src-3: 180 160 212;  /* 薰衣草 */
-  --src-4: 240 199 92;   /* 奶油黄 */
-  --src-5: 216 146 173;  /* 藕粉 */
-
-  /* ----- 字：圆头体。软陶的骨相是「没有尖角」，字也不能有。
-     标题与正文同族、只靠字重拉开；Nunito 是 300–900 可变字体。 ----- */
-  --font-serif: 'Nunito', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
-  --font-sans: 'Nunito', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
-  --display-weight: 800;
-  --display-tracking: -0.005em;
-
-  /* ----- 形：圆角比另两张皮都大一档，描边退到最细 ----- */
-  --stroke: 1px;
-  --r-sm: 14px;
-  --r-md: 18px;
-  --r-lg: 26px;
-  --r-pill: 999px;
-  --focus-width: 3px;
-  --press: 1px;
-
-  /*
-   * 软鼓包投影：三层缺一不可。
-   *   1. 外投影（暖棕、低透明、位移向下）——把面从底上托起来
-   *   2. 内上缘高光（近白）——软陶被光打到的那道亮边
-   *   3. 内下缘暗边（暖棕）——面的厚度
-   * 只写外投影就是普通的 Material 卡片，正是要避开的那种。
-   */
-  /* 内容列的左缘：侧栏左外边距 20 + 侧栏 232 + 主内容左留白 12。
-     顶栏的栏杆面板、以及返回/前进那一格都按它定位，
-     报头因此和下面的卡片对齐同一条竖线（DESIGN v4 C1）。 */
-  --clay-rail-inset: 252px;
-  --clay-shade: 124 96 74;     /* #7c604a 所有阴影的暖基色，绝不用纯黑 */
-  --shadow-float:
-    0 18px 30px -10px rgb(var(--clay-shade) / 0.46),
-    0 7px 12px -3px rgb(var(--clay-shade) / 0.26),
-    inset 0 2px 0 rgb(255 255 255 / 0.95),
-    inset 0 -5px 10px -2px rgb(var(--clay-shade) / 0.18);
-  /* 大面板用的鼓包：投影更宽更远，高光更收——一整块面不该像按钮那样鼓 */
-  --shadow-panel:
-    0 30px 48px -16px rgb(var(--clay-shade) / 0.55),
-    0 10px 18px -6px rgb(var(--clay-shade) / 0.28),
-    0 2px 4px rgb(var(--clay-shade) / 0.12),
-    inset 0 2px 0 rgb(255 255 255 / 1),
-    inset 0 -10px 20px -10px rgb(var(--clay-shade) / 0.16);
-  /* 静息态：面本身自带的一点厚度，hover 时才升级成 --shadow-float */
-  --shadow-rest:
-    0 14px 24px -10px rgb(var(--clay-shade) / 0.50),
-    0 5px 9px -3px rgb(var(--clay-shade) / 0.22),
-    0 1px 2px rgb(var(--clay-shade) / 0.10),
-    inset 0 2px 0 rgb(255 255 255 / 0.95),
-    inset 0 -6px 12px -6px rgb(var(--clay-shade) / 0.16);
-  /* 按压态：外投影收掉，改成往里凹 */
-  --shadow-press:
-    0 1px 2px rgb(var(--clay-shade) / 0.14),
-    inset 0 2px 6px rgb(var(--clay-shade) / 0.16),
-    inset 0 -1px 0 rgb(255 255 255 / 0.45);
-
-  --ease: cubic-bezier(0.34, 1.28, 0.44, 1);   /* 软回弹，比波普更绵 */
-
-  /* 底纹：极淡的暖噪点。软陶表面是哑光的，不能反光，也不能有网格。 */
-  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.27 0 0 0 0 0.20 0 0 0 0.030 0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");
-  --texture-size: 120px 120px;
-  --selection-bg: rgb(var(--accent-fill));
-  --selection-fg: rgb(var(--ink));
-  /*
-   * 封面取色晕染留一点点。
-   * 波普关掉它是因为平涂体系容不下模糊；软陶本身就是柔的，一层很淡的暖晕
-   * 反而和鼓包的外投影接得上——但浓度要压到编辑风的一半，否则粉彩底会发浑。
-   */
-  --cover-bleed-opacity: 0.26;
-
-  /* ----- shadcn 语义映射 ----- */
-  --background: 33 48% 88%;    /* 与 --paper #eee2d1 同值：底色只能有一处真源 */
-  --foreground: 24 22% 24%;
-
-  --card: 40 100% 100%;
-  --card-foreground: 24 22% 24%;
-
-  --popover: 40 100% 100%;
-  --popover-foreground: 24 22% 24%;
-
-  --primary: 14 63% 41%;
-  --sem-playing: 14 63% 41%;
-  --sem-fav: 14 63% 41%;
-  --sem-connected: 150 20% 34%;
-  --sem-error: 346 52% 41%;
-  --primary-foreground: 35 100% 98%;
-
-  --secondary: 34 52% 89%;
-  --secondary-foreground: 24 22% 24%;
-
-  --muted: 34 52% 89%;
-  --muted-foreground: 26 18% 37%;
-
-  --accent-surface: 34 52% 89%;
-  --accent-surface-foreground: 24 22% 24%;
-
-  --destructive: 346 52% 41%;
-  --destructive-foreground: 35 100% 98%;
-
-  --border: 34 40% 84%;
-  --input: 34 40% 84%;
-  --ring: 14 63% 41%;
-
-  --surface: 40 100% 100%;
-  --surface-hover: 34 52% 89%;
-}
-
-/* ===================================================
-   奶油·软陶（深）—— 不是反色，是「烧过的陶」
-   ---------------------------------------------------
-   深色档最容易翻车的地方是投影：暖棕外投影落在深棕底上等于没有。
-   所以这一档改成「外投影用更深的棕 + 内上缘高光换成极淡的暖白」，
-   靠高光而不是靠阴影把面从底上分出来。
-   =================================================== */
-html[data-skin='clay'].dark {
-  --paper: 27 23 20;           /* #1b1714 深可可底，比面板深两档 */
-  --paper-deep: 21 18 16;      /* #151210 */
-  --ink: 244 233 221;          /* #f4e9dd */
-  --ink-soft: 192 177 164;     /* #c0b1a4 7.3:1 */
-  --ink-faint: 158 143 131;    /* #9e8f83 4.9:1 */
-  --hair: 244 233 221 / 0.16;
-  --hair-soft: 244 233 221 / 0.08;
-  --skeleton: 66 56 50;
-  --accent: 224 139 98;        /* #e08b62 陶土赭在暗底上的亮档，5.8:1 */
-  --accent-deep: 240 168 132;
-  --accent-fill: 186 96 72;
-
-  --candy-ok: 143 201 168;
-  --candy-ok-fill: 86 141 112;
-  --candy-ok-soft: 46 74 60;
-  --candy-warn-fill: 224 186 96;
-  --candy-warn-soft: 79 64 34;
-  --candy-danger: 240 125 149;   /* #f07d95 玫瑰，5.9:1，与 accent 差 28° 色相 */
-  --candy-danger-fill: 186 80 106;
-  --candy-danger-soft: 92 40 55;
-
-  --src-1: 143 201 168;
-  --src-2: 155 186 214;
-  --src-3: 190 172 219;
-  --src-4: 224 186 96;
-  --src-5: 219 158 182;
-
-  --font-serif: 'Nunito', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
-  --font-sans: 'Nunito', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
-  --display-weight: 800;
-  --display-tracking: -0.005em;
-
-  --stroke: 1px;
-  --r-sm: 14px;
-  --r-md: 18px;
-  --r-lg: 26px;
-  --r-pill: 999px;
-  --focus-width: 3px;
-  --press: 1px;
-
-  --clay-rail-inset: 252px;
-  --clay-shade: 12 9 8;
-  --shadow-float:
-    0 20px 34px -10px rgb(var(--clay-shade) / 0.88),
-    0 7px 14px -3px rgb(var(--clay-shade) / 0.62),
-    inset 0 1px 0 rgb(244 233 221 / 0.20),
-    inset 0 -5px 11px -2px rgb(var(--clay-shade) / 0.45);
-  --shadow-panel:
-    0 32px 54px -16px rgb(var(--clay-shade) / 0.95),
-    0 11px 20px -6px rgb(var(--clay-shade) / 0.65),
-    0 2px 4px rgb(var(--clay-shade) / 0.45),
-    inset 0 2px 0 rgb(244 233 221 / 0.19),
-    inset 0 -10px 22px -10px rgb(var(--clay-shade) / 0.42);
-  --shadow-rest:
-    0 16px 26px -10px rgb(var(--clay-shade) / 0.90),
-    0 5px 10px -3px rgb(var(--clay-shade) / 0.60),
-    0 1px 2px rgb(var(--clay-shade) / 0.40),
-    inset 0 2px 0 rgb(244 233 221 / 0.16),
-    inset 0 -6px 13px -6px rgb(var(--clay-shade) / 0.40);
-  --shadow-press:
-    0 1px 2px rgb(var(--clay-shade) / 0.5),
-    inset 0 2px 7px rgb(var(--clay-shade) / 0.55),
-    inset 0 -1px 0 rgb(244 233 221 / 0.08);
-
-  --ease: cubic-bezier(0.34, 1.28, 0.44, 1);
-
-  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 0.94 0 0 0 0 0.88 0 0 0 0.035 0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");
-  --texture-size: 120px 120px;
-  --selection-bg: rgb(var(--accent-fill));
-  --selection-fg: rgb(244 233 221);
-  --cover-bleed-opacity: 0.3;
-
-  --background: 26 15% 9%;     /* 与 --paper #1b1714 同值 */
-  --foreground: 31 51% 91%;
-
-  --card: 20 13% 19%;
-  --card-foreground: 31 51% 91%;
-
-  --popover: 20 13% 19%;
-  --popover-foreground: 31 51% 91%;
-
-  --primary: 20 67% 63%;
-  --sem-playing: 20 67% 63%;
-  --sem-fav: 20 67% 63%;
-  --sem-connected: 150 25% 55%;
-  --sem-error: 348 79% 72%;
-  --primary-foreground: 20 14% 12%;
-
-  --secondary: 21 13% 22%;
-  --secondary-foreground: 31 51% 91%;
-
-  --muted: 21 13% 22%;
-  --muted-foreground: 28 18% 70%;
-
-  --accent-surface: 21 13% 22%;
-  --accent-surface-foreground: 31 51% 91%;
-
-  /* 与另两张皮同一条规矩：陶土红既做文字又做实底，两种用法都要过 AA。
-     #f0917a 压在 #2b2421 上 6.6:1；反过来做底时前景换成深可可。 */
-  --destructive: 348 79% 72%;
-  --destructive-foreground: 20 14% 12%;
-
-  --border: 23 13% 31%;
-  --input: 23 13% 31%;
-  --ring: 20 67% 63%;
-
-  --surface: 20 13% 19%;
-  --surface-hover: 19 13% 24%;
-}
-
-/* ===================================================
-   基础重置
+   基础
    =================================================== */
 * {
-  border-color: hsl(var(--border));
+  border-color: oklch(var(--hair));
 }
 
 html {
+  overflow-x: clip;
   scroll-behavior: smooth;
+  background-color: oklch(var(--paper));
 }
 
 body {
-  background-color: hsl(var(--background));
+  background-color: oklch(var(--paper));
   background-image: var(--texture);
   background-size: var(--texture-size);
-  color: hsl(var(--foreground));
+  color: oklch(var(--ink));
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 16px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow: hidden;
+  caret-color: oklch(var(--accent));
+  overflow: clip;
   height: 100vh;
   height: 100dvh;
 }
@@ -713,27 +217,30 @@ body {
 #root {
   height: 100vh;
   height: 100dvh;
-  overflow: hidden;
+  overflow: clip;
 }
 
-/* 选中色 */
+h1, h2, h3 {
+  font-synthesis: none;
+  overflow-wrap: break-word;
+  min-width: 0;
+  text-wrap: balance;
+}
+
 ::selection {
   background: var(--selection-bg);
   color: var(--selection-fg);
 }
 
-/* 键盘焦点 */
 :focus-visible {
-  outline: var(--focus-width) solid rgb(var(--accent));
-  outline-offset: 3px;
+  outline: var(--focus-width) solid oklch(var(--accent));
+  outline-offset: 2px;
 }
 
-/* ===================================================
-   滚动条
-   =================================================== */
+/* 滚动条：一条细的墨色软条，不描边 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -741,51 +248,17 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--hair));
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--ink-faint));
-}
-
-/* 波普：滚动条也做成描边胶囊 */
-html[data-skin='pop'] ::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-html[data-skin='pop'] ::-webkit-scrollbar-thumb {
-  background: rgb(var(--paper-deep));
-  border: var(--stroke) solid rgb(var(--hair));
-  border-radius: var(--r-pill);
-}
-
-html[data-skin='pop'] ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--accent) / 0.35);
-}
-
-/* 软陶：滚动条也是一条捏出来的软条，无描边 */
-html[data-skin='clay'] ::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-html[data-skin='clay'] ::-webkit-scrollbar-thumb {
-  background: rgb(var(--ink) / 0.16);
+  background: oklch(var(--ink) / 0.14);
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: var(--r-pill);
 }
 
-html[data-skin='clay'] ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--ink) / 0.28);
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(var(--ink) / 0.26);
   background-clip: content-box;
 }
 
-/* ===================================================
-   全局减动效
-   =================================================== */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -805,95 +278,63 @@ html[data-skin='clay'] ::-webkit-scrollbar-thumb:hover {
     text-wrap: balance;
   }
 
-  /* 数字排印：时间码/统计数值/序号一律等宽 tabular（DESIGN §2.2）*/
+  /* 数字：同族的等宽数字，不再借等宽字体 */
   .font-num,
   .num {
-    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
   }
 
-  /* 浮层底面：编辑风是 90% 不透明纸面 + 发丝线；
-     波普下由皮肤覆盖成实心卡面 + 2px 描边 + 硬投影 */
+  /* 唯一一处衬线：一个大数字 */
+  .font-figure {
+    font-family: var(--font-figure);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 浮层底面：抬起的纸片 */
   .glass {
-    background: hsl(var(--popover) / 0.9);
-    border: var(--stroke) solid rgb(var(--hair));
+    background: oklch(var(--sheet));
+    box-shadow: var(--shadow-float), var(--lit-edge);
   }
 
-  html[data-skin='pop'] .glass {
-    background: hsl(var(--popover));
-    box-shadow: var(--shadow-float);
-  }
-
-  /* 软陶的浮层：实心暖白面 + 软鼓包，描边淡到只剩一道边界 */
-  html[data-skin='clay'] .glass {
-    background: hsl(var(--popover));
-    border-color: rgb(var(--hair-soft));
-    box-shadow: var(--shadow-float);
-  }
-
-  /* 浮层投影（编辑风：极淡双层；波普：硬投影） */
   .shadow-float {
     box-shadow: var(--shadow-float);
   }
 
-  /* 按压态投影，供播放键/胶囊按钮使用 */
   .shadow-press {
     box-shadow: var(--shadow-press);
   }
 
-  /**
-   * 波普的签名手感：hover 抬起 1px、投影变长；按下压回去、投影缩到 1px。
-   * 编辑风下 --press 为 0、--shadow-* 为 none，同一个类不产生任何视觉效果，
-   * 因此可以无条件加在按钮上，不需要在 TSX 里分支。
-   */
-  /* 过渡写在皮肤块里而不是 .press-pop 上：调用方普遍带着
-     `transition-colors`，两个都是 (0,1,0) 的工具类，谁赢取决于
-     utilities 层的输出顺序——不可靠。挂到 (0,2,0) 的皮肤选择器上就稳了。 */
-  html[data-skin='pop'] .press-pop {
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  /* 抬起的纸片：卡片、面板 */
+  .sheet {
+    background: oklch(var(--sheet));
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-card), var(--lit-edge);
+  }
+
+  /* 按压手感：hover 抬起 1px，按下沉回并收一点 */
+  .press-pop {
     transition:
-      transform 0.16s var(--ease),
-      box-shadow 0.16s var(--ease),
-      background-color 0.16s var(--ease),
-      border-color 0.16s var(--ease),
-      color 0.16s var(--ease);
+      transform var(--dur-short) var(--ease),
+      box-shadow var(--dur-short) var(--ease),
+      background-color var(--dur-short) var(--ease),
+      color var(--dur-short) var(--ease);
   }
 
-  html[data-skin='pop'] .press-pop:hover {
-    transform: translate(-1px, -1px);
-    box-shadow: var(--shadow-float);
+  @media (hover: hover) {
+    .press-pop:hover {
+      transform: translateY(-1px);
+    }
   }
 
-  html[data-skin='pop'] .press-pop:active {
-    transform: translate(var(--press), var(--press));
-    box-shadow: var(--shadow-press);
+  .press-pop:active {
+    transform: translateY(1px) scale(0.98);
   }
 
-  /**
-   * 软陶的按压手感：不位移，而是**被按扁**。
-   * hover 时往上浮 1px、外投影拉长；按下时整块缩到 0.97 并把投影翻成内凹，
-   * 手感接近按一块橡皮泥。位移式（波普那套）在圆角 26px 的面上会显得在滑动。
-   */
-  html[data-skin='clay'] .press-pop {
-    transition:
-      transform 0.2s var(--ease),
-      box-shadow 0.2s var(--ease),
-      background-color 0.2s var(--ease),
-      border-color 0.2s var(--ease),
-      color 0.2s var(--ease);
-  }
-
-  html[data-skin='clay'] .press-pop:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-float);
-  }
-
-  html[data-skin='clay'] .press-pop:active {
-    transform: scale(0.97);
-    box-shadow: var(--shadow-press);
-  }
-
-  /* 文字截断 */
   .line-clamp-1 {
     overflow: hidden;
     display: -webkit-box;
@@ -908,7 +349,6 @@ html[data-skin='clay'] ::-webkit-scrollbar-thumb:hover {
     -webkit-line-clamp: 2;
   }
 
-  /* 隐藏滚动条但保留功能 */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -918,7 +358,7 @@ html[data-skin='clay'] ::-webkit-scrollbar-thumb:hover {
     display: none;
   }
 
-  /* 播放动画 - 均衡器三连柱（accent 色，DESIGN §5） */
+  /* 正在播放的均衡器三连柱：只动 transform */
   .playing-bar {
     display: inline-flex;
     align-items: flex-end;
@@ -929,8 +369,10 @@ html[data-skin='clay'] ::-webkit-scrollbar-thumb:hover {
   .playing-bar span {
     display: inline-block;
     width: 3px;
-    background: rgb(var(--accent));
+    height: 14px;
+    background: oklch(var(--accent));
     border-radius: 2px;
+    transform-origin: bottom;
     animation: equalize 1.2s ease-in-out infinite;
   }
 
@@ -939,18 +381,10 @@ html[data-skin='clay'] ::-webkit-scrollbar-thumb:hover {
   .playing-bar span:nth-child(3) { animation-delay: 0.4s; }
 
   @keyframes equalize {
-    0%, 100% { height: 4px; }
-    50% { height: 14px; }
+    0%, 100% { transform: scaleY(0.3); }
+    50% { transform: scaleY(1); }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .playing-bar span {
-      animation: none;
-      height: 9px;
-    }
-  }
-
-  /* 黑胶唱片旋转动画 */
   @keyframes spin-vinyl {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
@@ -960,19 +394,10 @@ html[data-skin='clay'] ::-webkit-scrollbar-thumb:hover {
     animation: spin-vinyl 20s linear infinite;
   }
 
-  /**
-   * 缓冲提示。
-   *
-   * 按下播放到真正出声之间可能有好几秒（大 FLAC、手机连家里 NAS），
-   * 这期间按钮却显示「暂停」，读起来是「正在播放」——而实际是死寂，
-   * 用户只会以为点漏了或者播放器坏了。
-   *
-   * 不新增元素、不改布局：只让主键自身做一次极轻的呼吸，
-   * 表达「在等」而不是「已停」。
-   */
+  /* 缓冲：按下播放到真正出声之间，主键轻轻呼吸，表达「在等」 */
   @keyframes buffer-breathe {
     0%, 100% { opacity: 1; }
-    50%      { opacity: 0.55; }
+    50% { opacity: 0.55; }
   }
 
   .animate-buffering {
@@ -980,1278 +405,337 @@ html[data-skin='clay'] ::-webkit-scrollbar-thumb:hover {
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .playing-bar span {
+      animation: none;
+      transform: scaleY(0.6);
+    }
     .animate-spin-vinyl,
     .animate-pulse,
     .animate-buffering {
       animation: none;
     }
   }
+
+  /* 格纸：歌词与空态底下那张淡淡的工作纸，从中心往外淡出 */
+  .paper-grid {
+    background-image:
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line-soft) 1px, transparent 1px);
+    background-size: 48px 100%, 100% 24px;
+  }
+
+  /* 歌词上下渐隐：遮罩只看透明度，颜色取墨色 token 即可 */
+  .lyric-fade {
+    -webkit-mask-image: linear-gradient(180deg, transparent, oklch(var(--ink)) 20%, oklch(var(--ink)) 80%, transparent);
+    mask-image: linear-gradient(180deg, transparent, oklch(var(--ink)) 20%, oklch(var(--ink)) 80%, transparent);
+  }
+
+  /* 工具栏的滚动边缘：内容滚到底下时才铺上纸色 */
+  .scroll-edge {
+    transition: background-color var(--dur-short) var(--ease), box-shadow var(--dur-short) var(--ease);
+  }
+
+  [data-scrolled] > .scroll-edge,
+  .scroll-edge[data-scrolled] {
+    /* 实心纸面：暖纸的材质是纸，不是毛玻璃 */
+    background: oklch(var(--paper));
+    box-shadow: 0 1px 0 oklch(var(--hair));
+  }
 }
 
 /* ===================================================
-   组件层 - 通用样式
+   组件层：页面共用的挂钩类
    =================================================== */
 @layer components {
-  /* 分区标题范式：大标题 + 拉丁小标签 + 上缘发丝线（DESIGN §3） */
+  /* 分区标题：同族粗体，靠留白分区，不画上缘线 */
   .section-head {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    padding: 52px 0 18px;
-    border-top: var(--stroke) solid rgb(var(--hair));
+    gap: 12px;
+    padding: 40px 0 16px;
   }
 
   .section-head h2 {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-weight: var(--display-weight);
-    font-size: 30px;
+    font-size: 23px;
+    line-height: 1.15;
     letter-spacing: var(--display-tracking);
   }
 
-  /*
-    拉丁小标签是**中文界面**的双语报头排印：中文大标题旁边一串拉丁字，
-    是这套设计的语汇之一。但在英文界面下它会变成「Top songs TOP SONGS」——
-    同一句话说两遍，既不是排印也不是信息。
-    因此非中文语种下整体隐藏，由 <html lang> 决定。
-  */
-  html:not([lang^='zh']) .section-head h2 small,
-  html:not([lang^='zh']) .latin-tag {
-    display: none;
-  }
-
-  .section-head h2 small {
-    font-family: var(--font-sans);
-    font-weight: 400;
-    font-size: 11px;
-    letter-spacing: 0.3em;
-    color: rgb(var(--ink-faint));
-    margin-left: 16px;
-    vertical-align: 4px;
-  }
-
   .section-head .more {
-    font-size: 12px;
-    letter-spacing: 0.2em;
-    color: rgb(var(--ink-soft));
-    transition: color 0.25s var(--ease);
+    font-size: 14px;
+    font-weight: 500;
+    color: oklch(var(--accent));
+    transition: color var(--dur-micro) var(--ease);
   }
 
   .section-head .more:hover {
-    color: rgb(var(--accent));
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
   }
 
-  /**
-   * 波普的分区标题：上缘没有横线，改由「大标题 + 一枚糖果贴纸」承担分隔。
-   * 拉丁小标签直接变成贴纸本体——全站的 <small> 与 .latin-tag 一次性翻面，
-   * 不必去 40 多个页面逐个改结构。
-   */
-  html[data-skin='pop'] .section-head {
-    border-top: 0;
-    align-items: center;
-    padding: 48px 0 18px;
+  @media (max-width: 599px) {
+    .section-head {
+      padding: 28px 0 12px;
+    }
+    .section-head h2 {
+      font-size: 20px;
+    }
   }
 
-  /**
-   * `.sticker` 是通用糖果贴纸，任何语言下都在。
-   * `.latin-tag` / `.section-head h2 small` 是**双语报头的拉丁半边**，
-   * 非中文界面下整体隐藏（见上），所以不能拿它当通用贴纸用——
-   * 那会让英文界面直接丢掉一整行标签。
-   */
-  html[data-skin='pop'] .section-head h2 small,
-  html[data-skin='pop'] .latin-tag,
-  html[data-skin='pop'] .sticker {
+  /* 旧版双语报头的拉丁小标签（「· FEATURED ALBUM」）：暖纸不用字距拉开的大写标签 */
+  .section-head h2 small,
+  .latin-tag {
+    display: none;
+  }
+
+  /* 标签：一张小纸片，不旋转、不描边 */
+  .sticker {
     display: inline-flex;
     align-items: center;
-    font-weight: 700;
-    font-size: 10.5px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: rgb(var(--ink));
-    background: rgb(var(--accent) / 0.22);
-    border: var(--stroke) solid rgb(var(--hair));
+    gap: 8px;
+    padding: 4px 12px;
     border-radius: var(--r-sm);
-    padding: 5px 10px;
-    margin-left: 14px;
-    vertical-align: 3px;
+    background: oklch(var(--sheet));
     box-shadow: var(--shadow-press);
-    transform: rotate(-1.8deg);
-  }
-
-  html[data-skin='pop'] .section-head .more {
-    letter-spacing: 0.04em;
-    font-weight: 600;
-    color: rgb(var(--ink));
-    border: var(--stroke) solid rgb(var(--hair));
-    border-radius: var(--r-pill);
-    padding: 7px 14px;
-    box-shadow: var(--shadow-press);
-    transition:
-      transform 0.16s var(--ease),
-      box-shadow 0.16s var(--ease),
-      background-color 0.16s var(--ease);
-  }
-
-  html[data-skin='pop'] .section-head .more:hover {
-    color: rgb(var(--ink));
-    background: rgb(var(--paper-deep));
-    transform: translate(-1px, -1px);
-    box-shadow: var(--shadow-float);
-  }
-
-  /**
-   * 软陶的分区标题：同样不要上缘横线（线是另两张皮的语汇），
-   * 改由标题旁一枚**软糖标签**分隔。标签不描边、不倾斜——
-   * 波普那枚贴纸是「贴上去的」，这一枚是「捏出来的」，所以只有柔和的内凹感。
-   */
-  html[data-skin='clay'] .section-head {
-    border-top: 0;
-    align-items: center;
-    padding: 48px 0 18px;
+    color: oklch(var(--ink-soft));
+    font-size: 13px;
+    font-weight: 500;
   }
 
   /*
-   * 拉丁小标签在软陶下整条撤掉。
-   *
-   * `RECENTLY ADDED` / `ARTISTS A–Z` / `MOST PLAYED` 这些是杂志的栏目眉批：
-   * 中文标题旁并排一个全大写的英文词，它不翻译、不解释、也不可点，
-   * 存在的理由只有排印上的「另一种字」。编辑风与波普是刊物，那里它成立；
-   * 软陶是一块仪表盘，仪表盘上的每个标签都该是能读懂的一句话。
-   *
-   * 只撤 `.section-head h2 small` 与 `.latin-tag` 这两类**纯拉丁眉批**。
-   * `.sticker` 不在其列：它是通用的糖果贴纸，内容是正常文案（首页头条那枚
-   * 写的是「本期封面」），撤了会让调用方少一块有意义的标记。
+   * 页面动作三级。调用方 TSX 里仍有旧编辑风的下划线链接类（border-b / tracking），
+   * 用 :root 抬一档特异性压住，形状统一由这里给出。
+   *   act-primary   陶土实心胶囊：一屏只有一个
+   *   act-secondary 纸片胶囊：受光上缘 + 一圈影
+   *   act-icon      44px 圆形纸片键
    */
-  html[data-skin='clay'] .section-head h2 small,
-  html[data-skin='clay'] .latin-tag {
-    display: none;
-  }
-
-  html[data-skin='clay'] .sticker {
-    display: inline-flex;
-    align-items: center;
-    font-weight: 700;
-    font-size: 10.5px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: rgb(var(--accent));
-    background: rgb(var(--accent-fill) / 0.34);
-    border: 0;
-    border-radius: var(--r-pill);
-    padding: 5px 12px;
-    margin-left: 14px;
-    vertical-align: 3px;
-  }
-
-  /* 卷期号（报头右端那枚牌子、页脚版记那一行）：软陶下不渲染。
-     组件里那两处 `issue-tag` 的注释写了为什么。 */
-  html[data-skin='clay'] .issue-tag {
-    display: none;
-  }
-
-  /* 页脚版记：软陶不画上缘线，收口交给它和内容之间的那段空白 */
-  html[data-skin='clay'] .colophon {
-    border-top: 0;
-    margin-top: 26px;
-  }
-
-  html[data-skin='clay'] .section-head .more {
-    letter-spacing: 0.04em;
-    font-weight: 700;
-    color: rgb(var(--ink-soft));
-    background: hsl(var(--surface));
-    border-radius: var(--r-pill);
-    padding: 7px 15px;
-    box-shadow: var(--shadow-press);
-    transition:
-      transform 0.2s var(--ease),
-      box-shadow 0.2s var(--ease),
-      background-color 0.2s var(--ease),
-      color 0.2s var(--ease);
-  }
-
-  html[data-skin='clay'] .section-head .more:hover {
-    color: rgb(var(--accent));
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-float);
-  }
-
-  /**
-   * 动作三级。
-   *
-   * 全站有十几处手写的「文字级主操作 / 细线次操作 / 图标圆键」——
-   * 它们是编辑风的按钮范式（DESIGN v2 §4.1），不走 <Button> 组件。
-   * 这三个类只在波普下产生声明，编辑风下是空规则，
-   * 所以可以直接追加到已有的 Tailwind 类串后面，不动原有外观。
-   *
-   * 特异性 (0,2,1) 高于工具类的 (0,1,0)/(0,2,0)，
-   * 因此能盖掉调用方的 border-b / px / hover:text-primary 等。
-   */
-  html[data-skin='pop'] .act-primary,
-  html[data-skin='pop'] .act-secondary {
-    border: var(--stroke) solid rgb(var(--hair));
-    border-radius: var(--r-pill);
-    letter-spacing: 0;
-    box-shadow: var(--shadow-press);
-    transition:
-      transform 0.16s var(--ease),
-      box-shadow 0.16s var(--ease),
-      background-color 0.16s var(--ease),
-      color 0.16s var(--ease);
-  }
-
-  html[data-skin='pop'] .act-primary {
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    padding: 10px 20px;
-  }
-
-  html[data-skin='pop'] .act-primary:hover {
-    color: hsl(var(--primary-foreground));
-    transform: translate(-1px, -1px);
-    box-shadow: var(--shadow-float);
-  }
-
-  html[data-skin='pop'] .act-secondary {
-    background: hsl(var(--surface));
-    color: hsl(var(--foreground));
-    padding: 9px 16px;
-  }
-
-  html[data-skin='pop'] .act-secondary:hover {
-    background: hsl(var(--secondary));
-    color: hsl(var(--foreground));
-    transform: translate(-1px, -1px);
-    box-shadow: var(--shadow-float);
-  }
-
-  html[data-skin='pop'] .act-primary:active,
-  html[data-skin='pop'] .act-secondary:active,
-  html[data-skin='pop'] .act-icon:active {
-    transform: translate(var(--press), var(--press));
-    box-shadow: var(--shadow-press);
-  }
-
-  html[data-skin='pop'] .act-icon {
-    border: var(--stroke) solid rgb(var(--hair));
-    background: hsl(var(--surface));
-    color: hsl(var(--foreground));
-    box-shadow: var(--shadow-press);
-    transition:
-      transform 0.16s var(--ease),
-      box-shadow 0.16s var(--ease),
-      background-color 0.16s var(--ease);
-  }
-
-  html[data-skin='pop'] .act-icon:hover {
-    background: hsl(var(--secondary));
-    transform: translate(-1px, -1px);
-    box-shadow: var(--shadow-float);
-  }
-
-  /* 已激活的图标键（已收藏、已开启）：糖果色实底 */
-  html[data-skin='pop'] .act-icon.is-on {
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-  }
-
-  /**
-   * 软陶的动作三级：形状跟波普一样是胶囊，质感反过来——
-   * 不描边，靠鼓包立体；hover 抬起、按下按扁。
-   */
-  html[data-skin='clay'] .act-primary,
-  html[data-skin='clay'] .act-secondary,
-  html[data-skin='clay'] .act-icon {
+  :root .act-primary,
+  :root .act-secondary,
+  :root .act-icon {
     border: 0;
     border-radius: var(--r-pill);
     letter-spacing: 0;
-    font-weight: 700;
-    box-shadow: var(--shadow-float);
+    font-weight: 600;
+    text-decoration: none;
     transition:
-      transform 0.2s var(--ease),
-      box-shadow 0.2s var(--ease),
-      background-color 0.2s var(--ease),
-      color 0.2s var(--ease);
+      transform var(--dur-short) var(--ease),
+      box-shadow var(--dur-short) var(--ease),
+      background-color var(--dur-short) var(--ease),
+      color var(--dur-short) var(--ease);
   }
 
-  html[data-skin='clay'] .act-primary {
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    padding: 10px 22px;
+  :root .act-primary {
+    min-height: 44px;
+    padding: 0 24px;
+    background: oklch(var(--accent));
+    color: oklch(var(--accent-ink));
+    box-shadow: 0 6px 14px -6px oklch(var(--accent) / 0.55), inset 0 1px 0 oklch(var(--hi) / 0.25);
   }
 
-  html[data-skin='clay'] .act-secondary {
-    background: hsl(var(--surface));
-    color: hsl(var(--foreground));
-    padding: 9px 18px;
-  }
-
-  html[data-skin='clay'] .act-icon {
-    background: hsl(var(--surface));
-    color: hsl(var(--foreground));
-  }
-
-  html[data-skin='clay'] .act-primary:hover,
-  html[data-skin='clay'] .act-secondary:hover,
-  html[data-skin='clay'] .act-icon:hover {
-    transform: translateY(-1px);
-  }
-
-  html[data-skin='clay'] .act-secondary:hover,
-  html[data-skin='clay'] .act-icon:hover {
-    background: hsl(var(--secondary));
-    color: hsl(var(--foreground));
-  }
-
-  html[data-skin='clay'] .act-primary:hover {
-    color: hsl(var(--primary-foreground));
-  }
-
-  html[data-skin='clay'] .act-primary:active,
-  html[data-skin='clay'] .act-secondary:active,
-  html[data-skin='clay'] .act-icon:active {
-    transform: scale(0.96);
+  :root .act-secondary {
+    min-height: 44px;
+    padding: 0 20px;
+    background: oklch(var(--sheet));
+    color: oklch(var(--ink));
     box-shadow: var(--shadow-press);
   }
 
-  html[data-skin='clay'] .act-icon.is-on {
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
+  :root .act-icon {
+    min-width: 44px;
+    min-height: 44px;
+    background: oklch(var(--sheet));
+    color: oklch(var(--ink-soft));
+    box-shadow: var(--shadow-press);
   }
 
-  /**
-   * 封面砖。
-   *
-   * 编辑风：无边框，hover 微放大 + 唯一允许的淡投影。
-   * 波普：  2px 墨描边 + 硬投影的实体块，hover 往左上抬起、投影变长。
-   *
-   * 写成组件类而不是在调用方拼 `pop:group-hover:*`：hover 态要跟 Tailwind 的
-   * `group` 组合，变体叠变体的生成顺序不好把控，放在这里一目了然。
-   */
+  @media (hover: hover) {
+    :root .act-primary:hover,
+    :root .act-secondary:hover,
+    :root .act-icon:hover {
+      transform: translateY(-1px);
+    }
+    :root .act-primary:hover {
+      background: oklch(var(--accent-deep));
+      color: oklch(var(--accent-ink));
+    }
+    :root .act-secondary:hover,
+    :root .act-icon:hover {
+      color: oklch(var(--ink));
+    }
+  }
+
+  :root .act-primary:active,
+  :root .act-secondary:active,
+  :root .act-icon:active {
+    transform: translateY(1px) scale(0.97);
+  }
+
+  :root .act-icon.is-on {
+    color: oklch(var(--accent));
+  }
+
+  :root .act-primary:disabled,
+  :root .act-secondary:disabled,
+  :root .act-icon:disabled {
+    opacity: 0.55;
+    background: oklch(var(--paper-3));
+    color: oklch(var(--ink-faint));
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* 封面砖：抬起的方片，hover 再抬一点 */
   .cover-tile {
-    transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
-  }
-
-  html[data-skin='pop'] .cover-tile {
-    border: var(--stroke) solid rgb(var(--hair));
-    box-shadow: var(--shadow-press);
-  }
-
-  .group:hover .cover-tile {
-    transform: scale(1.03);
-    box-shadow: var(--shadow-float);
-  }
-
-  html[data-skin='pop'] .group:hover .cover-tile {
-    transform: translate(-2px, -2px);
-    box-shadow: var(--shadow-float);
-  }
-
-  /* 软陶的封面砖：无描边，本身就是一块捏出来的方糖 */
-  html[data-skin='clay'] .cover-tile {
     border-radius: var(--r-md);
     overflow: hidden;
-    box-shadow:
-      0 8px 16px -6px rgb(var(--clay-shade) / 0.40),
-      0 2px 4px -1px rgb(var(--clay-shade) / 0.16),
-      inset 0 1px 0 rgb(255 255 255 / 0.45);
+    box-shadow: var(--shadow-card);
+    transition: transform var(--dur-short) var(--ease), box-shadow var(--dur-short) var(--ease);
   }
 
-  html[data-skin='clay'] .group:hover .cover-tile {
-    transform: translateY(-3px) scale(1.015);
+  @media (hover: hover) {
+    .group:hover .cover-tile {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-float);
+    }
+  }
+
+  /* 大封面（专辑页 / 正在播放）：最重的一层投影，不做 hover */
+  .cover-slab {
+    border-radius: var(--r-md);
     box-shadow: var(--shadow-float);
   }
 
-  /**
-   * 来源徽标小方块（PLAN 2.1）。
-   *
-   * 编辑风：单色空心描边（纸·墨·朱是单色体系，不消费色板）。
-   * 波普：  墨描边 + 色板实底。底色走 --chip-bg：默认由 .src-p1..p5
-   *         按 id 哈希档位给出；manifest 声明了 color 的插件由调用方
-   *         内联覆盖（透传原始 #RRGGBB 字符串，不在 JS 里解析）。
-   */
+  /* 来源徽标：色板实底的小圆点 */
   .src-chip {
     display: inline-block;
-    width: 9px;
-    height: 9px;
-    border-radius: 2px;
-    border: 1px solid rgb(var(--ink-faint) / 0.55);
-    background: transparent;
-    flex-shrink: 0;
-  }
-
-  html[data-skin='pop'] .src-chip {
-    border: 1.5px solid rgb(var(--hair));
-    border-radius: 1px;
-    background: var(--chip-bg, rgb(var(--accent)));
-  }
-
-  /* 软陶：粉彩实底的小圆点，不描边（描边会把这颗 9px 的点变成一个脏点） */
-  html[data-skin='clay'] .src-chip {
-    border: 0;
-    border-radius: 999px;
     width: 8px;
     height: 8px;
-    background: var(--chip-bg, rgb(var(--accent)));
-    box-shadow: inset 0 -1px 2px rgb(var(--clay-shade) / 0.25);
+    border-radius: 999px;
+    background: var(--chip-bg, oklch(var(--accent)));
+    flex-shrink: 0;
   }
 
-  .src-p1 { --chip-bg: rgb(var(--src-1)); }
-  .src-p2 { --chip-bg: rgb(var(--src-2)); }
-  .src-p3 { --chip-bg: rgb(var(--src-3)); }
-  .src-p4 { --chip-bg: rgb(var(--src-4)); }
-  .src-p5 { --chip-bg: rgb(var(--src-5)); }
+  .src-p1 { --chip-bg: oklch(var(--src-1)); }
+  .src-p2 { --chip-bg: oklch(var(--src-2)); }
+  .src-p3 { --chip-bg: oklch(var(--src-3)); }
+  .src-p4 { --chip-bg: oklch(var(--src-4)); }
+  .src-p5 { --chip-bg: oklch(var(--src-5)); }
 
-  /**
-   * 分段控件（设置页的皮肤 / 主题 / 语言切换）当前项。
-   *
-   * 编辑风：下缘 2px 朱色短线，不是背景块。
-   * 波普：  主色实心胶囊（由调用方的 pop: 类给出）。
-   *
-   * 编辑风那条线原本写在 TSX 的内联 style 上，内联样式的优先级高于任何
-   * 皮肤规则，波普下会顶着一条朱线。挪到这里，三张皮才真正互斥。
-   * 用 :not() 排除法而不是 [data-skin='editorial']，
-   * 这样属性缺失（脚本没跑）时也能落到编辑风的默认外观上。
-   */
-  html:not([data-skin='pop']):not([data-skin='clay']) .seg-option.is-on {
-    box-shadow: inset 0 -2px 0 0 rgb(var(--accent));
-  }
-
-  /* 软陶：当前项是一枚被按进去的软胶囊，不是下划线也不是实心块 */
-  html[data-skin='clay'] .seg-option.is-on {
-    background: rgb(var(--accent-fill) / 0.40);
-    color: rgb(var(--accent));
+  /* 分段控件当前项：凹槽里被托起的一块纸片 */
+  .seg-option.is-on {
+    background: oklch(var(--sheet));
+    color: oklch(var(--ink));
     border-radius: var(--r-pill);
     box-shadow: var(--shadow-press);
   }
 
-  /**
-   * 当前歌词行。
-   *
-   * 编辑风：前导朱红短划线 + 墨色加粗（DESIGN v2 §4.3）。
-   * 波普：  柠檬黄荧光笔胶囊 + 2px 墨描边（DESIGN v3 §4.3）——
-   *         柠檬黄在这套体系里只做底、不做文字，正好是荧光笔的语义。
-   *
-   * <p> 本身是块级、撑满整行，所以要 width:fit-content 才收成胶囊。
-   */
-  html[data-skin='pop'] .lyric-line.is-active {
-    width: fit-content;
-    max-width: 100%;
-    padding: 5px 18px;
-    margin: 2px 0;
-    background: rgb(var(--candy-warn-fill));
-    color: rgb(var(--ink));
-    border: var(--stroke) solid rgb(var(--hair));
-    border-radius: var(--r-pill);
-    box-shadow: var(--shadow-press);
-  }
-
-  /**
-   * 大封面（专辑页 / 正在播放页）：不做 hover 反应，只承担分层。
-   */
-  html[data-skin='pop'] .cover-slab {
-    border: var(--stroke) solid rgb(var(--hair));
-    box-shadow: var(--shadow-float);
-  }
-
-  /* 软陶：当前歌词行是一块奶油黄的软糖，圆到底、不描边 */
-  html[data-skin='clay'] .lyric-line.is-active {
-    width: fit-content;
-    max-width: 100%;
-    padding: 5px 18px;
-    margin: 2px 0;
-    background: rgb(var(--candy-warn-fill) / 0.55);
-    color: rgb(var(--ink));
-    border-radius: var(--r-pill);
-    box-shadow: inset 0 -2px 5px rgb(var(--clay-shade) / 0.14);
-  }
-
-  /* 软陶的大封面：厚厚一块，投影比封面砖更沉 */
-  html[data-skin='clay'] .cover-slab {
-    box-shadow: var(--shadow-float);
-  }
-
-  /* ===================================================
-     软陶的「面」
-     ---------------------------------------------------
-     这是这张皮真正的骨相，也是它和另外两张皮的根本分歧：
-     编辑风与波普都在**一张连续的纸**上用线分区；软陶没有线，
-     它把版面拆成一块块浮起来的圆角面板，靠鼓包和间距分区。
-
-     所以下面这些规则不是「换个样式」，而是把平铺的版面重新组织成面板。
-     它们全部只在 clay 下生效，另外两张皮一条都不匹配。
-     =================================================== */
-
-  /* 主导航：从贴边的一条横栏，变成浮在底上的一块圆角面板 */
-  html[data-skin='clay'] .main-nav {
-    border-bottom: 0;
-    margin: 10px 24px 0;
-    padding: 6px;
-    background: hsl(var(--surface));
-    border-radius: var(--r-pill);
-    box-shadow: var(--shadow-rest);
-  }
-
-  html[data-skin='clay'] .main-nav > ul {
-    padding-left: 6px;
-    padding-right: 6px;
-  }
-
-  /* 曲目列表：分隔线整条退场，改由「每行一块面 + 行间距」承担分隔。
-     divide-y 画在每行上缘，这里把它调成透明而不是改结构——
-     调用方那串 Tailwind 类不必动，另外两张皮也一个字不受影响。 */
-  html[data-skin='clay'] .song-list {
-    border-top: 0;
-  }
-
-  html[data-skin='clay'] .song-list > * {
-    border-color: transparent;
-  }
-
-  /*
-   * 曲目行是**平的**，不是一张小卡片。
-   *
-   * 第一版把每一行都做成了浮起的面，结果是白卡片摞在白面板上——
-   * 卡片套卡片是这套设计里最容易出的丑，两层投影叠在一起只会发浑。
-   * 参考里的做法也是「一张卡片装一列平铺的行」：分区靠面板，行靠间距与悬停。
-   */
-  html[data-skin='clay'] .song-row {
-    margin-bottom: 2px;
-    padding: 10px 14px;
-    border-radius: var(--r-md);
-  }
-
-  /* 碰到才浮起来一点点，幅度比面板小一档 */
-  html[data-skin='clay'] .song-row:hover {
-    background: rgb(var(--paper-deep) / 0.62);
-    transform: none;
-  }
-
-  html[data-skin='clay'] .song-row:active {
-    transform: scale(0.995);
-  }
-
-  /* 播放条：从贴底的一条边框栏，变成一块托起来的面板 */
-  html[data-skin='clay'] .player-bar {
-    border-top: 0;
-    margin: 0 16px 14px;
-    background: hsl(var(--surface));
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow-panel);
-  }
-
-  /*
-   * 报头：横线交给面板之间的空隙，不再画双线。
-   *
-   * 类名刻意重复一次把特异性抬到 (0,3,1)。报头上带着 `pop:border-b-2`，
-   * 而 `pop:` 变体如今也匹配软陶，它生成的选择器同样是 (0,2,1) 且位于
-   * utilities 层——同分时后来者赢，不抬一档就压不住那条线。
-   */
-  html[data-skin='clay'] .masthead.masthead {
+  /* 页面级标签行：不画下缘线 */
+  .page-tabs {
     border-bottom: 0;
   }
 
-  /*
-   * 通用面板类。
-   *
-   * 给「本该是一块面」的容器用：软陶下浮起来，另外两张皮下完全没有声明，
-   * 因此可以无条件写在 TSX 里，不必分支。
-   */
-  .clay-panel {
-    border-radius: var(--r-lg);
+  /* 当前歌词行：墨色，其他行退成浅墨；不铺底、不描边 */
+  .lyric-line.is-active {
+    color: oklch(var(--ink));
   }
 
-  html[data-skin='clay'] .clay-panel {
-    background: hsl(var(--surface));
-    padding: 22px 24px;
-    box-shadow: var(--shadow-rest);
-  }
-
-  /* 需要更强存在感的面（问候条、侧栏、统计卡）*/
-  html[data-skin='clay'] .clay-panel-raised {
-    background: hsl(var(--surface));
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow-panel);
-  }
-
-  /* ---------- 左侧导航面板（组件见 layout/ClaySidebar.tsx）---------- */
-  /* 侧栏通高：参考里它是一整条从上贯到下的面板，不是一块浮在左上角的小牌子。
-     导航列表占据剩余空间，吉祥物钉在底部——那是「Go Premium」那格的位置。 */
-  .clay-sidebar {
-    /* 20 + 232 = 252 = --clay-rail-inset：顶栏的栏杆按同一条线起算 */
-    width: 232px;
-    /* 报头搬进顶栏之后侧栏直接顶到栏杆下面，留 6px 让两块面不粘在一起 */
-    padding: 6px 0 0 20px;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .clay-sidebar-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 14px 12px;
-    background: hsl(var(--surface));
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow-panel);
-  }
-
-  .clay-nav-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 9px 12px;
-    border-radius: var(--r-md);
-    color: rgb(var(--ink-soft));
-    font-size: 14px;
-    font-weight: 600;
-    transition:
-      background-color 0.2s var(--ease),
-      color 0.2s var(--ease),
-      transform 0.2s var(--ease);
-  }
-
-  .clay-nav-item:hover {
-    background: rgb(var(--paper-deep) / 0.7);
-    color: rgb(var(--ink));
-    transform: translateX(2px);
-  }
-
-  /* 当前项：整行铺一层很淡的主色，并把左边那枚图标砖翻成主色实底 */
-  .clay-nav-item.is-on {
-    background: rgb(var(--accent-fill, var(--accent)) / 0.3);
-    color: rgb(var(--ink));
-    box-shadow: var(--shadow-rest);
-  }
-
-  .clay-nav-label {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* 图标砖：28px 的圆角小方块，本身也是一小块软陶 */
-  .clay-nav-tile {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    border-radius: 9px;
-    color: rgb(var(--ink));
-    box-shadow: inset 0 -2px 4px rgb(var(--clay-shade) / 0.18),
-      inset 0 1px 0 rgb(255 255 255 / 0.5);
-  }
-
-  .clay-nav-item.is-on .clay-nav-tile {
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-  }
-
-  /* ---------- 侧栏底部的一句话 ----------
-   * 从前这里是一整张卡片：92px 的阿糯 + 问候 + 副标。首页有了问候横幅
-   * 之后它必须缩——横幅里那只是 120px 的主角，侧栏底下再站一只，
-   * 同屏两只阿糯，谁都不像在说话。图撤掉，只留问候一行，
-   * 性格由「戳一下会蹦、会换句话」保住。
-   */
-  .clay-mascot-card {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    margin-top: 12px;
-    padding: 11px 14px;
-    text-align: center;
-    background:
-      linear-gradient(
-        160deg,
-        rgb(var(--accent-fill, var(--accent)) / 0.26) 0%,
-        rgb(var(--candy-warn-fill, 248 215 126) / 0.18) 100%
-      ),
-      hsl(var(--surface));
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow-rest);
-  }
-
-  /* 悬停凑近、按下压扁、点一下蹦一次。
-     没有这几下的话，一块静止的色板到第二天就变成背景板了。 */
-  .clay-mascot-hit {
-    border: 0;
-    cursor: pointer;
-    transition: transform 0.24s var(--ease);
-  }
-
-  .clay-mascot-hit:hover { transform: translateY(-2px); }
-  .clay-mascot-hit:active { transform: translateY(0) scale(0.97); }
-  .clay-mascot-hit:focus-visible {
-    outline: var(--focus-width) solid rgb(var(--accent));
-    outline-offset: 6px;
-    border-radius: var(--r-md);
-  }
-
-  /* 减弱动态效果时不蹦，只保留悬停那点位移 */
-  @media (prefers-reduced-motion: no-preference) {
-    .clay-mascot-hit.is-hop { animation: clay-hop 0.62s var(--ease); }
-  }
-
-  @keyframes clay-hop {
-    0% { transform: translateY(0) scale(1); }
-    28% { transform: translateY(-14px) scale(1.08, 0.94); }
-    55% { transform: translateY(0) scale(0.94, 1.06); }
-    78% { transform: translateY(-4px) scale(1.02, 0.98); }
-    100% { transform: translateY(0) scale(1); }
-  }
-
-  .clay-mascot-line {
-    font-size: 13px;
-    font-weight: 700;
-    color: rgb(var(--ink));
-  }
-
-  .clay-tone-1 { background: rgb(var(--src-1)); }
-  .clay-tone-2 { background: rgb(var(--src-2)); }
-  .clay-tone-3 { background: rgb(var(--src-3)); }
-  .clay-tone-4 { background: rgb(var(--src-4)); }
-  .clay-tone-5 { background: rgb(var(--src-5)); }
-
-  /* 侧栏在场时主内容区的留白由布局给，这里只负责把左边那点距离让出来 */
-  html[data-skin='clay'] .clay-main {
-    padding-left: 12px;
-  }
-
-  /* ---------- 内容区块自动成面板 ----------
-   * 参考里的仪表盘，每一个分区本身就是一张卡片。本仓库的页面恰好都用
-   * `<section>` 划分区块（首页的最近添加 / 热门歌手 / 为你推荐，曲库、
-   * 歌单、统计…），所以一条规则就能把整站的版面从「平铺 + 发丝线」
-   * 翻成「一块块浮起的面」，不必去几十个页面里逐个包 div。
-   *
-   * 第二条规则把嵌套的 section 还原成透明：卡片套卡片是这套设计里
-   * 最容易出的丑，而嵌套在本仓库里确实存在。
-   */
-  /*
-   * 「每一页本身就是一张卡片」。
-   *
-   * 上一版只给 `<section>` 做面板，于是只覆盖到恰好用了 section 的页面：
-   * 本期、专辑详情、歌单详情、曲库这些用 div 组织的页面完全没被适配，
-   * 杂志排版就那样裸露在奶油底上——「全局适配还不行」说的正是这个。
-   *
-   * 现在改成：页面根元素直接成为面板；页面内部的 section 一律保持平的
-   * （卡片套卡片是这套设计最容易出的丑）。唯一的例外是首页，
-   * 它的根是 .clay-grid，本身不是卡片而是装卡片的网格。
-   */
-  html[data-skin='clay'] .clay-page > *:not(.clay-grid) {
-    padding: 4px 28px 26px;
-    background: hsl(var(--surface));
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow-rest);
-  }
-
-  /* 网格里的分区才是卡片。
-     `article` 也算一格：首页头条降级之后就是一张普通卡片，
-     它恰好是 <article>（一张专辑确实是一篇独立内容），不该因为标签名落选。 */
-  html[data-skin='clay'] .clay-grid > section,
-  html[data-skin='clay'] .clay-grid > article {
-    margin-bottom: 18px;
-    padding: 2px 26px 22px;
-    background: hsl(var(--surface));
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow-rest);
-  }
-
-  /* 头条那块 article 自带 `pt-10 pb-12`（工具类层，压得过上面的 padding
-     简写），在编辑风的连续纸面上那是「头条要有气场」；装进卡片之后
-     它只会比同排的卡片高出一大截。这里按卡片的节奏收回来。 */
-  html[data-skin='clay'] .clay-grid > article {
-    padding-top: 8px;
-    padding-bottom: 26px;
-  }
-
-  /*
-   * 宽屏下内容区排成两列卡片网格。
-   *
-   * 这是「不像参考」的最大一处：参考是仪表盘，内容是一格一格的卡片；
-   * 我们此前是一列 1400px 宽的白板从上堆到下。这不只是排布问题——
-   * **鼓包是相对尺寸**：同一组投影，放在 380px 的卡片上是浮起来的，
-   * 摊到 1400px 的板子上就只剩边缘一圈灰。所以想让「软鼓包」立起来，
-   * 先得把板子变成卡片。
-   *
-   * 头条区与第一块内容跨满两列（它们是这一页的主语），其余自然分列。
-   */
-  @media (min-width: 1180px) {
-    html[data-skin='clay'] .clay-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 18px;
-      align-items: start;
-    }
-
-    html[data-skin='clay'] .clay-grid > section,
-    html[data-skin='clay'] .clay-grid > article,
-    html[data-skin='clay'] .clay-grid > .clay-banner {
-      margin-bottom: 0;
-    }
-
-    /* 跨列：带 data-clay-span 标记的分区（问候横幅、头条、今天听什么） */
-    html[data-skin='clay'] .clay-grid > [data-clay-span='full'] {
-      grid-column: 1 / -1;
-    }
-
-    /*
-     * 分栏卡片限高。
-     *
-     * 网格里一张卡长到七百多像素，同行的另一张就被衬成一条小纸片——
-     * 整页看起来像随手拼的。仪表盘的卡是「一眼扫完的摘要」，
-     * 内容真的多就该在卡里滚，或者去详情页看全部。
-     * 跨列的卡（头条、今天听什么）不限高：它们本来就是这一页的主语。
-     */
-    html[data-skin='clay'] .clay-grid > section:not([data-clay-span='full']),
-    html[data-skin='clay'] .clay-grid > article:not([data-clay-span='full']) {
-      max-height: 460px;
-      overflow-y: auto;
-    }
-  }
-
-  /* 页面卡片内部的分区是这张卡的分节，保持平的，不再套一层卡 */
-  html[data-skin='clay'] .clay-page > *:not(.clay-grid) section,
-  html[data-skin='clay'] .clay-grid > section section,
-  html[data-skin='clay'] .clay-grid > article section {
-    margin-bottom: 0;
-    padding: 0;
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  /* 分区标题在面板里不需要那么大的上留白——48px 是给「一张连续的纸」用的 */
-  html[data-skin='clay'] .clay-page .section-head {
-    padding: 24px 0 16px;
-  }
-
-  /* 面板内的列表：上缘那条线交给面板边界 */
-  html[data-skin='clay'] .clay-page ol,
-  html[data-skin='clay'] .clay-page ul {
-    border-top: 0;
-  }
-
-  /*
-   * 面板里的列表行。
-   *
-   * 全站的行都是同一个写法：`<li class="border-b border-hair-soft">` 里套一个
-   * hover 时右移 4px 的可点区。那是编辑风的语汇——行在一张连续的纸上滑动。
-   * 软陶里没有纸也没有线：分隔线退场，行本身变成一块可以碰的面，
-   * 碰到就浮起来。一条规则覆盖首页、曲库、歌单、收藏、历史所有列表，
-   * 不必去十几个页面改结构。
-   */
-  /*
-   * 卷期眉（「首页 · VOL.3 NO.36」那一行）在软陶下整条撤掉。
-   *
-   * 它是杂志排印的语汇：一张连续的纸需要页眉告诉你翻到哪儿了。
-   * 软陶的版面是一块块独立的面板，每块自带标题，页眉没有工作可做，
-   * 留着只是在内容和顶栏之间多一条噪声。
-   */
-  html[data-skin='clay'] .running-head {
-    display: none;
-  }
-
-  /* ===================================================
-     顶栏 + 报头 = 一条栏杆（DESIGN v4 C1 / C4）
-     ---------------------------------------------------
-     旧排法是三条横线把窗口切成千层饼：顶栏一行、报头横跨全宽一行、
-     侧栏从报头下面才开始。软陶是仪表盘，仪表盘只有一条栏杆和一条侧栏，
-     它们在左上角交汇——多出来的那道横切既没有内容也没有功能。
-
-     现在报头由 MainLayout 塞进顶栏的中间插槽（只在 clay 分支），于是：
-       · 返回/前进落在侧栏那一列的正上方（.topbar-nav 定宽到侧栏宽度）；
-       · 报头从内容列的左缘开始（--clay-rail-inset），一直铺到窗口右端；
-       · 搜索/皮肤/明暗/用户这一组坐在同一块面板的右端。
-     面板本身是 `.top-bar > div::before` 画的一块绝对定位的软陶面——
-     报头和工具组是两个兄弟节点，共享一块背景只能靠伪元素铺在它们身下。
-     =================================================== */
-  html[data-skin='clay'] .top-bar {
-    height: 56px;
-  }
-
-  html[data-skin='clay'] .top-bar > div {
-    position: relative;
-    max-width: none;
-    /* 左缩进交给 .topbar-nav 的定宽，这里清零；
-       mac 红绿灯的留白（pl-[78px]，特异性 0,1,0）也一并被压掉，
-       箭头本来就被推到侧栏右侧，离红绿灯还有一百多像素。 */
-    padding-left: 0;
-    padding-right: 34px;
-  }
-
-  html[data-skin='clay'] .top-bar > div::before {
-    content: '';
-    position: absolute;
-    left: var(--clay-rail-inset);
-    right: 16px; /* 与播放条的 margin 对齐：窗口上下两条横杆同宽 */
-    top: 8px;
-    bottom: 8px;
-    background: hsl(var(--surface));
-    border-radius: var(--r-pill);
-    box-shadow: var(--shadow-rest);
-  }
-
-  /* 伪元素是绝对定位的，不参与 flex 布局；但它在源码序上排在最前，
-     不抬一层的话按钮会被它盖住。 */
-  html[data-skin='clay'] .topbar-nav,
-  html[data-skin='clay'] .topbar-slot,
-  html[data-skin='clay'] .topbar-tools {
-    position: relative;
-    z-index: 1;
-  }
-
-  html[data-skin='clay'] .topbar-nav {
-    flex: 0 0 var(--clay-rail-inset);
-    justify-content: flex-end;
-    padding-right: 14px;
-  }
-
-  html[data-skin='clay'] .masthead {
-    flex: 1;
-    min-width: 0;
-  }
-
-  /* 报头此刻是栏杆里的一段，不再自己撑一块面板：面板是伪元素画的 */
-  html[data-skin='clay'] .masthead > div {
-    max-width: none;
-    margin: 0;
-    padding: 0 14px 0 22px;
-    height: 40px;
-    align-items: center;
-    gap: 14px;
-  }
-
-  /* 栏杆只有一行高，字标折行就把整条撑破 */
-  html[data-skin='clay'] .masthead-brand {
-    white-space: nowrap;
-  }
-
-  /*
-   * 栏杆的宽度是固定被切走的：左边 252px 让给侧栏那一列，
-   * 右边约 250px 是工具组，中间留给报头的只剩窗口宽度减掉这两截。
-   * 桌面外壳最窄能到 768px（再窄就换移动端外壳了），那时中间只有 260px，
-   * 装不下「字标 + 服务器 + 日期」三样。
-   *
-   * 退让顺序按「有没有功能」定：日期是落款，先走；字标是身份，
-   * 应用叫什么在别处也说得清，第二个走；服务器切换是这一段里唯一
-   * 能点的东西，它必须留到最后。
-   */
-  @media (max-width: 1099px) {
-    html[data-skin='clay'] .masthead .num {
-      display: none;
-    }
-  }
-
-  @media (max-width: 919px) {
-    html[data-skin='clay'] .masthead-brand {
-      display: none;
-    }
-  }
-
-  /* 页面级标签行（曲库的歌曲/专辑/歌手/歌单）：软陶不画下缘线 */
-  html[data-skin='clay'] .page-tabs {
-    border-bottom: 0;
-    margin-bottom: 4px;
-  }
-
-  html[data-skin='clay'] .clay-page li {
-    border-color: transparent;
-  }
-
-  html[data-skin='clay'] .clay-page li > [role='button'],
-  html[data-skin='clay'] .clay-page li > button,
-  html[data-skin='clay'] .clay-page li > a {
-    padding-left: 12px;
-    padding-right: 12px;
-    border-radius: var(--r-md);
-    transition:
-      background-color 0.2s var(--ease),
-      transform 0.2s var(--ease),
-      box-shadow 0.2s var(--ease);
-  }
-
-  html[data-skin='clay'] .clay-page li > [role='button']:hover,
-  html[data-skin='clay'] .clay-page li > button:hover,
-  html[data-skin='clay'] .clay-page li > a:hover {
-    background: rgb(var(--paper-deep) / 0.62);
-    /* 取消调用方的 hover:translate-x-1：软陶的行不滑动 */
-    transform: none;
-  }
-
-  /*
-   * 首页问候横幅（组件见 pages/Home.tsx 的 ClayGreetingBanner，只在 clay 渲染）。
-   *
-   * 这个位置从前是「本期封面」头条——一块蜜桃色的暖底，整页唯一不是暖白的面。
-   * 现在换成参考里那条问候条：左边角色、中间一句问候、右边一颗主操作。
-   * 头条降级为普通网格卡片：一页只该有一个「先看这里」，
-   * 两块暖底并排的结果是两块都不显眼。
-   *
-   * 选择器写满三层（html + .clay-grid + .clay-banner）不是为了保险：
-   * `.clay-grid > section` 那条卡片规则是 (0,2,2)，两个类打不过它，
-   * 横幅会被套上一层暖白卡片底。
-   */
-  html[data-skin='clay'] .clay-grid > .clay-banner {
-    display: flex;
-    align-items: center;
-    gap: 22px;
-    margin-top: 8px;
-    margin-bottom: 18px;
-    padding: 16px 28px 16px 20px;
-    background:
-      linear-gradient(
-        135deg,
-        rgb(var(--accent-fill) / 0.34) 0%,
-        rgb(var(--candy-warn-fill) / 0.26) 100%
-      ),
-      hsl(var(--surface));
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow-panel);
-  }
-
-  /*
-   * 暗色档把这块暖底压掉一半。
-   * 浅色下蜜桃 + 奶油黄是「暖」，同样的浓度落到深可可底上会变成一团发浑的
-   * 棕绿——粉彩本来就是靠高明度成立的，底一暗就没有余量了。
-   */
-  html[data-skin='clay'].dark .clay-grid > .clay-banner {
-    background:
-      linear-gradient(
-        135deg,
-        rgb(var(--accent-fill) / 0.20) 0%,
-        rgb(var(--candy-warn-fill) / 0.10) 100%
-      ),
-      hsl(var(--surface));
-  }
-
-  .clay-banner-mascot {
-    flex-shrink: 0;
-    line-height: 0;
-  }
-
-  .clay-banner-copy {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .clay-banner-title {
-    font-family: var(--font-sans);
-    font-size: 30px;
-    font-weight: 800;
-    line-height: 1.2;
-    letter-spacing: -0.01em;
-    color: rgb(var(--ink));
-  }
-
-  .clay-banner-sub {
-    margin-top: 6px;
-    font-size: 14px;
-    line-height: 1.5;
-    color: rgb(var(--ink-soft));
-  }
-
-  /* 主操作：陶土赭实底的软糖键。这一页只有它是实底，
-     其余「播放全部 / 随机播放」都是浅底次操作——主次不能同色。 */
-  .clay-banner-cta {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    gap: 9px;
-    padding: 12px 24px;
-    border-radius: var(--r-pill);
-    font-size: 14px;
-    font-weight: 700;
-    color: hsl(var(--primary-foreground));
-    background: hsl(var(--primary));
-    box-shadow: var(--shadow-rest);
-  }
-
-  .clay-banner-cta:focus-visible {
-    outline: var(--focus-width) solid rgb(var(--accent));
-    outline-offset: 3px;
-  }
-
-  /* 歌曲行：编号编辑列表（DESIGN §3「列表即网格」）
-     hover：底色 paper-deep + 内容右移 4px，200ms var(--ease) */
-  /*
-   * 不要给这一行加圆角。
-   * 列表用的是 `divide-y`，分隔线画在每一行的上缘；行一旦有圆角，
-   * 这条线的两端就跟着翘起来，连续几行看上去像是每行被框了一个浅色圆角盒——
-   * 谁都没设计过那个盒子。
-   */
+  /* 歌曲行：hover 铺一层下沉底，不滑动 */
   .song-row {
     @apply flex items-center gap-4 px-3 py-2.5 cursor-pointer;
-    transition: background 0.2s var(--ease), transform 0.2s var(--ease);
+    border-radius: var(--r-sm);
+    transition: background-color var(--dur-micro) var(--ease);
   }
 
-  .song-row:hover {
-    background: rgb(var(--paper-deep));
-    transform: translateX(4px);
+  @media (hover: hover) {
+    .song-row:hover {
+      background: oklch(var(--paper-deep));
+    }
   }
 
-  /**
-   * 正在播放的那一行。
-   *
-   * 编辑风：只有曲名与序号变朱红，行本身不着色（DESIGN v2 §3）。
-   * 波普：  整行铺浅葡萄紫糖底（DESIGN v3 §3）。
-   *
-   * 铺了糖底之后曲名不能再用主色——葡萄紫压在自己 20% 的糖底上只有 3.0:1，
-   * 够不到 AA。所以这里把曲名压回墨色（15:1），主色的身份由整行底色承担。
+  .song-row.is-current {
+    background: oklch(var(--accent) / 0.08);
+  }
+
+  .song-row.is-current .song-title {
+    color: oklch(var(--accent));
+  }
+
+  /*
+   * 橡胶播放键：签名部件。
+   * 嵌在一圈凹槽（bezel）里的穹顶橡胶，上方受光；按下沉 1px。
    */
-  html[data-skin='pop'] .song-row.is-current {
-    background: rgb(var(--accent) / 0.2);
+  .rubber-key {
+    position: relative;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    color: oklch(var(--accent-ink));
+    background: radial-gradient(120% 110% at 50% 18%, oklch(var(--rubber-hi)), oklch(var(--rubber)) 48%, oklch(var(--rubber-lo)));
+    box-shadow:
+      inset 0 1px 0.5px oklch(var(--hi) / 0.75),
+      0 5px 9px -3px oklch(var(--shade-warm) / 0.28),
+      0 0 0 6px oklch(var(--bezel)),
+      0 0 0 7px oklch(var(--shade) / 0.12);
+    transition: transform var(--dur-micro) var(--ease), filter var(--dur-micro) var(--ease);
   }
 
-  html[data-skin='pop'] .song-row.is-current:hover {
-    background: rgb(var(--accent) / 0.28);
+  .rubber-key.is-compact {
+    box-shadow:
+      inset 0 1px 0.5px oklch(var(--hi) / 0.75),
+      0 3px 6px -2px oklch(var(--shade-warm) / 0.3),
+      0 0 0 3px oklch(var(--bezel)),
+      0 0 0 4px oklch(var(--shade) / 0.1);
   }
 
-  html[data-skin='pop'] .song-row.is-current .song-title {
-    color: rgb(var(--ink));
+  @media (hover: hover) {
+    .rubber-key:hover {
+      filter: brightness(1.05);
+    }
   }
 
-  /**
-   * 软陶的正在播放行。
-   *
-   * 这里必须破一次「不要给行加圆角」的例外：软陶整套语言没有直角，
-   * 一条方角的高亮带落在全圆角的版面里比翘边的分隔线更刺眼。
-   * 破例的代价（divide-y 分隔线在这一行两端翘起）只影响当前那一行，
-   * 而它本来就被底色盖住了。
-   */
-  html[data-skin='clay'] .song-row.is-current {
-    background: rgb(var(--accent-fill) / 0.38);
-    border-radius: var(--r-md);
+  .rubber-key:active {
+    transform: translateY(1px);
   }
 
-  html[data-skin='clay'] .song-row.is-current:hover {
-    background: rgb(var(--accent-fill) / 0.5);
-  }
-
-  html[data-skin='clay'] .song-row.is-current .song-title {
-    color: rgb(var(--ink));
-  }
-
-  .song-row:active {
-    transform: translateX(4px) scale(0.995);
+  .rubber-key:focus-visible {
+    outline-offset: 9px;
   }
 }
 
 /* ===================================================
-   中西文混排的排版细节
-   —— 细空格由 spaceCJK() 在渲染层插入，这里补 CSS 侧能做的部分
+   中西文混排
    =================================================== */
-:root {
-  /* 中文行距需要比西文松，衬线标题尤其明显 */
-  --leading-cjk: 1.75;
-}
-
-/* 标点悬挂：行首的《「（ 不再在左边缘打洞 */
 p, h1, h2, h3, h4, dd, dt, li, blockquote {
   hanging-punctuation: first allow-end last;
 }
 
-/* 中文标点压缩：相邻的全角标点之间不再留出两个字宽的空洞 */
 :lang(zh), .font-serif, body {
   text-spacing-trim: trim-start;
 }
 
-/* 数字：等宽 + 斜杠零，元数据列对齐且 0/O 不会混淆 */
 .num, .font-num, [class*="tabular"] {
-  font-variant-numeric: tabular-nums slashed-zero;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ===================================================
-   移动端（Capacitor 原生壳 / 窄视口）
+   触屏与窄窗
    =================================================== */
-@media (max-width: 767px) {
-  /* 触控目标：去掉点按高亮与长按放大镜，滚动不回弹出 WebView 外 */
+@media (hover: none) {
   * {
     -webkit-tap-highlight-color: transparent;
   }
-  html,
-  body {
-    overscroll-behavior: none;
-    position: fixed;
-    inset: 0;
-    overflow: hidden;
-  }
-  /* 移动端信息密度：收窄分区标题间距与字号 */
-  .section-head {
-    padding: 32px 0 12px;
-  }
-  .section-head h2 {
-    font-size: 22px;
-  }
-  .section-head h2 small {
-    letter-spacing: 0.2em;
-    margin-left: 10px;
-  }
-  html[data-skin='pop'] .section-head {
-    padding: 30px 0 12px;
-  }
-  html[data-skin='pop'] .section-head h2 small,
-  html[data-skin='pop'] .latin-tag,
-  html[data-skin='pop'] .sticker {
-    letter-spacing: 0.12em;
-    margin-left: 10px;
-    padding: 4px 8px;
-  }
-  html[data-skin='clay'] .section-head {
-    padding: 30px 0 12px;
-  }
-  /* 拉丁眉批在软陶下本来就不渲染，窄屏只需要收一下贴纸 */
-  html[data-skin='clay'] .sticker {
-    letter-spacing: 0.1em;
-    margin-left: 10px;
-    padding: 4px 10px;
-  }
-
-  /*
-   * 窄屏下的面板留白。
-   *
-   * 桌面档是 `4px 28px 26px`——左右各 28px 摊在 375px 的屏上，
-   * 内容区只剩 319px，长专辑名会被挤成两行半。软陶的「面」在窄屏上
-   * 该做的是贴近边缘、把宽度还给内容，鼓包靠圆角和投影自己站住。
-   */
-  html[data-skin='clay'] .clay-page > *:not(.clay-grid) {
-    padding: 4px 16px 20px;
-  }
-
-  html[data-skin='clay'] .clay-grid > section,
-  html[data-skin='clay'] .clay-grid > article {
-    padding: 2px 16px 18px;
-  }
-
-  html[data-skin='clay'] .clay-grid > article {
-    padding-top: 8px;
-    padding-bottom: 22px;
-  }
-
-  /*
-   * 问候横幅在窄屏回落成单列。
-   * 三段（角色 / 问候 / 主操作）横着排需要至少 520px；375px 上硬排的结果是
-   * 吉祥物被压成 60px、按钮换行，三样都不成立。竖过来，主操作撑满一行。
-   */
-  html[data-skin='clay'] .clay-grid > .clay-banner {
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 4px;
-    padding: 18px 16px 20px;
-    text-align: center;
-  }
-
-  .clay-banner-cta {
-    width: 100%;
-  }
-
-  .clay-banner-title {
-    font-size: 24px;
-  }
 }
+
+/* 整个应用是一块固定的框架，内容只在主区里滚：任何宽度都不让页面本身回弹
+   （iPad 原生壳此前走手机布局才有这条，现在按宽度分档后要无条件生效） */
+html,
+body {
+  overscroll-behavior: none;
+  position: fixed;
+  inset: 0;
+}
+

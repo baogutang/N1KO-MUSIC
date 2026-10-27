@@ -5,8 +5,8 @@
  * 用户在哪个界面看到同一首歌，得到的信号应当一致。
  *
  * 两条铁律（踩过的坑）：
- * - 不能用 `.latin-tag`：那是「双语报头的拉丁半边」，软陶皮肤与非中文界面
- *   下 display:none——VIP 是有意义的状态标记，被自己的皮肤规则藏起来等于没有；
+ * - 不能挂在「拉丁小标签」那类会被样式规则整体隐藏的类上——VIP 是有意义的
+ *   状态标记，被规则藏起来等于没有；
  * - 账号**确知**没有会员才标灰（accountVip === false）；还没问到（undefined）
  *   时不做任何暗示，宁可多标不要漏标。
  */
@@ -44,9 +44,9 @@ export function VipTag({
     <span
       title={grey ? t('song.vipBlockedHint') : t('song.vipHint')}
       className={cn(
-        'ml-1.5 inline-block translate-y-[-1px] rounded-[2px] border px-1 align-baseline font-sans text-[9px] font-semibold tracking-[0.08em]',
+        'ml-1.5 inline-block translate-y-[-1px] rounded-pill border px-1.5 align-baseline font-sans text-[10px] font-semibold leading-[1.5]',
         // 账号确知没有会员：这首多半点了也放不了，标记本身就该看起来是「灰的」
-        grey ? 'border-ink-faint/50 text-ink-faint' : 'border-primary/60 text-primary',
+        grey ? 'border-ink-faint/40 text-ink-faint' : 'border-primary/40 text-primary',
         className
       )}
     >

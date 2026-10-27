@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { computeSeekTarget, SEEK_STEP_SEC } from '@/utils/seekMath'
-import { isNativePlatform } from '@/lib/platform'
 
 /** 不应被快捷键抢走按键的文本录入类型 */
 const TEXT_INPUT_TYPES = new Set([
@@ -16,7 +15,7 @@ const TEXT_INPUT_TYPES = new Set([
  * 播放键之后焦点停在按钮上，全部全局快捷键都失效——这是最容易被当成
  * 「快捷键时灵时不灵」的一条。
  */
-function isTypingTarget(target: EventTarget | null): boolean {
+export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   const tag = target.tagName
   if (tag === 'TEXTAREA' || tag === 'SELECT') return true
@@ -65,8 +64,8 @@ function arrowsBelongToFocusedControl(target: EventTarget | null): boolean {
 export function useKeyboardShortcuts() {
 
   useEffect(() => {
-    // 原生移动端无键盘快捷键场景，直接不注册
-    if (isNativePlatform) return
+    // 原生壳同样注册：iPad 接妙控键盘、iPhone Duo 接蓝牙键盘都是常见用法，
+    // 没有键盘时这个监听器什么也不会收到，代价为零。
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return
       if (isDialogOpen()) return

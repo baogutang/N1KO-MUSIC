@@ -8,13 +8,14 @@
 
 import { useEffect, useState } from 'react'
 import { CheckCircle, WarningCircle } from '@phosphor-icons/react'
-import { Section, Row, Toggle } from '@/components/settings/primitives'
+import { Section, Row, Toggle, fieldInputClass, rowClass } from '@/components/settings/primitives'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
 import { useScrobbleStore } from '@/store/scrobbleStore'
 import { LISTENBRAINZ_DEFAULT_URL, validateToken } from '@/services/listenBrainz'
 import { useT } from '@/i18n'
+import { cn } from '@/lib/utils'
 
 export function ScrobbleSettings() {
   const { t } = useT()
@@ -64,7 +65,7 @@ export function ScrobbleSettings() {
   }
 
   return (
-    <Section title={t('section.scrobbling')} tag="SCROBBLING">
+    <Section title={t('section.scrobbling')}>
       <Row
         name={t('scrobble.submit')}
         desc={t('scrobble.submitDesc')}
@@ -97,18 +98,18 @@ export function ScrobbleSettings() {
           onBlur={commitEndpoint}
           onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
           placeholder={LISTENBRAINZ_DEFAULT_URL}
-          className="w-[260px]"
+          className={cn(fieldInputClass, 'w-[260px] max-w-full')}
         />
       </Row>
 
       {token ? (
-        <div className="flex items-center justify-between gap-6 border-b border-hair-soft py-4">
+        <div className={cn(rowClass, 'justify-between')}>
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-sm font-medium">
-              <CheckCircle size={14} weight="fill" className="text-primary" />
+            <p className="flex items-center gap-1.5 text-[15px] font-medium">
+              <CheckCircle size={16} weight="fill" className="text-sem-connected" />
               {userName ? t('scrobble.connectedAs', { name: userName }) : t('scrobble.connected')}
             </p>
-            <p className="font-num mt-0.5 text-xs text-ink-faint">
+            <p className="num mt-0.5 text-[13px] text-ink-faint">
               {lastSuccessAt
                 ? t('scrobble.tokenNoteWithTime', {
                     tail: token.slice(-4),
@@ -117,23 +118,25 @@ export function ScrobbleSettings() {
                 : t('scrobble.tokenNote', { tail: token.slice(-4) })}
             </p>
           </div>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={reset}
-            className="flex-shrink-0 text-sm text-destructive underline decoration-1 underline-offset-[6px] decoration-destructive/40 transition-colors hover:decoration-destructive"
+            className="flex-shrink-0 text-destructive"
           >
             {t('scrobble.disconnect')}
-          </button>
+          </Button>
         </div>
       ) : (
         <Row name={t('scrobble.userToken')} desc={t('scrobble.userTokenDesc')}>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Input
               type="password"
               value={draftToken}
               onChange={e => setDraftToken(e.target.value)}
               placeholder={t('scrobble.tokenPlaceholder')}
-              className="w-[220px]"
+              className={cn(fieldInputClass, 'w-[220px] max-w-full')}
             />
             <Button onClick={handleConnect} disabled={!draftToken.trim() || checking}>
               {checking ? t('scrobble.checking') : t('scrobble.connect')}
@@ -143,15 +146,15 @@ export function ScrobbleSettings() {
       )}
 
       {(pending.length > 0 || lastError) && (
-        <div className="py-4">
+        <div className={cn(rowClass, 'flex-col items-start gap-1')}>
           {pending.length > 0 && (
-            <p className="font-num text-xs text-ink-faint">
+            <p className="num text-[13px] text-ink-faint">
               {t('scrobble.pending', { count: pending.length })}
             </p>
           )}
           {lastError && (
-            <p className="mt-1 flex items-start gap-1.5 text-xs text-destructive">
-              <WarningCircle size={13} className="mt-px flex-shrink-0" />
+            <p className="flex items-start gap-1.5 text-[13px] text-sem-error">
+              <WarningCircle size={14} className="mt-px flex-shrink-0" />
               <span className="min-w-0 break-all">{t('scrobble.lastFailure', { message: lastError })}</span>
             </p>
           )}

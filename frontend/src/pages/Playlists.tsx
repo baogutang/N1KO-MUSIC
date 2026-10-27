@@ -19,6 +19,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { CoverCard, CoverGrid } from '@/components/common/CoverCard'
+import { CoverActionButton, CoverActions } from '@/components/music/AlbumCard'
+import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { spaceCJK } from '@/utils/cjkTypography'
@@ -145,30 +148,25 @@ export default function Playlists() {
   }
 
   return (
-    <div className="pt-8 animate-fade-in">
-      {/* 页头：衬线标题 + mono 总数 + 文字级主操作（DESIGN v2 §3/§4.1） */}
-      <header className="flex items-end justify-between gap-6 border-b border-hair pb-6">
+    <div className="pt-2 regular:pt-4 animate-fade-in">
+      {/* 页头：大标题 + 总数；右侧 导入（纸片胶囊）与 新建（陶土实心） */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div>
-          <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
+          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
             {t('nav.playlists')}
-            <span className="latin-tag ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
-              PLAYLISTS
-            </span>
           </h1>
           {!isLoading && totalCount >= 0 && (
-            <p className="mt-1.5 font-num text-sm text-ink-faint">
+            <p className="num mt-3 text-sm text-ink-faint">
               {t('playlist.count', { count: totalCount })}
             </p>
           )}
         </div>
-        <div className="flex flex-shrink-0 items-center gap-6">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-3">
           {/* 导入拆两项：文件（M3U/XSPF）与跨源歌单（阶段 5） */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
-                className="inline-flex items-center gap-2 text-sm text-ink-soft transition-colors hover:text-primary active:scale-[0.97]"
-              >
-                <UploadSimple className="w-3.5 h-3.5" />
+              <button className="act-secondary inline-flex items-center gap-2 text-sm">
+                <UploadSimple size={15} />
                 {t('action.import')}
               </button>
             </DropdownMenuTrigger>
@@ -185,9 +183,9 @@ export default function Playlists() {
           </DropdownMenu>
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-foreground underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary active:scale-[0.97]"
+            className="act-primary inline-flex items-center gap-2 text-sm"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus size={15} weight="bold" />
             {t('empty.playlists.action')}
           </button>
         </div>
@@ -199,6 +197,7 @@ export default function Playlists() {
        * 「不等最慢的」，旧实现却在 anyLoading 时用 totalCount=-1 把整页
        * 换成 12 格骨架，把已到的分节盖掉。加载中的分节自己摆骨架。
        */}
+      <div className="mt-8">
       {allSourcesFailed && localPlaylists.length === 0 ? (
         <EmptyState
           title={t('sources.allFailed.title')}
@@ -207,210 +206,185 @@ export default function Playlists() {
         />
       ) : totalCount === 0 && localPlaylists.length === 0 && !anyLoading ? (
         <EmptyState
+          ruled
           title={t('empty.playlists.title')}
           description={t('empty.playlists.description')}
           action={{ label: t('empty.playlists.action'), onClick: () => setShowCreate(true) }}
         />
       ) : (
         <>
-        {/* 本地歌单存储打不开（无痕模式/配额/损坏）：明说，而不是分区无声消失 */}
-      {localLoadError && (
-        <p className="mt-6 border-l-2 border-destructive pl-3 text-[13px] leading-relaxed text-destructive">
-          {t('sources.import.localStoreError')}
-        </p>
-      )}
+          {/* 本地歌单存储打不开（无痕模式/配额/损坏）：明说，而不是分区无声消失 */}
+          {localLoadError && (
+            <p role="alert" className="mb-6 rounded-md bg-destructive/10 px-4 py-3 text-[14px] leading-relaxed text-destructive">
+              {t('sources.import.localStoreError')}
+            </p>
+          )}
 
-      {/* 本地混合歌单（阶段 5）：跨源曲目快照，不同步 backend */}
-        {localPlaylists.length > 0 && (
-          <section className="mt-10">
-            <div className="section-head">
-              <h2 className="flex items-center gap-2.5">
-                <HardDrive className="w-4 h-4 text-ink-faint" />
-                {t('sources.import.localSection')}
-              </h2>
-              <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-                {t('playlist.count', { count: localPlaylists.length })}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
-              {localPlaylists.map(pl => (
-                <div
-                  key={pl.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={pl.name}
-                  className="group cursor-pointer min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                  onClick={() => setViewingLocal(pl.id)}
-                  onKeyDown={e => {
-                    if (e.target !== e.currentTarget) return
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      setViewingLocal(pl.id)
-                    }
-                  }}
-                >
-                  <div className="relative mb-2.5">
-                    <div className="aspect-square rounded-md ring-1 ring-hair-soft bg-paper-deep transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:shadow-float flex items-center justify-center pop:border pop:border-hair pop:ring-0">
-                      <MusicNote className="w-10 h-10 text-ink-faint/50" />
-                    </div>
-                  </div>
-                  <div className="min-w-0 px-0.5">
-                    <p className="font-serif font-semibold text-[15px] leading-snug truncate transition-colors group-hover:text-primary">
-                      {spaceCJK(pl.name)}
-                    </p>
-                    <p className="mt-0.5 flex items-baseline gap-2 text-xs text-ink-faint">
-                      <span className="font-num">{t('song.count', { count: pl.items.length })}</span>
-                      <span className="text-[10.5px] tracking-[0.14em] text-primary">{t('sources.import.localBadge')}</span>
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-        {sections.map(section => (
-          <section key={section.serverId} className="mt-10">
-            {multi && (
-              <div className="section-head">
+          {/* 本地混合歌单（阶段 5）：跨源曲目快照，不同步 backend */}
+          {localPlaylists.length > 0 && (
+            <section>
+              <div className="section-head !pt-0">
                 <h2 className="flex items-center gap-2.5">
-                  <SourceBadge serverId={section.serverId} withName />
+                  <HardDrive className="w-4 h-4 text-ink-faint" />
+                  {t('sources.import.localSection')}
                 </h2>
-                {section.status === 'success' && (
-                  <span className="num text-[11.5px] tracking-[0.12em] text-ink-faint">
-                    {t('playlist.count', { count: section.items.length })}
-                  </span>
-                )}
+                <span className="num text-sm text-ink-faint">
+                  {t('playlist.count', { count: localPlaylists.length })}
+                </span>
               </div>
-            )}
-            {section.status === 'error' && (
-              <div className="col-span-full">
-                <ErrorState retry={() => { void refetchAll() }} />
-              </div>
-            )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-6 gap-y-8">
-              {/* 分节内骨架（复核 F12）：这一节还在加载时摆几格占位，
-                  不再让整页陪着转 */}
-              {section.status === 'loading' && Array.from({ length: 6 }).map((_, i) => (
-                <div key={`skeleton-${i}`}>
-                  <div className="aspect-square rounded-md bg-paper-deep animate-pulse" />
-                  <div className="mt-2.5 h-4 w-3/4 rounded-sm bg-paper-deep animate-pulse" />
-                </div>
-              ))}
-              {section.items.map(pl => (
-            <div
-              key={`${section.serverId}:${pl.id}`}
-              role="button"
-              tabIndex={0}
-              aria-label={pl.name}
-              className="group cursor-pointer min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              onClick={() => navigate(`/playlists/${pl.id}?src=${encodeURIComponent(pl.serverId)}`)}
-              onKeyDown={e => {
-                /* 键盘可达（阶段 7.4）；内层控件的按键不冒泡接管（A6） */
-                if (e.target !== e.currentTarget) return
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  navigate(`/playlists/${pl.id}?src=${encodeURIComponent(pl.serverId)}`)
-                }
-              }}
-            >
-              {/* 封面：发丝 ring，hover 微放大 + 唯一允许的淡投影 */}
-              <div className="relative mb-2.5">
-                <div className="aspect-square overflow-hidden rounded-md ring-1 ring-hair-soft bg-paper-deep transition-all duration-300 ease-out group-hover:scale-[1.03] group-hover:shadow-float">
-                  {pl.coverArt ? (
-                    <img
-                      src={pl.coverArt ? (findAdapterFor(pl.serverId)?.getCoverUrl(pl.coverArt, 300) ?? pl.coverArt) : pl.coverArt}
-                      alt={pl.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <MusicNote className="w-10 h-10 text-ink-faint/50" />
-                    </div>
+              <CoverGrid>
+                {localPlaylists.map(pl => (
+                  <CoverCard
+                    key={pl.id}
+                    aria-label={pl.name}
+                    onClick={() => setViewingLocal(pl.id)}
+                    tile={
+                      <div className="flex h-full w-full items-center justify-center">
+                        <MusicNote className="h-10 w-10 text-ink-faint" />
+                      </div>
+                    }
+                    title={spaceCJK(pl.name)}
+                    meta={<span className="num">{t('song.count', { count: pl.items.length })}</span>}
+                    captionExtra={
+                      <p className="mt-1.5">
+                        <span className="sticker px-2.5 py-0.5 text-xs">{t('playlist.localLabel')}</span>
+                      </p>
+                    }
+                  />
+                ))}
+              </CoverGrid>
+            </section>
+          )}
+          {sections.map((section, index) => (
+            <section key={section.serverId} className={!multi && localPlaylists.length > 0 ? 'mt-10' : undefined}>
+              {multi && (
+                <div className={cn('section-head', index === 0 && localPlaylists.length === 0 && '!pt-0')}>
+                  <h2 className="flex items-center gap-2.5">
+                    <SourceBadge serverId={section.serverId} withName />
+                  </h2>
+                  {section.status === 'success' && (
+                    <span className="num text-sm text-ink-faint">
+                      {t('playlist.count', { count: section.items.length })}
+                    </span>
                   )}
                 </div>
-                {/* hover 浮现细线圆播放键 / 随机键（不做实心色块） */}
-                <div className="absolute right-2.5 bottom-2.5 flex items-center gap-2 opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
-                  <button
-                    onClick={(e) => handlePlayPlaylist(pl, true, e)}
-                    title={t('player.shuffle')}
-                    aria-label={t('player.shuffle')}
-                    className="w-8 h-8 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
-                  >
-                    <Shuffle className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => handlePlayPlaylist(pl, false, e)}
-                    title={t('player.playAll')}
-                    aria-label={t('player.playAll')}
-                    className="w-9 h-9 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
-                  >
-                    <Play className="w-3.5 h-3.5 ml-px" weight="fill" />
-                  </button>
+              )}
+              {section.status === 'error' && (
+                <div>
+                  <ErrorState retry={() => { void refetchAll() }} />
                 </div>
-                {/* 更多操作 */}
-                <div
-                  className="absolute top-2 right-2 transition-opacity duration-200 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-within:opacity-100"
-                  onClick={e => e.stopPropagation()}
-                >
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        aria-label={t('action.more')}
-                        className="w-7 h-7 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center transition-colors hover:bg-primary hover:border-primary active:scale-[0.94]"
-                      >
-                        <DotsThree className="w-4 h-4" weight="bold" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {pl.readonly ? (
-                        // 智能歌单由服务器按规则生成，删除/编辑在它上面是无效操作，
-                        // 与其让用户点了没反应，不如说明它是什么
-                        <div className="px-3 py-2 max-w-[13rem]">
-                          <p className="font-serif text-sm font-semibold">{t('playlist.smart')}</p>
-                          <p className="mt-1 text-xs text-ink-faint">
-                            {t('playlist.smartHint')}
+              )}
+              <CoverGrid>
+                {/* 分节内骨架（复核 F12）：这一节还在加载时摆几格占位，
+                    不再让整页陪着转 */}
+                {section.status === 'loading' && Array.from({ length: 6 }).map((_, i) => (
+                  <div key={`skeleton-${i}`} aria-hidden="true">
+                    <div className="aspect-square rounded-md bg-skeleton animate-pulse" />
+                    <div className="mt-3 h-4 w-3/4 rounded-sm bg-skeleton animate-pulse" />
+                  </div>
+                ))}
+                {section.items.map(pl => {
+                  const href = `/playlists/${pl.id}?src=${encodeURIComponent(pl.serverId)}`
+                  return (
+                    <CoverCard
+                      key={`${section.serverId}:${pl.id}`}
+                      aria-label={pl.name}
+                      onClick={() => navigate(href)}
+                      tile={
+                        pl.coverArt ? (
+                          <img
+                            src={findAdapterFor(pl.serverId)?.getCoverUrl(pl.coverArt, 300) ?? pl.coverArt}
+                            alt={pl.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <MusicNote className="h-10 w-10 text-ink-faint" />
+                          </div>
+                        )
+                      }
+                      overlay={
+                        <>
+                          {/* 播放 / 随机：鼠标下 hover 才浮现，触屏常显 */}
+                          <CoverActions>
+                            <CoverActionButton
+                              small
+                              onClick={e => handlePlayPlaylist(pl, true, e)}
+                              title={t('player.shuffle')}
+                              aria-label={t('player.shuffle')}
+                            >
+                              <Shuffle className="h-3.5 w-3.5" />
+                            </CoverActionButton>
+                            <CoverActionButton
+                              onClick={e => handlePlayPlaylist(pl, false, e)}
+                              title={t('player.playAll')}
+                              aria-label={t('player.playAll')}
+                            >
+                              <Play className="ml-px h-3.5 w-3.5" weight="fill" />
+                            </CoverActionButton>
+                          </CoverActions>
+                          {/* 更多操作 */}
+                          <div
+                            className="absolute right-2 top-2 transition-opacity duration-200 focus-within:opacity-100 [&:has([data-state=open])]:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <CoverActionButton small aria-label={t('action.more')}>
+                                  <DotsThree className="h-4 w-4" weight="bold" />
+                                </CoverActionButton>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {pl.readonly ? (
+                                  // 智能歌单由服务器按规则生成，删除/编辑在它上面是无效操作，
+                                  // 与其让用户点了没反应，不如说明它是什么
+                                  <div className="px-3 py-2 max-w-[13rem]">
+                                    <p className="font-display text-sm font-semibold">{t('playlist.smart')}</p>
+                                    <p className="mt-1 text-[13px] text-ink-faint">
+                                      {t('playlist.smartHint')}
+                                    </p>
+                                  </div>
+                                ) : section.isPrimary ? (
+                                  // 删除走主库适配器；外源歌单的删除/退订语义不同，不在此提供
+                                  <DropdownMenuItem
+                                    className="text-destructive gap-2"
+                                    onClick={() => setDeleteTarget({ id: pl.id, name: pl.name, serverId: pl.serverId })}
+                                  >
+                                    <Trash className="w-4 h-4" />
+                                    {t('playlist.delete')}
+                                  </DropdownMenuItem>
+                                ) : null}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </>
+                      }
+                      title={spaceCJK(pl.name)}
+                      meta={
+                        pl.songCount !== undefined
+                          ? <span className="num">{t('song.count', { count: pl.songCount })}</span>
+                          : undefined
+                      }
+                      captionExtra={
+                        pl.readonly ? (
+                          <p className="mt-1.5">
+                            <span className="sticker px-2.5 py-0.5 text-xs">{t('playlist.smart')}</span>
                           </p>
-                        </div>
-                      ) : section.isPrimary ? (
-                        // 删除走主库适配器；外源歌单的删除/退订语义不同，不在此提供
-                        <DropdownMenuItem
-                          className="text-destructive gap-2"
-                          onClick={() => setDeleteTarget({ id: pl.id, name: pl.name, serverId: pl.serverId })}
-                        >
-                          <Trash className="w-4 h-4" />
-                          {t('playlist.delete')}
-                        </DropdownMenuItem>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-
-              {/* 图注：衬线歌单名 + mono 小字曲目数 */}
-              <div className="min-w-0 px-0.5">
-                <p className="font-serif font-semibold text-[15px] leading-snug truncate transition-colors group-hover:text-primary">
-                  {spaceCJK(pl.name)}
-                </p>
-                <p className="mt-0.5 flex items-baseline gap-2 text-xs text-ink-faint">
-                  {pl.songCount !== undefined && (
-                    <span className="font-num">{t('song.count', { count: pl.songCount })}</span>
-                  )}
-                  {pl.readonly && (
-                    <span className="text-[10.5px] tracking-[0.14em] text-primary">{t('playlist.smartBadge')}</span>
-                  )}
-                </p>
-              </div>
-            </div>
-              ))}
-            </div>
-          </section>
-        ))}
+                        ) : undefined
+                      }
+                    />
+                  )
+                })}
+              </CoverGrid>
+            </section>
+          ))}
         </>
       )}
+      </div>
 
       {/* Create dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{t('empty.playlists.action')}</DialogTitle>
           </DialogHeader>
@@ -437,7 +411,7 @@ export default function Playlists() {
 
       {/* Delete confirm dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null) }}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{t('playlist.deleteConfirmTitle')}</DialogTitle>
             <DialogDescription>
@@ -492,24 +466,24 @@ function LocalPlaylistViewDialog({
           <DialogTitle className="flex items-center gap-2.5">
             <HardDrive className="w-4 h-4 text-ink-faint" />
             {playlist.name}
-            <span className="num text-[11px] font-normal text-ink-faint">
+            <span className="num text-[13px] font-normal text-ink-faint">
               {t('song.trackCount', { count: songs.length })}
             </span>
           </DialogTitle>
-          <DialogDescription>{t('sources.import.localBadge')}</DialogDescription>
+          <DialogDescription>{t('playlist.localLabel')}</DialogDescription>
         </DialogHeader>
         {songs.length === 0 ? (
-          <p className="py-6 text-center text-[13px] text-ink-faint">{t('sources.import.localEmpty')}</p>
+          <p className="py-6 text-center text-[14px] text-ink-faint">{t('sources.import.localEmpty')}</p>
         ) : (
-          <div className="flex items-center gap-5 pb-2">
-            <button className="more inline-flex items-center gap-1.5" onClick={() => playAllInOrder(songs, 0)}>
-              <Play size={12} />
+          <div className="flex flex-wrap items-center gap-2 pb-1">
+            <Button size="sm" onClick={() => playAllInOrder(songs, 0)}>
+              <Play size={14} weight="fill" />
               {t('player.playAll')}
-            </button>
-            <button className="more inline-flex items-center gap-1.5" onClick={() => playAllShuffled(songs, 0)}>
-              <Shuffle size={12} />
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => playAllShuffled(songs, 0)}>
+              <Shuffle size={14} />
               {t('player.shuffle')}
-            </button>
+            </Button>
           </div>
         )}
         {songs.length > 0 && (

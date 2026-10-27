@@ -13,29 +13,11 @@ import { cn } from '@/lib/utils'
 import { useAlbumsInfinite, useArtists, useSongsInfinite } from '@/hooks/useServerQueries'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import { EmptyState } from '@/components/common/EmptyState'
+import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
 import { SongList } from '@/components/music/SongList'
 import { useServerStore } from '@/store/serverStore'
 import { playAllInOrder, shuffleWholeLibrary } from '@/utils/playActions'
 import { useT } from '@/i18n'
-
-/** 骨架行（hair-soft 底色闪烁，DESIGN §4.5，不用 spinner） */
-function SkeletonRows({ count, cover }: { count: number; cover: boolean }) {
-  return (
-    <div className="border-t border-hair divide-y divide-hair-soft">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-3 py-2.5">
-          <div className="h-3 w-8 rounded-sm bg-skeleton animate-pulse" />
-          {cover && <div className="h-10 w-10 rounded-sm bg-skeleton animate-pulse" />}
-          <div className="flex-1 space-y-2">
-            <div className="h-3 w-1/3 rounded-sm bg-skeleton animate-pulse" />
-            <div className="h-2.5 w-1/5 rounded-sm bg-skeleton animate-pulse" />
-          </div>
-          <div className="h-3 w-10 rounded-sm bg-skeleton animate-pulse" />
-        </div>
-      ))}
-    </div>
-  )
-}
 
 export default function Library() {
   const { t } = useT()
@@ -116,8 +98,8 @@ export default function Library() {
 
   if (!canBrowse) {
     return (
-      <div className="pt-9 animate-fade-in">
-        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('nav.library')}</h1>
+      <div className="pt-2 regular:pt-4 animate-fade-in">
+        <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">{t('nav.library')}</h1>
         <div className="mt-8">
           <EmptyState
             ruled
@@ -131,60 +113,52 @@ export default function Library() {
   }
 
   return (
-    <div className="pt-9 animate-fade-in">
-      {/* 页头：衬线标题 + mono 计数 */}
-      <div className="flex items-end justify-between gap-6">
-        <div className="min-w-0">
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('nav.library')}</h1>
-          {/* 加载中不显示 0 计数（阶段 2.1） */}
-          {!(songsLoading || albumsLoading) && !songsError && (
-            <p className="num text-sm text-ink-soft mt-1.5">
-              {t('library.counts', {
-                songs: songCountText,
-                albums: albumCountText,
-                artists: (artists ?? []).length,
-              })}
-            </p>
-          )}
-        </div>
-      </div>
+    <div className="pt-2 regular:pt-4 animate-fade-in">
+      {/* 页头：大标题 + 体量说明（各自独立的 span，不用中点串） */}
+      <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">{t('nav.library')}</h1>
+      {/* 加载中不显示 0 计数（阶段 2.1） */}
+      {!(songsLoading || albumsLoading) && !songsError && (
+        <p className="num mt-3 flex flex-wrap gap-x-3 text-sm text-ink-faint">
+          <span>{t('library.songsCount', { count: songCountText })}</span>
+          <span>{t('library.albumsCount', { count: albumCountText })}</span>
+          <span>{t('library.artistsCount', { count: (artists ?? []).length })}</span>
+        </p>
+      )}
 
-      {/* 文字 tab：sans 小标签 wide-tracking，当前项 accent + 2px 短划线（DESIGN §3 导航范式） */}
-      <div className="page-tabs mt-7 flex items-center gap-8 border-b border-hair">
+      {/* 分段控件：只有「歌曲」留在本页（is-on），其余三格是去处 */}
+      <div className="page-tabs mt-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-paper-deep p-1 scrollbar-hide">
         {tabs.map(tab => (
           <button
             key={tab.key}
             onClick={() => { if (tab.to) navigate(tab.to) }}
+            aria-current={tab.to ? undefined : 'page'}
             className={cn(
-              'relative pb-3 text-[13px] tracking-[0.2em] transition-colors duration-200',
-              tab.to ? 'text-ink-soft hover:text-primary' : 'text-primary font-semibold'
+              'seg-option min-h-11 flex-none whitespace-nowrap rounded-pill px-5 text-[14px] font-medium transition-colors duration-150',
+              tab.to
+                ? 'text-ink-soft [@media(hover:hover)]:hover:text-ink'
+                : 'is-on'
             )}
           >
             {tab.label}
-            {!tab.to && (
-              <span className="absolute -bottom-px left-1/2 h-[2px] w-6 -translate-x-1/2 bg-primary" />
-            )}
           </button>
         ))}
       </div>
 
       <div className="pt-8">
         {!songsLoading && songs.length > 0 && (
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-            <div className="flex items-baseline gap-3">
-              <h2 className="font-serif text-xl font-bold text-ink">{t('library.allSongs')}</h2>
-              <span className="num text-xs text-ink-faint">{t('library.loaded', { count: songs.length })}</span>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+            <div className="flex flex-wrap items-baseline gap-x-3">
+              <h2 className="font-display text-[21px] font-semibold leading-tight">{t('library.allSongs')}</h2>
+              <span className="num text-sm text-ink-faint">{t('library.loaded', { count: songs.length })}</span>
             </div>
-            <div className="flex items-center gap-6">
-              {/* 主操作：纯文字 ▶ + 发丝下划线，hover 变 accent（DESIGN §4.1） */}
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => playAllInOrder(songs, 0)}
-                className="act-primary inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
+                className="act-primary inline-flex items-center gap-2 text-sm"
               >
-                <Play size={13} weight="fill" />
+                <Play size={14} weight="fill" />
                 {t('player.playAll')}
               </button>
-              {/* 次操作：细线小钮，hover 边框变 ink（DESIGN §4.1） */}
               {/*
                 全库随机：向服务端要一批随机取样，而不是对已加载的这一页洗牌。
                 列表分页加载，首屏只有 100 首且是服务端固定排序的前 100 首，
@@ -193,9 +167,9 @@ export default function Library() {
               <button
                 onClick={handleShuffleAll}
                 disabled={shufflingAll}
-                className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97] disabled:opacity-50"
+                className="act-secondary inline-flex items-center gap-2 text-sm"
               >
-                <Shuffle size={14} className={shufflingAll ? 'animate-spin' : undefined} />
+                <Shuffle size={15} className={shufflingAll ? 'animate-spin motion-reduce:animate-none' : undefined} />
                 {shufflingAll ? t('library.shuffling') : t('player.shuffleAll')}
               </button>
             </div>
@@ -215,16 +189,16 @@ export default function Library() {
             action={{ label: t('action.retry'), onClick: () => { void refetchSongs() } }}
           />
         ) : songsLoading ? (
-          <SkeletonRows count={10} cover />
+          <SongRowsSkeleton rows={10} />
         ) : (
           <>
             <SongList songs={songs} showCover showAlbum showIndex />
-            {isFetchingNextPage && <SkeletonRows count={3} cover />}
+            {isFetchingNextPage && <SongRowsSkeleton rows={3} />}
             {hasNextPage && !isFetchingNextPage && (
               <div className="mt-8 flex justify-center">
                 <button
                   onClick={() => fetchNextPage()}
-                  className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-5 py-2 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                  className="act-secondary inline-flex items-center gap-2 text-sm"
                 >
                   {t('library.loadMoreSongs')}
                 </button>

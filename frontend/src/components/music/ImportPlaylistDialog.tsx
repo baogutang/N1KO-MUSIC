@@ -166,11 +166,11 @@ export function ImportPlaylistDialog({
             />
             <button
               onClick={() => fileRef.current?.click()}
-              className="flex w-full flex-col items-center gap-2.5 border border-dashed border-hair py-10 text-ink-soft transition-colors duration-200 hover:border-primary hover:text-primary"
+              className="flex w-full flex-col items-center gap-2.5 rounded-lg bg-paper-deep py-10 text-ink-soft transition-colors duration-150 hover:bg-paper-3 hover:text-ink"
             >
-              <UploadSimple size={22} />
-              <span className="text-sm">{t('playlist.import.pickFile')}</span>
-              <span className="font-num text-[11px] text-ink-faint">
+              <UploadSimple size={24} />
+              <span className="text-sm font-medium">{t('playlist.import.pickFile')}</span>
+              <span className="num text-[13px] text-ink-faint">
                 {t('playlist.import.limit', { count: MAX_IMPORT_ENTRIES })}
               </span>
             </button>
@@ -184,9 +184,9 @@ export function ImportPlaylistDialog({
         )}
 
         {(stage === 'review' || stage === 'creating') && (
-          <div className="space-y-5 py-1">
+          <div className="space-y-4 py-1">
             <div>
-              <label htmlFor="import-playlist-name" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
+              <label htmlFor="import-playlist-name" className="mb-1.5 block text-[13px] font-medium text-ink-soft">
                 {t('playlist.name')}
               </label>
               <Input
@@ -197,49 +197,47 @@ export function ImportPlaylistDialog({
               />
             </div>
 
-            <p className="font-num text-[13px]">
-              <span className="text-primary">
+            <p className="num flex flex-wrap gap-x-3 text-[13.5px]">
+              <span className="font-medium text-primary">
                 {t('playlist.import.matched', { count: matched.length })}
               </span>
               {missing.length > 0 && (
                 <span className="text-ink-faint">
-                  {' · '}
                   {t('playlist.import.missing', { count: missing.length })}
                 </span>
               )}
               {truncated > 0 && (
                 <span className="text-ink-faint">
-                  {' · '}
                   {t('playlist.import.truncated', { count: truncated })}
                 </span>
               )}
             </p>
 
             {foreign.length > 0 && (
-              <div className="border-t border-hair pt-3">
-                <p className="mb-2 text-[11px] tracking-[0.16em] text-ink-faint">
+              <div className="rounded-md bg-paper-deep p-3">
+                <p className="mb-2 text-[13px] font-medium text-ink-soft">
                   {t('sources.import.foreignOnly', { count: foreign.length })}
                 </p>
-                <ul className="space-y-1 text-[12.5px] text-ink-soft">
+                <ul className="space-y-1 text-[13px] text-ink-soft">
                   {foreign.slice(0, MISSING_PREVIEW).map(song => (
                     <li key={`${song.serverId}:${song.id}`} className="truncate">
                       {spaceCJK(`${song.title} - ${song.artist}`)}
                     </li>
                   ))}
                 </ul>
-                <p className="mt-1.5 text-[11px] text-ink-faint">
+                <p className="mt-2 text-[13px] text-ink-faint">
                   {t('sources.import.localHint', { count: foreign.length })}
                 </p>
               </div>
             )}
 
             {missing.length > 0 && (
-              <div className="border-t border-hair pt-3">
-                <p className="mb-2 flex items-center gap-1.5 text-[11px] tracking-[0.16em] text-ink-faint">
-                  <Warning size={12} />
+              <div className="rounded-md bg-paper-deep p-3">
+                <p className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-ink-soft">
+                  <Warning size={14} />
                   {t('playlist.import.missingTitle')}
                 </p>
-                <ul className="space-y-1 text-[12.5px] text-ink-soft">
+                <ul className="space-y-1 text-[13px] text-ink-soft">
                   {missing.slice(0, MISSING_PREVIEW).map((entry, i) => (
                     <li key={`${entry.location}-${i}`} className="truncate">
                       {spaceCJK(
@@ -249,7 +247,7 @@ export function ImportPlaylistDialog({
                   ))}
                 </ul>
                 {missing.length > MISSING_PREVIEW && (
-                  <p className="font-num mt-1.5 text-[11px] text-ink-faint">
+                  <p className="num mt-2 text-[13px] text-ink-faint">
                     {t('playlist.import.moreMissing', { count: missing.length - MISSING_PREVIEW })}
                   </p>
                 )}

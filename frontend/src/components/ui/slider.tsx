@@ -31,8 +31,8 @@ const Slider = React.forwardRef<
     >
       <SliderPrimitive.Track
         className={cn(
-          'relative grow overflow-hidden rounded-full bg-hair-soft',
-          vertical ? 'h-full w-[2px]' : 'h-[2px] w-full'
+          'relative grow overflow-hidden rounded-full bg-paper-3',
+          vertical ? 'h-full w-[4px]' : 'h-[4px] w-full'
         )}
       >
         <SliderPrimitive.Range
@@ -52,7 +52,7 @@ const Slider = React.forwardRef<
       <SliderPrimitive.Thumb
         aria-label={ariaLabel}
         aria-valuetext={ariaValueText}
-        className="block h-3 w-3 rounded-full bg-foreground transition-transform duration-150 [@media(hover:hover)]:scale-0 [@media(hover:hover)]:group-hover:scale-100 focus-visible:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:pointer-events-none disabled:opacity-50 pop:h-4 pop:w-4 pop:border pop:border-hair pop:bg-surface" />
+        className="block h-4 w-4 rounded-full bg-sheet shadow-press transition-transform duration-150 [@media(hover:hover)]:scale-75 [@media(hover:hover)]:group-hover:scale-100 focus-visible:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:pointer-events-none disabled:opacity-50" />
     </SliderPrimitive.Root>
   )
 })

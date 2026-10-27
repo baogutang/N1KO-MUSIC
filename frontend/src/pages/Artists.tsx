@@ -1,7 +1,7 @@
 /**
- * 歌手列表页 —— 文字索引大列表（DESIGN v2 §3，demo 歌手索引范式）
- * 衬线歌手名行 + 发丝线分隔 + mono 收录数，hover 整行右移；
- * 顶部衬线标题 + mono 总数 + 发丝线下缘过滤输入框
+ * 歌手列表页 —— 按字母分段的名单
+ * 大标题 + 总数 + 纸片胶囊过滤框；歌手名一行一位，靠行距与 hover 底区分，不画分隔线；
+ * 右侧贴边一条字母索引轨（IndexRail）。
  *
  * 多源（PLAN 2.4）：只列声明 libraryBrowse 的音源，多个可浏览源时
  * 页头出现源切换 chip（?src=）——与专辑页同一套语义。
@@ -10,6 +10,8 @@
 import { useCallback, useEffect, useDeferredValue, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass } from '@phosphor-icons/react'
+import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
 import { useArtists } from '@/hooks/useServerQueries'
 import { useBrowseSource } from '@/hooks/useSourceQueries'
 import { SourceBadge } from '@/components/sources/SourceBadge'
@@ -75,119 +77,122 @@ export default function ArtistsPage() {
 
   if (!current) {
     return (
-      <div className="pt-9 animate-fade-in">
-        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('nav.artists')}</h1>
-        <EmptyState ruled title={t('sources.noBrowseTitle')} description={t('sources.noBrowseDesc')} />
+      <div className="pt-2 regular:pt-4 animate-fade-in">
+        <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">{t('nav.artists')}</h1>
+        <div className="mt-8">
+          <EmptyState ruled title={t('sources.noBrowseTitle')} description={t('sources.noBrowseDesc')} />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="pt-9 animate-fade-in">
-      <div className="mb-6">
-        <h1 className="font-serif text-3xl font-bold tracking-tight text-ink">{t('nav.artists')}</h1>
-        {/* 出错时也不显示计数（复核 F12）：0 位是把故障说成空库 */}
-        {!isLoading && !isError && (
-          <p className="num text-sm text-ink-soft mt-1.5">
-            {t('artist.total', { count: filtered.length })}
-          </p>
-        )}
-        {available.length > 1 && (
-          <div className="mt-4 flex items-center gap-4">
-            {available.map(s => (
-              <button
-                key={s.serverId}
-                /* 与专辑页同一处修正：点当前项不做任何事。清空 ?src= 会让
-                   useBrowseSource 回落到「主库或第一个可浏览源」，
-                   点亮着的 chip 反而把你换到别的库去。 */
-                disabled={s.serverId === current.serverId}
-                onClick={() => setSearchParams({ src: s.serverId }, { replace: true })}
-                className={
-                  'inline-flex items-center gap-1.5 pb-1 border-b transition-colors ' +
-                  (s.serverId === current.serverId
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-ink-faint hover:text-foreground')
-                }
-              >
-                <SourceBadge serverId={s.serverId} />
-                <span className="text-[12px]">{s.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+    <div className="pt-2 regular:pt-4 animate-fade-in">
+      <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">{t('nav.artists')}</h1>
+      {/* 出错时也不显示计数（复核 F12）：0 位是把故障说成空库 */}
+      {!isLoading && !isError && (
+        <p className="num mt-3 text-sm text-ink-faint">
+          {t('artist.total', { count: filtered.length })}
+        </p>
+      )}
+      {available.length > 1 && (
+        <div className="mt-5 inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-paper-deep p-1 scrollbar-hide">
+          {available.map(s => (
+            <button
+              key={s.serverId}
+              /* 与专辑页同一处修正：点当前项不做任何事。清空 ?src= 会让
+                 useBrowseSource 回落到「主库或第一个可浏览源」，
+                 点亮着的 chip 反而把你换到别的库去。 */
+              disabled={s.serverId === current.serverId}
+              onClick={() => setSearchParams({ src: s.serverId }, { replace: true })}
+              className={cn(
+                'seg-option inline-flex min-h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill px-4 text-[14px] font-medium transition-colors duration-150',
+                s.serverId === current.serverId
+                  ? 'is-on disabled:cursor-default'
+                  : 'text-ink-soft [@media(hover:hover)]:hover:text-ink'
+              )}
+            >
+              <SourceBadge serverId={s.serverId} />
+              <span>{s.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* 过滤：发丝线下缘输入框，focus 下缘变 accent（DESIGN §4.4） */}
-      <div className="relative max-w-sm mb-8">
-        <MagnifyingGlass size={15} className="absolute left-0 top-1/2 -translate-y-1/2 text-ink-faint" />
-        <input
+      {/* 过滤：纸片胶囊输入框 */}
+      <div className="relative mt-6 max-w-sm">
+        <MagnifyingGlass size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" />
+        <Input
           placeholder={t('artist.filterPlaceholder')}
+          aria-label={t('artist.filterPlaceholder')}
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          className="w-full border-b border-hair bg-transparent py-2 pl-6 pr-2 text-sm text-ink placeholder:text-ink-faint transition-colors duration-200 focus:border-primary focus:outline-none focus-visible:outline-none"
+          className="pl-10"
         />
       </div>
 
-      {isLoading ? (
-        <div className="border-t border-hair divide-y divide-hair-soft">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="flex items-baseline justify-between gap-4 px-2 py-4">
-              <div className="h-4 w-48 rounded-sm bg-skeleton animate-pulse" />
-              <div className="h-3 w-14 rounded-sm bg-skeleton animate-pulse" />
-            </div>
-          ))}
-        </div>
-      ) : isError ? (
-        /* 加载失败 ≠ 空态（阶段 2.1）：空过滤框配「没有名字相符的歌手」
-           是在撒谎——真话是「没读到」。 */
-        <ErrorState retry={() => { void refetch() }} />
-      ) : filtered.length === 0 ? (
-        <EmptyState ruled title={t('empty.artists.title')} description={t('empty.artists.description')} />
-      ) : (
-        <div className="flex gap-3">
-          <div className="min-w-0 flex-1 border-t border-hair">
-            {buckets.map(bucket => (
-              <section key={bucket.letter} style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 600px' }}>
-                <h2
-                  data-letter-head={bucket.letter}
-                  ref={el => {
-                    if (el) headingRefs.current.set(bucket.letter, el)
-                    else headingRefs.current.delete(bucket.letter)
-                  }}
-                  className="font-num sticky top-0 z-10 bg-paper/95 px-2 pb-1 pt-3 text-[11px] tracking-[0.24em] text-primary backdrop-blur-sm"
-                >
-                  {bucket.letter}
-                </h2>
-                <div className="divide-y divide-hair-soft border-t border-hair-soft">
-                  {bucket.items.map(artist => (
-                    <button
-                      key={artist.id}
-                      onClick={() => navigate(detailPath('artists', artist.id, artist.serverId))}
-                      className="group flex w-full items-baseline justify-between gap-4 px-2 py-3.5 text-left transition-all duration-200 hover:translate-x-1.5 hover:bg-paper-deep"
-                    >
-                      <span className="min-w-0 truncate font-serif text-lg font-semibold text-ink transition-colors duration-200 group-hover:text-primary md:text-xl">
-                        {spaceCJK(artist.name)}
-                      </span>
-                      {artist.albumCount != null && (
-                        <span className="num flex-shrink-0 text-xs text-ink-faint">
-                          {t('artist.albumCount', { count: artist.albumCount })}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </section>
+      <div className="mt-8">
+        {isLoading ? (
+          <div className="space-y-0.5" aria-hidden="true">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="flex min-h-12 items-center justify-between gap-4 px-3">
+                <div className="h-4 w-48 rounded-sm bg-skeleton animate-pulse" />
+                <div className="h-3 w-14 rounded-sm bg-skeleton animate-pulse" />
+              </div>
             ))}
           </div>
+        ) : isError ? (
+          /* 加载失败 ≠ 空态（阶段 2.1）：空过滤框配「没有名字相符的歌手」
+             是在撒谎——真话是「没读到」。 */
+          <ErrorState retry={() => { void refetch() }} />
+        ) : filtered.length === 0 ? (
+          <EmptyState ruled title={t('empty.artists.title')} description={t('empty.artists.description')} />
+        ) : (
+          <div className="flex gap-3">
+            <div className="min-w-0 flex-1">
+              {buckets.map(bucket => (
+                <section key={bucket.letter} style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 600px' }}>
+                  <h2
+                    data-letter-head={bucket.letter}
+                    ref={el => {
+                      if (el) headingRefs.current.set(bucket.letter, el)
+                      else headingRefs.current.delete(bucket.letter)
+                    }}
+                    className="num sticky top-[60px] z-10 scroll-mt-[60px] bg-paper/95 px-3 pb-1 pt-4 text-[15px] font-semibold text-ink-faint backdrop-blur-sm"
+                  >
+                    {bucket.letter}
+                  </h2>
+                  <div>
+                    {bucket.items.map(artist => (
+                      <button
+                        key={artist.id}
+                        onClick={() => navigate(detailPath('artists', artist.id, artist.serverId))}
+                        className="flex min-h-12 w-full items-center justify-between gap-4 rounded-sm px-3 py-2 text-left transition-colors duration-150 [@media(hover:hover)]:hover:bg-paper-deep"
+                      >
+                        <span className="min-w-0 truncate font-display text-[17px] font-semibold text-ink">
+                          {spaceCJK(artist.name)}
+                        </span>
+                        {artist.albumCount != null && (
+                          <span className="num flex-shrink-0 text-[13px] text-ink-faint">
+                            {t('artist.albumCount', { count: artist.albumCount })}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
 
-          <IndexRail
-            letters={buckets.map(b => b.letter)}
-            activeLetter={activeLetter}
-            onJump={handleJump}
-            className="flex-none self-start"
-          />
-        </div>
-      )}
+            <IndexRail
+              letters={buckets.map(b => b.letter)}
+              activeLetter={activeLetter}
+              onJump={handleJump}
+              className="flex-none self-start"
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -167,7 +167,7 @@ export const LyricDisplay = memo(function LyricDisplay({
   if (!hasLyrics) {
     return (
       <div className={cn('flex items-center justify-center h-full', className)}>
-        <p className="font-serif text-[15px] text-ink-faint">{t('lyrics.none')}</p>
+        <p className="text-[15px] text-ink-faint">{t('lyrics.none')}</p>
       </div>
     )
   }
@@ -177,19 +177,11 @@ export const LyricDisplay = memo(function LyricDisplay({
       ref={containerRef}
       className={cn(
         'overflow-y-auto scrollbar-hide py-12',
-        variant === 'fullscreen' ? 'h-full' : 'h-64',
+        // 上下渐隐（lyric-fade，见 index.css）：全屏与面板都用，面板里那几行也不该被生硬切断
+        variant === 'fullscreen' ? 'h-full lyric-fade' : 'h-64 lyric-fade',
         className
       )}
-      style={{
-        scrollBehavior: 'smooth',
-        // 上下 22% 渐隐遮罩（DESIGN.md §4.3 正在播放页）
-        ...(variant === 'fullscreen'
-          ? {
-              maskImage: 'linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent)',
-              WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent)',
-            }
-          : {}),
-      }}
+      style={{ scrollBehavior: 'smooth' }}
     >
       <div className={cn(
         'space-y-4 px-6',
@@ -245,29 +237,23 @@ const LyricRow = memo(function LyricRow({
       ref={activeRef}
       onClick={() => onSelect(line)}
       className={cn(
-        'lyric-line flex items-center font-serif leading-relaxed text-left origin-left',
-        'transition-[color,transform] duration-300 ease-[var(--ease)]',
-        // 过去行 ink-faint / 当前行 ink 700 / 未来行 ink-soft；未同步整体 ink-soft
+        'lyric-line font-display font-semibold leading-[1.35] tracking-[-0.01em] text-left',
+        'transition-[color,opacity] duration-300 ease-paper',
+        // 字重恒定、只换墨色：换行时不重排。唱过的最淡，当前行全墨，未唱的浅墨
         isActive
-          ? 'is-active text-ink font-bold translate-x-1'
+          ? 'is-active text-ink'
           : isPast
-            ? 'text-ink-faint'
-            : 'text-ink-soft',
+            ? 'text-ink-faint/40'
+            : 'text-ink-faint/60',
         isClickable ? 'cursor-pointer select-none' : 'select-none',
-        isClickable && !isActive && 'hover:text-ink hover:translate-x-1',
+        isClickable && !isActive && 'hover:text-ink-soft',
       )}
       style={{ fontSize: `${fontSize}px` }}
     >
-      {/* 前导 accent 短红线（2px × 18px），仅当前行可见；占位固定避免行间错位 */}
-      <span
-        aria-hidden="true"
-        className="flex-none w-[18px] h-[2px] mr-3 rounded-full bg-primary transition-opacity duration-300 pop:hidden"
-        style={{ opacity: isActive ? 1 : 0 }}
-      />
       {/* 歌词是全站最大的一块中文文字面，CJK 与拉丁混排（歌名、Cover、feat.、
           英文副歌）在这里最显眼。设计契约要求两种文字之间加细空格，
           此前唯独这里漏了。 */}
-      <span className="min-w-0">{spaceCJK(text)}</span>
+      {spaceCJK(text)}
     </p>
   )
 })

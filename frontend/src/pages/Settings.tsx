@@ -1,8 +1,8 @@
 /**
- * 设置页
- * 杂志编辑风（DESIGN v2 §4.4）：衬线分区标题 + 发丝线，选项行式排布
- * （左名称/说明，右控件），开关为细线滑块，输入框为发丝线下缘。
- * 多色 accent 预设与歌词高亮色选择器已随 v2 契约移除（统一朱红 accent）。
+ * 设置页（v5 暖纸）
+ * iOS「设置」式的分组列表：页面大标题，每组是一张纸片，分组标题在纸片上方，
+ * 选项行左名称 / 说明、右控件。皮肤切换已删除，明暗切换保留。
+ * 多色 accent 预设与歌词高亮色选择器已随 v2 契约移除（统一陶土 accent）。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { SourcesSettings } from '@/components/settings/SourcesSettings'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
-import { useThemeStore, SKINS, SKIN_LABEL_KEYS } from '@/store/themeStore'
+import { useThemeStore } from '@/store/themeStore'
 import { LOCALES, setLocale, useT } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
 import {
@@ -33,9 +33,12 @@ import { toast } from '@/components/ui/use-toast'
 import {
   Row,
   Section,
+  Segmented,
   SubHead,
   Toggle,
-  hairInputClass,
+  fieldInputClass,
+  rowClass,
+  selectClass,
 } from '@/components/settings/primitives'
 import { SyncSettings } from '@/components/settings/SyncSettings'
 import { ScrobbleSettings } from '@/components/settings/ScrobbleSettings'
@@ -55,41 +58,6 @@ import {
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
-/** 细线分段控件：hair 边框 + 当前项 accent 文字与 2px 下缘 */
-function Segmented<T extends string>({ value, onChange, options, label }: {
-  value: T
-  onChange: (v: T) => void
-  options: { value: T; label: string }[]
-  label: string
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="inline-flex rounded-sm border border-hair overflow-hidden divide-x divide-hair-soft pop:rounded-pill pop:divide-x-0 pop:gap-1 pop:p-1 pop:bg-paper-deep pop:shadow-press clay:border-0"
-    >
-      {options.map(opt => (
-        <button
-          key={opt.value}
-          type="button"
-          role="radio"
-          aria-checked={value === opt.value}
-          onClick={() => onChange(opt.value)}
-          className={cn(
-            'seg-option px-3.5 h-8 text-[13px] transition-colors duration-200 pop:rounded-pill pop:font-semibold',
-            value === opt.value
-              ? 'is-on text-primary font-medium pop:bg-primary pop:text-primary-foreground'
-              : 'text-ink-soft hover:text-foreground pop:hover:bg-surface pop:hover:text-foreground'
-          )}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/** 端点配置行：左标签，右发丝线输入框 */
 const REPLAY_GAIN_OPTIONS: Array<{ value: ReplayGainMode; labelKey: string }> = [
   { value: 'off', labelKey: 'settings.replayGain.off' },
   { value: 'auto', labelKey: 'settings.replayGain.auto' },
@@ -114,6 +82,7 @@ const TRANSLATE_TYPES: Array<{ value: string; labelKey: string }> = [
   { value: '不内置', labelKey: 'settings.translate.type.notBuiltin' },
 ]
 
+/** 端点配置行：左标签，右输入框；说明折到下一行 */
 function EndpointRow({ label, value, onChange, placeholder, desc }: {
   label: string
   value: string
@@ -122,18 +91,76 @@ function EndpointRow({ label, value, onChange, placeholder, desc }: {
   desc?: React.ReactNode
 }) {
   return (
-    <div className="py-4 border-b border-hair-soft">
-      <div className="flex items-center gap-4">
-        <p className="text-sm font-medium w-20 flex-shrink-0">{label}</p>
-        <Input
-          type="text"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={placeholder}
-          className={hairInputClass}
-        />
+    <div className={cn(rowClass, 'flex-wrap gap-y-2')}>
+      <p className="w-20 flex-shrink-0 text-[15px] font-medium">{label}</p>
+      <Input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={cn(fieldInputClass, 'min-w-0 flex-1 basis-48')}
+      />
+      {desc && <p className="basis-full text-[13px] leading-snug text-ink-faint regular:pl-24">{desc}</p>}
+    </div>
+  )
+}
+
+/**
+ * 纸片里的一组单选：名称与说明在上，选项在下；选中项的圆点与文字是陶土色。
+ * inline 时选项横向排开（选项短、数量少），否则一项一行。
+ */
+function ChoiceRow<T extends string>({ name, desc, groupLabel, value, onChange, options, inline }: {
+  name: string
+  desc: string
+  groupLabel: string
+  value: T
+  onChange: (v: T) => void
+  options: { value: T; label: string }[]
+  inline?: boolean
+}) {
+  return (
+    <div className={cn(rowClass, 'flex-col items-stretch gap-x-0')}>
+      <p className="text-[15px] font-medium leading-snug">{name}</p>
+      <p className="mt-0.5 max-w-[52ch] text-[13px] leading-snug text-ink-faint">{desc}</p>
+      <div
+        role="radiogroup"
+        aria-label={groupLabel}
+        className={cn('mt-1', inline && 'flex flex-wrap gap-x-7')}
+      >
+        {options.map(opt => {
+          const on = value === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onChange(opt.value)}
+              className={cn(
+                'group flex min-h-[44px] items-center gap-3 text-left',
+                !inline && 'w-full'
+              )}
+            >
+              <span
+                className={cn(
+                  'grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full border-2 transition-colors duration-150 motion-reduce:transition-none',
+                  on ? 'border-primary' : 'border-input group-hover:border-ink-faint'
+                )}
+              >
+                {on && <span className="h-2 w-2 rounded-full bg-primary" />}
+              </span>
+              <span
+                className={cn(
+                  'text-[15px] transition-colors duration-150 motion-reduce:transition-none',
+                  on ? 'text-primary' : 'text-ink-soft group-hover:text-ink'
+                )}
+              >
+                {opt.label}
+              </span>
+            </button>
+          )
+        })}
       </div>
-      {desc && <p className="text-xs text-ink-faint mt-2 pl-24">{desc}</p>}
     </div>
   )
 }
@@ -184,7 +211,7 @@ function DataExportSection() {
       const notes = [
         capped.skipped > 0 ? t('settings.import.skipped', { count: capped.skipped }) : '',
         capped.truncated > 0 ? t('settings.import.truncated', { count: capped.truncated }) : '',
-      ].filter(Boolean).join(' · ')
+      ].filter(Boolean).join(t('common.listSeparator'))
       toast({
         title: t('settings.import.done', { count: added }),
         description: notes || undefined,
@@ -218,41 +245,26 @@ function DataExportSection() {
   }
 
   return (
-    <Section title={t('section.yourData')} tag={t('section.yourData.tag')}>
-      <div className="flex items-center justify-between gap-6 py-5">
-        <div className="min-w-0">
-          <p className="text-sm font-medium">{t('settings.export.name')}</p>
-          <p className="mt-0.5 text-xs text-ink-faint">
-            {count == null
-              ? t('settings.export.counting')
-              : t('settings.export.desc', { count })}
-          </p>
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-5">
-          <button
-            type="button"
-            onClick={() => handleExport('json')}
-            className="text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary"
-          >
+    <Section title={t('section.yourData')}>
+      <Row
+        name={t('settings.export.name')}
+        desc={
+          count == null
+            ? t('settings.export.counting')
+            : t('settings.export.desc', { count })
+        }
+      >
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => handleExport('json')}>
             JSON
-          </button>
-          <button
-            type="button"
-            onClick={() => handleExport('csv')}
-            className="text-sm text-ink-soft transition-colors hover:text-primary"
-          >
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>
             CSV
-          </button>
+          </Button>
         </div>
-      </div>
+      </Row>
 
-      <div className="flex items-center justify-between gap-6 py-5">
-        <div className="min-w-0">
-          <p className="text-sm font-medium">{t('settings.import.name')}</p>
-          <p className="mt-0.5 text-xs text-ink-faint">
-            {t('settings.import.desc')}
-          </p>
-        </div>
+      <Row name={t('settings.import.name')} desc={t('settings.import.desc')}>
         <input
           ref={importInputRef}
           type="file"
@@ -263,15 +275,15 @@ function DataExportSection() {
             if (file) void handleImport(file)
           }}
         />
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           disabled={importing || !serverId}
           onClick={() => importInputRef.current?.click()}
-          className="flex-shrink-0 text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary disabled:pointer-events-none disabled:opacity-40"
         >
           {importing ? t('settings.import.busy') : t('action.chooseFile')}
-        </button>
-      </div>
+        </Button>
+      </Row>
     </Section>
   )
 }
@@ -279,7 +291,7 @@ function DataExportSection() {
 export default function Settings() {
   const navigate = useNavigate()
   const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
-  const { theme, setTheme, skin, setSkin } = useThemeStore()
+  const { theme, setTheme } = useThemeStore()
   const { t, locale } = useT()
   const volume    = usePlayerStore(s => s.volume)
   const setVolume = usePlayerStore(s => s.setVolume)
@@ -362,14 +374,13 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-full pt-9 pb-8 animate-fade-in">
+    <div className="min-h-full pb-8 pt-3 animate-fade-in motion-reduce:animate-none">
       <div className="max-w-[720px]">
-        {/* 报头 */}
-        <header>
-          <p className="text-[11px] tracking-[0.3em] text-ink-faint mb-2">{t('settings.preferences.tag')}</p>
-          <h1 className="font-serif text-4xl font-bold tracking-tight">{t('nav.settings')}</h1>
-        </header>
+        <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
+          {t('nav.settings')}
+        </h1>
 
+        <div className="mt-8 flex flex-col gap-9">
         {/*
           音源 —— NAS 类服务器与插件音源同列。
           在这个 App 里它们是同一种东西：一个能出曲子的来源。此前分成
@@ -379,123 +390,125 @@ export default function Settings() {
           词汇约定（全站）：界面上「服务器」只用于 NAS 类，「音源」用于插件，
           「主库」指当前决定浏览页与默认适配器的那一个。
         */}
-        <Section title={t('settings.sources')} tag={t('settings.sources.tag')}>
-          <div>
-            {servers.map(server => {
-              const isPlugin = server.type === 'plugin'
-              const isPrimary = server.id === activeServerId
-              const connected = connectedServerIds.includes(server.id)
-              return (
-                <div
-                  key={server.id}
-                  className="flex items-stretch justify-between gap-4 py-4 border-b border-hair-soft"
-                >
-                  <div className="flex items-stretch gap-3 min-w-0">
-                    {/* 主库：accent 左竖线 */}
-                    <span className={cn('w-[2px] flex-shrink-0', isPrimary ? 'bg-primary' : 'bg-transparent')} />
-                    <div className="min-w-0 py-0.5">
-                      <div className="flex items-center gap-2">
-                        <SourceBadge serverId={server.id} />
-                        <p className="text-sm font-medium truncate">{server.name}</p>
-                        {/* 类型徽标：一眼分清这一行是 NAS 服务器还是插件音源。
-                            不要用 .latin-tag——那个类是「双语报头的拉丁半边」，
-                            软陶皮肤与非中文界面下都会被整条 display:none 掉，
-                            而这里的文案是要翻译、要读懂的 */}
-                        <span className="flex-shrink-0 rounded-[2px] border border-hair px-1.5 py-px text-[10px] tracking-[0.08em] text-ink-faint">
-                          {isPlugin ? t('sources.typeLabel') : t('sources.typeLabelNas')}
-                        </span>
-                        {isPrimary && (
-                          <span className="text-[11px] text-primary flex items-center gap-1 flex-shrink-0">
-                            <CheckCircle weight="fill" className="w-3 h-3" />
-                            {t('sources.settings.primary')}
-                          </span>
-                        )}
-                      </div>
-                      {/* 地址只有 NAS 有意义：插件的服务端是它自己写死的，用户既填不了也改不了 */}
-                      {!isPlugin && <p className="num text-xs text-ink-faint truncate mt-0.5">{server.url}</p>}
-                      <p className="text-xs text-ink-faint truncate mt-0.5">
-                        {isPlugin ? (server.pluginId ?? t('sources.typeLabel')) : getServerTypeLabel(server.type)}
-                        {/* 早先的插件行在盘上存的账号名是字面量 'anonymous'：按有无凭据翻成人话 */}
-                        {server.username
-                          ? ` · ${server.username === 'anonymous'
-                              ? (server.credentials ? t('sources.signedIn') : t('sources.notSignedIn'))
-                              : server.username}`
-                          : ''}
-                        {' · '}
-                        <span className={connected ? 'text-ink-soft' : undefined}>
-                          {connected ? t('settings.source.connected') : t('settings.server.notConnected')}
-                        </span>
-                      </p>
-                    </div>
+        <Section title={t('settings.sources')}>
+          {servers.map(server => {
+            const isPlugin = server.type === 'plugin'
+            const isPrimary = server.id === activeServerId
+            const connected = connectedServerIds.includes(server.id)
+            return (
+              <div key={server.id} className={cn(rowClass, 'justify-between gap-4')}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <SourceBadge serverId={server.id} />
+                    <p className="min-w-0 truncate text-[15px] font-medium">{server.name}</p>
+                    {/* 类型徽标：一眼分清这一行是 NAS 服务器还是插件音源。
+                        文案是要翻译、要读懂的，不是装饰性的拉丁小标签 */}
+                    <span className="flex-shrink-0 rounded-pill bg-paper-deep px-2 py-0.5 text-[11px] text-ink-faint">
+                      {isPlugin ? t('sources.typeLabel') : t('sources.typeLabelNas')}
+                    </span>
+                    {isPrimary && (
+                      <span className="flex flex-shrink-0 items-center gap-1 text-[12px] font-medium text-primary">
+                        <CheckCircle weight="fill" className="h-3.5 w-3.5" />
+                        {t('sources.settings.primary')}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {/* 测试连接只对 NAS 成立：它按 ServerConfig 造一个适配器去 ping，
-                        插件音源根本没有可 ping 的地址，这个按钮此前点了必然报错 */}
-                    {!isPlugin && (
-                      <button
-                        type="button"
-                        onClick={() => handlePing(server.id)}
-                        disabled={pinging === server.id}
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-foreground transition-colors duration-200 active:scale-95"
-                        title={t('settings.server.ping')}
-                        aria-label={t('settings.server.pingAria', { name: server.name })}
-                      >
-                        {pinging === server.id
-                          ? <ArrowsClockwise className="w-4 h-4 animate-spin" />
-                          : <WifiHigh className="w-4 h-4" />
-                        }
-                      </button>
+                  {/* 地址只有 NAS 有意义：插件的服务端是它自己写死的，用户既填不了也改不了 */}
+                  {!isPlugin && <p className="num mt-0.5 truncate text-[13px] text-ink-faint">{server.url}</p>}
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-[13px] text-ink-faint">
+                    <span>{isPlugin ? (server.pluginId ?? t('sources.typeLabel')) : getServerTypeLabel(server.type)}</span>
+                    {/* 早先的插件行在盘上存的账号名是字面量 'anonymous'：按有无凭据翻成人话 */}
+                    {server.username && (
+                      <span>
+                        {server.username === 'anonymous'
+                          ? (server.credentials ? t('sources.signedIn') : t('sources.notSignedIn'))
+                          : server.username}
+                      </span>
                     )}
-                    {!isPrimary && (
-                      <button
-                        type="button"
-                        /* 换主库会清空播放队列并清缓存（serverStore.setPrimaryServer），
-                           这是个有代价的动作，先说清楚再问 */
-                        onClick={() => setPendingPrimary(server.id)}
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-primary transition-colors duration-200 active:scale-95"
-                        title={t('settings.source.setPrimary')}
-                        aria-label={t('settings.source.setPrimaryAria', { name: server.name })}
-                      >
-                        <CaretRight className="w-4 h-4" />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setPendingRemove(server.id)}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-destructive transition-colors duration-200 active:scale-95"
-                      title={t('settings.source.remove')}
-                      aria-label={t('settings.server.removeAria', { name: server.name })}
-                    >
-                      <Trash className="w-4 h-4" />
-                    </button>
+                    <span className={connected ? 'text-ink-soft' : undefined}>
+                      {connected ? t('settings.source.connected') : t('settings.server.notConnected')}
+                    </span>
                   </div>
                 </div>
-              )
-            })}
+                <div className="-mr-2 flex flex-shrink-0 items-center">
+                  {/* 测试连接只对 NAS 成立：它按 ServerConfig 造一个适配器去 ping，
+                      插件音源根本没有可 ping 的地址，这个按钮此前点了必然报错 */}
+                  {!isPlugin && (
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="icon"
+                      onClick={() => handlePing(server.id)}
+                      disabled={pinging === server.id}
+                      className="h-11 w-11"
+                      title={t('settings.server.ping')}
+                      aria-label={t('settings.server.pingAria', { name: server.name })}
+                    >
+                      {pinging === server.id
+                        ? <ArrowsClockwise className="h-[18px] w-[18px] animate-spin motion-reduce:animate-none" />
+                        : <WifiHigh className="h-[18px] w-[18px]" />
+                      }
+                    </Button>
+                  )}
+                  {!isPrimary && (
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="icon"
+                      /* 换主库会清空播放队列并清缓存（serverStore.setPrimaryServer），
+                         这是个有代价的动作，先说清楚再问 */
+                      onClick={() => setPendingPrimary(server.id)}
+                      className="h-11 w-11 hover:text-primary"
+                      title={t('settings.source.setPrimary')}
+                      aria-label={t('settings.source.setPrimaryAria', { name: server.name })}
+                    >
+                      <CaretRight className="h-[18px] w-[18px]" />
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="icon"
+                    size="icon"
+                    onClick={() => setPendingRemove(server.id)}
+                    className="h-11 w-11 hover:text-destructive"
+                    title={t('settings.source.remove')}
+                    aria-label={t('settings.server.removeAria', { name: server.name })}
+                  >
+                    <Trash className="h-[18px] w-[18px]" />
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
 
-            {supportsScan && (
-              <Row
-                name={t('settings.scan.name')}
-                desc={t('settings.scan.desc')}
+          {supportsScan && (
+            <Row
+              name={t('settings.scan.name')}
+              desc={t('settings.scan.desc')}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => scan.mutate()}
+                disabled={scan.isPending}
               >
-                <button
-                  onClick={() => scan.mutate()}
-                  disabled={scan.isPending}
-                  className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink disabled:opacity-50"
-                >
-                  <ArrowsClockwise size={13} className={scan.isPending ? 'animate-spin' : undefined} />
-                  {scan.isPending ? t('settings.scan.busy') : t('settings.scan.start')}
-                </button>
-              </Row>
-            )}
+                <ArrowsClockwise
+                  size={14}
+                  className={scan.isPending ? 'animate-spin motion-reduce:animate-none' : undefined}
+                />
+                {scan.isPending ? t('settings.scan.busy') : t('settings.scan.start')}
+              </Button>
+            </Row>
+          )}
 
+          <div className={rowClass}>
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/login')}
-              className="mt-5 gap-1.5"
+              className="gap-1.5"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="h-3.5 w-3.5" />
               {t('settings.source.add')}
             </Button>
           </div>
@@ -508,7 +521,7 @@ export default function Settings() {
         <SourcesSettings />
 
         {/* 界面语言 */}
-        <Section title={t('settings.language')} tag={t('settings.language.tag')}>
+        <Section title={t('settings.language')}>
           <Row
             name={t('settings.language.display')}
             desc={t('settings.language.displayDesc')}
@@ -522,29 +535,8 @@ export default function Settings() {
           </Row>
         </Section>
 
-        {/* 外观 */}
-        <Section title={t('settings.appearance')} tag={t('settings.appearance.tag')}>
-          {/*
-            皮肤排在明暗之上：它决定的是整套设计语言（形状、字体、动效），
-            明暗只是同一张皮的两个档位。
-          */}
-          <Row
-            name={t('settings.skin.name')}
-            desc={
-              <>
-                {t('settings.skin.desc')}
-                <br />
-                <span className="text-ink-soft">{t(SKIN_LABEL_KEYS[skin].desc)}</span>
-              </>
-            }
-          >
-            <Segmented
-              label={t('settings.skin.name')}
-              value={skin}
-              onChange={setSkin}
-              options={SKINS.map(value => ({ value, label: t(SKIN_LABEL_KEYS[value].name) }))}
-            />
-          </Row>
+        {/* 外观：皮肤已收敛为一套，只剩明暗 */}
+        <Section title={t('settings.appearance')}>
           <Row name={t('settings.theme.name')} desc={t('settings.theme.desc')}>
             <Segmented
               label={t('settings.theme.name')}
@@ -571,9 +563,9 @@ export default function Settings() {
         </Section>
 
         {/* 音频 */}
-        <Section title={t('settings.audio')} tag={t('settings.audio.tag')}>
+        <Section title={t('settings.audio')}>
           <Row name={t('settings.volume.name')}>
-            <div className="flex items-center gap-3 w-60">
+            <div className="flex w-60 items-center gap-3">
               <Slider
                 value={[volume]}
                 min={0}
@@ -583,46 +575,23 @@ export default function Settings() {
                 aria-label={t('settings.volume.name')}
                 className="flex-1"
               />
-              <span className="num text-xs text-ink-soft w-9 text-right">
+              <span className="num w-9 text-right text-[13px] text-ink-soft">
                 {Math.round(volume * 100)}%
               </span>
             </div>
           </Row>
-          <div className="py-4 border-b border-hair-soft">
-            <p className="text-sm font-medium">{t('settings.quality.wifi')}</p>
-            <p className="text-xs text-ink-faint mt-0.5">
-              {t('settings.quality.desc')}
-            </p>
-            <div role="radiogroup" aria-label={t('settings.quality.wifiAria')} className="mt-2">
-              {(Object.keys(QUALITY_LABEL_KEYS) as AudioQuality[]).map(q => (
-                <button
-                  key={q}
-                  type="button"
-                  role="radio"
-                  aria-checked={audioQuality === q}
-                  onClick={() => setAudioQuality(q)}
-                  className="group w-full flex items-center gap-3 py-2.5 text-left"
-                >
-                  <span
-                    className={cn(
-                      'w-3 h-3 rounded-full border flex-shrink-0 transition-colors duration-200',
-                      audioQuality === q
-                        ? 'border-primary bg-primary'
-                        : 'border-hair group-hover:border-ink-faint'
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      'text-sm transition-colors duration-200',
-                      audioQuality === q ? 'text-primary' : 'text-ink-soft group-hover:text-foreground'
-                    )}
-                  >
-                    {t(QUALITY_LABEL_KEYS[q])}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+
+          <ChoiceRow
+            name={t('settings.quality.wifi')}
+            desc={t('settings.quality.desc')}
+            groupLabel={t('settings.quality.wifiAria')}
+            value={audioQuality}
+            onChange={setAudioQuality}
+            options={(Object.keys(QUALITY_LABEL_KEYS) as AudioQuality[]).map(q => ({
+              value: q,
+              label: t(QUALITY_LABEL_KEYS[q]),
+            }))}
+          />
 
           <Row
             name={t('settings.adaptiveQuality.name')}
@@ -632,86 +601,32 @@ export default function Settings() {
           </Row>
 
           {adaptiveQuality && (
-            <div className="py-4 border-b border-hair-soft">
-              <p className="text-sm font-medium">{t('settings.quality.cellular')}</p>
-              <p className="text-xs text-ink-faint mt-0.5">
-                {t('settings.quality.cellularDesc')}
-              </p>
-              <div role="radiogroup" aria-label={t('settings.quality.cellularAria')} className="mt-2">
-                {(Object.keys(QUALITY_LABEL_KEYS) as AudioQuality[]).map(q => (
-                  <button
-                    key={q}
-                    type="button"
-                    role="radio"
-                    aria-checked={cellularAudioQuality === q}
-                    onClick={() => setCellularAudioQuality(q)}
-                    className="group w-full flex items-center gap-3 py-2.5 text-left"
-                  >
-                    <span
-                      className={cn(
-                        'w-3 h-3 rounded-full border flex-shrink-0 transition-colors duration-200',
-                        cellularAudioQuality === q
-                          ? 'border-primary bg-primary'
-                          : 'border-hair group-hover:border-ink-faint'
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        'text-sm transition-colors duration-200',
-                        cellularAudioQuality === q
-                          ? 'text-primary'
-                          : 'text-ink-soft group-hover:text-foreground'
-                      )}
-                    >
-                      {t(QUALITY_LABEL_KEYS[q])}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <ChoiceRow
+              name={t('settings.quality.cellular')}
+              desc={t('settings.quality.cellularDesc')}
+              groupLabel={t('settings.quality.cellularAria')}
+              value={cellularAudioQuality}
+              onChange={setCellularAudioQuality}
+              options={(Object.keys(QUALITY_LABEL_KEYS) as AudioQuality[]).map(q => ({
+                value: q,
+                label: t(QUALITY_LABEL_KEYS[q]),
+              }))}
+            />
           )}
 
-          <div className="py-4 border-b border-hair-soft">
-            <p className="text-sm font-medium">{t('settings.replayGain.name')}</p>
-            <p className="text-xs text-ink-faint mt-0.5 max-w-[52ch]">
-              {t('settings.replayGain.desc')}
-            </p>
-            <div role="radiogroup" aria-label={t('settings.replayGain.label')} className="mt-2 flex flex-wrap gap-x-7 gap-y-1">
-              {REPLAY_GAIN_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={replayGainMode === opt.value}
-                  onClick={() => setReplayGainMode(opt.value)}
-                  className="group flex items-center gap-2.5 py-2 text-left"
-                >
-                  <span
-                    className={cn(
-                      'w-3 h-3 rounded-full border flex-shrink-0 transition-colors duration-200',
-                      replayGainMode === opt.value
-                        ? 'border-primary bg-primary'
-                        : 'border-hair group-hover:border-ink-faint'
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      'text-sm transition-colors duration-200',
-                      replayGainMode === opt.value
-                        ? 'text-primary'
-                        : 'text-ink-soft group-hover:text-foreground'
-                    )}
-                  >
-                    {t(opt.labelKey)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <ChoiceRow
+            inline
+            name={t('settings.replayGain.name')}
+            desc={t('settings.replayGain.desc')}
+            groupLabel={t('settings.replayGain.label')}
+            value={replayGainMode}
+            onChange={setReplayGainMode}
+            options={REPLAY_GAIN_OPTIONS.map(opt => ({ value: opt.value, label: t(opt.labelKey) }))}
+          />
 
           {replayGainMode !== 'off' && (
             <Row name={t('settings.preamp.name')} desc={t('settings.preamp.desc')}>
-              <div className="flex items-center gap-3 w-60">
+              <div className="flex w-60 items-center gap-3">
                 <Slider
                   value={[replayGainPreamp]}
                   min={-15}
@@ -724,7 +639,7 @@ export default function Settings() {
                   })}
                   className="flex-1"
                 />
-                <span className="num text-xs text-ink-soft w-12 text-right">
+                <span className="num w-14 text-right text-[13px] text-ink-soft">
                   {replayGainPreamp > 0 ? '+' : ''}{replayGainPreamp} dB
                 </span>
               </div>
@@ -732,7 +647,7 @@ export default function Settings() {
           )}
 
           <Row name={t('settings.playbackRate.name')} desc={t('settings.playbackRate.desc')}>
-            <div className="flex items-center gap-3 w-60">
+            <div className="flex w-60 items-center gap-3">
               <Slider
                 value={[playbackRate]}
                 min={0.5}
@@ -743,7 +658,7 @@ export default function Settings() {
                 aria-valuetext={t('settings.playbackRate.valueText', { rate: playbackRate.toFixed(2) })}
                 className="flex-1"
               />
-              <span className="num text-xs text-ink-soft w-12 text-right">
+              <span className="num w-12 text-right text-[13px] text-ink-soft">
                 {playbackRate.toFixed(2)}×
               </span>
             </div>
@@ -783,7 +698,7 @@ export default function Settings() {
                   onValueChange={([v]) => setSeekStepSeconds(v)}
                   className="w-[140px]"
                 />
-                <span className="font-num w-10 text-right text-sm">{seekStepSeconds}s</span>
+                <span className="num w-10 text-right text-[13px] text-ink-soft">{seekStepSeconds}s</span>
               </div>
             </Row>
           )}
@@ -791,13 +706,14 @@ export default function Settings() {
             name={t('player.carMode')}
             desc={t('settings.carMode.desc')}
           >
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => usePlayerStore.getState().setCarMode(true)}
-              className="text-sm font-semibold underline decoration-hair decoration-1 underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary"
             >
               {t('settings.carMode.enter')}
-            </button>
+            </Button>
           </Row>
           <Row
             name={t('settings.resume.name')}
@@ -815,7 +731,7 @@ export default function Settings() {
         </Section>
 
         {/* 自定义 API */}
-        <Section title={t('settings.customApi')} tag={t('settings.customApi.tag')}>
+        <Section title={t('settings.customApi')}>
           <Row name={t('settings.api.preferServer')} desc={t('settings.api.preferServerDesc')}>
             <Toggle label={t('settings.api.preferServer')} checked={apiPreferServer} onChange={setApiPreferServer} />
           </Row>
@@ -828,7 +744,7 @@ export default function Settings() {
             desc={(
               <>
                 {t('settings.api.authTokenDesc1')}
-                <code className="num text-ink-soft border border-hair-soft rounded-sm px-1 mx-1">Authorization</code>
+                <code className="num mx-1 rounded-sm bg-paper-deep px-1.5 py-0.5 text-ink-soft">Authorization</code>
                 {t('settings.api.authTokenDesc2')}
               </>
             )}
@@ -885,7 +801,7 @@ export default function Settings() {
               value={translateTargetLang}
               onChange={e => setTranslateTargetLang(e.target.value)}
               aria-label={t('settings.translate.targetLangAria')}
-              className="h-9 bg-transparent border-0 border-b border-hair rounded-none text-sm text-ink-soft cursor-pointer focus:outline-none focus:border-primary"
+              className={selectClass}
             >
               {TRANSLATE_LANGS.map(lang => (
                 <option key={lang.value} value={lang.value}>{t(lang.labelKey)}</option>
@@ -897,7 +813,7 @@ export default function Settings() {
               value={translateType}
               onChange={e => setTranslateType(e.target.value)}
               aria-label={t('settings.translate.typeAria')}
-              className="h-9 bg-transparent border-0 border-b border-hair rounded-none text-sm text-ink-soft cursor-pointer focus:outline-none focus:border-primary"
+              className={selectClass}
             >
               {TRANSLATE_TYPES.map(item => (
                 <option key={item.value} value={item.value}>{t(item.labelKey)}</option>
@@ -907,9 +823,9 @@ export default function Settings() {
         </Section>
 
         {/* 歌词外观 */}
-        <Section title={t('settings.lyrics')} tag={t('settings.lyrics.tag')}>
+        <Section title={t('settings.lyrics')}>
           <Row name={t('settings.lyrics.fontSize')} desc={t('settings.lyrics.fontSizeDesc')}>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
               <Slider
                 value={[lyricsFontSize]}
                 min={14}
@@ -919,24 +835,13 @@ export default function Settings() {
                 aria-label={t('settings.lyrics.fontSizeAria')}
                 className="w-28"
               />
-              <span className="num text-xs text-ink-soft w-9 text-right">{lyricsFontSize}px</span>
-              <div className="flex gap-2 ml-1">
-                {[16, 20, 24, 28, 32].map(size => (
-                  <button
-                    key={size}
-                    type="button"
-                    onClick={() => setLyricsFontSize(size)}
-                    className={cn(
-                      'num text-[11px] transition-colors duration-200',
-                      lyricsFontSize === size
-                        ? 'text-primary border-b border-primary'
-                        : 'text-ink-faint hover:text-foreground'
-                    )}
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
+              <span className="num w-10 text-right text-[13px] text-ink-soft">{lyricsFontSize}px</span>
+              <Segmented
+                label={t('settings.lyrics.fontSize')}
+                value={String(lyricsFontSize)}
+                onChange={v => setLyricsFontSize(Number(v))}
+                options={[16, 20, 24, 28, 32].map(size => ({ value: String(size), label: String(size) }))}
+              />
             </div>
           </Row>
           <Row name={t('settings.lyrics.useRemote')} desc={t('settings.lyrics.useRemoteDesc')}>
@@ -953,7 +858,7 @@ export default function Settings() {
         <SyncSettings />
 
         {/* 歌手档案：默认关闭的第三方查询 */}
-        <Section title={t('settings.dossier')} tag={t('settings.dossier.tag')}>
+        <Section title={t('settings.dossier')}>
           <Row
             name={t('settings.musicBrainz.name')}
             desc={t('settings.musicBrainz.desc')}
@@ -965,24 +870,22 @@ export default function Settings() {
             />
           </Row>
           {musicBrainzEnabled && (
-            <div className="flex items-center justify-between gap-6 py-4">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{t('settings.musicBrainz.cache')}</p>
-                <p className="mt-0.5 text-xs text-ink-faint">
-                  {t('settings.musicBrainz.cacheDesc')}
-                </p>
-              </div>
-              <button
+            <Row
+              name={t('settings.musicBrainz.cache')}
+              desc={t('settings.musicBrainz.cacheDesc')}
+            >
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   clearProfileCache()
                   toast({ title: t('settings.musicBrainz.cleared') })
                 }}
-                className="flex-shrink-0 text-sm text-ink-soft transition-colors hover:text-primary"
               >
                 {t('settings.musicBrainz.clear')}
-              </button>
-            </div>
+              </Button>
+            </Row>
           )}
         </Section>
 
@@ -992,73 +895,71 @@ export default function Settings() {
         {/* 你的数据：想拿走随时能拿走 */}
         <DataExportSection />
 
-        {/* 关于 */}
-        <Section title={t('settings.about')} tag={t('settings.about.tag')}>
-          <div className="flex items-center justify-between py-4 border-b border-hair-soft">
-            <span className="text-sm text-ink-soft">{t('settings.about.version')}</span>
-            <span className="num text-sm">v{pkg.version}</span>
-          </div>
-          <div className="flex items-center justify-between py-4 border-b border-hair-soft">
-            <span className="text-sm text-ink-soft">{t('settings.about.license')}</span>
-            <span className="text-sm">MIT License</span>
-          </div>
-          <div className="flex items-center justify-between py-4 border-b border-hair-soft">
-            <span className="text-sm text-ink-soft">GitHub</span>
+        {/* 关于：版本号是页面上唯一保留的版本信息 */}
+        <Section title={t('settings.about')}>
+          <Row name={t('settings.about.version')}>
+            <span className="num text-[15px]">v{pkg.version}</span>
+          </Row>
+          <Row name={t('settings.about.license')}>
+            <span className="text-[15px]">MIT License</span>
+          </Row>
+          <Row name="GitHub">
             <a
               href="https://github.com/baogutang/N1KO-MUSIC"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-primary underline decoration-hair underline-offset-[6px] hover:decoration-primary transition-colors"
+              className="rounded-sm text-[15px] text-primary underline-offset-4 hover:underline"
             >
               N1KO-MUSIC
             </a>
-          </div>
+          </Row>
         </Section>
 
         {/* 危险区 */}
         {activeServer && (
-          <Section title={t('settings.danger')} tag={t('settings.danger.tag')}>
-            <div className="flex items-center justify-between gap-6 py-5">
-              <div>
-                <p className="text-sm font-medium">{t('settings.disconnect.name')}</p>
-                <p className="text-xs text-ink-faint mt-0.5">{t('settings.disconnect.desc')}</p>
-              </div>
+          <Section title={t('settings.danger')}>
+            <Row name={t('settings.disconnect.name')} desc={t('settings.disconnect.desc')}>
               {confirmDisconnect ? (
-                <div className="flex items-center gap-4 flex-shrink-0">
-                  <button
+                <div className="flex items-center gap-2">
+                  <Button
                     type="button"
+                    variant="destructive"
+                    size="sm"
                     onClick={handleDisconnect}
-                    className="text-sm font-semibold text-destructive underline decoration-1 underline-offset-[6px] decoration-destructive/40 hover:decoration-destructive transition-colors"
                   >
                     {t('settings.disconnect.confirm')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setConfirmDisconnect(false)}
-                    className="text-sm text-ink-faint hover:text-foreground transition-colors"
                   >
                     {t('action.cancel')}
-                  </button>
+                  </Button>
                 </div>
               ) : (
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setConfirmDisconnect(true)}
-                  className="flex-shrink-0 flex items-center gap-1.5 text-sm font-semibold text-destructive underline decoration-1 underline-offset-[6px] decoration-destructive/40 hover:decoration-destructive transition-colors"
+                  className="gap-1.5 text-destructive"
                 >
-                  <SignOut className="w-4 h-4" />
+                  <SignOut className="h-4 w-4" />
                   {t('settings.disconnect.action')}
-                </button>
+                </Button>
               )}
-            </div>
+            </Row>
           </Section>
         )}
+        </div>
       </div>
 
       {/* 换主库的后果先说清楚：队列会被清空、正在放的那一首会停。
           此前这个按钮点下去就直接换了，音乐当场没了也没人解释一句 */}
       <Dialog open={pendingPrimary !== null} onOpenChange={open => { if (!open) setPendingPrimary(null) }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="regular:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('settings.primaryDialog.title')}</DialogTitle>
             <DialogDescription>
@@ -1084,7 +985,7 @@ export default function Settings() {
       </Dialog>
 
       <Dialog open={pendingRemove !== null} onOpenChange={open => { if (!open) setPendingRemove(null) }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="regular:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('settings.removeDialog.title')}</DialogTitle>
             <DialogDescription>

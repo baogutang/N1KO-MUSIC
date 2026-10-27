@@ -1,8 +1,8 @@
 /**
- * 播放队列面板（杂志编辑风，DESIGN v2）
- * 右侧滑出：纸面底、左缘 1px 发丝线、宽 320px、浮层淡投影
- * 编号行（mono 序号 + 衬线曲名 + mono 时长），当前行 accent + EQ 动画
- * 支持拖拽排序、删除、清空（二次确认）
+ * 播放队列面板（v5 暖纸）
+ * 一张浮起的纸片：宽窗口贴右侧浮着（避开底部播放区），窄窗口是底部弹层。
+ * 序号 + 曲名 + 时长，行与行之间不画线，hover 铺一层下沉底，当前行陶土色 + EQ 动画。
+ * 支持拖拽排序、删除、清空（二次确认）。
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -21,7 +21,7 @@ import { useCreatePlaylist } from '@/hooks/useServerQueries'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import { toast } from '@/components/ui/use-toast'
 import { Input } from '@/components/ui/input'
-import { useIsMobileLayout } from '@/lib/platform'
+import { useWindowClass } from '@/lib/platform'
 import { formatDuration } from '@/utils/formatters'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -49,7 +49,7 @@ export function QueueDrawer() {
   const reorderQueue    = usePlayerStore(s => s.reorderQueue)
   const reorderPlayOrder = usePlayerStore(s => s.reorderPlayOrder)
   const clearQueue      = usePlayerStore(s => s.clearQueue)
-  const isMobile        = useIsMobileLayout()
+  const isMobile        = useWindowClass() === 'compact'
 
   /**
    * 队列可以很长——按一次「全库随机」就是几百上千首。
@@ -194,9 +194,9 @@ export function QueueDrawer() {
                 onDragEnd={() => { setDragIndex(null); setOverIndex(null) }}
                 onClick={() => jumpToIndex(qi)}
                 className={cn(
-                  'group flex items-center gap-3 px-4 py-2.5 border-b border-hair-soft cursor-pointer transition-colors duration-150',
-                  'hover:bg-paper-deep/60',
-                  overIndex === pos && dragIndex !== null && 'ring-1 ring-inset ring-primary/40',
+                  'group mx-2 flex items-center gap-3 rounded-sm px-3 py-2 cursor-pointer transition-colors duration-150 motion-reduce:transition-none',
+                  'hover:bg-paper-deep',
+                  overIndex === pos && dragIndex !== null && 'ring-2 ring-inset ring-primary/40',
                   dragIndex === pos && 'opacity-50'
                 )}
               >
@@ -210,7 +210,7 @@ export function QueueDrawer() {
                     <>
                       <span
                         className={cn(
-                          'font-num text-[11px] group-hover:hidden',
+                          'num text-[12px] group-hover:hidden',
                           isCurrent ? 'text-primary' : 'text-ink-faint'
                         )}
                       >
@@ -228,7 +228,7 @@ export function QueueDrawer() {
                 <span className="flex-1 min-w-0">
                   <span
                     className={cn(
-                      'block font-serif text-[13.5px] font-semibold truncate flex items-center gap-1.5',
+                      'flex items-center gap-1.5 truncate font-display text-[14.5px] font-semibold',
                       isCurrent ? 'text-primary' : 'text-foreground'
                     )}
                   >
@@ -236,12 +236,12 @@ export function QueueDrawer() {
                     <VipTag song={song} />
                     {multiSource && <SourceBadge serverId={song.serverId} />}
                   </span>
-                  <span className="block text-[11px] text-ink-faint truncate mt-0.5">
+                  <span className="mt-0.5 block truncate text-[12px] text-ink-faint">
                     {spaceCJK(song.artist)}
                   </span>
                 </span>
 
-                <span className="font-num text-[11px] text-ink-faint flex-shrink-0">
+                <span className="num flex-shrink-0 text-[12px] text-ink-faint">
                   {formatDuration(song.duration)}
                 </span>
 
@@ -273,17 +273,17 @@ export function QueueDrawer() {
                     </button>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 flex-shrink-0">
+                  <span className="flex flex-shrink-0 items-center gap-0.5 transition-opacity duration-150 motion-reduce:transition-none [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100">
                     <button
                       onClick={(e) => { e.stopPropagation(); jumpToIndex(qi) }}
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-150 active:scale-95"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors duration-150 hover:bg-paper-3 hover:text-primary active:scale-95"
                       aria-label={t('queue.playSong', { title: song.title })}
                     >
                       <Play size={11} weight="fill" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); removeFromQueue(qi) }}
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-150 active:scale-95"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors duration-150 hover:bg-paper-3 hover:text-primary active:scale-95"
                       aria-label={t('queue.remove', { title: song.title })}
                     >
                       <X size={12} />
@@ -304,57 +304,67 @@ export function QueueDrawer() {
       {/* 透明遮罩：点击面板外区域关闭（只覆盖内容区，不遮挡报头与播放条） */}
       <div className="absolute inset-0 z-20" aria-hidden="true" onClick={() => setQueueOpen(false)} />
 
-      {/* 面板：桌面右侧滑出；移动端底部弹层（含底部安全区） */}
+      {/* 面板：宽窗口贴右侧浮起（底边让开底部播放区）；窄窗口是底部弹层（含底部安全区，盖过标签栏） */}
       <div
         className={cn(
-          'absolute z-30 bg-paper shadow-float flex flex-col',
+          'absolute flex flex-col overflow-hidden bg-sheet shadow-float',
           isMobile
-            ? 'inset-x-0 bottom-0 max-h-[85%] border-t border-hair animate-slide-up'
-            : 'inset-y-0 right-0 w-[320px] border-l border-hair animate-slide-in-right'
+            ? 'inset-x-0 bottom-0 z-50 max-h-[85%] rounded-t-lg animate-slide-up motion-reduce:animate-none'
+            : 'right-2 top-2 z-30 w-[360px] rounded-lg animate-slide-in-right motion-reduce:animate-none'
         )}
-        style={isMobile ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}
+        style={isMobile
+          ? { paddingBottom: 'env(safe-area-inset-bottom)' }
+          : { bottom: 'calc(var(--dock-h, 96px) + 8px)' }}
       >
-        {/* 头部：衬线标题 + 清空 / 关闭 */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-hair flex-shrink-0">
-          <h3 className="font-serif font-bold text-[17px] flex items-baseline gap-2.5">
-            {t('player.queue')}
-            {/* 面板此时显示的是随机顺序而非原始曲序，必须说明，否则用户会以为随机没生效 */}
-            {shuffle && (
-              <span className="inline-flex items-center gap-1 text-[10.5px] font-sans font-medium tracking-[0.14em] text-primary">
-                <Shuffle size={11} aria-hidden="true" />
-                {t('queue.shuffledOrder')}
-              </span>
-            )}
-          </h3>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => { setSaveName(''); setSaveOpen(true) }}
-              className="inline-flex items-center gap-1 text-[12px] tracking-[0.14em] text-ink-soft hover:text-primary transition-colors duration-200"
-            >
-              <BookmarkSimple size={12} aria-hidden="true" />
-              {t('queue.saveAsPlaylist')}
-            </button>
-            <button
-              onClick={() => setConfirmClear(true)}
-              className="text-[12px] tracking-[0.14em] text-ink-soft hover:text-primary transition-colors duration-200"
-            >
-              {t('queue.clear')}
-            </button>
-            <button
+        {/* 头部：标题 + 关闭；下一行是存为歌单 / 清空 */}
+        <div className="flex-shrink-0 px-5 pb-1 pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="flex min-w-0 items-baseline gap-2.5 font-display text-[20px] font-semibold">
+              {t('player.queue')}
+              {/* 面板此时显示的是随机顺序而非原始曲序，必须说明，否则用户会以为随机没生效 */}
+              {shuffle && (
+                <span className="inline-flex items-center gap-1 font-sans text-[12px] font-medium text-primary">
+                  <Shuffle size={12} aria-hidden="true" />
+                  {t('queue.shuffledOrder')}
+                </span>
+              )}
+            </h3>
+            <Button
+              variant="icon"
+              size="icon-sm"
               onClick={() => setQueueOpen(false)}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-ink-soft hover:text-primary transition-colors duration-200 active:scale-95"
               aria-label={t('queue.close')}
+              className="-mr-2 flex-shrink-0"
             >
               <X size={16} />
-            </button>
+            </Button>
+          </div>
+          <div className="-ml-3 mt-0.5 flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setSaveName(''); setSaveOpen(true) }}
+              className="gap-1.5 text-[13px] font-medium"
+            >
+              <BookmarkSimple size={14} aria-hidden="true" />
+              {t('queue.saveAsPlaylist')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmClear(true)}
+              className="text-[13px] font-medium"
+            >
+              {t('queue.clear')}
+            </Button>
           </div>
         </div>
 
         <ScrollArea className="flex-1" viewportRef={viewportRef}>
           {queue.length === 0 ? (
             <div className="px-6 py-12 text-center">
-              <p className="font-serif text-[15px] text-foreground">{t('empty.queue.title')}</p>
-              <p className="text-[12px] text-ink-faint mt-1">{t('empty.queue.description')}</p>
+              <p className="font-display text-[16px] font-semibold text-foreground">{t('empty.queue.title')}</p>
+              <p className="mt-1 text-[13px] text-ink-faint">{t('empty.queue.description')}</p>
             </div>
           ) : (
             <QueueList
@@ -367,21 +377,23 @@ export function QueueDrawer() {
         </ScrollArea>
 
         {queue.length > 0 && (
-          <div className="px-5 py-2.5 border-t border-hair flex-shrink-0">
+          <div className="flex-shrink-0 px-5 py-3">
             {/* 计数按播放位置算：随机时数组下标毫无意义（会显示成「17 / 40」而实际在第 3 首） */}
-            <p className="text-[11px] text-ink-faint text-center">
-              {/* 数字留在 .font-num 里（等宽 tabular），单位词跟着语言走 */}
-              <span className="font-num">{queue.length}</span>{' '}
-              {queue.length === 1 ? t('queue.trackUnit') : t('queue.tracksUnit')} ·{' '}
-              <span className="font-num">{position >= 0 ? position + 1 : '–'} / {order.length}</span>
-              {shuffle && <span className="ml-1.5">{t('queue.shuffledOrderNote')}</span>}
+            <p className="flex flex-wrap justify-center gap-x-3 text-[12px] text-ink-faint">
+              {/* 数字留在 .num 里（等宽 tabular），单位词跟着语言走 */}
+              <span>
+                <span className="num">{queue.length}</span>{' '}
+                {queue.length === 1 ? t('queue.trackUnit') : t('queue.tracksUnit')}
+              </span>
+              <span className="num">{position >= 0 ? position + 1 : '–'} / {order.length}</span>
+              {shuffle && <span>{t('queue.shuffledOrderNote')}</span>}
             </p>
           </div>
         )}
       </div>
 
       <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="regular:max-w-sm">
           <DialogHeader>
             <DialogTitle>{t('queue.saveAsPlaylist')}</DialogTitle>
             <DialogDescription>
@@ -412,7 +424,7 @@ export function QueueDrawer() {
       </Dialog>
 
       <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="regular:max-w-sm">
           <DialogHeader>
             <DialogTitle>{t('queue.clearConfirmTitle')}</DialogTitle>
             <DialogDescription>
@@ -439,8 +451,8 @@ export function QueueDrawer() {
 
 /** 超过这个长度才虚拟化。短队列实挂更简单，也没有测量带来的首帧抖动。 */
 const QUEUE_VIRTUALIZE_THRESHOLD = 80
-/** 行高估计值：序号 + 两行文字 + 上下 padding，实测约 54px */
-const QUEUE_ROW_HEIGHT = 54
+/** 行高估计值：序号 + 两行文字 + 上下 padding，实测约 52px */
+const QUEUE_ROW_HEIGHT = 52
 
 /**
  * 队列列表。

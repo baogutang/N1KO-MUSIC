@@ -1,5 +1,10 @@
 /** @type {import('tailwindcss').Config} */
-import plugin from 'tailwindcss/plugin'
+
+/**
+ * v5 暖纸：颜色 token 全是 oklch 的三个通道（见 index.css），
+ * 这里统一包成 `oklch(var(--x) / <alpha-value>)`，`/40` 之类的不透明度修饰符因此处处有效。
+ */
+const c = (name: string) => `oklch(var(--${name}) / <alpha-value>)`
 
 export default {
   darkMode: ['class'],
@@ -18,96 +23,97 @@ export default {
       },
     },
     extend: {
+      /**
+       * 断点按窗口宽度分三档（与 useWindowClass 一致）：
+       *   compact < 600：底部标签栏（iPhone、Duo 外屏、窄分屏）
+       *   regular 600–1023：侧边导航条（Duo 展开、iPad 竖屏、半屏分屏）
+       *   wide ≥ 1024：侧栏 + 正在播放面板（iPad 横屏、桌面）
+       */
+      screens: {
+        regular: '600px',
+        wide: '1024px',
+      },
       fontFamily: {
         sans: 'var(--font-sans)',
         serif: 'var(--font-serif)',
+        display: 'var(--font-display)',
+        figure: 'var(--font-figure)',
         mono: 'var(--font-mono)',
       },
       colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        border: c('border'),
+        input: c('input'),
+        ring: c('ring'),
+        background: c('background'),
+        foreground: c('foreground'),
         primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+          DEFAULT: c('primary'),
+          foreground: c('primary-foreground'),
         },
-        /* 语义状态色（阶段 7.5）：皮肤无关的 playing/connected/fav/error */
         sem: {
-          playing: 'hsl(var(--sem-playing))',
-          connected: 'hsl(var(--sem-connected))',
-          fav: 'hsl(var(--sem-fav))',
-          error: 'hsl(var(--sem-error))',
+          playing: c('sem-playing'),
+          connected: c('sem-connected'),
+          fav: c('sem-fav'),
+          error: c('sem-error'),
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+          DEFAULT: c('secondary'),
+          foreground: c('secondary-foreground'),
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: c('destructive'),
+          foreground: c('destructive-foreground'),
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: c('muted'),
+          foreground: c('muted-foreground'),
         },
-        // shadcn 的 accent 是 hover 底面语义（paper-deep）；
-        // 品牌朱红用 primary / paper-ink 语义色
+        // shadcn 的 accent 是 hover 底面语义；品牌陶土色请用 primary
         accent: {
-          DEFAULT: 'hsl(var(--accent-surface))',
-          foreground: 'hsl(var(--accent-surface-foreground))',
+          DEFAULT: c('accent-surface'),
+          foreground: c('accent-surface-foreground'),
         },
         popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
+          DEFAULT: c('popover'),
+          foreground: c('popover-foreground'),
         },
         card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
+          DEFAULT: c('card'),
+          foreground: c('card-foreground'),
         },
-        // 编辑风设计 token（RGB 通道，见 index.css :root）
         paper: {
-          DEFAULT: 'rgb(var(--paper) / <alpha-value>)',
-          deep: 'rgb(var(--paper-deep) / <alpha-value>)',
+          DEFAULT: c('paper'),
+          deep: c('paper-deep'),
+          3: c('paper-3'),
         },
+        sheet: c('sheet'),
         ink: {
-          DEFAULT: 'rgb(var(--ink) / <alpha-value>)',
-          soft: 'rgb(var(--ink-soft) / <alpha-value>)',
-          faint: 'rgb(var(--ink-faint) / <alpha-value>)',
+          DEFAULT: c('ink'),
+          soft: c('ink-soft'),
+          faint: c('ink-faint'),
         },
         hair: {
-          DEFAULT: 'rgb(var(--hair))',
-          soft: 'rgb(var(--hair-soft))',
+          DEFAULT: c('hair'),
+          soft: c('hair-soft'),
         },
-        skeleton: 'rgb(var(--skeleton) / <alpha-value>)',
+        skeleton: c('skeleton'),
         surface: {
-          DEFAULT: 'hsl(var(--surface))',
-          hover: 'hsl(var(--surface-hover))',
+          DEFAULT: c('surface'),
+          hover: c('surface-hover'),
         },
-        /**
-         * 糖果色（DESIGN v3 §1.3）。只在 pop 皮肤下有定义，
-         * 因此必须配 `pop:` 变体使用——`pop:bg-candy-ok-soft`。
-         * 直接裸用会在编辑风下解析成空值，边框/底色整条失效。
-         */
+        rubber: c('rubber'),
+        bezel: c('bezel'),
         candy: {
-          ok: 'rgb(var(--candy-ok) / <alpha-value>)',
-          'ok-fill': 'rgb(var(--candy-ok-fill) / <alpha-value>)',
-          'ok-soft': 'rgb(var(--candy-ok-soft) / <alpha-value>)',
-          'warn-fill': 'rgb(var(--candy-warn-fill) / <alpha-value>)',
-          'warn-soft': 'rgb(var(--candy-warn-soft) / <alpha-value>)',
-          danger: 'rgb(var(--candy-danger) / <alpha-value>)',
-          'danger-fill': 'rgb(var(--candy-danger-fill) / <alpha-value>)',
-          'danger-soft': 'rgb(var(--candy-danger-soft) / <alpha-value>)',
+          ok: c('candy-ok'),
+          'ok-fill': c('candy-ok-fill'),
+          'ok-soft': c('candy-ok-soft'),
+          'warn-fill': c('candy-warn-fill'),
+          'warn-soft': c('candy-warn-soft'),
+          danger: c('candy-danger'),
+          'danger-fill': c('candy-danger-fill'),
+          'danger-soft': c('candy-danger-soft'),
         },
       },
-      /**
-       * 圆角与描边宽度都改成 token 驱动（DESIGN v3 §7）。
-       * 这是「换皮不只换颜色」的关键一步：全站 150+ 处 rounded-sm/md/lg
-       * 与 170+ 处 border 无需逐个改写，跟着皮肤自动变形。
-       *   编辑风 4/6/8px、1px 描边
-       *   波普   10/12/16px、2px 描边
-       */
       borderRadius: {
         lg: 'var(--r-lg)',
         md: 'var(--r-md)',
@@ -118,8 +124,12 @@ export default {
         DEFAULT: 'var(--stroke)',
       },
       boxShadow: {
+        card: 'var(--shadow-card)',
         float: 'var(--shadow-float)',
         press: 'var(--shadow-press)',
+      },
+      transitionTimingFunction: {
+        paper: 'var(--ease)',
       },
       keyframes: {
         'accordion-down': {
@@ -154,16 +164,10 @@ export default {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
         },
-        /**
-         * 翻页。
-         *
-         * 切歌时新曲目信息不是淡入，而是像纸页被翻过来一样从边缘立起。
-         * transform-origin 由使用方给（左缘翻页），这里只描述动作本身；
-         * 幅度刻意压得很小——它是一次翻页，不是一个特效。
-         */
+        /** 切歌：新曲目信息从下方轻轻落定 */
         'page-turn': {
-          from: { opacity: '0', transform: 'rotateY(-7deg) translateX(-6px)' },
-          to: { opacity: '1', transform: 'rotateY(0deg) translateX(0)' },
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
         },
       },
       animation: {
@@ -175,32 +179,12 @@ export default {
         'slide-in-right': 'slide-in-right 0.3s var(--ease)',
         'spin-slow': 'spin-slow 8s linear infinite',
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
-        'page-turn': 'page-turn 0.42s var(--ease)',
+        'page-turn': 'page-turn 0.32s var(--ease)',
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
       },
     },
   },
-  plugins: [
-    require('tailwindcss-animate'),
-    /**
-     * 皮肤变体。让调用方在需要时按皮肤分支，而不必在 TSX 里读 store 再拼
-     * className——换皮是纯 CSS 的事，组件不应该知道当前是哪张皮。
-     *
-     * `pop:` 的语义是「**实体控件皮肤**」，不是「波普这一张皮」：
-     * 全站 270+ 处 `pop:border pop:bg-surface pop:rounded-pill pop:shadow-press`
-     * 表达的是「这里要一个有底、有形、有投影的控件」，而形状/描边宽度/投影
-     * 全部来自 token——波普解析成 2px 墨边 + 硬投影，软陶解析成极淡边界 +
-     * 软鼓包，各自成立。因此软陶直接复用这批类，一处都不用改。
-     * 编辑风（发丝线体系）不匹配，维持原样。
-     *
-     * 真正只属于某一张皮的分支才用 `clay:` / `editorial:`。
-     */
-    plugin(({ addVariant }: { addVariant: (name: string, def: string | string[]) => void }) => {
-      addVariant('pop', ["html[data-skin='pop'] &", "html[data-skin='clay'] &"])
-      addVariant('clay', "html[data-skin='clay'] &")
-      addVariant('editorial', "html[data-skin='editorial'] &")
-    }),
-  ],
+  plugins: [require('tailwindcss-animate')],
 }

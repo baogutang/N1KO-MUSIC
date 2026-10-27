@@ -92,30 +92,36 @@ export function AddPluginDialog({
 
   const notInstalled = (entries ?? []).filter(e => !plugins.some(p => p.id === e.id))
 
+  const fieldCls =
+    'w-full rounded-md border border-input bg-sheet px-3.5 py-2.5 font-mono text-[16px] text-ink placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 regular:text-[13px]'
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[88dvh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-serif">{t('sources.settings.addTitle')}</DialogTitle>
+          <DialogTitle>{t('sources.settings.addTitle')}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* 目录 */}
           <div>
-            <p className="mb-2 text-[11px] tracking-[0.18em] text-ink-faint">
+            <p className="mb-2 text-[13px] font-medium text-ink-faint">
               {t('sources.settings.fromCatalog')}
             </p>
             {entries === null ? (
-              <p className="text-[12.5px] text-ink-faint">{t('sources.settings.catalogLoading')}</p>
+              <p className="text-[14px] text-ink-faint">{t('sources.settings.catalogLoading')}</p>
             ) : notInstalled.length === 0 ? (
-              <p className="text-[12.5px] text-ink-faint">{t('sources.settings.catalogAllInstalled')}</p>
+              <p className="text-[14px] text-ink-faint">{t('sources.settings.catalogAllInstalled')}</p>
             ) : (
-              <ul className="border-t border-hair">
+              <ul className="space-y-2">
                 {notInstalled.map(entry => (
-                  <li key={entry.id} className="flex items-center justify-between gap-3 border-b border-hair-soft py-2.5">
+                  <li key={entry.id} className="flex items-center justify-between gap-3 rounded-md bg-paper-deep py-2.5 pl-4 pr-2.5">
                     <span className="min-w-0">
-                      <span className="block truncate text-[13.5px]">{entry.name}</span>
-                      <span className="num block text-[11px] text-ink-faint">{entry.id} · v{entry.version}</span>
+                      <span className="block truncate text-[15px] font-medium">{entry.name}</span>
+                      <span className="num flex flex-wrap gap-x-3 text-[12px] text-ink-faint">
+                        <span>{entry.id}</span>
+                        <span>v{entry.version}</span>
+                      </span>
                     </span>
                     <Button variant="outline" size="sm" disabled={busy} onClick={() => void doCatalogInstall(entry.id)}>
                       {t('sources.settings.install')}
@@ -128,7 +134,7 @@ export function AddPluginDialog({
 
           {/* URL */}
           <div>
-            <p className="mb-2 text-[11px] tracking-[0.18em] text-ink-faint">
+            <p className="mb-2 text-[13px] font-medium text-ink-faint">
               {t('sources.settings.fromUrl')}
             </p>
             <div className="flex items-center gap-2">
@@ -136,7 +142,7 @@ export function AddPluginDialog({
                 value={urlInput}
                 onChange={e => setUrlInput(e.target.value)}
                 placeholder="https://example.com/plugin/manifest.json"
-                className="font-mono text-[12px]"
+                className="font-mono"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
@@ -149,7 +155,7 @@ export function AddPluginDialog({
 
           {/* 粘贴 */}
           <div>
-            <p className="mb-2 text-[11px] tracking-[0.18em] text-ink-faint">
+            <p className="mb-2 text-[13px] font-medium text-ink-faint">
               {t('sources.settings.pasteToggle')}
             </p>
             <div className="space-y-2">
@@ -159,7 +165,7 @@ export function AddPluginDialog({
                 rows={2}
                 placeholder={t('sources.settings.pasteManifestPlaceholder')}
                 spellCheck={false}
-                className="w-full rounded-md border border-hair bg-paper px-3 py-2 font-mono text-[12px] text-foreground placeholder:text-ink-faint/70 focus:outline-none focus:ring-1 focus:ring-primary"
+                className={fieldCls}
               />
               <textarea
                 value={pasteCode}
@@ -167,7 +173,7 @@ export function AddPluginDialog({
                 rows={3}
                 placeholder={t('sources.settings.pasteCodePlaceholder')}
                 spellCheck={false}
-                className="w-full rounded-md border border-hair bg-paper px-3 py-2 font-mono text-[12px] text-foreground placeholder:text-ink-faint/70 focus:outline-none focus:ring-1 focus:ring-primary"
+                className={fieldCls}
               />
               <div className="text-right">
                 <Button size="sm" disabled={busy || !pasteManifest.trim() || !pasteCode.trim()} onClick={() => void doPasteInstall()}>

@@ -25,10 +25,12 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8 text-center">
-          <h2 className="text-lg font-bold text-foreground">{t('error.pageTitle')}</h2>
-          <p className="text-sm text-muted-foreground max-w-md">{this.state.message}</p>
-          <Button onClick={() => window.location.reload()}>{t('error.reload')}</Button>
+        <div className="flex min-h-[100dvh] items-center justify-center bg-paper p-6">
+          <div className="sheet flex w-full max-w-md flex-col items-center gap-4 px-8 py-10 text-center">
+            <h2 className="font-display text-[24px] font-semibold leading-tight text-ink">{t('error.pageTitle')}</h2>
+            <p className="max-w-sm break-words text-[15px] leading-relaxed text-ink-faint">{this.state.message}</p>
+            <Button className="mt-2" onClick={() => window.location.reload()}>{t('error.reload')}</Button>
+          </div>
         </div>
       )
     }

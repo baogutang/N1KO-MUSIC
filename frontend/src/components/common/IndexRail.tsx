@@ -90,7 +90,8 @@ export function IndexRail({
       onTouchStart={e => { lastRef.current = null; jumpFromPoint(e.touches[0].clientY) }}
       onTouchMove={e => { e.preventDefault(); jumpFromPoint(e.touches[0].clientY) }}
       className={cn(
-        'sticky top-4 flex max-h-[70vh] select-none flex-col items-center gap-px overflow-hidden py-1',
+        // 凹槽里的一条下沉纸带：当前字母是被托起的一粒陶土
+        'sticky top-16 flex max-h-[70vh] select-none flex-col items-center gap-px overflow-hidden rounded-pill bg-paper-deep px-0.5 py-1.5',
         'touch-none',
         className
       )}
@@ -103,11 +104,11 @@ export function IndexRail({
           aria-label={t('index.jumpTo', { letter })}
           aria-current={activeLetter === letter ? 'true' : undefined}
           className={cn(
-            'font-num w-5 rounded-sm py-[1px] text-center text-[10px] leading-[1.35] tracking-tight',
+            'num grid h-[18px] w-6 place-items-center rounded-pill text-[11px] font-medium leading-none',
             'transition-colors duration-150',
             activeLetter === letter
-              ? 'font-semibold text-primary'
-              : 'text-ink-faint hover:text-ink'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-ink-faint [@media(hover:hover)]:hover:bg-paper-3 [@media(hover:hover)]:hover:text-ink'
           )}
         >
           {letter}

@@ -9,15 +9,15 @@
  */
 
 import { useCallback, useMemo } from 'react'
-import { Heart, MusicNotes, Play, Shuffle } from '@phosphor-icons/react'
+import { Heart, MusicNotes } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
-import { CoverCard } from '@/components/common/CoverCard'
+import { CoverCard, CoverShelf } from '@/components/common/CoverCard'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SourceGroupState, groupStateStatus } from '@/components/sources/SourceGroupState'
-import type { SourceQueryGroup } from '@/hooks/useSourceQueries'
+import type { SourceQueryGroup, TopListGroups } from '@/hooks/useSourceQueries'
 import { usePersonalizedRecommendations } from '@/hooks/usePersonalizedRecommendations'
 import {
   interleaveRecommendations,
@@ -29,7 +29,6 @@ import {
 import { findAdapterFor } from '@/api'
 import type { Playlist } from '@/api/types'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
-import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { useTasteStore } from '@/store/tasteStore'
 import { filterRecommendable, applyRecommendationConstraints, useRecommendationConstraints, type RecommendationConstraints } from '@/services/recommendationFilters'
@@ -128,7 +127,7 @@ export function GroupStateRows({
     )) : []),
   ]
   if (!rows.length) return null
-  return <div className="border-t border-hair divide-y divide-hair-soft px-2">{rows}</div>
+  return <div className="mt-2 px-1">{rows}</div>
 }
 
 /**
@@ -168,32 +167,28 @@ export function MergedDailyRail() {
   if (!merged.length && !failed.length && !loading.length && !auth.length) return null
 
   return (
-    <section aria-labelledby="home-dailymix" data-clay-span="full">
+    <section aria-labelledby="home-dailymix">
       <div className="section-head">
-        <h2 id="home-dailymix">
-          {t('sources.dailyMix')}<small>DAILY MIX</small>
-        </h2>
-        <div className="flex items-center gap-5">
+        <h2 id="home-dailymix" className="flex-none">{t('sources.dailyMix')}</h2>
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
           {sourceGroups.filter(g => g.data.length > 0).map(g => (
             <SourceBadge key={g.serverId} serverId={g.serverId} withName />
           ))}
           <button
-            className="more inline-flex items-center gap-1.5"
+            className="more -my-3 py-3"
             onClick={() => playAllInOrder(merged, 0)}
           >
-            <Play size={12} />
             {t('player.playAll')}
           </button>
           <button
-            className="more inline-flex items-center gap-1.5"
+            className="more -my-3 py-3"
             onClick={() => playAllShuffled(merged, 0)}
           >
-            <Shuffle size={12} />
             {t('player.shuffle')}
           </button>
           {/* 展开版在推荐页：同一条，只是更多、可换一批、可按来源看 */}
-          <button className="more" onClick={() => navigate('/recommendations')}>
-            {t('action.viewAll')} →
+          <button className="more -my-3 py-3" onClick={() => navigate('/recommendations')}>
+            {t('action.viewAll')}
           </button>
         </div>
       </div>
@@ -216,37 +211,39 @@ export function SourceCollections() {
   return (
     <section aria-labelledby="home-sources">
       <div className="section-head">
-        <h2 id="home-sources">
-          {t('sources.collections')}<small>MY LIBRARIES</small>
-        </h2>
+        <h2 id="home-sources">{t('sources.collections')}</h2>
       </div>
-      <div className="border-t border-hair divide-y divide-hair-soft">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-4">
         {groups.map(g => (
           g.status !== 'success' ? (
-            <div key={g.serverId} className="px-2">
+            <div key={g.serverId} className="sheet px-4 py-1">
               <SourceGroupState serverId={g.serverId} status={groupStateStatus(g)} error={g.error} onRetry={() => retry(g.serverId, 'playlists')} />
             </div>
           ) : (
-          <div key={g.serverId} className="flex items-center gap-4 px-2 py-3">
-            <SourceBadge serverId={g.serverId} withName />
-            <span className="num flex-1 text-[11.5px] tracking-[0.12em] text-ink-faint">
-              {t('sources.playlistCount', { count: g.data?.length ?? 0 })}
-            </span>
-            <button
-              className="more inline-flex items-center gap-1.5"
-              onClick={() => navigate(`/playlists?src=${encodeURIComponent(g.serverId)}`)}
-            >
-              <MusicNotes size={12} />
-              {t('nav.playlists')}
-            </button>
-            <button
-              className="more inline-flex items-center gap-1.5"
-              onClick={() => navigate(`/favorites?src=${encodeURIComponent(g.serverId)}`)}
-            >
-              <Heart size={12} />
-              {t('nav.favorites')}
-            </button>
-          </div>
+            <div key={g.serverId} className="sheet flex flex-col gap-4 p-4 regular:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                <SourceBadge serverId={g.serverId} withName />
+                <span className="num text-[13px] text-ink-faint">
+                  {t('sources.playlistCount', { count: g.data?.length ?? 0 })}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className={PILL_BUTTON}
+                  onClick={() => navigate(`/playlists?src=${encodeURIComponent(g.serverId)}`)}
+                >
+                  <MusicNotes size={16} />
+                  {t('nav.playlists')}
+                </button>
+                <button
+                  className={PILL_BUTTON}
+                  onClick={() => navigate(`/favorites?src=${encodeURIComponent(g.serverId)}`)}
+                >
+                  <Heart size={16} />
+                  {t('nav.favorites')}
+                </button>
+              </div>
+            </div>
           )
         ))}
       </div>
@@ -254,13 +251,16 @@ export function SourceCollections() {
   )
 }
 
+/** 纸片里的次级入口：下沉一档的胶囊，命中区 44px */
+const PILL_BUTTON =
+  'inline-flex min-h-[44px] items-center gap-1.5 rounded-pill bg-paper-deep px-4 text-[14px] font-medium text-ink transition-colors duration-200 [@media(hover:hover)]:hover:bg-paper-3'
+
 /**
- * 榜单：每个声明的源一组，榜单名做行式 chip，点击进榜单详情。
+ * 榜单：每个声明的源一组，榜单名做胶囊，点击进榜单详情。
  *
  * 首页上**只给摘要**：每个源最多两组、每组最多六个。
- * 两个平台加起来有近百个榜，全列出来这张卡会长到七百多像素，
- * 把同一行的其它卡衬成两条小纸片——「首页很割裂」正是这么来的。
- * 仪表盘的卡片是一眼扫完的摘要，要全部就点「全部榜单」。
+ * 两个平台加起来有近百个榜，全列出来会把首页撑得很长。
+ * 要全部就点「查看全部」去榜单列表页。
  */
 const HOME_TOPLIST_GROUPS = 2
 const HOME_TOPLIST_ITEMS = 6
@@ -276,51 +276,76 @@ export function SourceTopListsRail() {
   const auth = all.filter(g => g.status === 'error' && g.errorCode === 'unauthorized')
   if (!groups.length && !failed.length && !loading.length && !auth.length) return null
 
-  const total = groups.reduce((sum, g) => sum + g.data!.groups.length, 0)
-  const truncated = total > groups.length * HOME_TOPLIST_GROUPS
-
   return (
     <section aria-labelledby="home-toplists">
       <div className="section-head">
-        <h2 id="home-toplists">
-          {t('sources.topLists')}<small>CHARTS</small>
-        </h2>
+        <h2 id="home-toplists">{t('sources.topLists')}</h2>
         {/* 「查看全部」去榜单列表页（阶段 2.6）：此前跳到每日推荐页，
             一个榜单都没有；被截掉的榜在这里有去处 */}
-        <button className="more" onClick={() => navigate('/toplists')}>
-          {t('action.viewAll')} →
+        <button className="more -my-3 py-3" onClick={() => navigate('/toplists')}>
+          {t('action.viewAll')}
         </button>
       </div>
-      <div className="border-t border-hair divide-y divide-hair-soft">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-4">
         {groups.map(g =>
           g.data!.groups.slice(0, HOME_TOPLIST_GROUPS).map(group => (
-            <div key={`${g.serverId}:${group.title}`} className="px-2 py-3">
-              <p className="flex items-center gap-2.5 mb-2.5">
-                <SourceBadge serverId={g.serverId} />
-                <span className="font-serif text-[15px] font-semibold">{group.title}</span>
-                <span className="num text-[11px] text-ink-faint">
-                  {t('sources.sheetCount', { count: group.items.length })}
-                </span>
-              </p>
-              <p className="flex flex-wrap gap-x-5 gap-y-1.5">
-                {group.items.slice(0, HOME_TOPLIST_ITEMS).map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() =>
-                      navigate(`/toplists/${encodeURIComponent(g.serverId)}/${encodeURIComponent(item.id)}`)
-                    }
-                    className="border-b border-transparent hover:text-primary hover:border-primary transition-colors duration-200 text-[13px] text-ink-soft"
-                  >
-                    {item.name}
-                  </button>
-                ))}
-              </p>
-            </div>
+            <TopListGroupCard
+              key={`${g.serverId}:${group.title}`}
+              serverId={g.serverId}
+              group={group}
+              limit={HOME_TOPLIST_ITEMS}
+              showSource
+            />
           ))
         )}
       </div>
       <GroupStateRows failed={failed} loading={loading} auth={auth} showLoading={!groups.length} retry={retry} family="toplists" />
     </section>
+  )
+}
+
+/**
+ * 一组榜单：标题 + 数量，下面是榜单名的胶囊，点击进榜单详情。
+ * 首页（摘要，带来源徽标）与榜单列表页（全部，来源已在分节标题里）共用。
+ */
+export function TopListGroupCard({
+  serverId,
+  group,
+  limit,
+  showSource = false,
+}: {
+  serverId: string
+  group: TopListGroups['groups'][number]
+  /** 只列前几个；缺省全列 */
+  limit?: number
+  showSource?: boolean
+}) {
+  const { t } = useT()
+  const navigate = useNavigate()
+  const items = limit ? group.items.slice(0, limit) : group.items
+  return (
+    <div className="sheet p-4 regular:p-5">
+      <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+        {showSource && <SourceBadge serverId={serverId} />}
+        <span className="text-[16px] font-semibold">{group.title}</span>
+        <span className="num text-[13px] text-ink-faint">
+          {t('sources.sheetCount', { count: group.items.length })}
+        </span>
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {items.map(item => (
+          <button
+            key={item.id}
+            onClick={() =>
+              navigate(`/toplists/${encodeURIComponent(serverId)}/${encodeURIComponent(item.id)}`)
+            }
+            className={PILL_BUTTON}
+          >
+            {item.name}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -351,35 +376,32 @@ export function SourceRecommendSheetsRail() {
   return (
     <section aria-labelledby="home-sheets">
       <div className="section-head">
-        <h2 id="home-sheets">
-          {t('sources.recommendSheets')}<small>PLAYLISTS FOR YOU</small>
-        </h2>
+        <h2 id="home-sheets">{t('sources.recommendSheets')}</h2>
       </div>
-      <div className="border-t border-hair pt-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-4">
+      {merged.length > 0 && (
+        <CoverShelf>
           {merged.map(({ pl, serverId }) => (
             <MiniSheetCard key={`${serverId}:${pl.id}`} playlist={pl} serverId={serverId} />
           ))}
-        </div>
-      </div>
+        </CoverShelf>
+      )}
       <GroupStateRows failed={failed} loading={loading} auth={auth} showLoading={!merged.length} retry={retry} family="recommend-sheets" />
     </section>
   )
 }
 
-/** 迷你歌单卡：小封面（角上音源标识）+ 名称 + 曲目数（首页推荐位专用） */
+/** 歌单卡：封面（角上音源标识）+ 名称 + 曲目数（首页推荐位专用） */
 function MiniSheetCard({ playlist, serverId }: { playlist: Playlist; serverId: string }) {
   const { t } = useT()
   const navigate = useNavigate()
   const cover = playlist.coverArt
-    ? (findAdapterFor(playlist.serverId)?.getCoverUrl(playlist.coverArt, 160) ?? playlist.coverArt)
+    ? (findAdapterFor(playlist.serverId)?.getCoverUrl(playlist.coverArt, 300) ?? playlist.coverArt)
     : undefined
   /* 外壳收敛到 CoverCard（阶段 7.4）；角上的音源标识是这层独有的浮层 */
   return (
     <CoverCard
       aria-label={playlist.name}
       onClick={() => navigate(`/playlists/${playlist.id}?src=${encodeURIComponent(playlist.serverId)}`)}
-      tileClassName="rounded-sm"
       tile={
         <ImageWithFallback
           src={cover}
@@ -389,13 +411,13 @@ function MiniSheetCard({ playlist, serverId }: { playlist: Playlist; serverId: s
         />
       }
       overlay={
-        <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-sm bg-paper/85 backdrop-blur-sm px-1.5 py-0.5">
+        <span className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-sheet px-2 py-1 shadow-press">
           <SourceBadge serverId={serverId} />
         </span>
       }
       title={playlist.name}
       {...(playlist.songCount !== undefined
-        ? { meta: <span className="font-num tracking-[0.1em] text-[10.5px]">{t('song.trackCount', { count: playlist.songCount })}</span> }
+        ? { meta: <span className="num">{t('song.trackCount', { count: playlist.songCount })}</span> }
         : {})}
     />
   )

@@ -58,6 +58,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { Song } from '@/api/types'
 import { detailPath } from '@/utils/detailPath'
+import { startSongDrag, endSongDrag } from '@/lib/songDrag'
 
 /**
  * 选择集的键。
@@ -92,7 +93,7 @@ function SourceSwitchMenu({ song, alternates, onPick }: {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <div className="px-3 pt-2 pb-1 text-[11px] tracking-[0.1em] text-ink-faint">
+          <div className="px-3 pt-2 pb-1 text-[12.5px] font-medium text-ink-faint">
             {t('sources.switchSourceTitle')}
           </div>
           {alternates.map(alt => (
@@ -379,7 +380,7 @@ export function SongList({
       {songs.length > VIRTUALIZE_THRESHOLD ? (
         <VirtualSongRows songs={songs} className={className} renderRow={renderRow} />
       ) : (
-        <div className={cn('song-list border-t border-hair divide-y divide-hair-soft', className)}>
+        <div className={cn('song-list flex flex-col', className)}>
           {songs.map(renderRow)}
         </div>
       )}
@@ -425,6 +426,12 @@ export function SongList({
  */
 const VIRTUALIZE_THRESHOLD = 60
 /** 长按多久算「进入选择态」 */
+/**
+ * 行能不能拖：有触控板或鼠标时才开（iPad 接妙控板、桌面）。
+ * 纯触屏上长按是进入多选的唯一入口，draggable 会让系统抢走这次长按去「拎起」行。
+ */
+const canDragRows = typeof window !== 'undefined' && window.matchMedia('(any-pointer: fine)').matches
+
 const LONG_PRESS_MS = 480
 /** 长按期间允许的手指位移，超过就当成滚动 */
 const LONG_PRESS_SLOP = 10
@@ -525,7 +532,7 @@ function VirtualSongRows({
       <div
         ref={containerRef}
         data-size-epoch={sizeEpoch}
-        className={cn('song-list border-t border-hair divide-y divide-hair-soft', className)}
+        className={cn('song-list flex flex-col', className)}
       >
         {songs.slice(0, VIRTUALIZE_THRESHOLD).map(renderRow)}
       </div>
@@ -536,7 +543,7 @@ function VirtualSongRows({
     <div
       ref={containerRef}
       data-size-epoch={sizeEpoch}
-      className={cn('border-t border-hair', className)}
+      className={cn('', className)}
       style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
     >
       {items.map(item => (
@@ -544,7 +551,7 @@ function VirtualSongRows({
           key={item.key}
           data-index={item.index}
           ref={virtualizer.measureElement}
-          className="absolute left-0 w-full border-b border-hair-soft"
+          className="absolute left-0 w-full"
           style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
         >
           {renderRow(songs[item.index], item.index)}
@@ -706,10 +713,21 @@ const SongRow = React.memo(function SongRow({
     }
   }
 
+  /* iPadOS 触控板双指点按 / 桌面右键：打开这一行的「更多」菜单（与行末那颗键同一个菜单） */
+  const [menuOpen, setMenuOpen] = useState(false)
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setMenuOpen(true)
+  }, [])
+
   return (
     <div
-      className={cn('song-row group relative', isCurrentSong && 'is-current', selected && 'bg-paper-deep')}
+      className={cn('song-row group relative', isCurrentSong && 'is-current', selected && 'bg-primary/10')}
       onClick={handleRowClick}
+      onContextMenu={handleContextMenu}
+      draggable={canDragRows}
+      onDragStart={canDragRows ? (e) => startSongDrag(e, [song]) : undefined}
+      onDragEnd={canDragRows ? endSongDrag : undefined}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={cancelPress}
@@ -717,10 +735,6 @@ const SongRow = React.memo(function SongRow({
       aria-selected={selectionActive ? !!selected : undefined}
       data-selected={selected ? '' : undefined}
     >
-      {/* 选中标记：一道贴边的朱线，不占位、不引入新色 */}
-      {selected && (
-        <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-primary" />
-      )}
       {/* 序号：mono 01–NN；当前播放行变 accent EQ 三竖条；hover 浮现细线圆播放键 */}
       {showIndex && (
         <div className="w-8 flex-shrink-0 relative flex items-center justify-center">
@@ -745,7 +759,7 @@ const SongRow = React.memo(function SongRow({
             className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
             aria-label={t('action.play')}
           >
-            <span className="w-[22px] h-[22px] rounded-full border border-hair flex items-center justify-center text-ink-soft hover:text-primary hover:border-primary active:scale-[0.94] transition-colors duration-200 pop:bg-primary pop:text-primary-foreground pop:hover:text-primary-foreground pop:hover:border-hair">
+            <span className="w-7 h-7 rounded-pill bg-sheet shadow-press flex items-center justify-center text-primary active:scale-[0.94] transition-transform duration-150">
               {isPlaying && isCurrentSong ? (
                 <span className="playing-bar" style={{ height: 10 }}>
                   <span /><span /><span />
@@ -760,7 +774,7 @@ const SongRow = React.memo(function SongRow({
 
       {/* 小封面：编辑风 40px 发丝 ring；波普换成 2px 墨描边 */}
       {showCover && (
-        <div className="w-10 h-10 rounded-sm overflow-hidden ring-1 ring-hair-soft flex-shrink-0 pop:ring-0 pop:border pop:border-hair">
+        <div className="w-11 h-11 rounded-[8px] overflow-hidden shadow-card flex-shrink-0">
           <ImageWithFallback
             src={coverUrl}
             alt={song.album}
@@ -775,7 +789,7 @@ const SongRow = React.memo(function SongRow({
       {/* 歌曲信息：衬线曲名 + 小字歌手 */}
       <div className="flex-1 min-w-0">
         <p className={cn(
-          'song-title font-serif text-[15px] font-semibold leading-snug line-clamp-1 transition-colors',
+          'song-title font-display text-[15px] font-semibold leading-snug line-clamp-1 transition-colors',
           isCurrentSong ? 'text-sem-playing' : 'text-foreground'
         )}>
           {spaceCJK(song.title)}
@@ -787,7 +801,7 @@ const SongRow = React.memo(function SongRow({
             <SourceBadge serverId={song.serverId} className="ml-1.5 align-baseline inline-block translate-y-[-1px]" />
           ))}
         </p>
-        <p className="text-xs text-ink-soft line-clamp-1 mt-0.5">
+        <p className="text-[13px] text-ink-faint line-clamp-1 mt-0.5">
           <button
             type="button"
             onClick={handleNavigateArtist}
@@ -824,7 +838,7 @@ const SongRow = React.memo(function SongRow({
         <button
           onClick={handleToggleStar}
           className={cn(
-            'transition-all duration-200 p-1.5 active:scale-[0.94] flex-shrink-0',
+            'grid h-9 w-9 place-items-center rounded-pill transition-[opacity,background-color] duration-150 hover:bg-paper-3 active:scale-[0.94] flex-shrink-0',
             localStarred
               ? 'opacity-100 text-primary'
               // 触屏没有 hover：这里若保持 opacity-0，未收藏的歌在手机上
@@ -841,12 +855,12 @@ const SongRow = React.memo(function SongRow({
       )}
 
       {/* 时长：mono tabular */}
-      <span className="text-xs text-ink-faint font-num w-12 text-right flex-shrink-0">
+      <span className="text-[13px] text-ink-faint font-num w-12 text-right flex-shrink-0">
         {formatDuration(song.duration)}
       </span>
 
       {/* 更多操作（CSS hover 控制显隐）*/}
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
@@ -859,15 +873,15 @@ const SongRow = React.memo(function SongRow({
              * focus-visible 那条是给键盘的：Tab 过来时按钮必须可见，
              * 否则焦点会停在一个看不见的控件上。
              */
-            className="transition-opacity duration-200 p-1.5 flex-shrink-0 text-ink-soft hover:text-ink [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
+            className="grid h-9 w-9 place-items-center rounded-pill transition-[opacity,background-color] duration-150 flex-shrink-0 text-ink-soft hover:bg-paper-3 hover:text-ink [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
             aria-label={t('action.more')}
           >
             <DotsThree className="w-4 h-4" weight="bold" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56 glass">
-          <div className="px-3 py-2 border-b border-hair-soft">
-            <p className="font-serif font-semibold text-sm truncate">{song.title}</p>
+        <DropdownMenuContent align="end" className="w-60">
+          <div className="px-3 py-2 mb-1 border-b border-hair-soft">
+            <p className="font-semibold text-sm truncate">{song.title}</p>
             <p className="text-xs text-ink-faint truncate mt-0.5">{song.artist}</p>
           </div>
 
@@ -967,7 +981,7 @@ const SongRow = React.memo(function SongRow({
 
           <DropdownMenuSeparator />
           <div className="px-3 py-2 space-y-1.5">
-            <p className="text-xs text-ink-faint uppercase tracking-[0.14em] mb-1">{t('song.info')}</p>
+            <p className="text-[12.5px] font-medium text-ink-faint mb-1">{t('song.info')}</p>
             {song.duration > 0 && (
               <div className="flex items-center gap-2 text-xs text-ink-faint">
                 <ClockCounterClockwise className="w-3 h-3 flex-shrink-0" />
@@ -979,7 +993,7 @@ const SongRow = React.memo(function SongRow({
                 <MusicNote className="w-3 h-3 flex-shrink-0" />
                 <span className="font-num">{song.bitRate} kbps</span>
                 {song.contentType && (
-                  <span className="text-ink-faint/60">· {song.contentType.split('/')[1]?.toUpperCase()}</span>
+                  <span className="text-ink-faint/60">{song.contentType.split('/')[1]?.toUpperCase()}</span>
                 )}
               </div>
             )}
@@ -987,7 +1001,7 @@ const SongRow = React.memo(function SongRow({
               <div className="flex items-center gap-2 text-xs text-ink-faint">
                 <Info className="w-3 h-3 flex-shrink-0" />
                 <span className="font-num">{t('song.year', { year: song.year })}</span>
-                {song.genre && <span className="text-ink-faint/60">· {song.genre}</span>}
+                {song.genre && <span className="text-ink-faint/60">{song.genre}</span>}
               </div>
             )}
           </div>

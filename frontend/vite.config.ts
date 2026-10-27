@@ -369,8 +369,8 @@ export default defineConfig(({ mode }) => ({
               name: 'N1KO MUSIC',
               short_name: 'N1KO',
               description: 'Modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby',
-              theme_color: '#f4efe3',
-              background_color: '#f4efe3',
+              theme_color: '#f9f4ee',
+              background_color: '#f9f4ee',
               display: 'standalone',
               /**
                * 浏览器里没有自定义协议，但 PWA 可以登记为 web+ 前缀的处理器。

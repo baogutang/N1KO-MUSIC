@@ -1,7 +1,9 @@
 /**
- * 服务器登录页 —— 纸面杂志化（DESIGN v2 §4.4/§4.5）
- * 居中窄栏：品牌报头 + 衬线大标题；服务器类型为发丝线行式单选，
- * 已存服务器为编号行式快速连接；错误直接陈述
+ * 服务器登录页 —— 暖纸版式（v5），首次打开 App 的第一屏
+ * 居中一张 sheet（regular / wide 下约 520px）：品牌字 N1KO + 标题；
+ * 服务器类型是 2×2 纸片格（选中 bg-paper-3 + 陶土图标），
+ * 已存服务器与流媒体音源是纸片行；错误直接陈述。
+ * 这一页不在主外壳里：自己处理 safe-area，并且整页自己滚动
  * NAS：Subsonic/Navidrome/Jellyfin/Emby；流媒体音源：已安装插件（PLAN 1.6）——
  * 后者只在有出网通道的壳里给入口，正式版的纯浏览器换成一句说明加下载链接
  * （见 lib/platform 的 pluginSourcesSupported）
@@ -11,7 +13,10 @@ import { useEffect, useRef, useState } from 'react'
 import { describeError } from '@/services/errors'
 import { pluginErrorCode } from '@/services/errors'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, CaretRight, CircleNotch, Eye, EyeSlash, Plus, X } from '@phosphor-icons/react'
+import {
+  ArrowLeft, CircleNotch, Eye, EyeSlash, FilmStrip, HardDrives, MonitorPlay, Plus, Waveform, X,
+} from '@phosphor-icons/react'
+import type { Icon } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,12 +37,23 @@ import { AddPluginDialog } from '@/components/sources/AddPluginDialog'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 
 // 说明句只存 key：这张表在模块加载时就建好了，直接存译文会把语言钉死在首次加载那一刻
-const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string }> = [
-  { type: 'navidrome', label: 'Navidrome', descKey: 'login.type.navidrome' },
-  { type: 'subsonic', label: 'Subsonic', descKey: 'login.type.subsonic' },
-  { type: 'jellyfin', label: 'Jellyfin', descKey: 'login.type.jellyfin' },
-  { type: 'emby', label: 'Emby', descKey: 'login.type.emby' },
+const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string; icon: Icon }> = [
+  { type: 'navidrome', label: 'Navidrome', descKey: 'login.type.navidrome', icon: HardDrives },
+  { type: 'subsonic', label: 'Subsonic', descKey: 'login.type.subsonic', icon: Waveform },
+  { type: 'jellyfin', label: 'Jellyfin', descKey: 'login.type.jellyfin', icon: FilmStrip },
+  { type: 'emby', label: 'Emby', descKey: 'login.type.emby', icon: MonitorPlay },
 ]
+
+/** 表单字段上方的小标签：正常句式大小写，不拉字距 */
+const FIELD_LABEL_CLS = 'mb-1.5 block text-[13px] font-medium text-ink-soft'
+/** 小分组标题（已保存 / 自建服务器 / 流媒体音源） */
+const GROUP_HEAD_CLS = 'mb-3 text-[15px] font-semibold text-ink'
+/** 纸片行：已保存的音源、流媒体音源共用的一档 */
+const ROW_CLS =
+  'flex min-h-[60px] w-full items-center gap-3 rounded-md bg-paper-deep px-4 py-3 text-left transition-colors duration-150 hover:bg-paper-3'
+/** 步骤页头：返回 + 当前对象名 */
+const BACK_BTN_CLS =
+  '-ml-3 inline-flex min-h-11 items-center gap-1.5 rounded-pill px-3 text-[14px] text-ink-soft transition-colors duration-150 hover:bg-paper-deep hover:text-ink'
 
 /** 发行页：浏览器版里唯一有意义的下一步就是去拿一个带出网通道的壳。
  *  音源设置里有同一份文案，但那边不共用常量——登录页的首屏包没有理由
@@ -407,430 +423,418 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md animate-fade-in">
-        {/* 品牌报头：下缘 3px double 发丝线（同主报头范式） */}
-        <header className="mb-12 pb-5 border-b-[3px] border-double border-hair text-center">
-          <p className="font-sans text-[14px] font-bold tracking-[0.34em] text-foreground">
-            N1KO MUSIC
-          </p>
-          <p className="num mt-1.5 text-[10.5px] tracking-[0.24em] text-ink-faint">
-            PERSONAL MUSIC CLIENT
+    /*
+      Login 不在主外壳里（外壳那一层才有 safe-area 处理），所以这里自己来：
+      整页是一个可滚动容器，四边 padding 取 max(留白, 安全区)；
+      内容用 my-auto 在剩余高度里居中，内容高过屏幕时自然从顶部排起、可滚动。
+    */
+    <div
+      className="flex h-full min-h-[100dvh] flex-col overflow-y-auto"
+      style={{
+        paddingTop: 'max(24px, env(safe-area-inset-top))',
+        paddingBottom: 'max(24px, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(16px, env(safe-area-inset-left))',
+        paddingRight: 'max(16px, env(safe-area-inset-right))',
+      }}
+    >
+      <div className="mx-auto my-auto w-full max-w-[520px] animate-fade-in">
+        <header className="mb-6 text-center">
+          <p className="font-display text-[44px] font-semibold leading-none tracking-[-0.03em] text-ink">
+            N1KO
           </p>
         </header>
 
-        <h1 className="text-center font-serif text-[28px] font-bold tracking-[-0.01em] text-foreground">
-          {t('login.title')}
-        </h1>
-        <p className="mt-3 mb-10 text-center text-[13.5px] leading-relaxed text-ink-soft">
-          {step === 'type'
-            ? t('login.subtitleChooseType')
-            : step === 'credentials'
-              ? t('login.subtitleConfiguring', {
-                  type: SERVER_TYPES.find(item => item.type === selectedType)?.label ?? '',
-                })
-              : step === 'plugin-disclaimer'
-                ? t('sources.subtitleDisclaimer', { name: selectedPlugin?.name ?? '' })
-                : t('sources.subtitleAuth', { name: selectedPlugin?.name ?? '' })}
-        </p>
-
-        {/*
-          错误区放在所有步骤之外。
-          此前它只写在「填连接信息」和「扫码」两步里，于是类型选择步与声明
-          确认步 setError 之后页面毫无反应——插件登录出问题时用户完全查不出
-          发生了什么（三个阶段的报告里都记着「已记未修」，这里一并解决）。
-        */}
-        {error && (
-          <p className="mb-5 border-l-2 border-destructive pl-3 text-[13px] leading-relaxed text-destructive">
-            {error}
+        <main className="sheet p-6 regular:p-8">
+          <h1 className="font-display text-[26px] font-semibold leading-tight tracking-[-0.01em]">
+            {t('login.title')}
+          </h1>
+          <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">
+            {step === 'type'
+              ? t('login.subtitleChooseType')
+              : step === 'credentials'
+                ? t('login.subtitleConfiguring', {
+                    type: SERVER_TYPES.find(item => item.type === selectedType)?.label ?? '',
+                  })
+                : step === 'plugin-disclaimer'
+                  ? t('sources.subtitleDisclaimer', { name: selectedPlugin?.name ?? '' })
+                  : t('sources.subtitleAuth', { name: selectedPlugin?.name ?? '' })}
           </p>
-        )}
 
-        {step === 'plugin-disclaimer' && selectedPlugin && (
-          <PluginDisclaimer
-            pluginName={selectedPlugin.name}
-            disclaimer={disclaimerText}
-            onConfirm={() => {
-              markDisclaimerConfirmed(selectedPlugin.id)
-              void openPluginAuth(selectedPlugin)
-            }}
-            onCancel={() => setStep('type')}
-          />
-        )}
+          {/*
+            错误区放在所有步骤之外。
+            此前它只写在「填连接信息」和「扫码」两步里，于是类型选择步与声明
+            确认步 setError 之后页面毫无反应——插件登录出问题时用户完全查不出
+            发生了什么（三个阶段的报告里都记着「已记未修」，这里一并解决）。
+          */}
+          {error && (
+            <p role="alert" className="mt-5 rounded-md bg-destructive/10 px-4 py-3 text-[14px] leading-relaxed text-destructive">
+              {error}
+            </p>
+          )}
 
-        {step === 'plugin-auth' && selectedPlugin && authHost && pluginManifest && (
-          <div className="space-y-5 border-t border-hair pt-7">
-            <div className="flex items-center gap-2.5">
-              <button
-                onClick={() => {
-                  closeAuthHost(selectedPlugin.id)
-                  setAuthHost(null)
-                  setStep('type')
+          <div className="mt-6">
+            {step === 'plugin-disclaimer' && selectedPlugin && (
+              <PluginDisclaimer
+                pluginName={selectedPlugin.name}
+                disclaimer={disclaimerText}
+                onConfirm={() => {
+                  markDisclaimerConfirmed(selectedPlugin.id)
+                  void openPluginAuth(selectedPlugin)
                 }}
-                className="inline-flex items-center gap-1.5 text-[12.5px] tracking-[0.08em] text-ink-soft hover:text-primary transition-colors"
-              >
-                <ArrowLeft size={13} />
-                {t('action.back')}
-              </button>
-              <span className="text-ink-faint">·</span>
-              <span className="font-serif text-[14px] font-semibold text-foreground">
-                {selectedPlugin.name}
-              </span>
-            </div>
-
-            {isLoading ? (
-              <p className="flex items-center justify-center gap-2 py-10 text-[13px] text-ink-soft">
-                <CircleNotch size={15} className="animate-spin text-primary" />
-                {t('login.connecting')}
-              </p>
-            ) : (
-              <>
-                {pluginManifest.auth.kind === 'qr' && (
-                  <QrLogin
-                    host={authHost}
-                    qrHint={pluginManifest.auth.qrHint}
-                    onAuthorized={credentials => void finishPluginAuth(credentials)}
-                  />
-                )}
-                {pluginManifest.auth.kind === 'none' && (
-                  <p className="py-6 text-center text-[13px] text-ink-soft">
-                    {t('sources.authNone')}
-                  </p>
-                )}
-                {/*
-                  Cookie 登录只在插件真的能收 Cookie 时才摆出来。
-                  此前它是无条件渲染的：auth.kind 为 'none' 的音源、以及没导出
-                  n1ko.auth.loginWithCookie 的插件，页面上照样有一个「高级 ·
-                  用 Cookie 登录」——展开、粘贴、点提交，换来一句
-                  「unsupported」。摆出一个注定失败的入口比没有更糟。
-                */}
-                {pluginManifest.auth.kind !== 'none' && authHost.hasMethod('n1ko.auth.loginWithCookie') && (
-                  <CookieLogin
-                    host={authHost}
-                    cookieHint={pluginManifest.auth.cookieHint}
-                    onAuthorized={credentials => void finishPluginAuth(credentials)}
-                  />
-                )}
-                {pluginManifest.auth.allowAnonymous && (
-                  <div className="border-t border-hair-soft pt-4 text-center">
-                    <button
-                      onClick={() => void finishPluginAuth(null)}
-                      className="text-[12.5px] text-ink-faint underline-offset-4 hover:text-primary hover:underline transition-colors"
-                    >
-                      {t('sources.anonymous')}
-                    </button>
-                  </div>
-                )}
-              </>
+                onCancel={() => setStep('type')}
+              />
             )}
 
-          </div>
-        )}
-
-        {step === 'type' ? (
-          <div>
-            {/* 已保存的服务器：编号行式快速连接 */}
-            {servers.length > 0 && (
-              <div className="mb-10">
-                <p className="mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
-                  {t('login.savedServers')}<span className="latin-tag"> · SAVED</span>
-                </p>
-                <ol className="border-t border-hair">
-                  {servers.map((server, i) => (
-                    <li key={server.id} className="group/row relative border-b border-hair-soft">
-                      <button
-                        onClick={() => handleQuickConnect(server.id)}
-                        className="flex w-full items-center gap-4 px-2 py-3 pr-11 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
-                      >
-                        <span className="num w-6 flex-shrink-0 text-[11.5px] text-ink-faint transition-colors group-hover/row:text-primary">
-                          {String(i + 1).padStart(2, '0')}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-serif text-[15px] font-semibold text-foreground transition-colors group-hover/row:text-primary">
-                            {server.name}
-                          </span>
-                          <span className="block truncate text-[11.5px] text-ink-faint">
-                            {server.type === 'plugin'
-                              ? plugins.find(p => p.id === server.pluginId)?.name ?? getServerTypeLabel(server.type)
-                              : getServerTypeLabel(server.type)}
-                            {' · '}
-                            {/* 早先的匿名条目在盘上存的就是字面量 'anonymous'，
-                                只改新写入的话老用户永远看着那个英文词 */}
-                            {server.username === 'anonymous'
-                              ? (server.credentials ? t('sources.signedIn') : t('sources.notSignedIn'))
-                              : server.username}
-                          </span>
-                        </span>
-                        <span className="num hidden sm:block max-w-[150px] truncate text-[10.5px] text-ink-faint">
-                          {server.url}
-                        </span>
-                        <CaretRight
-                          size={13}
-                          className="flex-shrink-0 text-ink-faint transition-colors group-hover/row:text-primary"
-                        />
-                      </button>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation()
-                          if (window.confirm(t('login.removeSavedServerConfirm', { name: server.name }))) {
-                            removeServer(server.id)
-                          }
-                        }}
-                        aria-label={t('login.removeSavedServer')}
-                        title={t('login.removeSavedServer')}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-faint/50 transition-colors hover:bg-paper-deep hover:text-destructive"
-                      >
-                        <X size={14} />
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-                <p className="pt-3 text-center text-[12px] text-ink-faint">{t('login.addNewServer')}</p>
-              </div>
-            )}
-
-            {/* 服务器类型：发丝线行式单选（当前项 accent + 左 2px 竖线） */}
-            <p className="mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
-              {t('login.serverType')}<span className="latin-tag"> · SERVER TYPE</span>
-            </p>
-            <div className="border-t border-hair">
-              {SERVER_TYPES.map(({ type, label, descKey }) => {
-                const active = selectedType === type
-                return (
+            {step === 'plugin-auth' && selectedPlugin && authHost && pluginManifest && (
+              <div className="space-y-5">
+                <div className="flex items-center gap-x-3">
                   <button
-                    key={type}
-                    onClick={() => handleTypeSelect(type)}
-                    aria-pressed={active}
-                    className={cn(
-                      'group relative flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1',
-                      active && 'bg-paper-deep/50'
-                    )}
+                    onClick={() => {
+                      closeAuthHost(selectedPlugin.id)
+                      setAuthHost(null)
+                      setStep('type')
+                    }}
+                    className={BACK_BTN_CLS}
                   >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'absolute left-0 top-0 h-full w-[2px] bg-primary transition-opacity duration-200',
-                        active ? 'opacity-100' : 'opacity-0'
-                      )}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          'block font-serif text-[15.5px] font-semibold transition-colors',
-                          active ? 'text-primary' : 'text-foreground group-hover:text-primary'
-                        )}
-                      >
-                        {label}
-                      </span>
-                      <span className="block text-[12px] text-ink-faint">{t(descKey)}</span>
-                    </span>
-                    <CaretRight
-                      size={13}
-                      className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary"
-                    />
+                    <ArrowLeft size={15} />
+                    {t('action.back')}
                   </button>
-                )
-              })}
-            </div>
+                  <span className="font-display text-[17px] font-semibold text-ink">
+                    {selectedPlugin.name}
+                  </span>
+                </div>
 
-            {/* 流媒体音源：已安装插件 + 添加入口（PLAN 1.6） */}
-            {/* 小标题整句进词条（同 login.savedServers / login.serverType 的写法）：
-                这里原来在 JSX 里拼了一截硬编码的「· STREAMING」——那个后缀是版式的
-                一部分，留在代码里等于把它排除在翻译之外 */}
-            <p className="mt-10 mb-3 text-[11px] tracking-[0.24em] text-ink-faint">
-              {t('sources.group')}<span className="latin-tag"> · STREAMING</span>
-            </p>
-            {/*
-              正式版的纯浏览器没有能带 Cookie 的出网通道（见 lib/platform 的
-              pluginSourcesSupported）：登录流程本身走得完，之后每一次取歌、
-              取歌单都会失败。摆出一个注定失败的登录入口比没有更糟——
-              这里换成一句「需要哪个版本」加下载链接。
-            */}
-            {!pluginSourcesSupported ? (
-              <p className="border-t border-hair pt-4 text-[12.5px] leading-relaxed text-ink-soft">
-                {t('sources.needsApp')}{' '}
-                <a
-                  href={RELEASES_URL}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-primary underline decoration-hair underline-offset-[5px] hover:decoration-primary"
-                >
-                  {t('sources.needsAppLink')}
-                </a>
-              </p>
-            ) : (
-              <div className="border-t border-hair">
-                {plugins.map(plugin => (
-                  <button
-                    key={plugin.id}
-                    onClick={() => handlePluginSelect(plugin)}
-                    className="group flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
-                  >
-                    {pluginLogoSrc(plugin.id) ? (
-                      <SourceLogo pluginId={plugin.id} size={22} className="ring-1 ring-hair-soft" />
-                    ) : (
-                      <span
-                        aria-hidden
-                        className="h-[22px] w-[22px] flex-shrink-0 rounded-[5px] border border-hair"
-                        style={plugin.color ? { background: plugin.color } : undefined}
+                {isLoading ? (
+                  <p className="flex items-center justify-center gap-2 py-10 text-[14px] text-ink-soft">
+                    <CircleNotch size={16} className="animate-spin text-primary motion-reduce:animate-none" />
+                    {t('login.connecting')}
+                  </p>
+                ) : (
+                  <>
+                    {pluginManifest.auth.kind === 'qr' && (
+                      <QrLogin
+                        host={authHost}
+                        qrHint={pluginManifest.auth.qrHint}
+                        onAuthorized={credentials => void finishPluginAuth(credentials)}
                       />
                     )}
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-serif text-[15.5px] font-semibold text-foreground transition-colors group-hover:text-primary">
-                        {plugin.name}
-                      </span>
-                      {/* 这里原本写的是 plugin.platform——manifest 里的内部标识
-                          （'netease' / 'qqmusic' 这种），它对用户没有意义，
-                          暴露的只是实现细节。名字在上一行已经有了，这一行
-                          换成「它是什么 + 哪一版」。 */}
-                      <span className="num block text-[12px] text-ink-faint">
-                        {t('sources.typeLabel')} · v{plugin.version}
-                      </span>
-                    </span>
-                    <CaretRight
-                      size={13}
-                      className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary"
-                    />
-                  </button>
-                ))}
-                <button
-                  onClick={() => setAddDialogOpen(true)}
-                  className="group flex w-full items-center gap-4 border-b border-hair-soft py-3.5 pl-4 pr-2 text-left transition-all duration-200 hover:bg-paper-deep/60 hover:translate-x-1"
-                >
-                  <Plus size={15} className="flex-shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[14px] text-ink-soft transition-colors group-hover:text-primary">
-                      {t('sources.addPlugin')}
-                    </span>
-                    <span className="block text-[12px] text-ink-faint">{t('sources.addPluginDesc')}</span>
-                  </span>
-                </button>
+                    {pluginManifest.auth.kind === 'none' && (
+                      <p className="py-6 text-center text-[14px] text-ink-soft">
+                        {t('sources.authNone')}
+                      </p>
+                    )}
+                    {/*
+                      Cookie 登录只在插件真的能收 Cookie 时才摆出来。
+                      此前它是无条件渲染的：auth.kind 为 'none' 的音源、以及没导出
+                      n1ko.auth.loginWithCookie 的插件，页面上照样有一个「高级 ·
+                      用 Cookie 登录」——展开、粘贴、点提交，换来一句
+                      「unsupported」。摆出一个注定失败的入口比没有更糟。
+                    */}
+                    {pluginManifest.auth.kind !== 'none' && authHost.hasMethod('n1ko.auth.loginWithCookie') && (
+                      <CookieLogin
+                        host={authHost}
+                        cookieHint={pluginManifest.auth.cookieHint}
+                        onAuthorized={credentials => void finishPluginAuth(credentials)}
+                      />
+                    )}
+                    {pluginManifest.auth.allowAnonymous && (
+                      <div className="text-center">
+                        <Button
+                          variant="ghost"
+                          onClick={() => void finishPluginAuth(null)}
+                        >
+                          {t('sources.anonymous')}
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
-          </div>
-        ) : step === 'credentials' ? (
-          /* 填写连接信息 */
-          <div className="space-y-5 border-t border-hair pt-7">
-            <div className="flex items-center gap-2.5">
-              <button
-                onClick={() => setStep('type')}
-                className="inline-flex items-center gap-1.5 text-[12.5px] tracking-[0.08em] text-ink-soft hover:text-primary transition-colors"
-              >
-                <ArrowLeft size={13} />
-                {t('action.back')}
-              </button>
-              <span className="text-ink-faint">·</span>
-              <span className="font-serif text-[14px] font-semibold text-foreground">
-                {SERVER_TYPES.find(item => item.type === selectedType)?.label}
-              </span>
-            </div>
 
-            {/* 服务器名称（可选）*/}
-            <div>
-              <label htmlFor="login-name" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
-                {t('login.serverName')}
-              </label>
-              <Input
-                id="login-name"
-                placeholder={t('login.serverNamePlaceholder')}
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              />
-            </div>
-
-            {/* 服务器地址 */}
-            <div>
-              <label htmlFor="login-url" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
-                {t('login.serverUrl')} <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="login-url"
-                placeholder="https://music.example.com"
-                value={form.url}
-                onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-                type="url"
-                required
-                inputMode="url"
-                autoComplete="url"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </div>
-
-            {/* 用户名 */}
-            <div>
-              <label htmlFor="login-username" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
-                {t('login.username')} <span className="text-destructive">*</span>
-              </label>
-              {/*
-                autoCapitalize="none" 不是可有可无：iOS 默认把每个字段的首字母
-                大写，用户输入 admin 会得到 Admin，而 Navidrome / Subsonic 的
-                用户名区分大小写——第一次连接就会失败，且看不出哪里错了。
-                autoComplete 让密码管理器认得出这是哪一组凭据。
-              */}
-              <Input
-                id="login-username"
-                placeholder="admin"
-                value={form.username}
-                onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                required
-                autoComplete="username"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </div>
-
-            {/* 密码 */}
-            <div>
-              <label htmlFor="login-password" className="mb-1.5 block text-[11px] tracking-[0.18em] text-ink-faint">
-                {t('login.password')} <span className="text-destructive">*</span>
-              </label>
-              <div className="relative">
-                <Input
-                  id="login-password"
-                  placeholder="••••••••"
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  type={showPassword ? 'text' : 'password'}
-                  onKeyDown={e => e.key === 'Enter' && handleConnect()}
-                  className="pr-10"
-                  required
-                  autoComplete="current-password"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint hover:text-foreground transition-colors duration-200"
-                  aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
-                >
-                  {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
-            {/* 连接按钮：文字级主操作 + 下划线（DESIGN §4.1） */}
-            <div className="pt-2 text-center">
-              <Button
-                onClick={handleConnect}
-                disabled={isLoading || !form.url || !form.username || !form.password}
-              >
-                {isLoading ? (
-                  <>
-                    <CircleNotch className="w-4 h-4 mr-2 animate-spin" />
-                    {t('login.connecting')}
-                  </>
-                ) : (
-                  t('login.connect')
+            {step === 'type' ? (
+              <div className="space-y-8">
+                {/* 已保存的服务器：纸片行，点一下快速连接 */}
+                {servers.length > 0 && (
+                  <section aria-labelledby="login-saved">
+                    <h2 id="login-saved" className={GROUP_HEAD_CLS}>{t('login.savedHeading')}</h2>
+                    <ul className="space-y-2">
+                      {servers.map(server => (
+                        <li key={server.id} className="relative">
+                          <button
+                            onClick={() => handleQuickConnect(server.id)}
+                            className={cn(ROW_CLS, 'pr-14')}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[16px] font-semibold text-ink">
+                                {server.name}
+                              </span>
+                              <span className="flex gap-x-3 text-[13px] text-ink-faint">
+                                <span className="flex-none">
+                                  {server.type === 'plugin'
+                                    ? plugins.find(p => p.id === server.pluginId)?.name ?? getServerTypeLabel(server.type)
+                                    : getServerTypeLabel(server.type)}
+                                </span>
+                                {/* 早先的匿名条目在盘上存的就是字面量 'anonymous'，
+                                    只改新写入的话老用户永远看着那个英文词 */}
+                                <span className="min-w-0 truncate">
+                                  {server.username === 'anonymous'
+                                    ? (server.credentials ? t('sources.signedIn') : t('sources.notSignedIn'))
+                                    : server.username}
+                                </span>
+                              </span>
+                            </span>
+                            <span className="num hidden max-w-[150px] truncate text-[12px] text-ink-faint regular:block">
+                              {server.url}
+                            </span>
+                          </button>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              if (window.confirm(t('login.removeSavedServerConfirm', { name: server.name }))) {
+                                removeServer(server.id)
+                              }
+                            }}
+                            aria-label={t('login.removeSavedServer')}
+                            title={t('login.removeSavedServer')}
+                            className="absolute right-1.5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-pill text-ink-faint transition-colors duration-150 hover:bg-paper-3 hover:text-destructive"
+                          >
+                            <X size={15} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
                 )}
-              </Button>
-            </div>
+
+                {/* 服务器类型：2×2 纸片格（当前项 bg-paper-3 + 陶土图标） */}
+                <section aria-labelledby="login-types">
+                  <h2 id="login-types" className={GROUP_HEAD_CLS}>{t('login.typeHeading')}</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    {SERVER_TYPES.map(({ type, label, descKey, icon: TypeIcon }) => {
+                      const active = selectedType === type
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => handleTypeSelect(type)}
+                          aria-pressed={active}
+                          className={cn(
+                            'press-pop flex min-h-[104px] flex-col items-start gap-2 rounded-md p-4 text-left',
+                            active ? 'bg-paper-3' : 'bg-paper-deep hover:bg-paper-3'
+                          )}
+                        >
+                          <TypeIcon
+                            size={26}
+                            weight={active ? 'fill' : 'regular'}
+                            className={active ? 'text-primary' : 'text-ink-faint'}
+                          />
+                          <span className="block">
+                            <span className="block text-[16px] font-semibold text-ink">{label}</span>
+                            <span className="block text-[13px] leading-snug text-ink-faint">{t(descKey)}</span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+
+                {/* 流媒体音源：已安装插件 + 添加入口（PLAN 1.6） */}
+                <section aria-labelledby="login-streaming">
+                  <h2 id="login-streaming" className={GROUP_HEAD_CLS}>{t('login.streamingHeading')}</h2>
+                  {/*
+                    正式版的纯浏览器没有能带 Cookie 的出网通道（见 lib/platform 的
+                    pluginSourcesSupported）：登录流程本身走得完，之后每一次取歌、
+                    取歌单都会失败。摆出一个注定失败的登录入口比没有更糟——
+                    这里换成一句「需要哪个版本」加下载链接。
+                  */}
+                  {!pluginSourcesSupported ? (
+                    <p className="rounded-md bg-paper-deep px-4 py-3.5 text-[14px] leading-relaxed text-ink-soft">
+                      {t('sources.needsApp')}{' '}
+                      <a
+                        href={RELEASES_URL}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="font-medium text-primary underline decoration-primary/40 underline-offset-[5px] hover:decoration-primary"
+                      >
+                        {t('sources.needsAppLink')}
+                      </a>
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {plugins.map(plugin => (
+                        <button
+                          key={plugin.id}
+                          onClick={() => handlePluginSelect(plugin)}
+                          className={ROW_CLS}
+                        >
+                          {pluginLogoSrc(plugin.id) ? (
+                            <SourceLogo pluginId={plugin.id} size={28} />
+                          ) : (
+                            <span
+                              aria-hidden
+                              className="h-7 w-7 flex-shrink-0 rounded-sm bg-paper-3"
+                              style={plugin.color ? { background: plugin.color } : undefined}
+                            />
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[16px] font-semibold text-ink">
+                              {plugin.name}
+                            </span>
+                            {/* 这里原本写的是 plugin.platform——manifest 里的内部标识
+                                （'netease' / 'qqmusic' 这种），它对用户没有意义，
+                                暴露的只是实现细节。名字在上一行已经有了，这一行
+                                换成「它是什么 + 哪一版」。 */}
+                            <span className="num flex gap-x-3 text-[13px] text-ink-faint">
+                              <span>{t('sources.typeLabel')}</span>
+                              <span>v{plugin.version}</span>
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setAddDialogOpen(true)}
+                        className="flex min-h-[60px] w-full items-center gap-3 rounded-md px-4 py-3 text-left transition-colors duration-150 hover:bg-paper-deep"
+                      >
+                        <span className="grid h-7 w-7 flex-shrink-0 place-items-center">
+                          <Plus size={20} className="text-primary" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[16px] font-medium text-ink">
+                            {t('sources.addPlugin')}
+                          </span>
+                          <span className="block text-[13px] text-ink-faint">{t('sources.addPluginDesc')}</span>
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </section>
+              </div>
+            ) : step === 'credentials' ? (
+              /* 填写连接信息 */
+              <div className="space-y-5">
+                <div className="flex items-center gap-x-3">
+                  <button
+                    onClick={() => setStep('type')}
+                    className={BACK_BTN_CLS}
+                  >
+                    <ArrowLeft size={15} />
+                    {t('action.back')}
+                  </button>
+                  <span className="font-display text-[17px] font-semibold text-ink">
+                    {SERVER_TYPES.find(item => item.type === selectedType)?.label}
+                  </span>
+                </div>
+
+                {/* 服务器名称（可选）*/}
+                <div>
+                  <label htmlFor="login-name" className={FIELD_LABEL_CLS}>
+                    {t('login.serverName')}
+                  </label>
+                  <Input
+                    id="login-name"
+                    placeholder={t('login.serverNamePlaceholder')}
+                    value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+
+                {/* 服务器地址 */}
+                <div>
+                  <label htmlFor="login-url" className={FIELD_LABEL_CLS}>
+                    {t('login.serverUrl')} <span className="text-destructive">*</span>
+                  </label>
+                  <Input
+                    id="login-url"
+                    placeholder="https://music.example.com"
+                    value={form.url}
+                    onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+                    type="url"
+                    required
+                    inputMode="url"
+                    autoComplete="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                </div>
+
+                {/* 用户名 */}
+                <div>
+                  <label htmlFor="login-username" className={FIELD_LABEL_CLS}>
+                    {t('login.username')} <span className="text-destructive">*</span>
+                  </label>
+                  {/*
+                    autoCapitalize="none" 不是可有可无：iOS 默认把每个字段的首字母
+                    大写，用户输入 admin 会得到 Admin，而 Navidrome / Subsonic 的
+                    用户名区分大小写——第一次连接就会失败，且看不出哪里错了。
+                    autoComplete 让密码管理器认得出这是哪一组凭据。
+                  */}
+                  <Input
+                    id="login-username"
+                    placeholder="admin"
+                    value={form.username}
+                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                    required
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                </div>
+
+                {/* 密码 */}
+                <div>
+                  <label htmlFor="login-password" className={FIELD_LABEL_CLS}>
+                    {t('login.password')} <span className="text-destructive">*</span>
+                  </label>
+                  <div className="relative">
+                    <Input
+                      id="login-password"
+                      placeholder="••••••••"
+                      value={form.password}
+                      onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                      type={showPassword ? 'text' : 'password'}
+                      onKeyDown={e => e.key === 'Enter' && handleConnect()}
+                      className="pr-12"
+                      required
+                      autoComplete="current-password"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-pill text-ink-faint transition-colors duration-150 hover:bg-paper-deep hover:text-ink"
+                      aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
+                    >
+                      {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 连接按钮：整屏唯一的主操作（陶土胶囊） */}
+                <div className="pt-2">
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    onClick={handleConnect}
+                    disabled={isLoading || !form.url || !form.username || !form.password}
+                  >
+                    {isLoading ? (
+                      <>
+                        <CircleNotch className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                        {t('login.connecting')}
+                      </>
+                    ) : (
+                      t('login.connect')
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </main>
       </div>
 
       {/* 添加插件（目录 / URL / 粘贴）：无 NAS 的首跑用户装第一个音源就靠它 */}

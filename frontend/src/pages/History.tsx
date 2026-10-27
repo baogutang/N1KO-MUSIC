@@ -132,21 +132,18 @@ export default function History() {
   }
 
   return (
-    <div className="pt-8 animate-fade-in">
-      {/* 页头：衬线标题 + mono 总条数 + 文字级次操作（DESIGN v2 §3/§4.1） */}
-      <header className="flex items-end justify-between gap-6 border-b border-hair pb-6">
+    <div className="pt-2 regular:pt-4 animate-fade-in">
+      {/* 页头：大标题 + 条数（各自独立的 span）+ 清空 */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div>
-          <h1 className="font-serif text-[30px] font-bold leading-tight tracking-[-0.01em]">
+          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
             {t('nav.history')}
-            <span className="latin-tag ml-4 align-[4px] font-sans text-[11px] font-normal tracking-[0.3em] text-ink-faint">
-              HISTORY
-            </span>
           </h1>
           {history.length > 0 && (
-            <p className="mt-1.5 text-sm text-ink-faint">
-              <span className="font-num">{t('history.recordCount', { count: history.length })}</span>
+            <p className="num mt-3 flex flex-wrap gap-x-3 text-sm text-ink-faint">
+              <span>{t('history.recordCount', { count: history.length })}</span>
               {visible.length < history.length && (
-                <span> · {t('history.shownCount', { count: visible.length })}</span>
+                <span>{t('history.shownCount', { count: visible.length })}</span>
               )}
             </p>
           )}
@@ -154,9 +151,9 @@ export default function History() {
         {history.length > 0 && (
           <button
             onClick={() => setConfirmClear(true)}
-            className="inline-flex flex-shrink-0 items-center gap-1.5 text-sm text-ink-soft transition-colors hover:text-destructive active:scale-[0.97]"
+            className="inline-flex min-h-[44px] flex-shrink-0 items-center gap-2 rounded-pill px-3 text-[14px] font-medium text-ink-soft transition-colors hover:text-destructive"
           >
-            <Trash className="w-3.5 h-3.5" />
+            <Trash size={16} />
             {t('history.clear')}
           </button>
         )}
@@ -170,40 +167,48 @@ export default function History() {
       ) : (
         <div>
           {Object.entries(grouped).map(([dateKey, entries]) => (
-            <section key={dateKey} className="mt-10 first:mt-8">
-              {/* 组标题：小号 wide-tracking 标签 + 发丝线 + mono 组内条数 */}
-              <div className="flex items-baseline gap-4">
-                <h2 className="text-[11px] font-medium tracking-[0.3em] text-ink-faint">
+            <section key={dateKey} className="mt-8">
+              {/* 组标题：小号次要字 + 组内条数 */}
+              <div className="flex items-baseline gap-3 px-3">
+                <h2 className="text-[13px] font-medium text-ink-faint">
                   {formatDateLabel(dateKey)}
                 </h2>
-                <span className="h-px flex-1 bg-hair-soft" aria-hidden="true" />
-                <span className="font-num text-[11px] text-ink-faint">{entries.length}</span>
+                <span className="num text-[13px] text-ink-faint">{entries.length}</span>
               </div>
 
-              {/* 曲目行：SongList 范式（mono 序号 + 小封面 + 衬线曲名 + 歌手 + mono 时长 + mono 播放时间） */}
-              <div className="mt-1 divide-y divide-hair-soft">
+              {/* 曲目行：序号 + 小封面 + 曲名/歌手 + 时长 + 播放时间；行间靠留白与 hover 底 */}
+              <div className="mt-1">
                 {entries.map((entry, idx) => {
                   const globalIndex = globalIndexMap.get(entry) ?? 0
                   return (
                     <div
                       key={entry.eventId}
-                      className="song-row group"
+                      role="button"
+                      tabIndex={0}
+                      className="song-row group gap-3 regular:gap-4"
                       onClick={() => handlePlay(globalIndex)}
+                      onKeyDown={e => {
+                        if (e.target !== e.currentTarget) return
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handlePlay(globalIndex)
+                        }
+                      }}
                     >
-                      {/* 序号：hover 浮现细线圆播放键 */}
-                      <span className="relative flex w-8 flex-shrink-0 items-center justify-center">
-                        <span className="font-num text-xs text-ink-faint transition-opacity duration-200 group-hover:opacity-0">
+                      {/* 序号：hover 浮现播放键（窄屏不占位） */}
+                      <span className="relative hidden w-8 flex-shrink-0 items-center justify-center regular:flex">
+                        <span className="num text-[13px] text-ink-faint transition-opacity duration-200 [@media(hover:hover)]:group-hover:opacity-0">
                           {String(idx + 1).padStart(2, '0')}
                         </span>
-                        <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                          <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border border-hair text-ink-soft">
-                            <Play className="ml-px h-2.5 w-2.5" weight="fill" />
+                        <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 [@media(hover:hover)]:group-hover:opacity-100">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sheet text-ink shadow-press">
+                            <Play className="ml-px h-3 w-3" weight="fill" />
                           </span>
                         </span>
                       </span>
 
                       {/* 小封面 */}
-                      <span className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-hair-soft">
+                      <span className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-sm bg-paper-deep">
                         <ImageWithFallback
                           src={entry.song.coverArt ? (findAdapterFor(entry.song.serverId)?.getCoverUrl(entry.song.coverArt, 64) ?? undefined) : undefined}
                           alt={entry.song.title}
@@ -214,30 +219,26 @@ export default function History() {
                         />
                       </span>
 
-                      {/* 曲名 + 歌手 */}
+                      {/* 曲名 + 歌手 / 专辑（各自独立的 span） */}
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-1 font-serif text-[15px] font-semibold leading-snug transition-colors group-hover:text-primary">
+                        <p className="line-clamp-1 text-[15px] font-semibold leading-snug">
                           {entry.song.title}
                         </p>
-                        <p className="mt-0.5 line-clamp-1 text-xs text-ink-soft">
-                          {entry.song.artist}
-                          {entry.song.album && <span className="text-ink-faint"> · {entry.song.album}</span>}
+                        <p className="mt-0.5 flex min-w-0 gap-x-3 text-[13px] text-ink-soft">
+                          <span className="truncate">{entry.song.artist}</span>
+                          {entry.song.album && <span className="hidden truncate text-ink-faint regular:inline">{entry.song.album}</span>}
                         </p>
                       </div>
 
-                      {/* mono 时长 */}
-                      <span className="w-12 flex-shrink-0 text-right font-num text-xs text-ink-faint">
+                      {/* 时长（窄屏不占位） */}
+                      <span className="num hidden w-12 flex-shrink-0 text-right text-[13px] text-ink-faint regular:block">
                         {entry.song.duration ? formatDuration(entry.song.duration) : ''}
                       </span>
 
-                      {/* 收听结果：只标注跳过，正常收听不加视觉噪音 */}
-                      <span className="w-8 flex-shrink-0 text-right text-[11px] text-ink-faint">
-                        {entry.outcome === 'skipped' ? t('history.skipped') : ''}
-                      </span>
-
-                      {/* mono 播放时间 HH:mm */}
-                      <span className="w-12 flex-shrink-0 text-right font-num text-xs text-ink-faint">
-                        {formatTimeOfDay(entry.endedAt)}
+                      {/* 播放时间 HH:mm；只标注跳过，正常收听不加视觉噪音 */}
+                      <span className="w-12 flex-shrink-0 text-right text-[13px] text-ink-faint">
+                        <span className="num block">{formatTimeOfDay(entry.endedAt)}</span>
+                        {entry.outcome === 'skipped' && <span className="block text-[12px]">{t('history.skipped')}</span>}
                       </span>
                     </div>
                   )
@@ -247,11 +248,11 @@ export default function History() {
           ))}
 
           {visible.length < history.length && (
-            <div className="mt-10 border-t border-hair pt-6 text-center">
+            <div className="mt-10 flex justify-center">
               <button
                 type="button"
                 onClick={() => setVisibleCount(count => count + PAGE_SIZE)}
-                className="text-sm text-ink-soft underline decoration-hair underline-offset-[6px] transition-colors hover:text-primary hover:decoration-primary"
+                className="act-secondary inline-flex items-center gap-2 text-[14px]"
               >
                 {t('history.loadMore')}
               </button>
@@ -261,7 +262,7 @@ export default function History() {
       )}
 
       <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{t('history.clearConfirmTitle')}</DialogTitle>
             <DialogDescription>{t('history.clearConfirmDescription')}</DialogDescription>

@@ -1,13 +1,9 @@
 /**
  * 主题状态管理
  *
- * 两个正交的维度：
- *   skin  皮肤：'clay'（奶油·软陶，默认，DESIGN v4）/ 'pop'（糖果·波普工坊，DESIGN v3）
- *         / 'editorial'（纸·墨·朱，DESIGN v2）
- *         落到 <html data-skin>，index.css 里三套 token 各自认领。
- *   theme 明暗：浅色为默认（<html> 无 class），深色为 'dark' class；system 跟随系统。
- *
- * 两者互不干涉——四种组合都成立。切换只改 DOM 属性，不重挂组件树。
+ * v5 起只有一套设计（暖纸），三张皮的 skin 维度已移除。
+ * 剩下明暗一个维度：浅色为默认，深色落到 <html> 上的 'dark' class（供 Tailwind 的 dark: 变体）
+ * 与 data-theme="dark"（供 index.css 的 token 块）；system 跟随系统。
  */
 
 import { create } from 'zustand'
@@ -17,71 +13,36 @@ import { STORAGE_KEYS } from '@/services/storageKeys'
 
 export type Theme = 'dark' | 'light' | 'system'
 
-/** 皮肤。新增皮肤时同步更新 index.css 的 token 块与 theme-preflash.js。 */
-export type Skin = 'pop' | 'editorial' | 'clay'
-
-/**
- * 全部皮肤，顺序即工具条循环切换的顺序，也是设置页分段控件的顺序。
- * 加皮肤只改这一处，切换逻辑与持久化兜底都从它派生。
- */
-export const SKINS: readonly Skin[] = ['clay', 'pop', 'editorial'] as const
-
-/**
- * 皮肤名与说明句的词条 key。
- *
- * 刻意写成一张字面量表，而不是在调用方拼 `settings.skin.${skin}`：
- * i18n 的死条目检查靠源码全文匹配 `'key'`，拼出来的 key 它看不见——
- * 于是这三张皮的名字会被判成「没有调用方」，译者也就不知道它们还活着。
- */
-export const SKIN_LABEL_KEYS: Record<Skin, { name: string; desc: string }> = {
-  pop: { name: 'settings.skin.pop', desc: 'settings.skin.popDesc' },
-  editorial: { name: 'settings.skin.editorial', desc: 'settings.skin.editorialDesc' },
-  clay: { name: 'settings.skin.clay', desc: 'settings.skin.clayDesc' },
-}
-
-/** 默认皮肤：奶油·软陶（2026-09-04 起；此前是糖果·波普工坊） */
-export const DEFAULT_SKIN: Skin = 'clay'
-
 /**
  * 首屏底色，供防白闪脚本与主题色 meta 使用。
- * 值必须和 index.css 里对应 token 的 --background 一致，改一处要改两处。
+ * 值必须和 index.css 的 --paper（亮 / 暗）一致；public/theme-preflash.js 里有同一份副本。
  */
-export const SKIN_BACKGROUNDS: Record<Skin, { light: string; dark: string }> = {
-  pop: { light: '#fbf1e3', dark: '#101016' },
-  editorial: { light: '#f4efe3', dark: '#1a1712' },
-  clay: { light: '#eee2d1', dark: '#1b1714' },
-}
-
-/** 读回来的皮肤字段可能是旧版本没有的、或已删除的值，一律兜到默认皮肤 */
-function normalizeSkin(value: unknown): Skin {
-  return SKINS.includes(value as Skin) ? (value as Skin) : DEFAULT_SKIN
+export const THEME_BACKGROUNDS: Record<'light' | 'dark', string> = {
+  light: '#f9f4ee',
+  dark: '#150d0a',
 }
 
 /**
- * @deprecated 编辑风只保留单一朱红 accent（DESIGN v2 §1.3），多色 accent 预设已移除。
- * store 不再向 DOM 注入任何 --primary/--ring 覆盖；设置页 accent UI 随后续 Phase 删除。
+ * @deprecated 单一陶土强调色，多色 accent 预设早已移除；仅作类型兼容保留。
  */
 export type AccentColor = 'green' | 'red' | 'blue' | 'purple' | 'orange'
 
 interface ThemeState {
   theme: Theme
-  /** 当前皮肤 */
-  skin: Skin
   /** 当前实际应用的主题（解析 system 后）*/
   resolvedTheme: 'dark' | 'light'
-  /** @deprecated 见 AccentColor 注释，仅作持久化兼容保留，不产生任何视觉效果 */
-  /** 是否显示侧边栏（移动端收起）*/
+  /** 宽窗口（≥1024）下侧栏是否收起；跨会话保留 */
   sidebarCollapsed: boolean
+  /** 宽窗口下右侧「正在播放」面板：null = 自动（窗口 ≥1180 时展开），否则听用户的 */
+  nowPlayingPanel: boolean | null
   /** 播放器可视化效果 */
   visualizerEnabled: boolean
 
   setTheme: (theme: Theme) => void
-  setSkin: (skin: Skin) => void
-  toggleSkin: () => void
-  /** @deprecated 不再注入 accent 覆盖，仅更新字段（后续 Phase 随设置页一并移除）*/
   toggleTheme: () => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebar: () => void
+  setNowPlayingPanel: (open: boolean | null) => void
   setVisualizerEnabled: (enabled: boolean) => void
 }
 
@@ -91,29 +52,22 @@ function getSystemTheme(): 'dark' | 'light' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-/** 将主题应用到 DOM：浅色 = 默认（无 class），深色 = 'dark' class */
+/** 将明暗应用到 DOM：class 给 Tailwind，data-theme 给 index.css 的 token 块 */
 function applyTheme(resolved: 'dark' | 'light'): void {
-  document.documentElement.classList.toggle('dark', resolved === 'dark')
-}
-
-/** 将皮肤应用到 DOM */
-function applySkin(skin: Skin): void {
-  document.documentElement.dataset.skin = skin
+  const root = document.documentElement
+  root.classList.toggle('dark', resolved === 'dark')
+  root.dataset.theme = resolved
 }
 
 /**
  * 同步浏览器 UI 色（地址栏 / 安卓状态栏 / iOS 安全区）。
- *
- * index.html 里那两条按 prefers-color-scheme 分流的 theme-color 只知道
- * 编辑风的底色；皮肤一换就会在版面顶上留一条对不上的亮边。
- * 这里按「当前皮肤 × 当前明暗」写死一条，覆盖掉静态的两条。
+ * index.html 里按 prefers-color-scheme 分流的两条只管首屏；手动切明暗后由这一条覆盖。
  */
-function applyThemeColor(skin: Skin, resolved: 'dark' | 'light'): void {
-  const color = SKIN_BACKGROUNDS[skin][resolved]
+function applyThemeColor(resolved: 'dark' | 'light'): void {
   document.querySelectorAll('meta[name="theme-color"]').forEach(el => el.remove())
   const meta = document.createElement('meta')
   meta.name = 'theme-color'
-  meta.content = color
+  meta.content = THEME_BACKGROUNDS[resolved]
   document.head.appendChild(meta)
 }
 
@@ -121,70 +75,51 @@ export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
       theme: 'light',
-      skin: DEFAULT_SKIN,
       resolvedTheme: 'light',
       sidebarCollapsed: false,
+      nowPlayingPanel: null,
       visualizerEnabled: true,
 
       setTheme: (theme) => {
         const resolved = theme === 'system' ? getSystemTheme() : theme
         applyTheme(resolved)
-        applyThemeColor(get().skin, resolved)
+        applyThemeColor(resolved)
         set({ theme, resolvedTheme: resolved })
       },
 
-      setSkin: (skin) => {
-        applySkin(skin)
-        applyThemeColor(skin, get().resolvedTheme)
-        set({ skin })
-      },
-
-      toggleSkin: () => {
-        // 三张皮循环：工具条那颗键是「换个心情」，不是一个二选一开关
-        const next = SKINS[(SKINS.indexOf(get().skin) + 1) % SKINS.length]
-        applySkin(next)
-        applyThemeColor(next, get().resolvedTheme)
-        set({ skin: next })
-      },
-
       toggleTheme: () => {
-        const { resolvedTheme, skin } = get()
-        const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
+        const newTheme = get().resolvedTheme === 'dark' ? 'light' : 'dark'
         applyTheme(newTheme)
-        applyThemeColor(skin, newTheme)
+        applyThemeColor(newTheme)
         set({ theme: newTheme, resolvedTheme: newTheme })
       },
 
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       toggleSidebar: () => set(state => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+      setNowPlayingPanel: (open) => set({ nowPlayingPanel: open }),
       setVisualizerEnabled: (enabled) => set({ visualizerEnabled: enabled }),
     }),
     {
       name: STORAGE_KEYS.themeStore,
-      version: 2,
-      // 旧数据里的 accentColor 已废弃（阶段 4.7）：剥掉再落盘
+      version: 3,
       migrate: (persisted, version) => {
-        if (version < 2) {
-          const state = (persisted as { state?: Record<string, unknown> })?.state ?? {}
-          delete state.accentColor
-        }
+        const state = (persisted as { state?: Record<string, unknown> })?.state
+          ?? (persisted as Record<string, unknown> | undefined)
+          ?? {}
+        // v2：accentColor 已废弃（阶段 4.7）
+        if (version < 2) delete state.accentColor
+        // v3：三张皮收敛成一套，skin 字段不再有意义
+        if (version < 3) delete state.skin
         return persisted as ThemeState
       },
       // index.html 启动脚本会同步读取此键以避免闪白，不能延迟写入
       storage: createPersistStorage({ debounceMs: 0 }),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          const resolved =
-            state.theme === 'system' ? getSystemTheme() : state.theme
-          // 1.9.2 之前的持久化数据里没有 skin 字段，读回来是 undefined。
-          // 不兜底的话 <html data-skin> 会被写成字符串 "undefined"，
-          // 三个皮肤块都不命中，页面落回 :root 的编辑风。
-          const skin = normalizeSkin(state.skin)
+          const resolved = state.theme === 'system' ? getSystemTheme() : state.theme
           applyTheme(resolved)
-          applySkin(skin)
-          applyThemeColor(skin, resolved)
+          applyThemeColor(resolved)
           state.resolvedTheme = resolved
-          state.skin = skin
         }
       },
     }

@@ -1,7 +1,7 @@
 /**
  * 「此刻 · 服务器上」——同一台服务器上别人正在听什么。
  *
- * 家庭共享的 NAS 上这是个很有人味的栏目。做成一段文字，不是仪表盘部件。
+ * 家庭共享的 NAS 上这是个很有人味的栏目。做成几行文字，不是仪表盘部件。
  * 单用户服务器上没有别人在听，整块自动不出现。
  */
 
@@ -40,30 +40,30 @@ export function NowPlayingOnServer() {
   return (
     <section aria-labelledby="now-on-server">
       <div className="section-head">
-        <h2 id="now-on-server">
-          {t('nowPlaying.onServer')}<small>NOW ON THE SERVER</small>
-        </h2>
+        <h2 id="now-on-server">{t('nowPlaying.onServer')}</h2>
       </div>
-      <ul className="border-t border-hair">
+      <ul>
         {others.slice(0, 6).map((entry, i) => (
           <li
             key={`${entry.username}-${entry.song.id}-${i}`}
-            className="flex items-baseline gap-4 border-b border-hair-soft px-2 py-3"
+            className="flex min-h-[56px] items-center gap-4 rounded-sm px-3 py-2 transition-colors duration-200 [@media(hover:hover)]:hover:bg-paper-deep"
           >
-            <span className="font-num w-20 flex-none truncate text-[11px] text-ink-faint">
+            <span className="w-16 flex-none truncate text-[13px] font-medium text-ink-soft regular:w-24">
               {entry.username}
             </span>
-            <button
-              onClick={() => navigate(detailPath('songs', entry.song.id, entry.song.serverId), { state: { song: entry.song } })}
-              className="min-w-0 flex-1 truncate text-left font-serif text-[15px] font-semibold transition-colors hover:text-primary"
-            >
-              {spaceCJK(entry.song.title)}
-            </button>
-            <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-faint">
-              {spaceCJK(entry.song.artist)}
+            <span className="min-w-0 flex-1">
+              <button
+                onClick={() => navigate(detailPath('songs', entry.song.id, entry.song.serverId), { state: { song: entry.song } })}
+                className="-my-2 block max-w-full truncate rounded-sm py-2 text-left text-[15px] font-semibold transition-colors hover:text-primary"
+              >
+                {spaceCJK(entry.song.title)}
+              </button>
+              <span className="mt-0.5 block truncate text-[13px] text-ink-faint">
+                {spaceCJK(entry.song.artist)}
+              </span>
             </span>
             {entry.minutesAgo != null && (
-              <span className="font-num flex-none text-[11px] text-ink-faint">
+              <span className="num flex-none text-[13px] text-ink-faint">
                 {entry.minutesAgo === 0 ? t('nowPlaying.justNow') : t('nowPlaying.minutesAgo', { count: entry.minutesAgo })}
               </span>
             )}

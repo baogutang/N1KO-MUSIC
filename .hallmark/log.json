@@ -1,0 +1,32 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "app",
+  "shape": "app screen",
+  "theme": "bloom",
+  "axes": "light/grotesk-sans/warm",
+  "hero": "none (app)",
+  "nav": "window-width shell: sidebar >=1024, side rail 600-1023, tab bar <600",
+  "footer": "none (app)",
+  "imagery": "album covers only",
+  "photos": [],
+  "entry": "frontend/src/index.css",
+  "fingerprint": "bloom-app-rubber-key-lyric-grid",
+  "sections": [
+   "home",
+   "library",
+   "album",
+   "artist",
+   "playlist",
+   "search",
+   "song",
+   "settings",
+   "now playing (stack/portrait/landscape/tabletop)"
+  ],
+  "signature": "rubber play key in a bezel; lyrics on the working grid",
+  "waived": [],
+  "prompt": "personal music player for a home NAS library and streaming sources, iPhone Duo and iPadOS",
+  "date": "2026-10-27"
+ }
+]

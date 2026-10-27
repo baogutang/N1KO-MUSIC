@@ -26,7 +26,8 @@ describe('字体子集标签（3.4）', () => {
 
   it('fonts.css 引用的每个字体文件都存在', () => {
     const referenced = [...css.matchAll(/url\((?:[^)]*)?\/fonts\/([^)]+)\)/g)].map(m => m[1])
-    expect(referenced.length).toBeGreaterThan(30)
+    // v5 暖纸只剩两族四个文件（Schibsted Grotesk / Young Serif 的 latin + latin-ext）
+    expect(referenced.length).toBeGreaterThanOrEqual(4)
     for (const f of referenced) {
       const exists = readdirSync(publicFonts).includes(f)
       expect(exists, `${f} 缺失`).toBe(true)

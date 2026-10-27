@@ -37,7 +37,7 @@ function PresetLabel({ template, minutes }: { template: string; minutes: number 
   return (
     <>
       {before}
-      <span className="font-num text-ink-faint">{minutes}</span>
+      <span className="num text-ink-faint">{minutes}</span>
       {after}
     </>
   )
@@ -72,16 +72,16 @@ export function SleepTimerMenu({ className }: { className?: string }) {
           aria-pressed={active}
         >
           {active && sleepTimerMode === 'duration' ? (
-            <span className="font-num text-[10.5px] tabular-nums">{formatRemaining(remaining)}</span>
+            <span className="num text-[11px]">{formatRemaining(remaining)}</span>
           ) : (
             <Moon size={16} weight={active ? 'fill' : 'regular'} />
           )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48 glass">
-        <div className="px-3 py-2 border-b border-hair-soft">
-          <p className="font-serif text-sm font-semibold">{t('player.sleepTimer')}</p>
-          <p className="mt-0.5 text-[11px] text-ink-faint">
+        <div className="px-3 pb-2 pt-2.5">
+          <p className="font-display text-[15px] font-semibold">{t('player.sleepTimer')}</p>
+          <p className="mt-0.5 text-[12.5px] leading-snug text-ink-faint">
             {active
               ? sleepTimerMode === 'endOfTrack'
                 ? t('player.sleepStopAfterTrack')

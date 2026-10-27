@@ -1,11 +1,10 @@
 /**
  * 边注。
  *
- * 版面右侧那一小块窄栏，专门放你自己写的话。杂志里的边注就是这个位置：
- * 比正文小一号、不抢，但确实在页面上占一格，说明它是这一页的一部分，
- * 而不是一个折叠起来的附属功能。
+ * 页面下方一张纸片卡，专门放你自己写的话：它在页面上占一格，
+ * 说明它是这一页的一部分，而不是一个折叠起来的附属功能。
  *
- * 没写过的时候只是一行很淡的提示，不做空盒子；写过之后是一段衬线文字加落款日期。
+ * 没写过的时候只是一行很淡的提示；写过之后是一段正文加落款日期。
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -13,6 +12,7 @@ import { PencilSimple, Check, X, Trash } from '@phosphor-icons/react'
 import {
   deleteNote, readNote, saveNote, MAX_NOTE_LENGTH, type NoteTarget,
 } from '@/services/notes'
+import { Button } from '@/components/ui/button'
 import { useServerStore } from '@/store/serverStore'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
@@ -90,20 +90,19 @@ export function MarginNote({
 
   return (
     <aside
-      className={cn('border-t border-hair pt-4', className)}
+      className={cn('sheet p-5', className)}
       aria-label={t('section.marginalia')}
     >
-      <div className="mb-2.5 flex items-baseline justify-between gap-3">
-        <p className="text-[10.5px] uppercase tracking-[0.24em] text-primary">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="font-display text-[17px] font-semibold">
           {t('section.marginalia')}
-          <span className="latin-tag"> · MARGINALIA</span>
         </p>
         {!editing && (
           <button
             onClick={startEditing}
-            className="flex items-center gap-1.5 text-[11px] text-ink-faint transition-colors hover:text-primary"
+            className="-mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-pill px-3 text-[13px] font-medium text-ink-soft transition-colors hover:bg-paper-deep hover:text-primary"
           >
-            <PencilSimple size={11} />
+            <PencilSimple size={14} />
             {note ? t('action.edit') : t('action.writeNote')}
           </button>
         )}
@@ -123,50 +122,44 @@ export function MarginNote({
             }}
             rows={5}
             placeholder={placeholder}
-            className="w-full resize-none border-b border-hair bg-transparent pb-2 font-serif text-[14px] leading-[1.85] text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
+            className="w-full resize-none rounded-md bg-paper-deep px-4 py-3 text-[14px] leading-[1.85] text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
           />
-          <div className="mt-2.5 flex items-center gap-4">
-            <button
-              onClick={commit}
-              className="flex items-center gap-1.5 text-[12px] font-semibold transition-colors hover:text-primary"
-            >
-              <Check size={12} />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={commit}>
+              <Check size={14} />
               {t('action.save')}
-            </button>
-            <button
-              onClick={discard}
-              className="flex items-center gap-1.5 text-[12px] text-ink-faint transition-colors hover:text-ink"
-            >
-              <X size={12} />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={discard}>
+              <X size={14} />
               {t('action.discard')}
-            </button>
-            {note && (
-              <button
-                onClick={remove}
-                className="ml-auto flex items-center gap-1.5 text-[12px] text-ink-faint transition-colors hover:text-destructive"
-              >
-                <Trash size={12} />
-                {t('action.delete')}
-              </button>
-            )}
-            <span className="font-num ml-auto text-[10.5px] text-ink-faint">
+            </Button>
+            <span className="num ml-auto text-xs text-ink-faint">
               {draft.length} / {MAX_NOTE_LENGTH}
             </span>
+            {note && (
+              <Button size="sm" variant="ghost" onClick={remove} className="hover:text-destructive">
+                <Trash size={14} />
+                {t('action.delete')}
+              </Button>
+            )}
           </div>
         </div>
       ) : note ? (
-        <button onClick={startEditing} className="block w-full text-left">
-          <p className="whitespace-pre-wrap font-serif text-[14px] leading-[1.9] text-ink">
+        <button
+          onClick={startEditing}
+          className="-mx-2 block w-[calc(100%+1rem)] rounded-md px-2 py-1.5 text-left transition-colors [@media(hover:hover)]:hover:bg-paper-deep"
+        >
+          <p className="whitespace-pre-wrap text-[14.5px] leading-[1.85] text-ink">
             {spaceCJK(note.body)}
           </p>
-          <p className="font-num mt-2.5 text-[10.5px] text-ink-faint">
+          <p className="num mt-2 text-xs text-ink-faint">
             {formatDate(note.updatedAt)}
           </p>
         </button>
       ) : (
         <button
           onClick={startEditing}
-          className="block w-full text-left font-serif text-[13px] leading-[1.85] text-ink-faint transition-colors hover:text-ink-soft"
+          className="-mx-2 block w-[calc(100%+1rem)] rounded-md px-2 py-1.5 text-left text-[14px] leading-[1.85] text-ink-faint transition-colors [@media(hover:hover)]:hover:bg-paper-deep [@media(hover:hover)]:hover:text-ink-soft"
         >
           {spaceCJK(placeholder)}
         </button>

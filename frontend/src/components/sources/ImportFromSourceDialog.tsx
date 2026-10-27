@@ -23,6 +23,7 @@ import { usePlaylists, useCreatePlaylist, useAddToPlaylist, queryKeys } from '@/
 import { useLocalPlaylistStore } from '@/store/localPlaylistStore'
 import { bestMatchFor, type MatchTier } from '@/plugins/match'
 import { cn } from '@/lib/utils'
+import { selectClass } from '@/components/settings/primitives'
 import { useT } from '@/i18n'
 
 type Stage = 'pick' | 'importing' | 'review'
@@ -205,21 +206,23 @@ export function ImportFromSourceDialog({
         {stage === 'pick' && (
           <div className="py-2 space-y-4">
             <div>
-              <p className="text-[11px] tracking-[0.12em] text-ink-faint mb-2">{t('sources.import.pickSource')}</p>
-              <div className="flex flex-wrap gap-3">
+              <p className="mb-2 text-[13px] font-medium text-ink-faint">{t('sources.import.pickSource')}</p>
+              <div className="flex flex-wrap gap-2">
                 {eligible.map(s => (
                   <button
                     key={s.serverId}
+                    type="button"
+                    aria-pressed={sourceId === s.serverId}
                     onClick={() => setSourceId(s.serverId)}
                     className={cn(
-                      'inline-flex items-center gap-2 px-3 py-1.5 border transition-colors',
+                      'inline-flex h-10 items-center gap-2 rounded-pill px-4 transition-colors duration-150 motion-reduce:transition-none',
                       sourceId === s.serverId
-                        ? 'border-primary text-primary'
-                        : 'border-hair text-ink-soft hover:text-foreground'
+                        ? 'bg-paper-3 text-primary'
+                        : 'bg-paper-deep text-ink-soft hover:bg-paper-3 hover:text-ink'
                     )}
                   >
                     <SourceBadge serverId={s.serverId} />
-                    <span className="text-[13px]">{s.name}</span>
+                    <span className="text-[14px] font-medium">{s.name}</span>
                   </button>
                 ))}
               </div>
@@ -229,7 +232,7 @@ export function ImportFromSourceDialog({
             {activeSource && sourceGroup?.status === 'loading' && (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-9 rounded-sm bg-skeleton animate-pulse" />
+                  <div key={i} className="h-9 rounded-sm bg-skeleton animate-pulse motion-reduce:animate-none" />
                 ))}
               </div>
             )}
@@ -237,23 +240,25 @@ export function ImportFromSourceDialog({
               <ErrorState retry={() => { void queryClient.invalidateQueries({ queryKey: [activeSource, 'playlists'] }) }} />
             )}
             {activeSource && sourceGroup?.data?.length === 0 && (
-              <p className="py-4 text-center text-[13px] text-ink-faint">{t('sources.import.noSheets')}</p>
+              <p className="py-4 text-center text-[14px] text-ink-faint">{t('sources.import.noSheets')}</p>
             )}
             {activeSource && sourceGroup?.status === 'success' && sourceGroup.data && sourceGroup.data.length > 0 && (
               <div>
-                <p className="text-[11px] tracking-[0.12em] text-ink-faint mb-2">{t('sources.import.pickSheet')}</p>
-                <div className="max-h-56 overflow-y-auto border-t border-hair">
+                <p className="mb-2 text-[13px] font-medium text-ink-faint">{t('sources.import.pickSheet')}</p>
+                <div className="max-h-56 overflow-y-auto">
                   {sourceGroup.data!.map(pl => (
                     <button
                       key={pl.id}
+                      type="button"
+                      aria-pressed={sheet?.id === pl.id}
                       onClick={() => setSheet(pl)}
                       className={cn(
-                        'flex w-full items-center justify-between gap-3 border-b border-hair-soft px-2 py-2.5 text-left transition-colors',
-                        sheet?.id === pl.id ? 'bg-paper-deep' : 'hover:bg-paper-deep/60'
+                        'flex min-h-[44px] w-full items-center justify-between gap-3 rounded-sm px-3 py-2 text-left transition-colors duration-150 motion-reduce:transition-none',
+                        sheet?.id === pl.id ? 'bg-paper-3 text-primary' : 'hover:bg-paper-deep'
                       )}
                     >
-                      <span className="min-w-0 flex-1 truncate text-[13.5px]">{pl.name}</span>
-                      <span className="num text-[11px] text-ink-faint">
+                      <span className="min-w-0 flex-1 truncate text-[14px]">{pl.name}</span>
+                      <span className="num text-[12px] text-ink-faint">
                         {pl.songCount !== undefined ? t('song.count', { count: pl.songCount }) : ''}
                       </span>
                     </button>
@@ -274,18 +279,18 @@ export function ImportFromSourceDialog({
 
         {stage === 'importing' && (
           <div className="py-8 space-y-3 text-center">
-            <p className="text-[13px] text-ink-faint">
+            <p className="text-[14px] text-ink-faint">
               {t('sources.import.running')}
               <span className="num ml-2 text-[12px]">
                 {t('sources.import.progress', { done: progress.done, total: progress.total })}
               </span>
             </p>
-            {/* 发丝线进度条：无动画库依赖，纯宽度过渡 */}
-            <div className="mx-auto h-[3px] w-48 bg-hair overflow-hidden" role="progressbar"
+            {/* 进度条：凹槽里一段陶土色，用 scaleX 推进（不动画宽度） */}
+            <div className="mx-auto h-2 w-48 overflow-hidden rounded-pill bg-paper-3" role="progressbar"
               aria-valuenow={progress.done} aria-valuemin={0} aria-valuemax={progress.total}>
               <div
-                className="h-full bg-primary transition-[width] duration-300"
-                style={{ width: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 0}%` }}
+                className="h-full origin-left rounded-pill bg-primary transition-transform duration-300 motion-reduce:transition-none"
+                style={{ transform: `scaleX(${progress.total ? progress.done / progress.total : 0})` }}
               />
             </div>
             <Button variant="outline" size="sm" onClick={() => reset()}>
@@ -296,7 +301,7 @@ export function ImportFromSourceDialog({
 
         {stage === 'review' && (
           <div className="py-2 space-y-4">
-            <p className="text-[13px] text-ink-soft">
+            <p className="text-[14px] text-ink-soft">
               {t('sources.import.review', {
                 matched: matched.length,
                 fuzzy: matched.filter(r => r.tier === 'fuzzy').length,
@@ -305,12 +310,15 @@ export function ImportFromSourceDialog({
             </p>
 
             {matched.length > 0 && (
-              <div className="max-h-40 overflow-y-auto border-t border-hair">
+              <div className="max-h-40 overflow-y-auto rounded-md bg-paper-deep py-1">
                 {matched.slice(0, 30).map(row => (
-                  <p key={`${row.song.serverId}:${row.song.id}`} className="flex items-center gap-2 border-b border-hair-soft px-2 py-1.5 text-[12.5px]">
+                  <p key={`${row.song.serverId}:${row.song.id}`} className="flex items-center gap-2 px-3 py-1.5 text-[13px]">
                     <SourceBadge serverId={row.song.serverId} />
-                    <span className="min-w-0 flex-1 truncate">{row.song.title} · {row.song.artist}</span>
-                    <span className={cn('text-[10.5px]', row.tier === 'fuzzy' ? 'text-primary' : 'text-ink-faint')}>
+                    <span className="flex min-w-0 flex-1 gap-x-3">
+                      <span className="truncate">{row.song.title}</span>
+                      <span className="truncate text-ink-faint">{row.song.artist}</span>
+                    </span>
+                    <span className={cn('flex-shrink-0 text-[12px]', row.tier === 'fuzzy' ? 'text-primary' : 'text-ink-faint')}>
                       {tierLabel(row.tier)}
                     </span>
                   </p>
@@ -318,28 +326,41 @@ export function ImportFromSourceDialog({
               </div>
             )}
             {unmatched.length > 0 && (
-              <div className="max-h-32 overflow-y-auto border-t border-hair">
+              <div className="max-h-32 overflow-y-auto rounded-md bg-paper-deep py-1">
                 {unmatched.slice(0, 20).map(song => (
-                  <p key={`${song.serverId}:${song.id}`} className="flex items-center gap-2 border-b border-hair-soft px-2 py-1.5 text-[12.5px] text-ink-faint">
+                  <p key={`${song.serverId}:${song.id}`} className="flex items-center gap-2 px-3 py-1.5 text-[13px] text-ink-faint">
                     <SourceBadge serverId={song.serverId} />
-                    <span className="min-w-0 flex-1 truncate">{song.title} · {song.artist}</span>
-                    <span className="text-[10.5px]">{t('sources.import.unmatched')}</span>
+                    <span className="flex min-w-0 flex-1 gap-x-3">
+                      <span className="truncate">{song.title}</span>
+                      <span className="truncate">{song.artist}</span>
+                    </span>
+                    <span className="flex-shrink-0 text-[12px]">{t('sources.import.unmatched')}</span>
                   </p>
                 ))}
               </div>
             )}
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-4">
+            <div className="space-y-3">
+              <div className="inline-flex gap-0.5 rounded-pill bg-paper-deep p-1">
                 <button
+                  type="button"
+                  aria-pressed={targetMode === 'new'}
                   onClick={() => setTargetMode('new')}
-                  className={cn('pb-1 text-[13px] border-b transition-colors', targetMode === 'new' ? 'border-primary text-primary' : 'border-transparent text-ink-faint')}
+                  className={cn(
+                    'seg-option h-9 rounded-pill px-3.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none',
+                    targetMode === 'new' ? 'is-on' : 'text-ink-soft hover:text-ink'
+                  )}
                 >
                   {t('sources.import.targetNew')}
                 </button>
                 <button
+                  type="button"
+                  aria-pressed={targetMode === 'append'}
                   onClick={() => setTargetMode('append')}
-                  className={cn('pb-1 text-[13px] border-b transition-colors', targetMode === 'append' ? 'border-primary text-primary' : 'border-transparent text-ink-faint')}
+                  className={cn(
+                    'seg-option h-9 rounded-pill px-3.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none',
+                    targetMode === 'append' ? 'is-on' : 'text-ink-soft hover:text-ink'
+                  )}
                 >
                   {t('sources.import.targetAppend')}
                 </button>
@@ -349,7 +370,7 @@ export function ImportFromSourceDialog({
                   value={targetId}
                   onChange={e => setTargetId(e.target.value)}
                   aria-label={t('sources.import.pickTarget')}
-                  className="h-9 w-full bg-transparent border-0 border-b border-hair rounded-none text-sm text-ink-soft focus:outline-none focus:border-primary"
+                  className={cn(selectClass, 'block w-full')}
                 >
                   <option value="">{t('sources.import.pickTarget')}</option>
                   {(primaryPlaylists ?? []).map(pl => (
@@ -372,7 +393,7 @@ export function ImportFromSourceDialog({
             >
               {busy ? t('action.creating') : t('sources.import.confirm')}
             </Button>
-            <p className="text-[11.5px] leading-relaxed text-ink-faint">
+            <p className="text-[13px] leading-relaxed text-ink-faint">
               {t('sources.import.localHint', { count: unmatched.length })}
             </p>
           </div>

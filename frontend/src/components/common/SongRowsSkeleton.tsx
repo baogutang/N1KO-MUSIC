@@ -1,18 +1,18 @@
 /**
- * 曲目行骨架（阶段 7.1）：Search / TopListDetail / Recommendations 三页
- * 原先各有一份逐字复制，改一处另两处就漂——收敛成一份。
- * hair-soft 行闪烁，形状对齐 SongList 的行（序号/封面/标题/专辑/时长）。
+ * 曲目行骨架：Search / TopListDetail / Recommendations / Library 共用一份。
+ * bg-skeleton 的圆角条闪烁，形状对齐 SongList 的行（序号 / 封面 / 标题 / 专辑 / 时长）；
+ * 不画分隔线，行与行之间只靠行距。
  */
 export function SongRowsSkeleton({ rows }: { rows: number }) {
   return (
-    <div className="border-t border-hair">
+    <div className="space-y-0.5" aria-hidden="true">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-3 py-3 border-b border-hair-soft">
-          <span className="w-8 h-3 rounded-sm bg-skeleton animate-pulse" />
-          <span className="w-10 h-10 rounded-sm bg-skeleton animate-pulse" />
-          <span className="flex-1 h-4 rounded-sm bg-skeleton animate-pulse" />
-          <span className="hidden lg:block flex-1 h-3.5 rounded-sm bg-skeleton animate-pulse" />
-          <span className="w-12 h-3.5 rounded-sm bg-skeleton animate-pulse" />
+        <div key={i} className="flex items-center gap-4 px-3 py-2.5">
+          <span className="h-3 w-8 rounded-sm bg-skeleton animate-pulse" />
+          <span className="h-11 w-11 rounded-sm bg-skeleton animate-pulse" />
+          <span className="h-4 flex-1 rounded-sm bg-skeleton animate-pulse" />
+          <span className="hidden h-3.5 flex-1 rounded-sm bg-skeleton animate-pulse wide:block" />
+          <span className="h-3.5 w-12 rounded-sm bg-skeleton animate-pulse" />
         </div>
       ))}
     </div>

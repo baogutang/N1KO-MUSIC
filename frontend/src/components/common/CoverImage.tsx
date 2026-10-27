@@ -3,7 +3,7 @@
  * - 使用 IntersectionObserver 实现视口懒加载：只有元素接近可见区域时才发起封面请求
  * - 配置了自定义封面 API 时，与服务器封面并发请求
  * - 与设置「封面来源」(coverSource) 一致
- * - 所有来源都失败时显示纸面占位（paper-deep 底 + ink-faint 图标）
+ * - 所有来源都失败时显示纸面占位（paper-3 底 + 居中的 ink-faint 图标）
  */
 
 import { useState, useEffect, useRef } from 'react'
@@ -36,7 +36,7 @@ interface CoverImageProps {
   songId?: string
 }
 
-/** 纸面占位：paper-deep 底 + ink-faint 图标（DESIGN v2 §4.5），圆角由消费方控制 */
+/** 纸面占位：paper-3 底 + 居中的 ink-faint 图标，圆角继承父级（由消费方控制） */
 function CoverPlaceholder({
   className,
   artist = false,
@@ -46,8 +46,8 @@ function CoverPlaceholder({
 }) {
   const Icon = artist ? User : MusicNote
   return (
-    <div className={cn('flex items-center justify-center bg-paper-deep text-ink-faint/70', className)}>
-      <Icon className="w-1/3 h-1/3" />
+    <div className={cn('flex items-center justify-center rounded-[inherit] bg-paper-3 text-ink-faint', className)}>
+      <Icon className="h-1/3 w-1/3" aria-hidden="true" />
     </div>
   )
 }
@@ -168,7 +168,7 @@ export function CoverImage({
       <div ref={containerRef} className={cn('relative', className)}>
         {showPlaceholder && (
           // loading 骨架：纸面占位闪烁（不用 spinner，DESIGN §4.5）
-          <CoverPlaceholder className="absolute inset-0 animate-pulse" artist={type === 'artist'} />
+          <CoverPlaceholder className="absolute inset-0 animate-pulse motion-reduce:animate-none" artist={type === 'artist'} />
         )}
         {src && (
           <img
@@ -207,7 +207,7 @@ export function CoverImage({
     <div ref={containerRef} className={cn('relative', className)}>
       {!isLoaded && (
         // loading 骨架：纸面占位闪烁（不用 spinner，DESIGN §4.5）
-        <CoverPlaceholder className="absolute inset-0 animate-pulse" artist={type === 'artist'} />
+        <CoverPlaceholder className="absolute inset-0 animate-pulse motion-reduce:animate-none" artist={type === 'artist'} />
       )}
       <img
         src={(streamBuffering && !isLoaded) ? undefined : displaySrc}

@@ -55,12 +55,10 @@ export function ContinueShelf() {
   return (
     <section aria-labelledby="home-continue">
       <div className="section-head">
-        <h2 id="home-continue">
-          {t('section.continue')}<small>PICK UP WHERE YOU LEFT OFF</small>
-        </h2>
+        <h2 id="home-continue">{t('section.continue')}</h2>
       </div>
 
-      <ol className="border-t border-hair divide-y divide-hair-soft">
+      <ol className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-x-6 gap-y-1">
         {entries.map(entry => {
           const durationSec = entry.song.duration || 0
           const positionSec = Math.floor(entry.positionMs / 1000)
@@ -80,22 +78,22 @@ export function ContinueShelf() {
                     seekHowl(positionSec)
                   }, 120)
                 }}
-                className="group flex w-full items-center gap-4 px-2 py-3 text-left transition-all duration-200 hover:translate-x-1 hover:bg-paper-deep"
+                className="group flex min-h-[56px] w-full items-center gap-4 rounded-sm px-3 py-2.5 text-left transition-colors duration-200 [@media(hover:hover)]:hover:bg-paper-deep"
               >
-                <Play size={12} weight="fill" className="flex-none text-ink-faint transition-colors group-hover:text-primary" />
+                <Play size={14} weight="fill" className="flex-none text-ink-faint transition-colors group-hover:text-primary" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-serif text-[15px] font-semibold transition-colors group-hover:text-primary">
+                  <span className="block truncate text-[15px] font-semibold">
                     {spaceCJK(entry.song.title)}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs text-ink-soft">
+                  <span className="mt-0.5 block truncate text-[13px] text-ink-faint">
                     {spaceCJK(entry.song.artist)}
                   </span>
-                  {/* 进度用一条发丝线表达，不用进度条控件——这里不可拖动 */}
-                  <span className="mt-1.5 block h-px w-full bg-hair-soft" aria-hidden="true">
-                    <span className="block h-px bg-primary" style={{ width: `${ratio * 100}%` }} />
+                  {/* 进度是一条细轨：这里不可拖动，不用进度条控件 */}
+                  <span className="mt-2 block h-1 w-full overflow-hidden rounded-pill bg-paper-3" aria-hidden="true">
+                    <span className="block h-full rounded-pill bg-primary" style={{ width: `${ratio * 100}%` }} />
                   </span>
                 </span>
-                <span className="num flex-none text-[11px] text-ink-faint">
+                <span className="num flex-none text-[13px] text-ink-faint">
                   {formatDuration(positionSec)}
                   {durationSec > 0 && ` / ${formatDuration(durationSec)}`}
                 </span>

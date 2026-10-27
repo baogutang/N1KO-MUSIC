@@ -4,7 +4,7 @@
  * 音乐服务器只知道标签里写了什么。成立于哪一年、来自哪里、当年是谁在乐队里——
  * 这些从来不在 ID3 里，但恰恰是「认识一支乐队」需要的。
  *
- * 版式按档案页来：左边是词条式的键值，右边是成员名单，底下一行外部链接。
+ * 版式是一张 sheet 纸片：左边是词条式的键值，右边是成员名单，底下一行外部链接。
  * 没有 MBID、功能没开、或者查不到，整块就不出现——不摆空盒子。
  */
 
@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 
 function lifeSpanLabel(profile: ArtistProfile): string | null {
   if (!profile.beginYear) return null
-  if (profile.endYear) return `${profile.beginYear}–${profile.endYear}`
+  if (profile.endYear) return `${profile.beginYear}-${profile.endYear}`
   return profile.type === 'Person'
     ? translate('artist.bornIn', { year: profile.beginYear })
     : translate('artist.foundedIn', { year: profile.beginYear })
@@ -80,26 +80,22 @@ export function ArtistDossier({
   if (!facts.length && !profile.members.length && !safeLinks.length) return null
 
   return (
-    <section className={cn('border-t border-hair pt-5', className)} aria-labelledby="artist-dossier">
+    <section className={cn('sheet p-5 regular:p-6', className)} aria-labelledby="artist-dossier">
       <div className="mb-4 flex items-baseline justify-between gap-4">
-        <h2 id="artist-dossier" className="text-[10.5px] uppercase tracking-[0.24em] text-primary">
+        <h2 id="artist-dossier" className="font-display text-[21px] font-semibold leading-tight">
           {t('section.dossier')}
-          <span className="latin-tag"> · DOSSIER</span>
         </h2>
-        {/*
-          刻意不加 latin-tag：那条规则隐藏的是「中文标题旁边重复一遍的拉丁小标」，
-          而这里是数据来源署名，英文界面下同样该出现。
-        */}
-        <span className="text-[10px] tracking-[0.16em] text-ink-faint">MUSICBRAINZ</span>
+        {/* 数据来源署名：英文界面下同样该出现 */}
+        <span className="text-xs text-ink-faint">MusicBrainz</span>
       </div>
 
-      <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-[minmax(0,4fr)_minmax(0,6fr)]">
+      <div className="grid grid-cols-1 gap-x-12 gap-y-6 regular:grid-cols-[minmax(0,4fr)_minmax(0,6fr)]">
         {facts.length > 0 && (
           <dl className="min-w-0 space-y-3">
             {facts.map(fact => (
               <div key={fact.label}>
-                <dt className="text-[10.5px] tracking-[0.14em] text-ink-faint">{fact.label}</dt>
-                <dd className="mt-0.5 font-serif text-[15px]">{spaceCJK(fact.value)}</dd>
+                <dt className="text-[13px] text-ink-faint">{fact.label}</dt>
+                <dd className="mt-0.5 text-[15.5px] font-medium">{spaceCJK(fact.value)}</dd>
               </div>
             ))}
           </dl>
@@ -107,21 +103,21 @@ export function ArtistDossier({
 
         {profile.members.length > 0 && (
           <div className="min-w-0">
-            <p className="mb-2 text-[10.5px] tracking-[0.14em] text-ink-faint">
+            <p className="mb-1 text-[13px] text-ink-faint">
               {t('artist.members')}
             </p>
-            <ul className="space-y-1">
+            <ul>
               {profile.members.map(member => (
                 <li
                   key={`${member.name}-${member.from ?? ''}`}
-                  className="flex items-baseline justify-between gap-4 border-b border-hair-soft py-1.5"
+                  className="flex items-baseline justify-between gap-4 rounded-sm px-2 py-1.5"
                 >
-                  <span className="min-w-0 truncate font-serif text-[14px]">
+                  <span className="min-w-0 truncate text-[14.5px] font-medium">
                     {spaceCJK(member.name)}
                   </span>
                   {(member.from || member.to) && (
-                    <span className="font-num flex-none text-[11px] text-ink-faint">
-                      {member.from ?? '?'}–{member.to ?? t('artist.present')}
+                    <span className="num flex-none text-[13px] text-ink-faint">
+                      {member.from ?? '?'}-{member.to ?? t('artist.present')}
                     </span>
                   )}
                 </li>
@@ -132,17 +128,17 @@ export function ArtistDossier({
       </div>
 
       {safeLinks.length > 0 && (
-        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-0">
           {safeLinks.map(link => (
             <a
               key={link.labelKey}
               href={link.url}
               target="_blank"
               rel="noopener noreferrer nofollow"
-              className="inline-flex items-center gap-1.5 text-[12px] text-ink-soft transition-colors hover:text-primary"
+              className="inline-flex min-h-11 items-center gap-1.5 text-[13.5px] font-medium text-primary underline-offset-4 hover:underline"
             >
               {t(link.labelKey)}
-              <ArrowSquareOut size={11} />
+              <ArrowSquareOut size={13} />
             </a>
           ))}
         </div>

@@ -1,9 +1,10 @@
 /**
- * 专辑卡片组件 —— 封面墙单元（「封面即内容」）
- * 编辑风：纯封面 + 图注，无卡片边框与阴影盒。
- * 波普：  封面是描边 + 硬投影的实体砖，图注不变。
+ * 专辑卡片组件 —— 封面墙单元（封面是唯一的大面积色块）
+ * 封面是一块 cover-tile（抬起的方片，hover 再抬一点），下面两行图注：
+ * 专辑名 + 歌手 / 年份。卡片里不再套卡片。
  */
 
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { Play } from '@phosphor-icons/react'
 import { findAdapterFor } from '@/api'
 import { playAlbum } from '@/utils/playActions'
@@ -16,6 +17,47 @@ import type { Album, Song } from '@/api/types'
 import { useQueryClient } from '@tanstack/react-query'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
+
+/**
+ * 封面右下角的动作簇：鼠标下 hover 才浮现，触屏常显（没有 hover 可等），
+ * 键盘聚焦到里面的按钮时也现身。专辑卡、书架、歌单卡共用。
+ */
+export function CoverActions({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        'absolute bottom-2 right-2 flex items-center gap-2 transition-[opacity,transform] duration-200',
+        'focus-within:translate-y-0 focus-within:opacity-100',
+        '[@media(hover:hover)]:translate-y-1.5 [@media(hover:hover)]:opacity-0',
+        '[@media(hover:hover)]:group-hover:translate-y-0 [@media(hover:hover)]:group-hover:opacity-100',
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+/** 动作簇里的一粒纸片圆键；hover 时换陶土。触屏 44px，鼠标下收小一点 */
+export const CoverActionButton = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & { small?: boolean }
+>(({ small = false, className, ...props }, ref) => (
+  <button
+    ref={ref}
+    type="button"
+    className={cn(
+      'grid place-items-center rounded-pill bg-sheet text-ink shadow-press transition-[transform,background-color,color] duration-200 active:scale-[0.94]',
+      small
+        ? 'h-11 w-11 [@media(hover:hover)]:h-8 [@media(hover:hover)]:w-8'
+        : 'h-11 w-11 [@media(hover:hover)]:h-9 [@media(hover:hover)]:w-9',
+      '[@media(hover:hover)]:hover:bg-primary [@media(hover:hover)]:hover:text-primary-foreground',
+      className
+    )}
+    {...props}
+  />
+))
+CoverActionButton.displayName = 'CoverActionButton'
 
 interface AlbumCardProps {
   album: Album
@@ -55,20 +97,17 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
         />
       }
       overlay={
-        /* 播放键：细线圆，hover 浮现；再 hover 填充 accent */
-        <button
-          onClick={handlePlay}
-          aria-label={t('album.playWhole')}
-          className="absolute right-2.5 bottom-2.5 w-9 h-9 rounded-full border border-paper/80 bg-ink/25 text-paper flex items-center justify-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 hover:bg-primary hover:border-primary active:scale-[0.94] pop:border-hair pop:bg-primary pop:text-primary-foreground pop:shadow-press"
-        >
-          <Play className="w-3.5 h-3.5 ml-px" weight="fill" />
-        </button>
+        <CoverActions>
+          <CoverActionButton onClick={handlePlay} aria-label={t('album.playWhole')}>
+            <Play className="ml-px h-3.5 w-3.5" weight="fill" />
+          </CoverActionButton>
+        </CoverActions>
       }
       title={spaceCJK(album.name)}
       meta={
         <>
-          <span className="text-ink-soft">{spaceCJK(album.artist)}</span>
-          {album.year && <span className="ml-1 font-num text-ink-faint">· {album.year}</span>}
+          <span>{spaceCJK(album.artist)}</span>
+          {album.year && <span className="num ml-2">{album.year}</span>}
         </>
       }
     />

@@ -1,0 +1,2057 @@
+<title>N1KO 新界面</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500&family=Onest:wght@400;500&family=Outfit:wght@300;500&family=Schibsted+Grotesk:wght@400;500;600&family=Sofia+Sans+Extra+Condensed:wght@200;400&family=Young+Serif&display=swap" rel="stylesheet">
+<style>
+/* Hallmark · v2.0.0 · redesign: full · scope: app · shape: app screen · deal: personal-music-player-home-c863·faefcd3f·2026-10-27·r0 · compared: darkroom (dealt 2/3), native (custom), bloom (dealt 3/3), ultraviolet (dealt 1/3) · signature: now playing as a stage beside its controls · demo fonts: Schibsted Grotesk and Young Serif stand in for Ranade and Gambarino */
+/* Critique: one shell and four materials; the layout reads the window width, never the device; covers carry the colour, the accent marks the play state and the current place, nothing else. */
+/* Hallmark · waive 37 · six families across four directions · the demo compares four materials side by side, and each direction itself uses two families plus at most one outlier */
+/* Hallmark · waive 39b · button.card-main is the whole album card · the card is one hit area, the iPadOS and QQ Music pattern, not a control */
+/* Hallmark · waive 72 · aside.panel · the panel is a scroll container, its content runs past the box by design */
+
+:root {
+  /* demo page chrome */
+  --page-bg: oklch(95.5% 0.004 80);
+  --page-panel: oklch(98.5% 0.003 80);
+  --page-fg: oklch(22% 0.01 80);
+  --page-muted: oklch(47% 0.01 80);
+  --page-rule: oklch(86% 0.006 80);
+  --page-chip: oklch(91% 0.006 80);
+  --page-chip-on: oklch(22% 0.01 80);
+  --page-chip-on-ink: oklch(97% 0.004 80);
+  --page-edge: oklch(76% 0.008 80);
+  --page-shadow: oklch(22% 0.02 80 / 0.28);
+  --page-focus: oklch(52% 0.16 255);
+  --page-font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* shared font stacks */
+  --cjk: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --sys: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+
+  /* shared scale, ratio about 1.2 */
+  --t-xs: 12px; --t-sm: 13.5px; --t-md: 16px; --t-lg: 19px; --t-xl: 23px; --t-2xl: 28px; --t-3xl: 34px;
+  --dur-micro: 120ms; --dur-short: 200ms; --dur-medium: 340ms; --dur-long: 560ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* app tokens; defaults are the native light values, each direction redefines them below */
+  --bg: oklch(99.2% 0.002 160); --surface: oklch(96.6% 0.004 160); --surface-2: oklch(93.6% 0.005 160); --surface-3: oklch(90% 0.006 160);
+  --ink: oklch(19% 0.01 160); --ink-2: oklch(34% 0.01 160); --muted: oklch(50% 0.01 160); --rule: oklch(89% 0.005 160);
+  --accent: oklch(54% 0.15 150); --accent-text: oklch(47% 0.13 152); --accent-ink: oklch(99% 0.01 150); --accent-soft: oklch(62% 0.16 150 / 0.14); --focus: oklch(49% 0.13 152);
+  --track: oklch(19% 0.01 160 / 0.14); --scrim: oklch(19% 0.01 160 / 0.32);
+  --bar-bg: oklch(98.5% 0.003 160 / 0.74); --bar-filter: blur(22px) saturate(1.8); --bar-radius: 30px;
+  --bar-shadow: 0 12px 32px -10px oklch(19% 0.02 160 / 0.24); --bar-ring: 0 0 0 0.5px oklch(19% 0.01 160 / 0.12); --dock-inset: 10px;
+  --side-bg: oklch(97% 0.004 160 / 0.8); --side-edge: 0 0 0 0.5px oklch(19% 0.01 160 / 0.1); --side-radius: 24px; --side-inset: 8px;
+  --r-card: 14px; --r-ctl: 999px; --r-cover: 10px; --r-row: 10px; --r-ib: 999px; --r-menu: 16px; --r-avatar: 999px;
+  --shadow-card: 0 1px 2px oklch(19% 0.02 160 / 0.08);
+  --shadow-float: 0 18px 50px -12px oklch(19% 0.02 160 / 0.32), 0 0 0 0.5px oklch(19% 0.01 160 / 0.12);
+  --cover-ring: inset 0 0 0 0.5px oklch(19% 0.01 160 / 0.14); --hover-lift: -2px;
+  --ic-w: 1.7;
+  --display-weight: 700; --title-weight: 600; --lyric-weight: 700; --display-case: none; --display-track: -0.022em; --display-scale: 1.15;
+  --pp-bg: oklch(19% 0.01 160 / 0); --pp-shadow: 0 0 0 0 oklch(19% 0.01 160 / 0); --pp-radius: 999px; --pp-size: 72px;
+  --ly-off: oklch(19% 0.01 160 / 0.3);
+  --np-blur-op: 1; --np-veil: oklch(99% 0.003 160 / 0.5); --grain-op: 0;
+  --menu-bg: oklch(98.5% 0.003 160 / 0.82); --menu-filter: blur(24px) saturate(1.8);
+  --grid-a: oklch(19% 0.01 160 / 0); --grid-b: oklch(19% 0.01 160 / 0);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page-bg: oklch(17% 0.004 80); --page-panel: oklch(21% 0.005 80); --page-fg: oklch(93% 0.005 80); --page-muted: oklch(70% 0.008 80);
+    --page-rule: oklch(31% 0.006 80); --page-chip: oklch(26% 0.006 80); --page-chip-on: oklch(93% 0.005 80); --page-chip-on-ink: oklch(18% 0.004 80);
+    --page-edge: oklch(38% 0.008 80); --page-shadow: oklch(5% 0.01 80 / 0.6); --page-focus: oklch(72% 0.14 255);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page-bg: oklch(17% 0.004 80); --page-panel: oklch(21% 0.005 80); --page-fg: oklch(93% 0.005 80); --page-muted: oklch(70% 0.008 80);
+  --page-rule: oklch(31% 0.006 80); --page-chip: oklch(26% 0.006 80); --page-chip-on: oklch(93% 0.005 80); --page-chip-on-ink: oklch(18% 0.004 80);
+  --page-edge: oklch(38% 0.008 80); --page-shadow: oklch(5% 0.01 80 / 0.6); --page-focus: oklch(72% 0.14 255);
+  color-scheme: dark;
+}
+
+/* tokens that point at other tokens live on .app, so they resolve against each direction's own values */
+.app {
+  --sel-bg: var(--surface-2); --row-sep: var(--rule); --pp-ink: var(--ink); --ly-on: var(--ink);
+  --btn-ring: inset 0 0 0 1px var(--rule);
+  --font-display: var(--sys); --font-body: var(--sys); --font-figure: var(--sys); --font-lyric: var(--sys);
+}
+
+/* ===== direction: darkroom (light is the fibre-paper colourway) ===== */
+[data-theme="darkroom"] {
+  --bg: oklch(95% 0.01 80); --surface: oklch(92.5% 0.012 78); --surface-2: oklch(89.5% 0.013 76); --surface-3: oklch(86% 0.014 74);
+  --ink: oklch(16% 0.006 40); --ink-2: oklch(30% 0.008 45); --muted: oklch(45% 0.01 50); --rule: oklch(80% 0.014 70);
+  --accent: oklch(74% 0.15 64); --accent-text: oklch(46% 0.13 50); --accent-ink: oklch(16% 0.006 40); --accent-soft: oklch(74% 0.15 64 / 0.24); --focus: oklch(46% 0.13 50);
+  --track: oklch(84% 0.012 72); --scrim: oklch(16% 0.006 40 / 0.42); --sel-bg: var(--surface-2);
+  --bar-bg: var(--bg); --bar-filter: none; --bar-radius: 0px;
+  --bar-shadow: 0 0 0 0 oklch(16% 0.006 40 / 0); --bar-ring: 0 -1px 0 0 var(--rule); --dock-inset: 0px;
+  --side-bg: var(--surface); --side-edge: 1px 0 0 0 var(--rule); --side-radius: 0px; --side-inset: 0px;
+  --r-card: 0px; --r-ctl: 0px; --r-cover: 0px; --r-row: 0px; --r-ib: 0px; --r-menu: 0px; --r-avatar: 0px;
+  --shadow-card: 0 0 0 0 oklch(16% 0.006 40 / 0); --shadow-float: 0 0 0 1px var(--rule), 0 24px 48px -24px oklch(16% 0.006 40 / 0.4);
+  --cover-ring: inset 0 0 0 0 oklch(16% 0.006 40 / 0); --hover-lift: 0px; --row-sep: var(--rule);
+  --btn-ring: inset 0 0 0 1px var(--ink);
+  --ic-w: 1.35;
+  --font-display: "Sofia Sans Extra Condensed", var(--cjk); --font-body: "Barlow", var(--cjk); --font-figure: "Sofia Sans Extra Condensed", var(--cjk); --font-lyric: "Barlow", var(--cjk);
+  --display-weight: 200; --title-weight: 400; --lyric-weight: 400; --display-case: uppercase; --display-track: -0.005em; --display-scale: 1.32;
+  --pp-bg: var(--accent); --pp-ink: var(--accent-ink); --pp-shadow: 0 0 0 0 oklch(16% 0.006 40 / 0); --pp-radius: 0px; --pp-size: 68px;
+  --ly-on: var(--accent-text); --ly-off: var(--muted);
+  --np-blur-op: 0; --np-veil: oklch(95% 0.01 80 / 0); --grain-op: 0.1;
+  --menu-bg: var(--bg); --menu-filter: none;
+}
+[data-theme="darkroom"][data-scheme="dark"] {
+  --bg: oklch(12.5% 0.008 55); --surface: oklch(16% 0.009 55); --surface-2: oklch(20.5% 0.01 55); --surface-3: oklch(24% 0.01 55);
+  --ink: oklch(92% 0.012 78); --ink-2: oklch(80% 0.012 75); --muted: oklch(64% 0.012 65); --rule: oklch(29% 0.01 55);
+  --accent: oklch(73% 0.15 58); --accent-text: oklch(76% 0.14 60); --accent-ink: oklch(12.5% 0.008 55); --accent-soft: oklch(73% 0.15 58 / 0.18); --focus: oklch(73% 0.15 58);
+  --track: oklch(26% 0.01 55); --scrim: oklch(5% 0.01 55 / 0.6);
+  --shadow-float: 0 0 0 1px var(--rule), 0 24px 48px -24px oklch(3% 0.01 55 / 0.8);
+  --ly-on: oklch(82% 0.14 66); --np-veil: oklch(12.5% 0.008 55 / 0); --grain-op: 0.07;
+  color-scheme: dark;
+}
+
+/* ===== direction: native (custom, brand green) ===== */
+[data-theme="native"][data-scheme="dark"] {
+  --bg: oklch(13% 0.003 160); --surface: oklch(19.5% 0.004 160); --surface-2: oklch(24.5% 0.005 160); --surface-3: oklch(29% 0.006 160);
+  --ink: oklch(96.5% 0.003 160); --ink-2: oklch(85% 0.004 160); --muted: oklch(70% 0.006 160); --rule: oklch(30% 0.005 160);
+  --accent: oklch(73% 0.17 150); --accent-text: oklch(77% 0.15 150); --accent-ink: oklch(16% 0.03 150); --accent-soft: oklch(73% 0.17 150 / 0.18); --focus: oklch(77% 0.15 150);
+  --track: oklch(96% 0.003 160 / 0.18); --scrim: oklch(4% 0.01 160 / 0.55);
+  --bar-bg: oklch(23% 0.005 160 / 0.62); --bar-shadow: 0 12px 32px -10px oklch(2% 0.01 160 / 0.6); --bar-ring: 0 0 0 0.5px oklch(96% 0.003 160 / 0.14);
+  --side-bg: oklch(21% 0.005 160 / 0.7); --side-edge: 0 0 0 0.5px oklch(96% 0.003 160 / 0.12);
+  --shadow-card: 0 1px 2px oklch(2% 0.01 160 / 0.4);
+  --shadow-float: 0 18px 50px -12px oklch(2% 0.01 160 / 0.7), 0 0 0 0.5px oklch(96% 0.003 160 / 0.14);
+  --cover-ring: inset 0 0 0 0.5px oklch(96% 0.003 160 / 0.12);
+  --ly-off: oklch(96.5% 0.003 160 / 0.3); --np-veil: oklch(13% 0.003 160 / 0.5);
+  --menu-bg: oklch(24% 0.005 160 / 0.8);
+  color-scheme: dark;
+}
+
+/* ===== direction: bloom ===== */
+[data-theme="bloom"] {
+  --bg: oklch(97% 0.010 72); --surface: oklch(98.7% 0.007 78); --surface-2: oklch(94.6% 0.013 70); --surface-3: oklch(91.5% 0.016 66);
+  --ink: oklch(21% 0.024 40); --ink-2: oklch(31% 0.022 46); --muted: oklch(47% 0.02 56); --rule: oklch(88% 0.014 64);
+  --accent: oklch(53% 0.145 36); --accent-text: oklch(48% 0.14 36); --accent-ink: oklch(98.5% 0.008 72); --accent-soft: oklch(53% 0.145 36 / 0.11); --focus: oklch(53% 0.145 36);
+  --track: oklch(90% 0.016 64); --scrim: oklch(21% 0.024 40 / 0.3); --sel-bg: var(--surface-2);
+  --rubber: oklch(55% 0.15 34); --rubber-hi: oklch(66% 0.125 42); --rubber-lo: oklch(43% 0.125 31);
+  --bezel: oklch(92.5% 0.014 68); --hi: oklch(99.6% 0.006 80 / 0.75); --shade-2: oklch(21% 0.024 40 / 0.16); --shade-3: oklch(30% 0.06 40 / 0.28);
+  --bar-bg: var(--surface); --bar-filter: none; --bar-radius: 26px;
+  --bar-shadow: 0 1px 2px oklch(21% 0.024 40 / 0.06), 0 18px 36px -18px oklch(21% 0.024 40 / 0.3); --bar-ring: inset 0 1px 0 var(--hi); --dock-inset: 10px;
+  --side-bg: var(--surface); --side-edge: 0 1px 2px oklch(21% 0.024 40 / 0.06), 0 18px 36px -18px oklch(21% 0.024 40 / 0.22); --side-radius: 22px; --side-inset: 10px;
+  --r-card: 18px; --r-ctl: 999px; --r-cover: 10px; --r-row: 12px; --r-ib: 999px; --r-menu: 18px; --r-avatar: 999px;
+  --shadow-card: 0 1px 2px oklch(21% 0.024 40 / 0.06), 0 18px 36px -18px oklch(21% 0.024 40 / 0.26);
+  --shadow-float: 0 2px 4px oklch(21% 0.024 40 / 0.07), 0 36px 72px -32px oklch(45% 0.1 40 / 0.4);
+  --cover-ring: inset 0 0 0 0 oklch(21% 0.024 40 / 0); --hover-lift: -3px; --row-sep: oklch(88% 0.014 64 / 0);
+  --ic-w: 1.8;
+  --font-display: "Schibsted Grotesk", var(--cjk); --font-body: "Schibsted Grotesk", var(--cjk); --font-figure: "Young Serif", var(--cjk); --font-lyric: "Schibsted Grotesk", var(--cjk);
+  --display-weight: 600; --title-weight: 600; --lyric-weight: 600; --display-case: none; --display-track: -0.024em; --display-scale: 1.15;
+  --pp-bg: radial-gradient(120% 110% at 50% 18%, var(--rubber-hi), var(--rubber) 48%, var(--rubber-lo));
+  --pp-ink: var(--accent-ink); --pp-shadow: inset 0 1px 0.5px var(--hi), 0 5px 9px -3px var(--shade-3), 0 0 0 6px var(--bezel), 0 0 0 7px var(--shade-2); --pp-radius: 999px; --pp-size: 66px;
+  --ly-on: var(--ink); --ly-off: oklch(47% 0.02 56 / 0.62);
+  --np-blur-op: 0; --np-veil: oklch(97% 0.01 72 / 0); --grain-op: 0.05;
+  --menu-bg: var(--surface); --menu-filter: none;
+  --grid-a: oklch(21% 0.024 40 / 0.05); --grid-b: oklch(21% 0.024 40 / 0.035);
+}
+[data-theme="bloom"][data-scheme="dark"] {
+  --bg: oklch(17% 0.015 45); --surface: oklch(21.5% 0.017 45); --surface-2: oklch(25.5% 0.018 45); --surface-3: oklch(29% 0.02 45);
+  --ink: oklch(93% 0.012 72); --ink-2: oklch(83% 0.014 70); --muted: oklch(68% 0.02 60); --rule: oklch(31% 0.02 45);
+  --accent: oklch(55% 0.14 38); --accent-text: oklch(73% 0.13 42); --accent-ink: oklch(98.5% 0.008 72); --accent-soft: oklch(64% 0.14 38 / 0.18); --focus: oklch(73% 0.13 42);
+  --track: oklch(30% 0.02 45); --scrim: oklch(5% 0.01 45 / 0.55);
+  --bezel: oklch(27% 0.02 45); --hi: oklch(99% 0.006 80 / 0.12); --shade-2: oklch(5% 0.01 45 / 0.5); --shade-3: oklch(5% 0.02 40 / 0.6);
+  --bar-shadow: 0 1px 2px oklch(5% 0.01 45 / 0.4), 0 18px 36px -18px oklch(3% 0.01 45 / 0.8);
+  --side-edge: 0 1px 2px oklch(5% 0.01 45 / 0.4), 0 18px 36px -18px oklch(3% 0.01 45 / 0.7);
+  --shadow-card: 0 1px 2px oklch(5% 0.01 45 / 0.4), 0 18px 36px -18px oklch(3% 0.01 45 / 0.75);
+  --shadow-float: 0 2px 4px oklch(5% 0.01 45 / 0.5), 0 36px 72px -32px oklch(3% 0.02 40 / 0.85);
+  --ly-off: oklch(68% 0.02 60 / 0.55); --grain-op: 0.06;
+  --grid-a: oklch(93% 0.012 72 / 0.05); --grid-b: oklch(93% 0.012 72 / 0.03);
+  color-scheme: dark;
+}
+
+/* ===== direction: ultraviolet (lavender and night colourways) ===== */
+[data-theme="uv"] {
+  --bg: oklch(95% 0.02 300); --surface: oklch(92% 0.03 300); --surface-2: oklch(89% 0.035 300); --surface-3: oklch(86% 0.04 300);
+  --ink: oklch(18% 0.02 300); --ink-2: oklch(28% 0.03 300); --muted: oklch(44% 0.05 300); --rule: oklch(84% 0.04 300); --rule-2: oklch(70% 0.08 295);
+  --accent: oklch(50% 0.25 290); --accent-text: oklch(47% 0.24 290); --accent-ink: oklch(97% 0.01 300); --accent-soft: oklch(86% 0.08 295); --focus: oklch(50% 0.25 290);
+  --track: oklch(86% 0.08 295); --scrim: oklch(18% 0.02 300 / 0.32); --sel-bg: var(--surface);
+  --bar-bg: var(--surface); --bar-filter: none; --bar-radius: 999px;
+  --bar-shadow: 0 1px 2px oklch(18% 0.02 300 / 0.06); --bar-ring: inset 0 0 0 1.5px var(--rule-2); --dock-inset: 10px;
+  --side-bg: var(--surface); --side-edge: 0 0 0 0 oklch(18% 0.02 300 / 0); --side-radius: 16px; --side-inset: 8px;
+  --r-card: 16px; --r-ctl: 999px; --r-cover: 14px; --r-row: 999px; --r-ib: 999px; --r-menu: 16px; --r-avatar: 999px;
+  --shadow-card: 0 1px 2px oklch(18% 0.02 300 / 0.06); --shadow-float: 0 1px 2px oklch(18% 0.02 300 / 0.06), 0 0 0 1.5px var(--rule-2), 0 24px 48px -24px oklch(18% 0.05 300 / 0.35);
+  --cover-ring: inset 0 0 0 1px oklch(18% 0.02 300 / 0.08); --hover-lift: 0px; --row-sep: var(--rule);
+  --btn-ring: inset 0 0 0 1.5px var(--ink);
+  --ic-w: 1.6;
+  --font-display: "Outfit", var(--cjk); --font-body: "Onest", var(--cjk); --font-figure: "Outfit", var(--cjk); --font-lyric: "Outfit", var(--cjk);
+  --display-weight: 500; --title-weight: 500; --lyric-weight: 500; --display-case: lowercase; --display-track: -0.03em; --display-scale: 1.15;
+  --pp-bg: var(--accent); --pp-ink: var(--accent-ink); --pp-shadow: 0 0 0 0 oklch(18% 0.02 300 / 0); --pp-radius: 999px; --pp-size: 68px;
+  --ly-on: var(--accent-text); --ly-off: oklch(44% 0.05 300 / 0.7);
+  --np-blur-op: 0; --np-veil: oklch(95% 0.02 300 / 0); --grain-op: 0;
+  --menu-bg: var(--bg); --menu-filter: none;
+}
+[data-theme="uv"][data-scheme="dark"] {
+  --bg: oklch(14% 0.02 290); --surface: oklch(17.5% 0.025 290); --surface-2: oklch(21% 0.03 290); --surface-3: oklch(25% 0.035 290);
+  --ink: oklch(92% 0.04 300); --ink-2: oklch(80% 0.05 300); --muted: oklch(68% 0.06 300); --rule: oklch(28% 0.04 290); --rule-2: oklch(44% 0.07 292);
+  --accent: oklch(55% 0.25 290); --accent-text: oklch(74% 0.16 292); --accent-ink: oklch(97% 0.01 300); --accent-soft: oklch(36% 0.09 293); --focus: oklch(62% 0.22 290);
+  --track: oklch(30% 0.07 293); --scrim: oklch(5% 0.02 290 / 0.6);
+  --bar-shadow: 0 1px 2px oklch(3% 0.02 290 / 0.4);
+  --shadow-card: 0 1px 2px oklch(3% 0.02 290 / 0.4); --shadow-float: 0 1px 2px oklch(3% 0.02 290 / 0.4), 0 0 0 1.5px var(--rule-2), 0 24px 48px -24px oklch(2% 0.03 290 / 0.8);
+  --cover-ring: inset 0 0 0 1px oklch(92% 0.04 300 / 0.08);
+  --ly-off: oklch(68% 0.06 300 / 0.6);
+  color-scheme: dark;
+}
+
+/* ===== demo page ===== */
+html { box-sizing: border-box; height: 100%; overflow-x: clip; }
+*, *::before, *::after { box-sizing: inherit; }
+body { height: 100%; margin: 0; overflow-x: clip; background: var(--page-bg); color: var(--page-fg); font: 15px/1.5 var(--page-font); }
+.demo {
+  display: flex; flex-direction: column; height: 100%;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.demo-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-block: 12px 12px; border-bottom: 1px solid var(--page-rule); }
+.demo-name { display: flex; flex-direction: column; min-width: 0; margin-right: auto; }
+.demo-name b { font-size: 17px; font-weight: 650; }
+.demo-name span { color: var(--page-muted); font-size: 13px; }
+.demo-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 999px; background: var(--page-chip); }
+.seg button, .demo-btn {
+  min-height: 34px; padding: 0 16px; border: 0; border-radius: 999px; background: none; color: var(--page-fg);
+  font: 500 14px/1 var(--page-font); cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+.seg button:hover { background: var(--page-panel); }
+.seg button[aria-pressed="true"] { background: var(--page-chip-on); color: var(--page-chip-on-ink); }
+.demo-btn { background: var(--page-chip); }
+.demo-btn:hover { background: var(--page-rule); }
+.sel { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--page-muted); }
+.sel select { min-height: 34px; padding: 0 12px; border: 1px solid var(--page-muted); border-radius: 10px; background: var(--page-panel); color: var(--page-fg); font: 500 14px/1 var(--page-font); }
+.demo-note { width: 100%; margin: 0; color: var(--page-muted); font-size: 13.5px; max-width: 92ch; }
+.demo-note b { color: var(--page-fg); font-weight: 600; }
+.demo :focus-visible { outline: 2px solid var(--page-focus); outline-offset: 2px; }
+.stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding-block: 16px; }
+.wrap { position: relative; flex: none; }
+.device {
+  position: absolute; top: 0; left: 0; overflow: hidden; border-radius: 18px; transform-origin: 0 0;
+  box-shadow: 0 0 0 1px var(--page-edge), 0 30px 70px -30px var(--page-shadow);
+}
+.device.free { position: relative; resize: both; min-width: 320px; min-height: 420px; max-width: 100%; }
+.device.fill { border-radius: 12px; }
+.device[data-posture="tabletop"]::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; z-index: 60; pointer-events: none;
+  background: var(--page-edge); opacity: 0.6;
+}
+.cap { margin: 0; color: var(--page-muted); font-size: 13px; text-align: center; }
+.show-bar { position: fixed; z-index: 90; top: calc(env(safe-area-inset-top, 0px) + 8px); right: max(16px, env(safe-area-inset-right, 0px)); }
+.demo[data-bar="off"] .demo-bar { display: none; }
+.demo[data-bar="off"] .stage { padding-block: 0; }
+.demo[data-bar="off"] .cap { display: none; }
+noscript p { padding: 24px; }
+
+/* ===== app shell ===== */
+.app {
+  position: relative; width: 100%; height: 100%; overflow: hidden;
+  display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr) var(--panel-w); grid-template-rows: minmax(0, 1fr);
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: var(--t-md); line-height: 1.5;
+  -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased;
+  --side-w: 0px; --panel-w: 0px; --sa-t: 0px; --sa-b: 0px; --sa-l: 0px; --sa-r: 0px;
+  --gutter: 16px; --dock-h: 150px; --sec-gap: 30px; --card-min: 140px; --shelf-w: 146px; --row-h: 54px; --ly-size: 23px;
+}
+.app[data-wc="regular"] { --side-w: calc(88px + var(--sa-l)); --gutter: 24px; --dock-h: 96px; --sec-gap: 38px; --card-min: 150px; --shelf-w: 164px; --ly-size: 25px; }
+.app[data-wc="wide"] { --side-w: calc(264px + var(--sa-l)); --gutter: 32px; --dock-h: 100px; --sec-gap: 42px; --card-min: 158px; --shelf-w: 176px; --ly-size: 30px; }
+.app[data-wc="wide"][data-side="off"] { --side-w: 0px; }
+.app[data-wc="wide"][data-panel="on"] { --panel-w: 352px; }
+@media (hover: hover) and (pointer: fine) { .app { --row-h: 46px; } }
+:where(.app) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; -webkit-user-select: none; user-select: none; }
+.app :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+:where(.app) h1, :where(.app) h2, :where(.app) h3 { margin: 0; overflow-wrap: break-word; min-width: 0; }
+:where(.app) p { margin: 0; }
+:where(.app) ol, :where(.app) ul { margin: 0; padding: 0; list-style: none; }
+.i { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: var(--ic-w); stroke-linecap: round; stroke-linejoin: round; }
+.i.f { fill: currentColor; stroke: none; }
+.i.sm { width: 18px; height: 18px; }
+.i.lg { width: 30px; height: 30px; }
+.num { font-variant-numeric: tabular-nums; }
+.grained { position: relative; isolation: isolate; }
+.grained::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--grain-op); border-radius: inherit;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 9 -4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E") 0 0 / 200px 200px;
+}
+
+/* icon buttons, buttons, links: default, hover, pressed, focus, selected, disabled */
+.ib {
+  width: 44px; height: 44px; display: inline-grid; place-items: center; flex: none; border-radius: var(--r-ib); color: var(--ink-2);
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out), transform var(--dur-micro) var(--ease-out);
+}
+.ib:active { transform: scale(0.92); }
+.ib[aria-pressed="true"] { color: var(--accent-text); }
+.ib[disabled] { opacity: 0.5; color: var(--muted); background: none; cursor: not-allowed; }
+.btn {
+  min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 20px;
+  border-radius: var(--r-ctl); font-weight: 500; white-space: nowrap; box-shadow: var(--btn-ring);
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out), transform var(--dur-micro) var(--ease-out);
+}
+.btn:active { transform: scale(0.97); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+.btn[disabled] { opacity: 0.6; background: var(--surface-2); color: var(--muted); box-shadow: none; cursor: not-allowed; }
+.lk { color: var(--accent-text); font-size: var(--t-sm); font-weight: 500; min-height: 32px; padding: 0 2px; border-radius: 6px; }
+@media (hover: hover) {
+  .ib:hover { background: var(--surface-2); color: var(--ink); }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary:hover { background: var(--accent); filter: brightness(1.06); }
+  .lk:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+}
+
+/* sidebar: wide windows */
+.sidebar, .rail { grid-column: 1; grid-row: 1; min-width: 0; min-height: 0; display: none; z-index: 6; }
+.app[data-wc="wide"] .sidebar { display: flex; }
+.app[data-wc="wide"][data-side="off"] .sidebar { display: none; }
+.app[data-wc="regular"] .rail { display: flex; }
+.sidebar {
+  flex-direction: column; margin: var(--side-inset); margin-left: calc(var(--side-inset) + var(--sa-l));
+  margin-top: calc(var(--side-inset) + var(--sa-t)); margin-bottom: calc(var(--side-inset) + var(--sa-b));
+  background: var(--side-bg); border-radius: var(--side-radius); box-shadow: var(--side-edge);
+  -webkit-backdrop-filter: var(--bar-filter); backdrop-filter: var(--bar-filter);
+}
+.sb-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 8px 8px 20px; }
+.wordmark { font: var(--title-weight) var(--t-lg)/1 var(--font-display); text-transform: var(--display-case); letter-spacing: var(--display-track); }
+.app[data-theme="darkroom"] .wordmark { font-size: var(--t-xl); font-weight: 400; }
+.sb-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; }
+.sb-label { padding: 20px 12px 8px; color: var(--muted); font-size: var(--t-sm); font-weight: 500; }
+.sb-item {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 0 12px; border-radius: var(--r-row); color: var(--ink-2);
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+.sb-item .i { color: var(--muted); }
+.sb-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-item small { color: var(--muted); font-size: var(--t-xs); }
+.sb-item[aria-current="page"] { background: var(--sel-bg); color: var(--ink); font-weight: 500; }
+.sb-item[aria-current="page"] .i { color: var(--accent-text); }
+.app[data-theme="uv"] .sb-item[aria-current="page"] { background: var(--bg); box-shadow: inset 0 0 0 1.5px var(--rule-2); }
+.cover.sb-cover { width: 28px; height: 28px; flex: none; border-radius: calc(var(--r-cover) * 0.5); box-shadow: none; }
+.sb-foot { padding: 8px 12px 12px; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 2px; }
+.app[data-theme="bloom"] .sb-foot, .app[data-theme="native"] .sb-foot { border-top-color: transparent; }
+.srv { display: flex; align-items: center; gap: 12px; padding: 8px 12px; color: var(--ink-2); font-size: var(--t-sm); }
+.srv b { display: block; color: var(--ink); font-weight: 500; }
+.srv small { color: var(--muted); font-size: var(--t-xs); }
+@media (hover: hover) { .sb-item:hover { background: var(--surface-2); color: var(--ink); } }
+.app[data-dragging] [data-drop] { box-shadow: inset 0 0 0 1px var(--muted); }
+.app [data-drop].over { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+/* rail: regular windows, the QQ-on-Duo side bar */
+.rail {
+  flex-direction: column; align-items: center; gap: 4px; margin: var(--side-inset); margin-left: calc(var(--side-inset) + var(--sa-l));
+  margin-top: calc(var(--side-inset) + var(--sa-t)); margin-bottom: calc(var(--side-inset) + var(--sa-b));
+  padding: 12px 0; background: var(--side-bg); border-radius: var(--side-radius); box-shadow: var(--side-edge);
+  -webkit-backdrop-filter: var(--bar-filter); backdrop-filter: var(--bar-filter);
+}
+.rail .wordmark { font-size: var(--t-sm); padding: 8px 0 16px; }
+.rl-item {
+  width: 68px; min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border-radius: var(--r-card); color: var(--muted); font-size: var(--t-xs); font-weight: 500;
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+.rl-item[aria-current="page"] { color: var(--accent-text); background: var(--sel-bg); }
+.rl-gap { flex: 1; }
+@media (hover: hover) { .rl-item:hover { background: var(--surface-2); color: var(--ink); } }
+
+/* main column, toolbar, scroll-edge */
+.col { grid-column: 2; grid-row: 1; position: relative; min-width: 0; min-height: 0; }
+.scroller {
+  position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  padding-bottom: calc(var(--dock-h) + var(--sa-b) + 20px); scrollbar-width: thin;
+}
+.toolbar {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; min-height: 54px;
+  padding: calc(var(--sa-t) + 8px) calc(var(--gutter) - 8px) 8px; padding-right: calc(var(--gutter) - 8px + var(--sa-r));
+  transition: background-color var(--dur-short) var(--ease-out), box-shadow var(--dur-short) var(--ease-out);
+}
+.scroller[data-scrolled] .toolbar {
+  background: var(--bar-bg); -webkit-backdrop-filter: var(--bar-filter); backdrop-filter: var(--bar-filter); box-shadow: 0 1px 0 var(--rule);
+}
+.tb-title {
+  flex: 1; min-width: 0; text-align: center; font-weight: 600; font-size: var(--t-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transition: opacity var(--dur-short) var(--ease-out);
+}
+.scroller[data-titled] .tb-title { opacity: 1; }
+.tb-side { display: flex; align-items: center; gap: 2px; min-width: 88px; }
+.tb-side.r { justify-content: flex-end; }
+.tb-search {
+  display: none; align-items: center; gap: 8px; width: 220px; min-height: 36px; padding: 0 12px; border-radius: var(--r-ctl);
+  background: var(--surface-2); color: var(--muted); font-size: var(--t-sm);
+}
+.app[data-wc="wide"] .tb-search { display: inline-flex; }
+.tb-search kbd { margin-left: auto; font: inherit; font-size: var(--t-xs); color: var(--muted); }
+.view {
+  display: flex; flex-direction: column; gap: var(--sec-gap); width: 100%; max-width: 1180px; margin-inline: auto;
+  padding: 2px calc(var(--gutter) + var(--sa-r)) 0 var(--gutter);
+}
+.lt {
+  font: var(--display-weight) calc(var(--t-3xl) * var(--display-scale))/1.02 var(--font-display);
+  text-transform: var(--display-case); letter-spacing: var(--display-track); margin-top: -4px; text-wrap: balance;
+}
+.sec { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sec-h h2, .h2 {
+  text-wrap: balance;
+  font: var(--title-weight) var(--t-xl)/1.15 var(--font-display); text-transform: var(--display-case); letter-spacing: var(--display-track);
+}
+.app[data-theme="darkroom"] .sec-h h2, .app[data-theme="darkroom"] .h2 { font-size: calc(var(--t-xl) * 1.2); font-weight: 400; }
+.sub { color: var(--muted); font-size: var(--t-sm); }
+
+/* covers and cards */
+.cover { position: relative; display: block; aspect-ratio: 1; width: 100%; max-width: 100%; overflow: hidden; border-radius: var(--r-cover); background: var(--surface-2); box-shadow: var(--shadow-card); }
+.cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cover::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: var(--cover-ring); pointer-events: none; }
+.cover.mosaic { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+.cover.mosaic img { min-height: 0; }
+.cover.sm { width: 44px; height: 44px; flex: none; border-radius: calc(var(--r-cover) * 0.6); box-shadow: none; }
+.cover.xs { width: 40px; height: 40px; flex: none; border-radius: calc(var(--r-cover) * 0.5); box-shadow: none; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-min)), 1fr)); gap: 24px 16px; }
+.shelf {
+  display: grid; grid-auto-flow: column; grid-auto-columns: var(--shelf-w); gap: 16px; overflow-x: auto; overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory; margin-inline: calc(var(--gutter) * -1); padding-inline: var(--gutter); scroll-padding-inline: var(--gutter); scrollbar-width: none;
+}
+.shelf::-webkit-scrollbar { display: none; }
+.shelf > * { scroll-snap-align: start; }
+.card { position: relative; min-width: 0; container-type: inline-size; }
+.card-main { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; -webkit-touch-callout: none; }
+.card-main .cover { transition: transform var(--dur-short) var(--ease-out); }
+.ct { display: block; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color var(--dur-micro) var(--ease-out); }
+.cs { display: block; margin-top: -8px; color: var(--muted); font-size: var(--t-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-play {
+  position: absolute; right: 8px; top: calc(100cqw - 52px); width: 44px; height: 44px; border-radius: var(--pp-radius);
+  display: grid; place-items: center; background: var(--accent); color: var(--accent-ink);
+  transition: opacity var(--dur-short) var(--ease-out), transform var(--dur-short) var(--ease-out);
+}
+@media (hover: hover) {
+  .js .card-play { opacity: 0; transform: translateY(4px); }
+  .js .card-play:focus-visible { opacity: 1; transform: none; }
+}
+@media (hover: hover) {
+  .card:hover .card-main .cover { transform: translateY(var(--hover-lift)); }
+  .card:hover .ct { color: var(--accent-text); }
+  .app:not([data-theme="darkroom"]) .card:hover .ct { color: var(--ink); }
+  .js .card:hover .card-play { opacity: 1; transform: none; }
+}
+
+/* track rows */
+.tracks { display: flex; flex-direction: column; }
+.row {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto 44px; align-items: center; gap: 12px; min-height: var(--row-h);
+  border-radius: var(--r-row); box-shadow: inset 0 -1px 0 var(--row-sep); -webkit-touch-callout: none;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+.app[data-theme="native"] .row { box-shadow: none; }
+.app[data-theme="native"] .row + .row::before { content: ""; position: absolute; top: 0; left: 52px; right: 0; height: 1px; background: var(--rule); }
+.app[data-theme="uv"] .row { box-shadow: none; }
+.row-main { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: var(--row-h); padding-left: 8px; }
+.row-n { width: 28px; flex: none; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; font-size: var(--t-sm); }
+.app[data-theme="darkroom"] .row-n { font: 400 var(--t-lg)/1 var(--font-figure); font-variant-numeric: tabular-nums; }
+.row-t { min-width: 0; display: flex; flex-direction: column; }
+.row-t b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-t small { color: var(--muted); font-size: var(--t-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-d { color: var(--muted); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.row-tag { color: var(--muted); font-size: var(--t-xs); line-height: 20px; padding: 0 8px; border-radius: var(--r-ctl); box-shadow: inset 0 0 0 1px var(--rule); }
+.row-like { color: var(--accent-text); display: inline-flex; }
+.row-like:empty { display: none; }
+.row.cur .row-t b { color: var(--accent-text); }
+.row .eq { display: none; }
+.row.cur .row-n .n { display: none; }
+.row.cur .row-n .eq { display: inline-flex; }
+.eq { gap: 2px; align-items: flex-end; height: 14px; color: var(--accent-text); }
+.eq i { width: 3px; height: 14px; background: currentColor; transform-origin: bottom; transform: scaleY(0.4); }
+.app[data-playing] .row.cur .eq i { animation: eq 0.9s var(--ease-out) infinite alternate; }
+.app[data-playing] .row.cur .eq i:nth-child(2) { animation-delay: -0.3s; }
+.app[data-playing] .row.cur .eq i:nth-child(3) { animation-delay: -0.6s; }
+@keyframes eq { from { transform: scaleY(0.25); } to { transform: scaleY(1); } }
+@media (hover: hover) {
+  .row:hover { background: var(--surface-2); }
+  .app[data-theme="uv"] .row:hover { background: var(--surface); }
+}
+.row.dragging { opacity: 0.5; }
+.group-h { padding: 20px 8px 8px; color: var(--muted); font-size: var(--t-sm); font-weight: 500; }
+
+/* album and detail headers */
+.dh { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: end; }
+.dh .cover { max-width: 300px; box-shadow: var(--shadow-float); }
+.app[data-wc="regular"] .dh, .app[data-wc="wide"] .dh { grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 28px; }
+.app[data-wc="wide"] .dh { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); }
+.dh-info { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dh-title {
+  text-wrap: balance;
+  font: var(--display-weight) calc(var(--t-3xl) * var(--display-scale))/1.02 var(--font-display); text-transform: var(--display-case); letter-spacing: var(--display-track);
+}
+.dh-by { align-self: flex-start; color: var(--accent-text); font-size: var(--t-lg); font-weight: 500; min-height: 32px; }
+.dh-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.dh-act { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+.avatar {
+  display: grid; place-items: center; aspect-ratio: 1; width: 100%; max-width: 220px; border-radius: var(--r-avatar); background: var(--surface-2); color: var(--ink-2);
+  font: var(--display-weight) 64px/1 var(--font-display);
+}
+.avatar.sm { width: 44px; font-size: var(--t-lg); font-weight: 500; }
+.foot-note { color: var(--muted); font-size: var(--t-sm); padding: 4px 8px; }
+
+/* segmented control */
+.segc { display: flex; gap: 4px; padding: 4px; overflow-x: auto; scrollbar-width: none; border-radius: var(--r-ctl); background: var(--surface-2); align-self: flex-start; max-width: 100%; }
+.segc button { min-height: 34px; padding: 0 16px; border-radius: var(--r-ctl); white-space: nowrap; color: var(--ink-2); font-size: var(--t-sm); font-weight: 500;
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out); }
+.segc button[aria-selected="true"], .segc button[aria-pressed="true"] { background: var(--bg); color: var(--ink); box-shadow: var(--shadow-card); }
+.app[data-theme="darkroom"] .segc { background: none; padding: 0; gap: 0; box-shadow: inset 0 -1px 0 var(--rule); border-radius: 0; }
+.app[data-theme="darkroom"] .segc button { border-radius: 0; padding: 0 16px 0 0; margin-right: 20px; color: var(--muted); }
+.app[data-theme="darkroom"] .segc button[aria-selected="true"], .app[data-theme="darkroom"] .segc button[aria-pressed="true"] { background: none; box-shadow: inset 0 -2px 0 var(--accent); color: var(--ink); }
+.app[data-theme="uv"] .segc { background: none; box-shadow: inset 0 0 0 1.5px var(--rule-2); }
+.app[data-theme="uv"] .segc button[aria-selected="true"], .app[data-theme="uv"] .segc button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+.lib-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: var(--t-sm); }
+
+/* home: rediscover, for you */
+.redisc { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px 24px; }
+.rd { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 2px 16px; align-items: center; padding: 8px; border-radius: var(--r-card); }
+.rd .cover { grid-row: span 3; }
+.rd-t { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-s, .rd-n { color: var(--muted); font-size: var(--t-sm); }
+.mix {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 20px; border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-card);
+}
+.app[data-theme="darkroom"] .mix { box-shadow: inset 0 0 0 1px var(--rule); }
+.app[data-wc="regular"] .mix, .app[data-wc="wide"] .mix { grid-template-columns: minmax(0, 220px) minmax(0, 1fr); align-items: end; gap: 28px; padding: 24px; }
+.mix .cover { box-shadow: none; }
+.mix-fig { font: 400 calc(var(--t-3xl) * 1.6)/0.95 var(--font-figure); font-variant-numeric: tabular-nums; }
+.app[data-theme="darkroom"] .mix-fig { font-weight: 200; font-size: calc(var(--t-3xl) * 2.4); }
+.app[data-theme="uv"] .mix-fig { font-weight: 300; color: var(--accent-text); }
+.app[data-theme="native"] .mix-fig { font-weight: 700; letter-spacing: -0.03em; }
+.radios { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.radio { display: flex; align-items: center; gap: 12px; padding: 12px 12px; border-radius: var(--r-card); background: var(--surface); text-align: left; }
+.app[data-theme="darkroom"] .radio { background: none; box-shadow: inset 0 0 0 1px var(--rule); }
+.radio b { display: block; font-weight: 500; }
+.radio small { color: var(--muted); font-size: var(--t-sm); }
+.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.chart { display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 12px; border-radius: var(--r-card); background: var(--surface); text-align: left; }
+.app[data-theme="darkroom"] .chart { background: none; box-shadow: inset 0 0 0 1px var(--rule); }
+.chart-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.chart-h b { font: var(--title-weight) var(--t-lg)/1.2 var(--font-display); text-transform: var(--display-case); }
+.chart-h small { color: var(--muted); font-size: var(--t-xs); }
+.chart ol { display: flex; flex-direction: column; gap: 8px; }
+.chart li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; font-size: var(--t-sm); }
+.chart li span:first-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chart li span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (hover: hover) { .rd:hover, .radio:hover, .chart:hover { background: var(--surface-2); } }
+
+/* search */
+.sfield { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 8px 0 16px; border-radius: var(--r-ctl); background: var(--surface-2); color: var(--muted); }
+.app[data-theme="darkroom"] .sfield { background: none; box-shadow: inset 0 0 0 1px var(--muted); }
+.app[data-theme="uv"] .sfield { background: none; box-shadow: inset 0 0 0 1.5px var(--rule-2); }
+.sfield:focus-within { box-shadow: inset 0 0 0 1.5px var(--focus); }
+.sfield input { flex: 1; min-width: 0; height: 44px; border: 0; background: none; color: var(--ink); font: inherit; font-size: var(--t-md); outline: none; }
+.sfield input::placeholder { color: var(--muted); }
+.sfield input::-webkit-search-cancel-button { display: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 36px; padding: 0 16px; border-radius: var(--r-ctl); box-shadow: inset 0 0 0 1px var(--rule); font-size: var(--t-sm); color: var(--ink-2); }
+.app[data-theme="uv"] .chip { box-shadow: inset 0 0 0 1.5px var(--rule-2); }
+@media (hover: hover) { .chip:hover { background: var(--surface-2); } }
+.empty { display: flex; flex-direction: column; gap: 8px; padding: 28px 8px; color: var(--muted); }
+.empty b { color: var(--ink); font-size: var(--t-lg); font-weight: 500; }
+
+/* settings */
+.grp { display: flex; flex-direction: column; gap: 12px; }
+.grp h2 { font: 500 var(--t-sm)/1.3 var(--font-body); color: var(--muted); padding-left: 4px; }
+.list { border-radius: var(--r-card); background: var(--surface); overflow: hidden; }
+.app[data-theme="darkroom"] .list { background: none; box-shadow: inset 0 1px 0 var(--rule); }
+.li { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 16px; box-shadow: inset 0 -1px 0 var(--rule); }
+.li:last-child { box-shadow: none; }
+.app[data-theme="darkroom"] .li:last-child { box-shadow: inset 0 -1px 0 var(--rule); }
+.li > span { flex: 1; min-width: 0; }
+.li small { display: block; color: var(--muted); font-size: var(--t-sm); }
+.li .val { color: var(--muted); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.switch { position: relative; width: 52px; height: 32px; flex: none; border-radius: 999px; background: var(--track); transition: background-color var(--dur-short) var(--ease-out); }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 999px; background: var(--bg); box-shadow: var(--shadow-card); transition: transform var(--dur-short) var(--ease-out); }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"]::after { transform: translateX(20px); }
+.app[data-theme="darkroom"] .switch, .app[data-theme="darkroom"] .switch::after { border-radius: 0; }
+
+/* dock: player and tab bar */
+.dock {
+  grid-column: 2 / -1; grid-row: 1; align-self: end; position: sticky; bottom: 0; z-index: 8; min-width: 0; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  padding: 0 calc(var(--dock-inset) + var(--sa-r)) calc(var(--dock-inset) + var(--sa-b)) var(--dock-inset);
+}
+.dock > * { pointer-events: auto; }
+.player {
+  position: relative; display: grid; align-items: center; gap: 8px; min-height: 60px; padding: 0 8px 0 8px;
+  background: var(--bar-bg); -webkit-backdrop-filter: var(--bar-filter); backdrop-filter: var(--bar-filter);
+  border-radius: var(--bar-radius); box-shadow: var(--bar-ring), var(--bar-shadow); touch-action: pan-y;
+}
+.player[hidden] { display: none; }
+.pl-main { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 52px; border-radius: calc(var(--bar-radius) * 0.6); }
+.pl-t { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.pl-t b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-t small { color: var(--muted); font-size: var(--t-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-trans, .pl-extra { display: flex; align-items: center; gap: 2px; }
+.pl-extra { justify-content: flex-end; }
+.pl-pp { color: var(--ink); }
+.pl-line { position: absolute; left: 16px; right: 16px; bottom: 5px; height: 2px; overflow: hidden; border-radius: 2px; background: var(--track); pointer-events: none; }
+.app[data-theme="darkroom"] .pl-line { left: 0; right: 0; top: 0; bottom: auto; border-radius: 0; }
+.pl-line i, .prog-fill { position: absolute; inset: 0; background: var(--accent); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
+.pl-prog { display: none; align-items: center; gap: 12px; font-size: var(--t-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.pl-center { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; }
+.vol { width: 96px; accent-color: var(--accent); }
+.pl-shuffle, .pl-repeat, .pl-prev, .pl-lyr, .pl-q, .pl-out, .vol, .pl-panel { display: none; }
+.player { grid-template-columns: minmax(0, 1fr) auto; }
+.app[data-wc="compact"] .pl-extra { display: none; }
+.app[data-wc="regular"] .player { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); min-height: 66px; padding: 0 12px; }
+.app[data-wc="regular"] .pl-prev, .app[data-wc="regular"] .pl-lyr, .app[data-wc="regular"] .pl-q { display: inline-grid; }
+.app[data-wc="wide"] .player { grid-template-columns: minmax(0, 1fr) minmax(0, 500px) minmax(0, 1fr); min-height: 74px; padding: 0 12px; }
+.app[data-wc="wide"] .pl-shuffle, .app[data-wc="wide"] .pl-repeat, .app[data-wc="wide"] .pl-prev,
+.app[data-wc="wide"] .pl-lyr, .app[data-wc="wide"] .pl-out, .app[data-wc="wide"] .pl-panel { display: inline-grid; }
+.app[data-wc="wide"] .vol { display: inline-block; }
+.app[data-wc="wide"] .pl-prog { display: flex; width: 100%; }
+.app[data-wc="wide"] .pl-line { display: none; }
+.app[data-wc="wide"] .pl-trans { gap: 8px; }
+.tabbar {
+  display: none; align-items: stretch; justify-content: space-around; min-height: 62px; padding: 4px 8px;
+  background: var(--bar-bg); -webkit-backdrop-filter: var(--bar-filter); backdrop-filter: var(--bar-filter);
+  border-radius: var(--bar-radius); box-shadow: var(--bar-ring), var(--bar-shadow);
+}
+.app[data-wc="compact"] .tabbar { display: flex; }
+.app[data-theme="darkroom"] .dock { gap: 0; }
+.app[data-theme="darkroom"][data-wc="compact"] .player { box-shadow: 0 -1px 0 0 var(--rule); }
+.tb-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 52px;
+  border-radius: calc(var(--bar-radius) * 0.8); color: var(--muted); font-size: 11.5px; font-weight: 500;
+  transition: color var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out);
+}
+.tb-item[aria-current="page"] { color: var(--accent-text); }
+.app[data-theme="native"] .tb-item[aria-current="page"] { background: var(--sel-bg); }
+
+/* now playing panel: wide windows */
+.panel { grid-column: 3; grid-row: 1; position: sticky; bottom: 0; min-width: 0; min-height: 0; display: none; flex-direction: column; z-index: 6;
+  padding-top: var(--sa-t); padding-right: var(--sa-r); background: var(--surface); box-shadow: -1px 0 0 var(--rule); }
+.app[data-theme="native"] .panel, .app[data-theme="bloom"] .panel, .app[data-theme="uv"] .panel {
+  margin: var(--side-inset); margin-top: calc(var(--side-inset) + var(--sa-t)); margin-bottom: calc(var(--dock-h) + var(--sa-b) - 16px);
+  padding-top: 0; border-radius: var(--side-radius); box-shadow: var(--side-edge); background: var(--side-bg);
+  -webkit-backdrop-filter: var(--bar-filter); backdrop-filter: var(--bar-filter);
+}
+.app[data-wc="wide"][data-panel="on"] .panel { display: flex; }
+.pn-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 8px 4px 20px; }
+.pn-head h2 { font: var(--title-weight) var(--t-lg)/1.2 var(--font-display); text-transform: var(--display-case); letter-spacing: var(--display-track); }
+.pn-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: thin; }
+.app[data-theme="darkroom"] .pn-scroll { padding-bottom: calc(var(--dock-h) + var(--sa-b)); }
+.pn-cover { display: block; width: 100%; }
+.pn-cover .cover { box-shadow: var(--shadow-float); }
+.pn-meta { display: flex; align-items: center; gap: 8px; }
+.pn-meta > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pn-meta b { font: var(--title-weight) var(--t-lg)/1.25 var(--font-display); text-transform: var(--display-case); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pn-meta small { color: var(--muted); font-size: var(--t-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pn-ly { height: 176px; --ly-size: 17px; }
+.pn-q { display: flex; flex-direction: column; gap: 2px; border-radius: var(--r-card); padding: 4px; margin: 0 -4px; }
+.pn-q h3, .np-pane h3 { font: 500 var(--t-sm)/1.3 var(--font-body); color: var(--muted); padding: 8px 8px 8px; }
+.qrow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 4px 8px; border-radius: var(--r-row); text-align: left; }
+.qrow > span { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.3; }
+.qrow b { font-weight: 500; font-size: var(--t-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qrow small { color: var(--muted); font-size: var(--t-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qrow.cur b { color: var(--accent-text); }
+.q-hint { padding: 8px; color: var(--muted); font-size: var(--t-xs); }
+@media (hover: hover) { .qrow:hover { background: var(--surface-2); } }
+
+/* lyrics, shared by the panel and the player */
+.lyw { position: relative; container-type: size; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, var(--ink) 16%, var(--ink) 80%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, var(--ink) 16%, var(--ink) 80%, transparent); }
+.lyw::-webkit-scrollbar { display: none; }
+.ly { display: flex; flex-direction: column; gap: 0.5em; padding-block: 42cqh; font: var(--lyric-weight) var(--ly-size)/1.3 var(--font-lyric); }
+.ly button { display: block; width: 100%; padding: 2px 0; color: var(--ly-off); text-align: inherit; border-radius: 6px; transition: color var(--dur-short) var(--ease-out), opacity var(--dur-short) var(--ease-out); }
+.ly li.on button { color: var(--ly-on); }
+.ly li.gap button { letter-spacing: 0.2em; }
+.ly-none { display: flex; flex-direction: column; justify-content: center; gap: 8px; height: 100%; color: var(--muted); }
+.ly-none b { color: var(--ink-2); font-weight: 500; }
+
+/* now playing, full */
+.np {
+  position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; background: var(--bg); overflow: hidden;
+  transition: transform var(--dur-medium) var(--ease-out), visibility 0s linear var(--dur-medium);
+}
+.js .np[data-open="false"] { transform: translateY(100%); visibility: hidden; }
+.np[data-open="true"] { transform: none; visibility: visible; transition: transform var(--dur-medium) var(--ease-out); }
+.np.dragging { transition: none; }
+.np-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: var(--np-blur-op); }
+.np-bg img { width: 100%; height: 100%; object-fit: cover; filter: blur(70px) saturate(1.6); transform: scale(1.35); }
+.np-bg::after { content: ""; position: absolute; inset: 0; background: var(--np-veil); }
+.app[data-theme="bloom"] .np-pane .lyw {
+  background-image: linear-gradient(to right, var(--grid-a) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-b) 1px, transparent 1px);
+  background-size: 48px 100%, 100% 24px; border-radius: var(--r-card);
+}
+.np-head { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; padding: calc(var(--sa-t) + 8px) calc(var(--gutter) - 8px) 4px; touch-action: none; }
+.np-src { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.3; font-size: var(--t-xs); color: var(--muted); }
+.np-src b { color: var(--ink-2); font-size: var(--t-sm); font-weight: 500; }
+.np-body {
+  position: relative; z-index: 1; flex: 1; min-height: 0; container-type: size; display: grid; gap: 16px 32px;
+  padding: 8px calc(var(--gutter) + var(--sa-r)) calc(var(--sa-b) + 20px) calc(var(--gutter) + var(--sa-l));
+}
+.np-cover { grid-area: cover; min-width: 0; min-height: 0; touch-action: none; }
+.np-cover .cover { box-shadow: var(--shadow-float); }
+.np-meta { grid-area: meta; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.np-meta > div { flex: 1; min-width: 0; }
+.np-title { font: var(--title-weight) var(--t-xl)/1.15 var(--font-display); text-transform: var(--display-case); letter-spacing: var(--display-track); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app[data-theme="darkroom"] .np-title { font-size: calc(var(--t-xl) * 1.35); }
+.np-sub { display: flex; flex-wrap: wrap; gap: 0 4px; color: var(--muted); }
+.np-sub button { color: var(--ink-2); min-height: 28px; border-radius: 4px; }
+.np-prog { grid-area: prog; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.prog { position: relative; height: 28px; touch-action: none; cursor: pointer; }
+.prog-line { position: absolute; left: 0; right: 0; top: 12px; height: 4px; overflow: hidden; border-radius: 4px; background: var(--track); }
+.app[data-theme="darkroom"] .prog-line { height: 2px; top: 13px; border-radius: 0; }
+.prog-knob { position: absolute; top: 8px; left: 0; width: 12px; height: 12px; border-radius: 999px; background: var(--ink); transform: translateX(calc(var(--p, 0) * var(--w, 0px) - 50%)); }
+.app[data-theme="darkroom"] .prog-knob { border-radius: 0; width: 2px; height: 16px; top: 6px; background: var(--accent); }
+.wave { position: absolute; inset: 0; display: none; }
+.wave svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wave .rest { fill: var(--accent-soft); }
+.wave .played { fill: var(--accent); clip-path: inset(0 calc((1 - var(--p, 0)) * 100%) 0 0); }
+.app[data-theme="uv"] .np .prog { height: 40px; }
+.app[data-theme="uv"] .np .wave { display: block; }
+.app[data-theme="uv"] .np .prog-line, .app[data-theme="uv"] .np .prog-knob { display: none; }
+.np-times { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: var(--t-xs); font-variant-numeric: tabular-nums; }
+.np-q { color: var(--muted); }
+.np-trans { grid-area: trans; display: flex; align-items: center; justify-content: space-between; gap: 8px; max-width: 420px; width: 100%; justify-self: center; }
+.np-trans .ib { width: 52px; height: 52px; color: var(--ink); }
+.np-trans .ib[aria-pressed="false"] { color: var(--muted); }
+.pp {
+  width: var(--pp-size); height: var(--pp-size); flex: none; display: grid; place-items: center; border-radius: var(--pp-radius);
+  background: var(--pp-bg); color: var(--pp-ink); box-shadow: var(--pp-shadow);
+  transition: transform var(--dur-micro) var(--ease-out), filter var(--dur-micro) var(--ease-out);
+}
+.pp:active { transform: translateY(1px) scale(0.97); }
+.pp .i { width: 34px; height: 34px; }
+.app[data-theme="native"] .pp .i { width: 46px; height: 46px; }
+.np-extra { grid-area: extra; display: flex; justify-content: space-between; gap: 8px; max-width: 420px; width: 100%; justify-self: center; }
+.np-extra .ib { color: var(--muted); }
+.np-extra .ib[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-soft); }
+.np-pane { grid-area: pane; display: none; flex-direction: column; min-height: 0; min-width: 0; }
+.np-pane .lyw { flex: 1; min-height: 0; }
+.np-queue { flex: 1; min-height: 0; overflow-y: auto; display: none; flex-direction: column; gap: 2px; border-radius: var(--r-card); }
+.np[data-pane="queue"] .np-queue { display: flex; }
+.np[data-pane="queue"] .np-pane .lyw { display: none; }
+.np-carousel { grid-area: carousel; position: relative; display: none; min-height: 0; overflow: hidden; touch-action: pan-y; }
+.car-track { display: flex; align-items: center; height: 100%; gap: 20px; transition: transform var(--dur-medium) var(--ease-out); }
+.car-item { flex: none; height: 78%; aspect-ratio: 1; opacity: 0.5; transform: scale(0.78); transition: transform var(--dur-medium) var(--ease-out), opacity var(--dur-medium) var(--ease-out); }
+.car-item.on { opacity: 1; transform: none; }
+.car-item .cover { width: 100%; height: 100%; }
+
+/* stack: compact windows */
+.app[data-npl="stack"] .np-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto auto auto; grid-template-areas: "cover" "meta" "prog" "trans" "extra"; }
+.app[data-npl="stack"] .np-cover { align-self: center; justify-self: center; width: min(100%, 52cqh); }
+.app[data-npl="stack"] .np[data-pane] .np-body { grid-template-columns: 60px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto auto; grid-template-areas: "cover meta" "pane pane" "prog prog" "trans trans" "extra extra"; }
+.app[data-npl="stack"] .np[data-pane] .np-cover { width: 60px; }
+.app[data-npl="stack"] .np[data-pane] .np-cover .cover { box-shadow: none; border-radius: calc(var(--r-cover) * 0.6); }
+.app[data-npl="stack"] .np[data-pane] .np-pane { display: flex; }
+.app[data-npl="stack"] .np-pane h3 { display: none; }
+/* portrait: Duo unfolded, iPad portrait, half of a split */
+.app[data-npl="portrait"] .np-body { grid-template-columns: minmax(0, 0.44fr) minmax(0, 0.56fr); grid-template-rows: auto auto auto auto minmax(0, 1fr); grid-template-areas: "cover meta" "cover prog" "cover trans" "cover extra" "pane pane"; align-content: start; }
+.app[data-npl="portrait"] .np-cover { align-self: start; }
+.app[data-npl="portrait"] .np-meta { align-self: end; }
+.app[data-npl="portrait"] .np-pane { display: flex; margin-top: 12px; }
+.app[data-npl="portrait"] .np-trans, .app[data-npl="portrait"] .np-extra { justify-self: stretch; max-width: none; }
+/* landscape: controls in the left column, the lyric stage beside them */
+.app[data-npl="landscape"] .np-body { grid-template-columns: minmax(0, 0.4fr) minmax(0, 0.6fr); grid-template-rows: minmax(0, 1fr) auto auto auto auto; grid-template-areas: "cover pane" "meta pane" "prog pane" "trans pane" "extra pane"; column-gap: 48px; }
+.app[data-npl="landscape"] .np-cover { align-self: end; justify-self: center; width: min(100%, calc(100cqh - 270px)); }
+.app[data-npl="landscape"] .np-pane { display: flex; }
+.app[data-npl="landscape"] .np-pane .lyw { --ly-size: clamp(24px, 4.2cqh, 34px); }
+/* tabletop: Duo half folded, lyrics on the top half, covers and controls below the hinge */
+.app[data-npl="tabletop"] .np-head { position: absolute; top: 0; left: 0; right: 0; }
+.app[data-npl="tabletop"] .np-body { padding: 0; row-gap: 8px; grid-template-columns: minmax(0, 1fr); grid-template-rows: 50% minmax(0, 1fr) auto auto auto; grid-template-areas: "pane" "carousel" "meta" "prog" "trans"; }
+.app[data-npl="tabletop"] .np-pane { display: flex; padding: calc(var(--sa-t) + 60px) var(--gutter) 12px; }
+.app[data-npl="tabletop"] .np-pane h3 { display: none; }
+.app[data-npl="tabletop"] .np-pane .lyw { --ly-size: 27px; }
+.app[data-npl="tabletop"] .np-cover, .app[data-npl="tabletop"] .np-extra { display: none; }
+.app[data-npl="tabletop"] .np-carousel { display: block; padding-top: 16px; }
+.app[data-npl="tabletop"] .np-meta, .app[data-npl="tabletop"] .np-prog { padding-inline: var(--gutter); }
+.app[data-npl="tabletop"] .np-trans { padding-bottom: calc(var(--sa-b) + 12px); }
+
+/* context menu, shortcut sheet, toast */
+.menu-layer { position: absolute; inset: 0; z-index: 50; }
+.menu {
+  position: absolute; min-width: 230px; max-width: min(300px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; padding: 8px;
+  background: var(--menu-bg); -webkit-backdrop-filter: var(--menu-filter); backdrop-filter: var(--menu-filter); border-radius: var(--r-menu); box-shadow: var(--shadow-float);
+  transform-origin: var(--ox, 0) var(--oy, 0); animation: pop var(--dur-short) var(--ease-out);
+}
+@keyframes pop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+.menu-head { display: flex; align-items: center; gap: 12px; padding: 8px 8px 12px; margin-bottom: 4px; box-shadow: inset 0 -1px 0 var(--rule); }
+.menu-head > span { min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.menu-head b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-head small { color: var(--muted); font-size: var(--t-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mi { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 42px; padding: 0 12px; border-radius: calc(var(--r-menu) * 0.6); color: var(--ink); text-align: left; }
+.mi .i { color: var(--ink-2); margin-left: auto; order: 2; }
+.mi.sub { padding-left: 24px; color: var(--ink-2); }
+.mi[aria-checked="true"]::after { content: ""; }
+.msep { height: 1px; margin: 4px 8px; background: var(--rule); }
+@media (hover: hover) { .mi:hover { background: var(--accent-soft); } }
+.mi:focus-visible { outline-offset: -2px; }
+.hud {
+  position: absolute; inset: 0; z-index: 55; display: grid; place-items: center; padding: 24px; background: var(--scrim);
+  animation: fade var(--dur-short) var(--ease-out);
+}
+.hud[hidden] { display: none; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.hud-card {
+  width: min(640px, 100%); max-height: 100%; overflow: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 20px 28px;
+  padding: 24px 24px; background: var(--menu-bg); -webkit-backdrop-filter: var(--menu-filter); backdrop-filter: var(--menu-filter); border-radius: var(--r-menu); box-shadow: var(--shadow-float);
+}
+.hud-card h3 { font: 500 var(--t-sm)/1.3 var(--font-body); color: var(--muted); margin-bottom: 8px; }
+.hud-card li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: var(--t-sm); }
+.hud-card kbd { font: 500 var(--t-sm)/1.3 var(--font-body); color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.toast {
+  position: absolute; left: 50%; bottom: calc(var(--dock-h) + var(--sa-b) + 8px); z-index: 45; max-width: calc(100% - 32px); padding: 12px 16px;
+  border-radius: var(--r-ctl); background: var(--ink); color: var(--bg); font-size: var(--t-sm); font-weight: 500; pointer-events: none;
+  opacity: 0; transform: translate(-50%, 8px); transition: opacity var(--dur-short) var(--ease-out), transform var(--dur-short) var(--ease-out);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .app *, .app *::before, .app *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+  .js .np[data-open="false"] { transform: none; opacity: 0; }
+  .np { transition: opacity 1ms, visibility 0s; }
+  .np[data-open="true"] { opacity: 1; }
+}
+</style>
+
+<div class="demo" id="demo">
+  <header class="demo-bar">
+    <div class="demo-name"><b>N1KO 新界面</b><span id="dirNote">四个方向，一套布局</span></div>
+    <div class="demo-ctl">
+      <div class="seg" role="group" aria-label="方向" id="dirSeg">
+        <button type="button" data-dir="darkroom">暗房</button>
+        <button type="button" data-dir="native">系统原生</button>
+        <button type="button" data-dir="bloom">暖纸</button>
+        <button type="button" data-dir="uv">紫外</button>
+      </div>
+      <label class="sel" for="preset"><span>窗口</span>
+        <select id="preset">
+          <option value="duo-out">iPhone Duo 合上（外屏）</option>
+          <option value="duo-in">iPhone Duo 展开，竖握</option>
+          <option value="duo-in-l">iPhone Duo 展开，横握</option>
+          <option value="duo-tent">iPhone Duo 半折悬停</option>
+          <option value="ipad-split">iPad 分屏，占一半</option>
+          <option value="ipad-p">iPad 竖屏</option>
+          <option value="ipad-l">iPad 横屏</option>
+          <option value="fill">填满窗口</option>
+          <option value="free">自由拖拽大小</option>
+        </select>
+      </label>
+      <div class="seg" role="group" aria-label="外观" id="schemeSeg">
+        <button type="button" data-scheme="system">跟随系统</button>
+        <button type="button" data-scheme="light">浅色</button>
+        <button type="button" data-scheme="dark">深色</button>
+      </div>
+      <button type="button" class="demo-btn" id="hideBar">收起工具条</button>
+    </div>
+    <p class="demo-note">示例曲库，不是你的数据。布局只看窗口宽度：<b>600 以下</b>用底部标签栏，<b>600 到 1023</b> 用侧边导航条，<b>1024 以上</b>是侧栏加「正在播放」面板。右键或长按曲目出菜单，曲目能拖进歌单或「接下来」，按住 ⌘ 看快捷键。在 iPad 或 Duo 上打开时选「填满窗口」。</p>
+  </header>
+  <div class="stage" id="stage">
+    <div class="wrap" id="wrap">
+      <div class="device" id="device">
+        <div class="app" id="app" data-theme="darkroom" data-scheme="dark" data-wc="wide" data-side="on" data-panel="on" data-npl="landscape">
+          <nav class="sidebar grained" id="sidebar" aria-label="主导航"></nav>
+          <nav class="rail" id="rail" aria-label="主导航"></nav>
+          <div class="col">
+            <main class="scroller" id="scroller">
+              <header class="toolbar" id="toolbar"></header>
+              <div class="view" id="view"></div>
+            </main>
+          </div>
+          <aside class="panel" id="panel" aria-label="正在播放"></aside>
+          <div class="dock" id="dock">
+            <div class="player" id="player"></div>
+            <nav class="tabbar" id="tabbar" aria-label="主导航"></nav>
+          </div>
+          <section class="np" id="np" data-open="false" role="dialog" aria-modal="true" aria-label="正在播放"></section>
+          <div class="menu-layer" id="menuLayer" hidden><div class="menu" id="menu" role="menu"></div></div>
+          <div class="hud" id="hud" hidden></div>
+          <div class="toast" id="toast" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+    <p class="cap" id="cap"></p>
+  </div>
+  <button type="button" class="demo-btn show-bar" id="showBar" hidden>工具条</button>
+  <noscript><p>这个演示需要 JavaScript。</p></noscript>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+const mqDark = matchMedia('(prefers-color-scheme: dark)');
+const store = {
+  get(k) { try { return localStorage.getItem('n1ko-demo-' + k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem('n1ko-demo-' + k, v); } catch { /* storage blocked */ } },
+};
+
+/* ---------------- sample library (fictional) ---------------- */
+const RAW = [
+  { id: 'a1', t: '夜航', ar: '林间小路', y: 2019, q: 'FLAC 16/44.1', art: 'sun', pal: ['#14213d', '#3d405b', '#f4a259', '#0b132b'], added: '2026-10-21',
+    tr: ['起飞前 3:12', '夜航 4:12', '云层之上 3:48', '北纬三十度 4:05', '机舱灯 2:56', '给塔台的信 5:01', '时差 3:33', '海面 4:20', '降落 3:58', '落地以后 6:14'] },
+  { id: 'a2', t: '潮汐表', ar: '周以南', y: 2021, q: 'FLAC 24/96', art: 'waves', pal: ['#e9e4d8', '#1d3557', '#457b9d', '#a8dadc'], added: '2026-10-18',
+    tr: ['退潮 3:40', '涨潮 4:02', '月亮的引力 3:55', '礁石 2:48', '灯塔看守人 5:12', '第七次浪 3:21', '潮间带 4:44', '回声 3:09'] },
+  { id: 'a3', t: 'Low Tide Radio', ar: 'The Quiet Hours', y: 2017, q: 'FLAC 16/44.1', art: 'bands', pal: ['#c8553d', '#f28f3b', '#ffd5c2', '#588b8b', '#2d3047'], added: '2026-10-12',
+    tr: ['Static 3:02', 'Low Tide Radio 4:11', 'Harbour Lights 3:47', 'Night Shift 4:30', 'Saltwater 3:15', 'Long Wave 5:20', 'Last Call 3:58'] },
+  { id: 'a4', t: '北方以北', ar: '陈默与海', y: 2015, q: 'MP3 320', art: 'split', pal: ['#f1ece2', '#b23a48', '#1f1f1f', '#8c2f39'], added: '2023-05-11',
+    tr: ['出关 3:30', '北方以北 4:18', '雪线 3:52', '冻土 2:59', '白桦林边 4:40', '归途 5:05'] },
+  { id: 'a5', t: '白噪音收藏', ar: '未命名电台', y: 2022, q: 'FLAC 24/48', art: 'grid', pal: ['#d9d9d6', '#2b2b2b', '#e9c46a', '#8d99ae'], added: '2024-02-03',
+    tr: ['冰箱的嗡鸣 2:40', '阳台的雨 6:00', '地铁末班 3:12', '打字机 2:22', '风扇 8:00', '远处施工 3:33'] },
+  { id: 'a6', t: 'Paper Moons', ar: 'Mara Lind', y: 2020, q: 'ALAC 24/96', art: 'type', glyph: 'P', pal: ['#f2e8cf', '#386641', '#bc4749'], added: '2026-09-25',
+    tr: ['Paper Moons 3:44', 'Small Hours 3:20', 'Fold 2:58', 'Cartographer 4:26', 'Ink and Water 3:37', 'Goodnight, Kite 4:51'] },
+  { id: 'a7', t: '盐与光', ar: '苏禾', y: 2023, q: 'FLAC 24/96', art: 'sun', pal: ['#f6bd60', '#f7ede2', '#f28482', '#84a59d'], added: '2026-10-01',
+    tr: ['盐 3:28', '光 3:46', '晒谷场 4:10', '七月 3:05', '海风吹过的地方 4:33', '晚霞 5:20', '回家 3:58'] },
+  { id: 'a8', t: 'Second Summer', ar: 'Hollow Pines', y: 2018, q: 'FLAC 16/44.1', art: 'bands', pal: ['#264653', '#2a9d8f', '#e9c46a', '#f4a261', '#e76f51'], added: '2026-09-14',
+    tr: ['Heatwave 3:18', 'Second Summer 4:01', 'Pool Lights 3:35', 'Cicadas 2:50', 'August 4:12', 'Sunburn 3:27'] },
+  { id: 'a9', t: '慢车', ar: '老宋的手风琴', y: 2016, q: 'FLAC 16/44.1', art: 'type', glyph: '慢', pal: ['#1b1b1e', '#d8c99b', '#a4243b'], added: '2026-08-20',
+    tr: ['慢车 4:30', '小站 3:15', '绿皮车厢 3:58', '硬座 2:44', '汽笛 3:36', '终点站 6:02'] },
+  { id: 'a10', t: 'Glasshouse', ar: 'Noor and the Tides', y: 2024, q: 'FLAC 24/192', art: 'grid', pal: ['#0f4c5c', '#e36414', '#fb8b24', '#9a031e'], added: '2026-10-08',
+    tr: ['Glasshouse 3:52', 'Prism 3:31', 'Greenhouse Effect 4:15', 'Condensation 3:03', 'Ferns 4:40', 'Daylight Saving 3:49'] },
+  { id: 'a11', t: '雨季不再来', ar: '南方公寓', y: 2013, q: 'MP3 320', art: 'waves', pal: ['#22333b', '#c6ac8f', '#eae0d5', '#5e503f'], added: '2026-09-02',
+    tr: ['雨季不再来 4:25', '南方公寓 3:50', '潮湿的信 4:02', '梅雨 3:37', '晾不干的衬衫 3:12', '晴 4:48'] },
+  { id: 'a12', t: 'Nightswimming Tapes', ar: 'Ada Merle', y: 2019, q: 'FLAC 16/44.1', art: 'split', pal: ['#0d1b2a', '#415a77', '#e0e1dd', '#778da9'], added: '2024-08-19',
+    tr: ['Side A 4:12', 'Chlorine 3:40', 'Lifeguard Off Duty 3:55', 'Deep End 4:30', 'Towel 2:47', 'Side B 5:01'] },
+];
+const T = {};
+const AL = {};
+const ALBUMS = RAW.map(a => {
+  const tracks = a.tr.map((s, i) => {
+    const k = s.lastIndexOf(' ');
+    const [m, sec] = s.slice(k + 1).split(':').map(Number);
+    const id = a.id + '.' + (i + 1);
+    T[id] = { id, al: a.id, n: i + 1, t: s.slice(0, k), d: m * 60 + sec };
+    return id;
+  });
+  const al = { ...a, tracks, dur: tracks.reduce((n, id) => n + T[id].d, 0) };
+  AL[a.id] = al;
+  return al;
+});
+const ARTISTS = [...new Set(ALBUMS.map(a => a.ar))].map(name => ({ name, albums: ALBUMS.filter(a => a.ar === name).map(a => a.id) }));
+const LYR = {
+  'a1.2': [[0, '……'], [12, '关掉最后一盏舷窗的灯'], [20, '城市在机翼下慢慢变冷'], [28, '你说云层上面没有雨'], [36, '我说那就把雨留在地上'],
+    [45, '夜航 穿过没有名字的海'], [53, '时钟在两个时区之间摇摆'], [61, '如果到达是另一种离开'], [69, '就让引擎替我说一句再见'], [80, '……'],
+    [96, '广播念着陌生城市的名字'], [104, '毯子盖住一半的心事'], [112, '窗外的星比地上的灯更近'], [120, '我数到一百 还没有睡意'],
+    [130, '夜航 穿过没有名字的海'], [138, '时钟在两个时区之间摇摆'], [146, '如果到达是另一种离开'], [154, '就让引擎替我说一句再见'],
+    [166, '等天亮 等跑道亮起来'], [176, '等你在出口 举着一块写错的牌'], [190, '……']],
+};
+const PL = [
+  { id: 'p1', name: '深夜开车', tracks: ['a1.2', 'a3.2', 'a12.2', 'a8.3', 'a11.1', 'a6.1', 'a10.1', 'a3.4'] },
+  { id: 'p2', name: '写代码', tracks: ['a5.2', 'a5.5', 'a10.2', 'a12.1', 'a3.6', 'a2.3'] },
+  { id: 'p3', name: '周末早晨', tracks: ['a7.3', 'a6.2', 'a2.1', 'a8.5', 'a9.2'] },
+  { id: 'p4', name: '跑步', tracks: ['a8.1', 'a10.3', 'a3.2', 'a7.2'] },
+];
+const HIST = [
+  { g: '今天', ids: ['a1.2', 'a7.1', 'a2.3'] },
+  { g: '昨天', ids: ['a3.2', 'a11.1', 'a9.1', 'a6.1'] },
+  { g: '本周早些时候', ids: ['a10.1', 'a8.3', 'a2.1'] },
+];
+const RECENT_ALBUMS = ['a1', 'a7', 'a2', 'a3', 'a11', 'a9', 'a6', 'a10'];
+const REDISCOVER = [{ id: 'a4', when: '2025 年 3 月' }, { id: 'a5', when: '2025 年 6 月' }, { id: 'a12', when: '2024 年 12 月' }];
+const MIX = ['a2.2', 'a10.4', 'a7.5', 'a3.3', 'a6.4', 'a11.3', 'a8.2', 'a1.4', 'a12.3', 'a9.3', 'a2.5', 'a7.6'];
+const CHARTS = [
+  { src: '网易云音乐', name: '飙升榜', ids: ['a10.1', 'a7.2', 'a1.2', 'a8.2', 'a6.1'] },
+  { src: 'QQ 音乐', name: '流行指数榜', ids: ['a2.1', 'a8.2', 'a6.1', 'a3.2', 'a11.2'] },
+];
+const DIRS = {
+  darkroom: '暖黑的底，纤维白的字，零圆角。全站只有一盏琥珀色的安全灯，照在播放键和正在唱的那一行上；封面是唯一的彩色。',
+  native: '系统字体和苹方，悬浮的毛玻璃栏，iPadOS 式的浮动侧栏和胶囊按钮；播放页用封面模糊做底。强调色是品牌绿。',
+  bloom: '暖白纸面，抬起的纸片和柔和投影，播放键是一颗嵌在凹槽里的橡胶键；歌词落在一张淡淡的格纸上。强调色是陶土色。',
+  uv: '薰衣草色纸面或紫黑夜色，控件全是药丸形，拉丁字母一律小写；只用一种紫，标出进度、波形和当前位置。',
+};
+const PRESETS = {
+  'duo-out': { name: 'iPhone Duo 外屏', w: 466, h: 678, approx: true, sa: [44, 0, 28, 0] },
+  'duo-in': { name: 'iPhone Duo 展开竖握', w: 626, h: 890, approx: true, sa: [32, 0, 20, 0] },
+  'duo-in-l': { name: 'iPhone Duo 展开横握', w: 890, h: 626, approx: true, sa: [24, 0, 20, 0] },
+  'duo-tent': { name: 'iPhone Duo 半折悬停', w: 626, h: 890, approx: true, sa: [32, 0, 20, 0], posture: 'tabletop' },
+  'ipad-split': { name: 'iPad 13 英寸分屏一半', w: 683, h: 1032, sa: [24, 0, 20, 0] },
+  'ipad-p': { name: 'iPad 11 英寸竖屏', w: 834, h: 1210, sa: [24, 0, 20, 0] },
+  'ipad-l': { name: 'iPad 11 英寸横屏', w: 1210, h: 834, sa: [24, 0, 20, 0] },
+  fill: { name: '填满窗口' },
+  free: { name: '自由拖拽，像台前调度那样改窗口大小' },
+};
+const LIB_TABS = [['albums', '专辑'], ['artists', '歌手'], ['playlists', '歌单'], ['liked', '收藏'], ['recent', '最近播放']];
+
+/* ---------------- cover art, drawn once per album ---------------- */
+function seeded(str) {
+  let h = 2166136261;
+  for (const c of str) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); }
+  let s = (h >>> 0) % 2147483646 + 1;
+  return () => (s = (s * 16807) % 2147483647) / 2147483647;
+}
+const COVERS = {};
+function coverURL(id) {
+  if (COVERS[id]) return COVERS[id];
+  const a = AL[id];
+  const S = 560;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  const R = seeded(a.id + a.t);
+  const p = a.pal;
+  if (a.art === 'sun') {
+    const grad = g.createLinearGradient(0, 0, 0, S);
+    grad.addColorStop(0, p[0]); grad.addColorStop(1, p[1]);
+    g.fillStyle = grad; g.fillRect(0, 0, S, S);
+    g.fillStyle = p[2]; g.beginPath(); g.arc(S * 0.5, S * 0.6, S * 0.24, 0, Math.PI * 2); g.fill();
+    g.fillStyle = p[3]; g.fillRect(0, S * 0.66, S, S * 0.34);
+    g.fillStyle = p[2];
+    for (let i = 0; i < 9; i++) { const y = S * 0.69 + i * S * 0.032; const w = S * (0.36 - i * 0.034); g.globalAlpha = 0.75 - i * 0.07; g.fillRect(S * 0.5 - w / 2, y, w, S * 0.008); }
+    g.globalAlpha = 1;
+  } else if (a.art === 'bands') {
+    let y = 0;
+    let i = 0;
+    while (y < S) { const h = S * (0.08 + R() * 0.2); g.fillStyle = p[i % p.length]; g.fillRect(0, y, S, h + 1); y += h; i++; }
+    g.fillStyle = p[p.length - 1]; g.globalAlpha = 0.9; g.fillRect(S * 0.08, S * 0.08, S * 0.18, S * 0.84); g.globalAlpha = 1;
+  } else if (a.art === 'grid') {
+    g.fillStyle = p[0]; g.fillRect(0, 0, S, S);
+    const n = 4;
+    const cs = S / n;
+    for (let x = 0; x < n; x++) for (let y = 0; y < n; y++) {
+      const r = R();
+      g.fillStyle = p[1 + Math.floor(R() * (p.length - 1))];
+      if (r < 0.3) { g.beginPath(); g.arc(x * cs + cs / 2, y * cs + cs / 2, cs * 0.42, 0, Math.PI * 2); g.fill(); }
+      else if (r < 0.55) { g.beginPath(); g.moveTo(x * cs, y * cs); g.arc(x * cs, y * cs, cs, 0, Math.PI / 2); g.closePath(); g.fill(); }
+      else if (r < 0.7) { g.fillRect(x * cs + cs * 0.1, y * cs + cs * 0.1, cs * 0.8, cs * 0.8); }
+    }
+  } else if (a.art === 'type') {
+    g.fillStyle = p[0]; g.fillRect(0, 0, S, S);
+    g.fillStyle = p[1];
+    g.font = `700 ${S * 0.92}px "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", Georgia, serif`;
+    g.textBaseline = 'alphabetic';
+    g.fillText(a.glyph, S * 0.04, S * 0.86);
+    g.fillStyle = p[2]; g.fillRect(S * 0.06, S * 0.9, S * 0.3, S * 0.02);
+    g.font = `500 ${S * 0.045}px "PingFang SC", "Hiragino Sans GB", sans-serif`;
+    g.fillText(a.ar, S * 0.06, S * 0.965);
+  } else if (a.art === 'waves') {
+    g.fillStyle = p[0]; g.fillRect(0, 0, S, S);
+    g.lineWidth = S * 0.012;
+    for (let i = 0; i < 16; i++) {
+      g.strokeStyle = p[1 + (i % (p.length - 1))];
+      g.beginPath();
+      const amp = S * (0.015 + R() * 0.05);
+      const base = S * (0.12 + i * 0.05);
+      const f = 1.5 + R() * 2;
+      for (let x = 0; x <= S; x += 6) { const y = base + Math.sin((x / S) * Math.PI * f + i * 0.6) * amp; x ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+    }
+  } else {
+    g.fillStyle = p[0]; g.fillRect(0, 0, S, S);
+    g.fillStyle = p[1]; g.beginPath(); g.moveTo(0, S); g.lineTo(S, S * 0.25); g.lineTo(S, S); g.closePath(); g.fill();
+    g.fillStyle = p[2]; g.beginPath(); g.arc(S * 0.3, S * 0.32, S * 0.12, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = p[3]; g.lineWidth = S * 0.006; g.beginPath(); g.moveTo(S * 0.08, S * 0.08); g.lineTo(S * 0.92, S * 0.08); g.stroke();
+  }
+  const img = g.getImageData(0, 0, S, S);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (R() - 0.5) * 22; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  g.putImageData(img, 0, 0);
+  COVERS[id] = c.toDataURL('image/jpeg', 0.86);
+  return COVERS[id];
+}
+
+/* ---------------- icons ---------------- */
+const IC = {
+  home: '<path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/>',
+  spark: '<path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+  lib: '<path d="M5 4v16M9.5 4v16M14 4.5l4.5 15.5"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>',
+  gear: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  album: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/>',
+  artist: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/>',
+  playlist: '<path d="M4 6h11M4 11h11M4 16h6"/><path d="M17 18.5V11l3.5-1"/><circle cx="15.5" cy="18.5" r="1.8"/>',
+  heart: '<path d="M12 19.5s-7-4.3-8.6-8.4C2.3 8.2 4 5 7.3 5c2 0 3.4 1.1 4.7 2.8C13.3 6.1 14.7 5 16.7 5 20 5 21.7 8.2 20.6 11.1 19 15.2 12 19.5 12 19.5z"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>',
+  play: '<path d="M7.5 5.2v13.6a.6.6 0 0 0 .9.5l11-6.8a.6.6 0 0 0 0-1L8.4 4.7a.6.6 0 0 0-.9.5z"/>',
+  pause: '<rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/>',
+  next: '<path d="M5.5 6.2v11.6a.5.5 0 0 0 .8.4l8.4-5.8a.5.5 0 0 0 0-.8L6.3 5.8a.5.5 0 0 0-.8.4z"/><rect x="16.5" y="5.5" width="2" height="13" rx="1"/>',
+  prev: '<path d="M18.5 6.2v11.6a.5.5 0 0 1-.8.4l-8.4-5.8a.5.5 0 0 1 0-.8l8.4-5.8a.5.5 0 0 1 .8.4z"/><rect x="5.5" y="5.5" width="2" height="13" rx="1"/>',
+  shuffle: '<path d="M3.5 7h3c4.5 0 6.5 10 11 10h3"/><path d="M18 14.5l2.5 2.5-2.5 2.5"/><path d="M3.5 17h3c1.6 0 2.8-1.2 3.8-2.8M13.7 9.8C14.7 8.2 15.9 7 17.5 7h3"/><path d="M18 4.5 20.5 7 18 9.5"/>',
+  repeat: '<path d="M4 11V9.5A3.5 3.5 0 0 1 7.5 6h12"/><path d="M17 3.5 19.5 6 17 8.5"/><path d="M20 13v1.5a3.5 3.5 0 0 1-3.5 3.5h-12"/><path d="M7 20.5 4.5 18 7 15.5"/>',
+  lyrics: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  queue: '<path d="M4 6h16M4 11h16M4 16h9"/><path d="M16 14.5v5l4-2.5z"/>',
+  output: '<path d="M6 17H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-1"/><path d="M12 14.5l4.5 5.5h-9z"/>',
+  sidebar: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M9.5 5v14"/>',
+  panel: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/>',
+  back: '<path d="M15 5.5 8.5 12l6.5 6.5"/>',
+  down: '<path d="M5.5 9l6.5 6.5L18.5 9"/>',
+  more: '<circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  server: '<rect x="4" y="4.5" width="16" height="6" rx="1.5"/><rect x="4" y="13.5" width="16" height="6" rx="1.5"/><path d="M7.5 7.5h.01M7.5 16.5h.01"/>',
+  timer: '<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.5M9.5 3.5h5"/>',
+  radio: '<circle cx="12" cy="12" r="2"/><path d="M8.2 8.2a5.4 5.4 0 0 0 0 7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6M5.3 5.3a9.5 9.5 0 0 0 0 13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/>',
+  sort: '<path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3"/>',
+  next1: '<path d="M4 6h10M4 11h10M4 16h6"/><path d="M17 11v8M13 15h8"/>',
+};
+const FILLED = new Set(['play', 'pause', 'next', 'prev', 'more']);
+const ic = (n, cls = '') => `<svg class="i${FILLED.has(n) ? ' f' : ''}${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
+const heartIc = (on, cls = '') => `<svg class="i${on ? ' f' : ''}${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${IC.heart}</svg>`;
+const fmt = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const mins = s => Math.round(s / 60) + ' 分钟';
+const cov = (alId, cls = '') => `<span class="cover${cls ? ' ' + cls : ''}"><img src="${coverURL(alId)}" alt="" decoding="async"></span>`;
+const mosaic = (ids, cls = '') => {
+  const als = [...new Set(ids.map(id => T[id].al))];
+  while (als.length < 4) als.push(als[als.length % Math.max(1, als.length)] || 'a1');
+  return `<span class="cover mosaic${cls ? ' ' + cls : ''}">${als.slice(0, 4).map(a => `<img src="${coverURL(a)}" alt="">`).join('')}</span>`;
+};
+
+/* ---------------- state ---------------- */
+const app = $('#app');
+const S = {
+  dir: 'darkroom', scheme: 'system', preset: 'ipad-l', bar: 'on',
+  stack: [{ v: 'home' }], scroll: {},
+  sideOn: true, panelUser: null,
+  np: false, npAuto: false, pane: null,
+  queue: AL.a1.tracks.slice(), qi: 1, t: 63, playing: false, shuffle: false, repeat: 'off',
+  liked: new Set(['a1.2', 'a2.3', 'a3.2', 'a6.1', 'a7.4', 'a9.1', 'a10.1']),
+  q: '', recentQ: ['夜航', '周以南', 'Glasshouse'], sort: 'added',
+  sw: { lossless: true, trans: false, unplug: true, cellular: false },
+  timer: 0, out: 0,
+  wc: 'wide', land: true,
+};
+const cur = () => T[S.queue[S.qi]];
+const route = () => S.stack[S.stack.length - 1];
+const rkey = r => [r.v, r.id || r.tab || r.name || ''].join(':');
+
+/* ---------------- navigation ---------------- */
+const NAV = [
+  { v: 'home', label: '首页', icon: 'home', key: '1' },
+  { v: 'foryou', label: '推荐', icon: 'spark', key: '2' },
+  { v: 'lib', label: '音乐库', icon: 'lib', key: '3' },
+  { v: 'search', label: '搜索', icon: 'search', key: 'F' },
+];
+function parseR(s) {
+  const [v, a] = s.split(':');
+  if (v === 'lib') return { v, tab: a || 'albums' };
+  if (v === 'album' || v === 'pl') return { v, id: a };
+  if (v === 'artist') return { v, name: a };
+  return { v };
+}
+function go(r, root) {
+  const sc = $('#scroller');
+  S.scroll[rkey(route())] = sc.scrollTop;
+  if (root) S.stack = [r]; else S.stack.push(r);
+  renderAll(true);
+}
+function back() {
+  if (S.stack.length < 2) return;
+  S.stack.pop();
+  renderAll(true);
+}
+function primary() {
+  const r0 = S.stack[0];
+  return r0.v;
+}
+function isCurrent(r) {
+  const top = route();
+  if (S.wc === 'wide') {
+    if (r.v === 'lib') return S.stack[0].v === 'lib' && S.stack[0].tab === r.tab;
+    if (r.v === 'pl') return top.v === 'pl' && top.id === r.id;
+    if (r.v === 'settings') return S.stack[0].v === 'settings';
+    return S.stack[0].v === r.v && !(r.v === 'lib');
+  }
+  if (r.v === 'settings') return S.stack[0].v === 'settings';
+  return primary() === r.v;
+}
+const cur_ = on => on ? ' aria-current="page"' : '';
+
+function renderNav() {
+  const items = NAV.filter(n => n.v !== 'lib');
+  $('#sidebar').innerHTML = `
+    <div class="sb-head"><span class="wordmark">N1KO</span><button class="ib" data-act="side" aria-label="隐藏侧栏">${ic('sidebar')}</button></div>
+    <div class="sb-scroll">
+      ${items.map(n => `<button class="sb-item" data-act="go" data-root="1" data-r="${n.v}"${cur_(isCurrent({ v: n.v }))}>${ic(n.icon)}<span>${n.label}</span></button>`).join('')}
+      <p class="sb-label">音乐库</p>
+      ${LIB_TABS.map(([k, l]) => `<button class="sb-item" data-act="go" data-root="1" data-r="lib:${k}"${cur_(isCurrent({ v: 'lib', tab: k }))}>${ic({ albums: 'album', artists: 'artist', playlists: 'playlist', liked: 'heart', recent: 'clock' }[k])}<span>${l}</span></button>`).join('')}
+      <p class="sb-label">我的歌单</p>
+      ${PL.map(p => `<button class="sb-item" data-act="go" data-root="1" data-r="pl:${p.id}" data-drop="pl:${p.id}"${cur_(isCurrent({ v: 'pl', id: p.id }))}>${mosaic(p.tracks.length ? p.tracks : ['a1.1'], 'sb-cover')}<span>${esc(p.name)}</span><small class="num">${p.tracks.length}</small></button>`).join('')}
+      <button class="sb-item" data-act="new-pl">${ic('plus')}<span>新建歌单</span></button>
+    </div>
+    <div class="sb-foot">
+      <div class="srv">${ic('server', 'sm')}<span><b>家里的 NAS</b><small>Navidrome，已连接</small></span></div>
+      <button class="sb-item" data-act="go" data-root="1" data-r="settings"${cur_(isCurrent({ v: 'settings' }))}>${ic('gear')}<span>设置</span></button>
+    </div>`;
+  $('#rail').innerHTML = `<span class="wordmark">N1KO</span>
+    ${NAV.map(n => `<button class="rl-item" data-act="go" data-root="1" data-r="${n.v}"${cur_(isCurrent(n))}>${ic(n.icon)}<span>${n.label}</span></button>`).join('')}
+    <span class="rl-gap"></span>
+    <button class="rl-item" data-act="go" data-root="1" data-r="settings"${cur_(isCurrent({ v: 'settings' }))}>${ic('gear')}<span>设置</span></button>`;
+  $('#tabbar').innerHTML = NAV.map(n => `<button class="tb-item" data-act="go" data-root="1" data-r="${n.v}"${cur_(isCurrent(n))}>${ic(n.icon)}<span>${n.label}</span></button>`).join('');
+}
+
+/* ---------------- toolbar ---------------- */
+function titleOf(r) {
+  switch (r.v) {
+    case 'home': return '首页';
+    case 'foryou': return '推荐';
+    case 'search': return '搜索';
+    case 'settings': return '设置';
+    case 'lib': return S.wc === 'wide' ? LIB_TABS.find(t => t[0] === r.tab)[1] : '音乐库';
+    case 'album': return AL[r.id].t;
+    case 'artist': return r.name;
+    case 'pl': return PL.find(p => p.id === r.id).name;
+  }
+  return '';
+}
+function renderToolbar() {
+  const r = route();
+  const left = [];
+  if (S.wc === 'wide' && !S.sideOn) left.push(`<button class="ib" data-act="side" aria-label="显示侧栏">${ic('sidebar')}</button>`);
+  if (S.stack.length > 1) left.push(`<button class="ib" data-act="back" aria-label="返回">${ic('back')}</button>`);
+  const right = [];
+  if (S.wc === 'wide' && r.v !== 'search') right.push(`<button class="tb-search" data-act="go" data-root="1" data-r="search">${ic('search', 'sm')}<span>搜索曲库</span><kbd>⌘F</kbd></button>`);
+  if (S.wc === 'compact' && S.stack.length === 1 && ['home', 'foryou', 'lib'].includes(r.v)) right.push(`<button class="ib" data-act="go" data-r="settings" aria-label="设置">${ic('gear')}</button>`);
+  if (S.wc === 'wide') right.push(`<button class="ib" data-act="panel" aria-pressed="${panelOn()}" aria-label="正在播放面板">${ic('panel')}</button>`);
+  $('#toolbar').innerHTML = `<div class="tb-side">${left.join('')}</div><div class="tb-title">${esc(titleOf(r))}</div><div class="tb-side r">${right.join('')}</div>`;
+}
+
+/* ---------------- views ---------------- */
+function card(alId) {
+  const a = AL[alId];
+  return `<article class="card" data-album="${a.id}"><button class="card-main" data-act="go" data-r="album:${a.id}">${cov(a.id)}<span class="ct">${esc(a.t)}</span><span class="cs">${esc(a.ar)}</span></button>
+    <button class="card-play" data-act="play-album" data-id="${a.id}" aria-label="播放《${esc(a.t)}》">${ic('play', 'sm')}</button></article>`;
+}
+function row(id, ctx, opts = {}) {
+  const t = T[id];
+  const a = AL[t.al];
+  const hires = /24\//.test(a.q);
+  const isCur = cur() && cur().id === id;
+  const lead = opts.cover ? cov(a.id, 'xs') : `<span class="row-n"><span class="n">${t.n}</span><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span></span>`;
+  return `<li class="row${isCur ? ' cur' : ''}" data-track="${id}" data-ctx="${ctx}" draggable="true">
+    <button class="row-main" data-act="play" data-track="${id}" data-ctx="${ctx}">${lead}<span class="row-t"><b>${esc(t.t)}</b>${opts.sub ? `<small>${esc(a.ar)}</small>` : ''}</span></button>
+    ${hires && !opts.cover ? '<span class="row-tag">Hi-Res</span>' : '<span></span>'}
+    <span class="row-d"><span class="row-like">${S.liked.has(id) ? heartIc(true, 'sm') : ''}</span> ${fmt(t.d)}</span>
+    <button class="ib row-more" data-act="menu-track" data-track="${id}" aria-label="更多操作：${esc(t.t)}">${ic('more', 'sm')}</button></li>`;
+}
+function viewHome() {
+  const added = ALBUMS.slice().sort((x, y) => y.added.localeCompare(x.added)).slice(0, 8);
+  return `<h1 class="lt">首页</h1>
+  <section class="sec"><div class="sec-h"><h2>最近播放</h2><button class="lk" data-act="go" data-r="lib:recent">全部</button></div>
+    <div class="shelf">${RECENT_ALBUMS.map(card).join('')}</div></section>
+  <section class="sec"><div class="sec-h"><h2>最近添加</h2><button class="lk" data-act="go" data-r="lib:albums">全部</button></div>
+    <div class="grid">${added.map(a => card(a.id)).join('')}</div></section>
+  <section class="sec"><div class="sec-h"><h2>好久没听</h2></div>
+    <div class="redisc">${REDISCOVER.map(r => { const a = AL[r.id]; return `<button class="rd" data-act="go" data-r="album:${a.id}" data-album="${a.id}">${cov(a.id)}<span class="rd-t">${esc(a.t)}</span><span class="rd-s">${esc(a.ar)}</span><span class="rd-n">上次播放 ${r.when}</span></button>`; }).join('')}</div></section>`;
+}
+function viewForYou() {
+  return `<h1 class="lt">推荐</h1>
+  <section class="sec"><div class="mix">${mosaic(MIX)}<div class="dh-info"><span class="mix-fig num">${MIX.length}</span><h2 class="h2">今日歌单</h2><p class="sub">从你最近两周常听的专辑里挑的，没听过的歌放在前面。</p>
+    <div class="dh-act"><button class="btn primary" data-act="play-list" data-list="mix">${ic('play', 'sm')}播放</button><button class="btn" data-act="play-list" data-list="mix" data-shuffle="1">${ic('shuffle', 'sm')}随机</button></div></div></div></section>
+  <section class="sec"><div class="sec-h"><h2>电台</h2></div><div class="radios">
+    ${['林间小路', '周以南', 'Mara Lind'].map(n => `<button class="radio" data-act="radio" data-name="${esc(n)}"><span class="avatar sm">${esc(n[0])}</span><span><b>${esc(n)}</b><small>同一类的歌一直放下去</small></span></button>`).join('')}</div></section>
+  <section class="sec"><div class="sec-h"><h2>排行榜</h2></div><div class="charts">
+    ${CHARTS.map((c, k) => `<button class="chart" data-act="play-list" data-list="chart${k}"><span class="chart-h"><b>${c.name}</b><small>${c.src}</small></span><ol>${c.ids.slice(0, 3).map((id, i) => `<li><span>${i + 1}</span><span>${esc(T[id].t)}　${esc(AL[T[id].al].ar)}</span></li>`).join('')}</ol></button>`).join('')}</div></section>`;
+}
+function viewLib(tab) {
+  const head = S.wc === 'wide' ? `<h1 class="lt">${LIB_TABS.find(t => t[0] === tab)[1]}</h1>`
+    : `<h1 class="lt">音乐库</h1><div class="segc" role="tablist" aria-label="音乐库分类">${LIB_TABS.map(([k, l]) => `<button role="tab" aria-selected="${k === tab}" data-act="lib-tab" data-tab="${k}">${l}</button>`).join('')}</div>`;
+  let body = '';
+  if (tab === 'albums') {
+    const sorted = ALBUMS.slice().sort(S.sort === 'name' ? (x, y) => x.t.localeCompare(y.t, 'zh') : S.sort === 'year' ? (x, y) => y.y - x.y : (x, y) => y.added.localeCompare(x.added));
+    body = `<div class="lib-tools"><span class="num">${ALBUMS.length} 张专辑</span><button class="lk" data-act="menu-sort">${ic('sort', 'sm')} ${{ added: '按加入时间', name: '按名称', year: '按年份' }[S.sort]}</button></div><div class="grid">${sorted.map(a => card(a.id)).join('')}</div>`;
+  } else if (tab === 'artists') {
+    body = `<ul class="tracks">${ARTISTS.map(a => `<li class="row" style="grid-template-columns:minmax(0,1fr)"><button class="row-main" data-act="go" data-r="artist:${esc(a.name)}"><span class="avatar sm">${esc(a.name[0])}</span><span class="row-t"><b>${esc(a.name)}</b><small>${a.albums.length} 张专辑</small></span></button></li>`).join('')}</ul>`;
+  } else if (tab === 'playlists') {
+    body = `<div class="grid">${PL.map(p => `<article class="card"><button class="card-main" data-act="go" data-r="pl:${p.id}">${mosaic(p.tracks.length ? p.tracks : ['a1.1'])}<span class="ct">${esc(p.name)}</span><span class="cs num">${p.tracks.length} 首</span></button></article>`).join('')}
+      <article class="card"><button class="card-main" data-act="new-pl"><span class="cover" style="display:grid;place-items:center;color:var(--muted)">${ic('plus', 'lg')}</span><span class="ct">新建歌单</span><span class="cs">也可以把歌拖到侧栏里的歌单上</span></button></article></div>`;
+  } else if (tab === 'liked') {
+    const ids = [...S.liked];
+    body = ids.length ? `<p class="sub num">${ids.length} 首</p><ol class="tracks">${ids.map(id => row(id, 'liked', { cover: true, sub: true })).join('')}</ol>`
+      : `<div class="empty"><b>还没有收藏</b><span>在任何一首歌的菜单里点「喜欢」，它会出现在这里。</span></div>`;
+  } else {
+    body = HIST.map(h => `<p class="group-h">${h.g}</p><ol class="tracks">${h.ids.map(id => row(id, 'recent', { cover: true, sub: true })).join('')}</ol>`).join('');
+  }
+  return head + `<section class="sec">${body}</section>`;
+}
+function viewAlbum(id) {
+  const a = AL[id];
+  return `<section class="dh">${cov(a.id)}<div class="dh-info"><h1 class="dh-title">${esc(a.t)}</h1>
+    <button class="dh-by" data-act="go" data-r="artist:${esc(a.ar)}">${esc(a.ar)}</button>
+    <p class="dh-meta"><span>${a.y} 年</span><span>${a.tracks.length} 首</span><span>${mins(a.dur)}</span><span>${a.q}</span></p>
+    <div class="dh-act"><button class="btn primary" data-act="play-album" data-id="${a.id}">${ic('play', 'sm')}播放</button><button class="btn" data-act="play-album" data-id="${a.id}" data-shuffle="1">${ic('shuffle', 'sm')}随机播放</button>
+    <button class="ib" data-act="menu-album" data-id="${a.id}" aria-label="更多操作">${ic('more')}</button></div></div></section>
+  <section class="sec"><ol class="tracks">${a.tracks.map(t => row(t, 'album:' + a.id)).join('')}</ol>
+  <p class="foot-note">${a.added.replace(/(\d+)-0?(\d+)-0?(\d+)/, '$1 年 $2 月 $3 日')}加入曲库</p></section>`;
+}
+function viewArtist(name) {
+  const ar = ARTISTS.find(a => a.name === name);
+  const ids = ar.albums.flatMap(id => AL[id].tracks);
+  return `<section class="dh"><span class="avatar">${esc(name[0])}</span><div class="dh-info"><h1 class="dh-title">${esc(name)}</h1>
+    <p class="dh-meta"><span>${ar.albums.length} 张专辑</span><span>${ids.length} 首</span></p>
+    <div class="dh-act"><button class="btn primary" data-act="play-list" data-list="artist:${esc(name)}">${ic('play', 'sm')}播放全部</button><button class="btn" data-act="radio" data-name="${esc(name)}">${ic('radio', 'sm')}电台</button></div></div></section>
+  <section class="sec"><div class="sec-h"><h2>常听</h2></div><ol class="tracks">${ids.slice(0, 5).map(t => row(t, 'artist:' + name, { cover: true })).join('')}</ol></section>
+  <section class="sec"><div class="sec-h"><h2>专辑</h2></div><div class="grid">${ar.albums.map(card).join('')}</div></section>`;
+}
+function viewPl(id) {
+  const p = PL.find(x => x.id === id);
+  const dur = p.tracks.reduce((n, t) => n + T[t].d, 0);
+  return `<section class="dh">${mosaic(p.tracks.length ? p.tracks : ['a1.1'])}<div class="dh-info"><h1 class="dh-title">${esc(p.name)}</h1>
+    <p class="dh-meta"><span>${p.tracks.length} 首</span><span>${mins(dur)}</span></p>
+    <div class="dh-act"><button class="btn primary" data-act="play-list" data-list="pl:${p.id}"${p.tracks.length ? '' : ' disabled'}>${ic('play', 'sm')}播放</button><button class="btn" data-act="play-list" data-list="pl:${p.id}" data-shuffle="1"${p.tracks.length ? '' : ' disabled'}>${ic('shuffle', 'sm')}随机播放</button></div></div></section>
+  <section class="sec">${p.tracks.length ? `<ol class="tracks">${p.tracks.map(t => row(t, 'pl:' + p.id, { cover: true, sub: true })).join('')}</ol>`
+    : '<div class="empty"><b>这个歌单还是空的</b><span>把任意一首歌拖到侧栏里的这个歌单上，或者在歌曲菜单里选「加入歌单」。</span></div>'}</section>`;
+}
+function searchResults() {
+  const q = S.q.trim().toLowerCase();
+  if (!q) {
+    return `<section class="sec"><div class="sec-h"><h2>最近搜索</h2></div><div class="chips">${S.recentQ.map(s => `<button class="chip" data-act="search-chip" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div></section>
+      <section class="sec"><div class="sec-h"><h2>按歌手找</h2></div><div class="chips">${ARTISTS.map(a => `<button class="chip" data-act="go" data-r="artist:${esc(a.name)}">${esc(a.name)}</button>`).join('')}</div></section>`;
+  }
+  const songs = Object.values(T).filter(t => t.t.toLowerCase().includes(q) || AL[t.al].ar.toLowerCase().includes(q)).slice(0, 8);
+  const albums = ALBUMS.filter(a => a.t.toLowerCase().includes(q) || a.ar.toLowerCase().includes(q));
+  const artists = ARTISTS.filter(a => a.name.toLowerCase().includes(q));
+  S.searchIds = songs.map(t => t.id);
+  if (!songs.length && !albums.length && !artists.length) return `<div class="empty"><b>没有找到「${esc(S.q)}」</b><span>换个关键词试试，或者检查左下角的服务器是不是还连着。</span></div>`;
+  return `${songs.length ? `<section class="sec"><div class="sec-h"><h2>歌曲</h2></div><ol class="tracks">${songs.map(t => row(t.id, 'search', { cover: true, sub: true })).join('')}</ol></section>` : ''}
+    ${albums.length ? `<section class="sec"><div class="sec-h"><h2>专辑</h2></div><div class="grid">${albums.map(a => card(a.id)).join('')}</div></section>` : ''}
+    ${artists.length ? `<section class="sec"><div class="sec-h"><h2>歌手</h2></div><div class="chips">${artists.map(a => `<button class="chip" data-act="go" data-r="artist:${esc(a.name)}">${esc(a.name)}</button>`).join('')}</div></section>` : ''}`;
+}
+function viewSearch() {
+  return `<h1 class="lt">搜索</h1><label class="sfield">${ic('search', 'sm')}<input id="q" type="search" aria-label="搜索曲库" placeholder="歌名、歌手或专辑" value="${esc(S.q)}" autocomplete="off" enterkeyhint="search">
+    <button class="ib" data-act="clear-q" aria-label="清空"${S.q ? '' : ' hidden'}>${ic('close', 'sm')}</button></label><div id="sres" class="view" style="padding:0;gap:var(--sec-gap)">${searchResults()}</div>`;
+}
+function sw(k, label, sub) {
+  return `<div class="li"><span>${label}${sub ? `<small>${sub}</small>` : ''}</span><button class="switch" role="switch" aria-checked="${S.sw[k]}" data-act="sw" data-k="${k}" aria-label="${label}"></button></div>`;
+}
+function viewSettings() {
+  return `<h1 class="lt">设置</h1>
+  <section class="grp"><h2>外观</h2><div class="segc" role="group" aria-label="外观">${[['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']].map(([k, l]) => `<button aria-pressed="${S.scheme === k}" data-act="scheme" data-s="${k}">${l}</button>`).join('')}</div></section>
+  <section class="grp"><h2>曲库与音源</h2><div class="list">
+    <div class="li">${ic('server')}<span>家里的 NAS<small>Navidrome，已连接</small></span><span class="val">主曲库</span></div>
+    <div class="li">${ic('radio')}<span>网易云音乐<small>已登录</small></span></div>
+    <div class="li">${ic('radio')}<span>QQ 音乐<small>未登录</small></span><button class="btn" data-act="toast" data-msg="会弹出二维码，用手机 QQ 音乐扫一下">扫码登录</button></div></div></section>
+  <section class="grp"><h2>播放</h2><div class="list">${sw('lossless', '优先播放无损', '服务器有 FLAC 就不转码')}${sw('cellular', '蜂窝网络下也用无损')}${sw('trans', '显示歌词翻译')}${sw('unplug', '耳机拔出时暂停')}</div></section>
+  <section class="grp"><h2>关于</h2><div class="list"><div class="li"><span>版本</span><span class="val">1.11.7</span></div></div></section>`;
+}
+function renderView(keepScroll) {
+  const r = route();
+  const sc = $('#scroller');
+  const top = sc.scrollTop;
+  const html = { home: viewHome, foryou: viewForYou, search: viewSearch, settings: viewSettings }[r.v];
+  $('#view').innerHTML = html ? html() : r.v === 'lib' ? viewLib(r.tab) : r.v === 'album' ? viewAlbum(r.id) : r.v === 'artist' ? viewArtist(r.name) : viewPl(r.id);
+  sc.scrollTop = keepScroll ? top : (S.scroll[rkey(r)] || 0);
+  onScroll();
+  const qi = $('#q');
+  if (qi) qi.addEventListener('input', () => { S.q = qi.value; $('#sres').innerHTML = searchResults(); qi.nextElementSibling.hidden = !S.q; });
+}
+
+/* ---------------- player, panel, now playing ---------------- */
+function panelOn() { return S.wc === 'wide' && (S.panelUser ?? app.clientWidth >= 1180); }
+function lyricsHTML(id) {
+  const L = LYR[id];
+  if (!L) return `<div class="ly-none"><b>这首歌没有歌词</b><span>服务器上没有找到歌词文件。可以在设置里打开「网络歌词」。</span></div>`;
+  return `<ol class="ly">${L.map((l, i) => `<li${l[1] === '……' ? ' class="gap"' : ''}><button data-act="seek" data-t="${l[0]}">${esc(l[1])}</button></li>`).join('')}</ol>`;
+}
+function qrow(id, i) {
+  const t = T[id];
+  return `<button class="qrow${i === S.qi ? ' cur' : ''}" data-act="jump" data-qi="${i}" data-track="${id}" data-ctx="queue" draggable="true">${cov(t.al, 'xs')}<span><b>${esc(t.t)}</b><small>${esc(AL[t.al].ar)}</small></span></button>`;
+}
+function upNext(n) {
+  const ids = S.queue.slice(S.qi + 1, S.qi + 1 + n);
+  return ids.length ? ids.map((id, k) => qrow(id, S.qi + 1 + k)).join('') : '<p class="q-hint">队列放完了。拖一首歌到这里，或者在菜单里选「下一首播放」。</p>';
+}
+function renderPlayer() {
+  const t = cur();
+  const a = AL[t.al];
+  const p = S.playing;
+  $('#player').innerHTML = `
+    <button class="pl-main" data-act="open-np" aria-label="打开正在播放">${cov(a.id, 'sm')}<span class="pl-t"><b>${esc(t.t)}</b><small>${esc(a.ar)}</small></span></button>
+    <div class="pl-center"><div class="pl-trans">
+      <button class="ib pl-shuffle" data-act="shuffle" aria-pressed="${S.shuffle}" aria-label="随机播放">${ic('shuffle', 'sm')}</button>
+      <button class="ib pl-prev" data-act="prev" aria-label="上一首">${ic('prev')}</button>
+      <button class="ib pl-pp" data-act="pp" aria-label="${p ? '暂停' : '播放'}">${ic(p ? 'pause' : 'play')}</button>
+      <button class="ib pl-next" data-act="next" aria-label="下一首">${ic('next')}</button>
+      <button class="ib pl-repeat" data-act="repeat" aria-pressed="${S.repeat !== 'off'}" aria-label="循环：${{ off: '关', all: '列表', one: '单曲' }[S.repeat]}">${ic('repeat', 'sm')}</button></div>
+      <div class="pl-prog"><span data-time="cur">${fmt(S.t)}</span><div class="prog" data-prog role="slider" tabindex="0" aria-label="播放进度" aria-valuemin="0" aria-valuemax="${t.d}" aria-valuenow="${Math.floor(S.t)}" style="flex:1"><span class="prog-line"><i class="prog-fill"></i></span><span class="prog-knob"></span></div><span>${fmt(t.d)}</span></div></div>
+    <div class="pl-extra">
+      <button class="ib pl-lyr" data-act="open-np" data-pane="lyrics" aria-label="歌词">${ic('lyrics', 'sm')}</button>
+      <button class="ib pl-q" data-act="open-np" data-pane="queue" aria-label="播放队列">${ic('queue', 'sm')}</button>
+      <button class="ib pl-out" data-act="output" aria-label="输出设备">${ic('output', 'sm')}</button>
+      <input class="vol" type="range" min="0" max="100" value="80" aria-label="音量">
+    </div>
+    <span class="pl-line" data-prog-line><i></i></span>`;
+}
+function renderPanel() {
+  if (S.wc !== 'wide') { $('#panel').innerHTML = ''; return; }
+  const t = cur();
+  const a = AL[t.al];
+  $('#panel').innerHTML = `<div class="pn-head"><h2>正在播放</h2><button class="ib" data-act="panel" aria-label="关闭面板">${ic('close', 'sm')}</button></div>
+    <div class="pn-scroll">
+      <button class="pn-cover" data-act="open-np" aria-label="全屏播放">${cov(a.id)}</button>
+      <div class="pn-meta"><div><b>${esc(t.t)}</b><small>${esc(a.ar)}《${esc(a.t)}》</small></div><button class="ib" data-act="like" data-track="${t.id}" aria-pressed="${S.liked.has(t.id)}" aria-label="喜欢">${heartIc(S.liked.has(t.id))}</button></div>
+      <div class="lyw pn-ly" data-ly>${lyricsHTML(t.id)}</div>
+      <div class="pn-q" data-drop="queue"><h3>接下来</h3>${upNext(6)}</div>
+    </div>`;
+}
+function wave(id) {
+  const R = seeded(id);
+  const n = 72;
+  const bars = Array.from({ length: n }, (_, i) => { const h = 0.18 + R() * 0.62 + Math.sin(i / 6) * 0.12; return `<rect x="${i * 10 + 2}" y="${(1 - h) * 20}" width="6" height="${h * 40}" rx="3"/>`; }).join('');
+  return `<span class="wave"><svg class="rest" viewBox="0 0 ${n * 10} 40" preserveAspectRatio="none">${bars}</svg><svg class="played" viewBox="0 0 ${n * 10} 40" preserveAspectRatio="none">${bars}</svg></span>`;
+}
+function renderNP() {
+  const t = cur();
+  const a = AL[t.al];
+  const np = $('#np');
+  const liked = S.liked.has(t.id);
+  const q = S.queue;
+  const car = [-2, -1, 0, 1, 2].map(k => S.qi + k).filter(i => i >= 0 && i < q.length);
+  if (S.pane) np.dataset.pane = S.pane; else delete np.dataset.pane;
+  np.innerHTML = `<div class="np-bg"><img src="${coverURL(a.id)}" alt=""></div>
+    <header class="np-head" data-np-drag><button class="ib" data-act="close-np" aria-label="收起">${ic('down')}</button>
+      <div class="np-src"><b>正在播放</b><span>来自家里的 NAS</span></div>
+      <button class="ib" data-act="menu-track" data-track="${t.id}" aria-label="更多操作">${ic('more')}</button></header>
+    <div class="np-body">
+      <div class="np-cover" data-np-drag>${cov(a.id)}</div>
+      <div class="np-meta"><div><h2 class="np-title">${esc(t.t)}</h2><p class="np-sub"><button data-act="go-close" data-r="artist:${esc(a.ar)}">${esc(a.ar)}</button><button data-act="go-close" data-r="album:${a.id}">《${esc(a.t)}》</button></p></div>
+        <button class="ib" data-act="like" data-track="${t.id}" aria-pressed="${liked}" aria-label="喜欢">${heartIc(liked)}</button></div>
+      <div class="np-prog"><div class="prog" data-prog role="slider" tabindex="0" aria-label="播放进度" aria-valuemin="0" aria-valuemax="${t.d}" aria-valuenow="${Math.floor(S.t)}">${wave(t.id)}<span class="prog-line"><i class="prog-fill"></i></span><span class="prog-knob"></span></div>
+        <div class="np-times"><span data-time="cur">${fmt(S.t)}</span><span class="np-q">${a.q}</span><span data-time="left">-${fmt(t.d - S.t)}</span></div></div>
+      <div class="np-trans">
+        <button class="ib" data-act="shuffle" aria-pressed="${S.shuffle}" aria-label="随机播放">${ic('shuffle')}</button>
+        <button class="ib" data-act="prev" aria-label="上一首">${ic('prev', 'lg')}</button>
+        <button class="pp" data-act="pp" aria-label="${S.playing ? '暂停' : '播放'}">${ic(S.playing ? 'pause' : 'play')}</button>
+        <button class="ib" data-act="next" aria-label="下一首">${ic('next', 'lg')}</button>
+        <button class="ib" data-act="repeat" aria-pressed="${S.repeat !== 'off'}" aria-label="循环：${{ off: '关', all: '列表', one: '单曲' }[S.repeat]}">${ic('repeat')}</button></div>
+      <div class="np-extra">
+        <button class="ib" data-act="pane" data-pane="lyrics" aria-pressed="${(S.pane || defaultPane()) === 'lyrics' && paneShown()}" aria-label="歌词">${ic('lyrics')}</button>
+        <button class="ib" data-act="output" aria-label="输出设备">${ic('output')}</button>
+        <button class="ib" data-act="timer" aria-pressed="${S.timer > 0}" aria-label="睡眠定时">${ic('timer')}</button>
+        <button class="ib" data-act="pane" data-pane="queue" aria-pressed="${S.pane === 'queue'}" aria-label="接下来">${ic('queue')}</button></div>
+      <div class="np-pane"><div class="lyw" data-ly>${lyricsHTML(t.id)}</div><div class="np-queue" data-drop="queue"><h3>接下来</h3>${upNext(30)}</div></div>
+      <div class="np-carousel" data-car><div class="car-track">${car.map(i => `<button class="car-item${i === S.qi ? ' on' : ''}" data-act="jump" data-qi="${i}" aria-label="${esc(T[q[i]].t)}">${cov(T[q[i]].al)}</button>`).join('')}</div></div>
+    </div>`;
+  placeCarousel();
+}
+function defaultPane() { return 'lyrics'; }
+function paneShown() { return app.dataset.npl !== 'stack' || !!S.pane; }
+function placeCarousel() {
+  const tr = $('.car-track', app);
+  if (!tr) return;
+  const on = $('.car-item.on', tr);
+  const box = tr.parentElement;
+  if (!on || !box.clientWidth) return;
+  const x = box.clientWidth / 2 - (on.offsetLeft + on.offsetWidth / 2);
+  tr.style.transform = `translateX(${x}px)`;
+}
+function setNP(open, pane) {
+  S.np = open;
+  if (pane !== undefined) S.pane = pane;
+  renderNP();
+  $('#np').dataset.open = String(open);
+  if (open) { requestAnimationFrame(() => { syncLyrics(true); placeCarousel(); }); $('#np .np-head .ib')?.focus({ preventScroll: true }); }
+}
+
+/* ---------------- playback (simulated clock, no audio) ---------------- */
+let clock = null;
+let lastLy = -2;
+function setPlaying(on) {
+  S.playing = on;
+  clearInterval(clock);
+  if (on) {
+    let last = performance.now();
+    clock = setInterval(() => {
+      const now = performance.now();
+      S.t += (now - last) / 1000;
+      last = now;
+      if (S.t >= cur().d) { next(true); return; }
+      tick();
+    }, 250);
+  }
+  app.toggleAttribute('data-playing', on);
+  paintPlay();
+}
+function paintPlay() {
+  $$('[data-act="pp"]', app).forEach(b => { b.innerHTML = ic(S.playing ? 'pause' : 'play'); b.setAttribute('aria-label', S.playing ? '暂停' : '播放'); });
+}
+function tick() {
+  const d = cur().d;
+  const p = Math.min(1, S.t / d);
+  $$('[data-prog]', app).forEach(el => { el.style.setProperty('--p', p); el.style.setProperty('--w', el.clientWidth + 'px'); el.setAttribute('aria-valuenow', Math.floor(S.t)); el.setAttribute('aria-valuetext', fmt(S.t)); });
+  $$('[data-prog-line]', app).forEach(el => el.style.setProperty('--p', p));
+  $$('[data-time="cur"]', app).forEach(el => { el.textContent = fmt(S.t); });
+  $$('[data-time="left"]', app).forEach(el => { el.textContent = '-' + fmt(d - S.t); });
+  syncLyrics(false);
+}
+function syncLyrics(force) {
+  const L = LYR[cur().id];
+  if (!L) return;
+  let i = -1;
+  for (let k = 0; k < L.length; k++) { if (L[k][0] <= S.t) i = k; else break; }
+  if (i === lastLy && !force) return;
+  lastLy = i;
+  $$('[data-ly]', app).forEach(w => {
+    const lis = w.querySelectorAll('li');
+    lis.forEach((li, k) => li.classList.toggle('on', k === i));
+    const li = lis[Math.max(i, 0)];
+    if (!li || !w.offsetParent || Number(w.dataset.hold || 0) > Date.now()) return;
+    w.scrollTo({ top: li.offsetTop - w.clientHeight * 0.4 + li.offsetHeight / 2, behavior: reduced.matches || force ? 'auto' : 'smooth' });
+  });
+}
+function onTrackChange() {
+  lastLy = -2;
+  renderPlayer();
+  renderPanel();
+  if (S.np || app.dataset.npl === 'tabletop') renderNP();
+  $$('.row[data-track]', app).forEach(r => r.classList.toggle('cur', r.dataset.track === cur().id));
+  tick();
+  syncLyrics(true);
+}
+function next(auto) {
+  if (auto && S.repeat === 'one') { S.t = 0; return; }
+  if (S.qi < S.queue.length - 1) S.qi++;
+  else if (S.repeat === 'all') S.qi = 0;
+  else { S.t = cur().d; setPlaying(false); tick(); return; }
+  S.t = 0;
+  onTrackChange();
+}
+function prev() {
+  if (S.t > 3 || S.qi === 0) S.t = 0; else { S.qi--; S.t = 0; }
+  onTrackChange();
+}
+function listFor(ctx) {
+  const [k, v] = ctx.split(':');
+  if (k === 'album') return AL[v].tracks;
+  if (k === 'pl') return PL.find(p => p.id === v).tracks;
+  if (k === 'artist') return ARTISTS.find(a => a.name === v).albums.flatMap(id => AL[id].tracks);
+  if (k === 'liked') return [...S.liked];
+  if (k === 'recent') return HIST.flatMap(h => h.ids);
+  if (k === 'search') return S.searchIds || [];
+  if (k === 'mix') return MIX;
+  if (k.startsWith('chart')) return CHARTS[Number(k.slice(5))].ids;
+  return [];
+}
+function shuffled(ids) { const a = ids.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function playList(ids, startId, shuffle) {
+  if (!ids.length) return;
+  S.queue = shuffle ? shuffled(ids) : ids.slice();
+  S.qi = startId ? Math.max(0, S.queue.indexOf(startId)) : 0;
+  S.shuffle = !!shuffle;
+  S.t = 0;
+  onTrackChange();
+  setPlaying(true);
+}
+function addToQueue(id, nextUp) {
+  if (nextUp) S.queue.splice(S.qi + 1, 0, id); else S.queue.push(id);
+  renderPanel();
+  if (S.np) renderNP();
+  toast(nextUp ? `「${T[id].t}」下一首播放` : `「${T[id].t}」已加入播放队列`);
+}
+function addToPl(id, plId) {
+  const p = PL.find(x => x.id === plId);
+  if (p.tracks.includes(id)) { toast(`「${p.name}」里已经有这首了`); return; }
+  p.tracks.push(id);
+  renderNav();
+  if (route().v === 'pl' && route().id === plId) renderView(true);
+  toast(`已加入「${p.name}」`);
+}
+function toggleLike(id) {
+  if (S.liked.has(id)) S.liked.delete(id); else S.liked.add(id);
+  const on = S.liked.has(id);
+  toast(on ? `已喜欢「${T[id].t}」` : `已取消喜欢「${T[id].t}」`);
+  renderPanel();
+  if (S.np || app.dataset.npl === 'tabletop') renderNP();
+  if (route().v !== 'search') renderView(true);
+  else $$(`.row[data-track="${id}"] .row-like`, app).forEach(el => { el.innerHTML = on ? heartIc(true, 'sm') : ''; });
+}
+
+/* ---------------- toast, menus, shortcut sheet ---------------- */
+let toastT = 0;
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 2200);
+}
+const scaleOf = () => app.getBoundingClientRect().width / app.offsetWidth || 1;
+function localPoint(x, y) {
+  const r = app.getBoundingClientRect();
+  const s = scaleOf();
+  return [(x - r.left) / s, (y - r.top) / s];
+}
+let menuItems = [];
+let menuReturn = null;
+function openMenu(items, x, y, head) {
+  menuItems = items;
+  menuReturn = document.activeElement;
+  const m = $('#menu');
+  m.innerHTML = (head || '') + items.map((it, i) => it.sep ? '<div class="msep" role="separator"></div>'
+    : `<button class="mi${it.sub ? ' sub' : ''}" role="${it.checked !== undefined ? 'menuitemradio' : 'menuitem'}"${it.checked !== undefined ? ` aria-checked="${it.checked}"` : ''} data-mi="${i}">${esc(it.label)}${it.icon ? ic(it.icon, 'sm') : ''}</button>`).join('');
+  $('#menuLayer').hidden = false;
+  const W = app.offsetWidth;
+  const H = app.offsetHeight;
+  const mw = m.offsetWidth;
+  const mh = m.offsetHeight;
+  const left = Math.min(Math.max(12, x), W - mw - 12);
+  const top = Math.min(Math.max(12, y), H - mh - 12);
+  m.style.left = left + 'px';
+  m.style.top = top + 'px';
+  m.style.setProperty('--ox', (x - left) + 'px');
+  m.style.setProperty('--oy', (y - top) + 'px');
+  m.querySelector('.mi')?.focus({ preventScroll: true });
+}
+function closeMenu() {
+  if ($('#menuLayer').hidden) return;
+  $('#menuLayer').hidden = true;
+  menuReturn?.focus?.({ preventScroll: true });
+}
+function trackMenu(id, x, y) {
+  const t = T[id];
+  const a = AL[t.al];
+  const head = `<div class="menu-head">${cov(a.id, 'xs')}<span><b>${esc(t.t)}</b><small>${esc(a.ar)}《${esc(a.t)}》</small></span></div>`;
+  const base = [
+    { label: '播放', icon: 'play', run: () => playList(AL[t.al].tracks, id) },
+    { label: '下一首播放', icon: 'next1', run: () => addToQueue(id, true) },
+    { label: '加入播放队列', icon: 'queue', run: () => addToQueue(id, false) },
+    { sep: true },
+    { label: '加入歌单', icon: 'playlist', run: () => openMenu([...PL.map(p => ({ label: p.name, sub: true, run: () => addToPl(id, p.id) })), { sep: true }, { label: '新建歌单并加入', icon: 'plus', run: () => { const p = newPl(); addToPl(id, p.id); } }], x, y, head), keep: true },
+    { label: S.liked.has(id) ? '取消喜欢' : '喜欢', icon: 'heart', run: () => toggleLike(id) },
+    { sep: true },
+    { label: '前往专辑', icon: 'album', run: () => { setNP(false); go({ v: 'album', id: a.id }); } },
+    { label: '前往歌手', icon: 'artist', run: () => { setNP(false); go({ v: 'artist', name: a.ar }); } },
+  ];
+  openMenu(base, x, y, head);
+}
+function albumMenu(alId, x, y) {
+  const a = AL[alId];
+  const head = `<div class="menu-head">${cov(a.id, 'xs')}<span><b>${esc(a.t)}</b><small>${esc(a.ar)}</small></span></div>`;
+  openMenu([
+    { label: '播放', icon: 'play', run: () => playList(a.tracks) },
+    { label: '随机播放', icon: 'shuffle', run: () => playList(a.tracks, null, true) },
+    { label: '接在当前歌曲后面', icon: 'next1', run: () => { S.queue.splice(S.qi + 1, 0, ...a.tracks); renderPanel(); toast(`《${a.t}》接在当前歌曲后面`); } },
+    { sep: true },
+    { label: '前往歌手', icon: 'artist', run: () => go({ v: 'artist', name: a.ar }) },
+  ], x, y, head);
+}
+function newPl() {
+  const n = PL.filter(p => p.name.startsWith('新歌单')).length + 1;
+  const p = { id: 'p' + (PL.length + 1) + Date.now() % 1000, name: '新歌单 ' + n, tracks: [] };
+  PL.push(p);
+  renderNav();
+  return p;
+}
+const HUD = [
+  ['播放', [['播放或暂停', '空格'], ['下一首', '⌘ →'], ['上一首', '⌘ ←'], ['歌词', '⌘ L']]],
+  ['前往', [['首页', '⌘ 1'], ['推荐', '⌘ 2'], ['音乐库', '⌘ 3'], ['搜索', '⌘ F'], ['返回', '⌘ [']]],
+  ['窗口', [['显示或隐藏侧栏', '⌃ ⌘ S'], ['正在播放面板', '⌥ ⌘ P'], ['这张表', '按住 ⌘']]],
+];
+function showHud(on) {
+  const h = $('#hud');
+  if (on) h.innerHTML = `<div class="hud-card" role="dialog" aria-label="键盘快捷键">${HUD.map(([g, rows]) => `<section><h3>${g}</h3><ul>${rows.map(([l, k]) => `<li><span>${l}</span><kbd>${k}</kbd></li>`).join('')}</ul></section>`).join('')}</div>`;
+  h.hidden = !on;
+}
+
+/* ---------------- actions ---------------- */
+const ACT = {
+  go: b => { closeMenu(); go(parseR(b.dataset.r), b.dataset.root === '1'); },
+  'go-close': b => { setNP(false); go(parseR(b.dataset.r)); },
+  back: () => back(),
+  play: b => {
+    const ctx = b.dataset.ctx;
+    if (ctx === 'queue') { jump(S.queue.indexOf(b.dataset.track)); return; }
+    playList(listFor(ctx), b.dataset.track);
+  },
+  'play-album': b => playList(AL[b.dataset.id].tracks, null, b.dataset.shuffle === '1'),
+  'play-list': b => { const ids = listFor(b.dataset.list); playList(ids, null, b.dataset.shuffle === '1'); if (b.dataset.list.startsWith('chart')) toast(`开始播放${CHARTS[Number(b.dataset.list.slice(5))].name}`); },
+  radio: b => { const ar = ARTISTS.find(a => a.name === b.dataset.name); playList(ar.albums.flatMap(id => AL[id].tracks), null, true); toast(`${b.dataset.name} 电台`); },
+  pp: () => setPlaying(!S.playing),
+  next: () => next(false),
+  prev: () => prev(),
+  shuffle: () => { S.shuffle = !S.shuffle; if (S.shuffle) { const rest = shuffled(S.queue.slice(S.qi + 1)); S.queue.splice(S.qi + 1, rest.length, ...rest); } renderPlayer(); renderPanel(); if (S.np) renderNP(); toast(S.shuffle ? '随机播放已打开' : '随机播放已关闭'); },
+  repeat: () => { S.repeat = { off: 'all', all: 'one', one: 'off' }[S.repeat]; renderPlayer(); if (S.np) renderNP(); toast({ off: '循环已关闭', all: '列表循环', one: '单曲循环' }[S.repeat]); },
+  like: b => toggleLike(b.dataset.track || cur().id),
+  'open-np': b => {
+    const pane = b.dataset.pane;
+    if (pane === 'queue' && S.wc === 'wide' && !S.np) { S.panelUser = true; applyLayout(); toast('队列在右侧面板里'); return; }
+    setNP(true, pane || (app.dataset.npl === 'stack' ? null : S.pane));
+  },
+  'close-np': () => { S.npAuto = false; setNP(false); },
+  pane: b => { const p = b.dataset.pane; S.pane = S.pane === p && app.dataset.npl === 'stack' ? null : p; renderNP(); requestAnimationFrame(() => syncLyrics(true)); },
+  side: () => { S.sideOn = !S.sideOn; applyLayout(); },
+  panel: () => { S.panelUser = !panelOn(); applyLayout(); },
+  seek: b => { S.t = Number(b.dataset.t); tick(); syncLyrics(true); if (!S.playing) setPlaying(true); },
+  jump: b => jump(Number(b.dataset.qi)),
+  'menu-track': (b, e) => { const r = b.getBoundingClientRect(); const [x, y] = localPoint(r.left, r.bottom); trackMenu(b.dataset.track, x - 200, y + 4); e.stopPropagation(); },
+  'menu-album': b => { const r = b.getBoundingClientRect(); const [x, y] = localPoint(r.left, r.bottom); albumMenu(b.dataset.id, x, y + 4); },
+  'menu-sort': b => {
+    const r = b.getBoundingClientRect();
+    const [x, y] = localPoint(r.left, r.bottom);
+    openMenu([['added', '按加入时间'], ['name', '按名称'], ['year', '按年份']].map(([k, l]) => ({ label: l, checked: S.sort === k, icon: S.sort === k ? 'check' : '', run: () => { S.sort = k; renderView(true); } })), x, y + 4);
+  },
+  'lib-tab': b => { S.stack = [{ v: 'lib', tab: b.dataset.tab }]; renderAll(true); },
+  scheme: b => setScheme(b.dataset.s),
+  sw: b => { const k = b.dataset.k; S.sw[k] = !S.sw[k]; b.setAttribute('aria-checked', S.sw[k]); },
+  'new-pl': () => { const p = newPl(); go({ v: 'pl', id: p.id }, true); toast(`建好了「${p.name}」`); },
+  'search-chip': b => { S.q = b.dataset.q; renderView(true); },
+  'clear-q': () => { S.q = ''; renderView(true); $('#q')?.focus(); },
+  output: () => { S.out = (S.out + 1) % 3; toast('输出到' + ['这台设备', '客厅的 HomePod', '书房的功放'][S.out]); },
+  timer: () => { S.timer = (S.timer + 1) % 4; if (S.np) renderNP(); toast(['睡眠定时已关闭', '15 分钟后停止播放', '30 分钟后停止播放', '这首歌放完就停'][S.timer]); },
+  toast: b => toast(b.dataset.msg),
+};
+IC.check = '<path d="M5 12.5l4.5 4.5L19 7.5"/>';
+function jump(i) {
+  if (i < 0 || i >= S.queue.length) return;
+  S.qi = i;
+  S.t = 0;
+  onTrackChange();
+  setPlaying(true);
+}
+
+/* ---------------- events ---------------- */
+let suppressClick = false;
+app.addEventListener('click', e => {
+  if (suppressClick) { suppressClick = false; e.preventDefault(); e.stopPropagation(); return; }
+  const mi = e.target.closest('[data-mi]');
+  if (mi) {
+    const it = menuItems[Number(mi.dataset.mi)];
+    if (!it.keep) closeMenu();
+    it.run();
+    return;
+  }
+  if (e.target === $('#menuLayer')) { closeMenu(); return; }
+  if (e.target.closest('#hud')) { showHud(false); return; }
+  const b = e.target.closest('[data-act]');
+  if (!b || !app.contains(b) || b.disabled) return;
+  const fn = ACT[b.dataset.act];
+  if (fn) fn(b, e);
+});
+app.addEventListener('contextmenu', e => {
+  const tr = e.target.closest('[data-track]');
+  const al = e.target.closest('[data-album]');
+  if (!tr && !al) return;
+  e.preventDefault();
+  const [x, y] = localPoint(e.clientX, e.clientY);
+  if (tr) trackMenu(tr.dataset.track, x, y); else albumMenu(al.dataset.album, x, y);
+});
+/* long press opens the same menu on touch */
+let lp = null;
+app.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch') return;
+  const el = e.target.closest('[data-track], [data-album]');
+  if (!el) return;
+  const sx = e.clientX;
+  const sy = e.clientY;
+  lp = { el, sx, sy, t: setTimeout(() => {
+    lp = null;
+    suppressClick = true;
+    const [x, y] = localPoint(sx, sy);
+    if (el.dataset.track) trackMenu(el.dataset.track, x, y); else albumMenu(el.dataset.album, x, y);
+    navigator.vibrate?.(8);
+  }, 520) };
+});
+app.addEventListener('pointermove', e => { if (lp && Math.hypot(e.clientX - lp.sx, e.clientY - lp.sy) > 10) { clearTimeout(lp.t); lp = null; } });
+['pointerup', 'pointercancel'].forEach(ev => app.addEventListener(ev, () => { if (lp) { clearTimeout(lp.t); lp = null; } }));
+/* drag a song onto a playlist or the queue */
+app.addEventListener('dragstart', e => {
+  const el = e.target.closest('[data-track]');
+  if (!el) return;
+  e.dataTransfer.setData('text/plain', el.dataset.track);
+  e.dataTransfer.effectAllowed = 'copy';
+  el.classList.add('dragging');
+  app.setAttribute('data-dragging', '');
+  if (lp) { clearTimeout(lp.t); lp = null; }
+});
+app.addEventListener('dragend', e => { e.target.closest('[data-track]')?.classList.remove('dragging'); app.removeAttribute('data-dragging'); $$('.over', app).forEach(x => x.classList.remove('over')); });
+app.addEventListener('dragover', e => { const d = e.target.closest('[data-drop]'); if (!d) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; d.classList.add('over'); });
+app.addEventListener('dragleave', e => { const d = e.target.closest('[data-drop]'); if (d && !d.contains(e.relatedTarget)) d.classList.remove('over'); });
+app.addEventListener('drop', e => {
+  const d = e.target.closest('[data-drop]');
+  if (!d) return;
+  e.preventDefault();
+  d.classList.remove('over');
+  const id = e.dataTransfer.getData('text/plain');
+  if (!T[id]) return;
+  const [k, v] = d.dataset.drop.split(':');
+  if (k === 'pl') addToPl(id, v); else addToQueue(id, false);
+});
+/* scrubbing */
+function scrubAt(el, clientX) {
+  const r = el.getBoundingClientRect();
+  const p = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+  S.t = p * cur().d;
+  tick();
+}
+app.addEventListener('pointerdown', e => {
+  const el = e.target.closest('[data-prog]');
+  if (!el) return;
+  el.setPointerCapture(e.pointerId);
+  el.classList.add('scrub');
+  scrubAt(el, e.clientX);
+  const move = ev => scrubAt(el, ev.clientX);
+  const up = () => { el.classList.remove('scrub'); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); syncLyrics(true); };
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+});
+app.addEventListener('keydown', e => {
+  const el = e.target.closest('[data-prog]');
+  if (!el || !['ArrowLeft', 'ArrowRight'].includes(e.key) || e.metaKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  S.t = Math.min(cur().d, Math.max(0, S.t + (e.key === 'ArrowRight' ? 5 : -5)));
+  tick();
+  syncLyrics(true);
+});
+/* swipes: mini player changes song, now playing drags down to close, carousel changes song */
+function swipe(sel, onEnd, onMove) {
+  app.addEventListener('pointerdown', e => {
+    const el = e.target.closest(sel);
+    if (!el || e.target.closest('[data-prog]')) return;
+    const s = scaleOf();
+    const sx = e.clientX;
+    const sy = e.clientY;
+    let moved = false;
+    const move = ev => { const dx = (ev.clientX - sx) / s; const dy = (ev.clientY - sy) / s; if (Math.hypot(dx, dy) > 8) moved = true; onMove?.(dx, dy); };
+    const up = ev => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      const dx = (ev.clientX - sx) / s;
+      const dy = (ev.clientY - sy) / s;
+      if (moved) { const handled = onEnd(dx, dy); if (handled) suppressClick = true; }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  });
+}
+swipe('.player', (dx, dy) => {
+  if (S.wc !== 'compact') return false;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) { if (dx < 0) next(false); else prev(); return true; }
+  if (dy < -40) { setNP(true); return true; }
+  return false;
+});
+swipe('[data-np-drag]', (dx, dy) => {
+  const np = $('#np');
+  np.classList.remove('dragging');
+  np.style.transform = '';
+  if (app.dataset.npl === 'tabletop') return false;
+  if (dy > 110 && Math.abs(dy) > Math.abs(dx)) { S.npAuto = false; setNP(false); return true; }
+  return dy > 8;
+}, (dx, dy) => {
+  if (app.dataset.npl === 'tabletop' || dy <= 0) return;
+  const np = $('#np');
+  np.classList.add('dragging');
+  np.style.transform = `translateY(${dy}px)`;
+});
+swipe('[data-car]', dx => {
+  if (Math.abs(dx) < 50) return false;
+  if (dx < 0) next(false); else prev();
+  return true;
+});
+['wheel', 'touchstart'].forEach(ev => app.addEventListener(ev, e => { const w = e.target.closest('[data-ly]'); if (w) w.dataset.hold = Date.now() + 3500; }, { passive: true }));
+/* keyboard, with the hold-⌘ shortcut sheet */
+let holdT = 0;
+document.addEventListener('keydown', e => {
+  if (e.key === 'Meta' && !e.repeat) { holdT = setTimeout(() => showHud(true), 650); return; }
+  clearTimeout(holdT);
+  const typing = e.target.matches('input, textarea, select');
+  if (e.key === 'Escape') {
+    if (!$('#hud').hidden) { showHud(false); return; }
+    if (!$('#menuLayer').hidden) { closeMenu(); return; }
+    if (S.np) { S.npAuto = false; setNP(false); return; }
+    if (typing) e.target.blur();
+    return;
+  }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if ($('#menuLayer').hidden) return;
+    const items = $$('#menu .mi');
+    const i = items.indexOf(document.activeElement);
+    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    e.preventDefault();
+    return;
+  }
+  if (typing && !e.metaKey) return;
+  if (e.key === ' ' && !e.metaKey && !e.target.closest('button')) { e.preventDefault(); setPlaying(!S.playing); return; }
+  if (!e.metaKey) return;
+  const c = e.code;
+  const run = f => { e.preventDefault(); f(); };
+  if (c === 'ArrowRight') run(() => next(false));
+  else if (c === 'ArrowLeft') run(prev);
+  else if (c === 'KeyL') run(() => setNP(!S.np, 'lyrics'));
+  else if (c === 'KeyF' || c === 'KeyK') run(() => { go({ v: 'search' }, true); requestAnimationFrame(() => $('#q')?.focus()); });
+  else if (c === 'Digit1') run(() => go({ v: 'home' }, true));
+  else if (c === 'Digit2') run(() => go({ v: 'foryou' }, true));
+  else if (c === 'Digit3') run(() => go({ v: 'lib', tab: 'albums' }, true));
+  else if (c === 'BracketLeft') run(back);
+  else if (c === 'KeyS' && e.ctrlKey) run(() => { S.sideOn = !S.sideOn; applyLayout(); });
+  else if (c === 'KeyP' && e.altKey) run(() => { S.panelUser = !panelOn(); applyLayout(); });
+  else if (c === 'Slash') run(() => showHud($('#hud').hidden));
+});
+document.addEventListener('keyup', e => { if (e.key === 'Meta') { clearTimeout(holdT); showHud(false); } });
+window.addEventListener('blur', () => { clearTimeout(holdT); showHud(false); });
+/* scroll-edge: the bar fills in once content runs under it */
+function onScroll() {
+  const sc = $('#scroller');
+  const top = sc.scrollTop;
+  sc.toggleAttribute('data-scrolled', top > 4);
+  const r = route();
+  const threshold = ['album', 'artist', 'pl'].includes(r.v) ? 260 : 46;
+  sc.toggleAttribute('data-titled', top > threshold);
+}
+$('#scroller').addEventListener('scroll', onScroll, { passive: true });
+
+/* ---------------- window size → layout ---------------- */
+function applyLayout() {
+  const w = app.clientWidth;
+  const h = app.clientHeight;
+  if (!w || !h) return;
+  const wc = w < 600 ? 'compact' : w < 1024 ? 'regular' : 'wide';
+  const wcChanged = wc !== S.wc;
+  S.wc = wc;
+  S.land = w > h;
+  app.dataset.wc = wc;
+  app.dataset.side = S.sideOn ? 'on' : 'off';
+  app.dataset.panel = panelOn() ? 'on' : 'off';
+  const posture = $('#device').dataset.posture;
+  const npl = posture === 'tabletop' ? 'tabletop' : wc === 'compact' ? 'stack' : S.land ? 'landscape' : 'portrait';
+  const nplChanged = npl !== app.dataset.npl;
+  app.dataset.npl = npl;
+  if (npl === 'tabletop' && !S.np) { S.npAuto = true; setNP(true, 'lyrics'); }
+  else if (npl !== 'tabletop' && S.npAuto) { S.npAuto = false; setNP(false); }
+  if (npl === 'stack' && nplChanged && S.pane === 'lyrics') S.pane = null;
+  if (npl !== 'stack' && !S.pane) S.pane = 'lyrics';
+  if (wcChanged) {
+    if (route().v === 'lib' || S.stack[0].v === 'lib') renderView(true);
+  }
+  renderNav();
+  renderToolbar();
+  renderPlayer();
+  renderPanel();
+  if (S.np || nplChanged) renderNP();
+  tick();
+  requestAnimationFrame(() => { syncLyrics(true); placeCarousel(); });
+  updateCap();
+}
+new ResizeObserver(() => applyLayout()).observe(app);
+function renderAll(fromNav) {
+  renderNav();
+  renderToolbar();
+  renderView(!fromNav);
+  tick();
+}
+
+/* ---------------- demo chrome ---------------- */
+const device = $('#device');
+const wrap = $('#wrap');
+const stage = $('#stage');
+function resolvedScheme() {
+  if (S.scheme !== 'system') return S.scheme;
+  const host = document.documentElement.getAttribute('data-theme');
+  if (host === 'dark' || host === 'light') return host;
+  return mqDark.matches ? 'dark' : 'light';
+}
+function setScheme(s) {
+  S.scheme = s;
+  store.set('scheme', s);
+  app.dataset.scheme = resolvedScheme();
+  $$('#schemeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.scheme === s)));
+  if (route().v === 'settings') renderView(true);
+}
+function setDir(d) {
+  S.dir = d;
+  store.set('dir', d);
+  app.dataset.theme = d;
+  $$('#dirSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dir === d)));
+  $('#dirNote').textContent = DIRS[d];
+  requestAnimationFrame(() => { tick(); syncLyrics(true); placeCarousel(); });
+}
+function layoutDevice() {
+  const p = PRESETS[S.preset];
+  const cap = $('#cap');
+  const availW = stage.clientWidth;
+  const availH = stage.clientHeight - (S.bar === 'on' ? cap.offsetHeight + 38 : 0);
+  device.classList.toggle('free', S.preset === 'free');
+  device.classList.toggle('fill', S.preset === 'fill');
+  if (p.posture) device.dataset.posture = p.posture; else delete device.dataset.posture;
+  const sa = p.sa || [0, 0, 0, 0];
+  app.style.setProperty('--sa-t', sa[0] + 'px');
+  app.style.setProperty('--sa-r', sa[1] + 'px');
+  app.style.setProperty('--sa-b', sa[2] + 'px');
+  app.style.setProperty('--sa-l', sa[3] + 'px');
+  if (S.preset === 'fill') {
+    device.style.transform = '';
+    device.style.width = availW + 'px';
+    device.style.height = Math.max(420, availH) + 'px';
+    wrap.style.width = availW + 'px';
+    wrap.style.height = Math.max(420, availH) + 'px';
+  } else if (S.preset === 'free') {
+    device.style.transform = '';
+    wrap.style.width = '';
+    wrap.style.height = '';
+    if (!device.style.width || device.dataset.was !== 'free') { device.style.width = Math.min(1100, availW) + 'px'; device.style.height = Math.min(760, availH) + 'px'; }
+  } else {
+    const s = Math.min(1, availW / p.w, availH / p.h);
+    device.style.width = p.w + 'px';
+    device.style.height = p.h + 'px';
+    device.style.transform = s < 1 ? `scale(${s})` : '';
+    wrap.style.width = p.w * s + 'px';
+    wrap.style.height = p.h * s + 'px';
+  }
+  device.dataset.was = S.preset;
+  applyLayout();
+}
+function updateCap() {
+  const p = PRESETS[S.preset];
+  const w = app.clientWidth;
+  const h = app.clientHeight;
+  const lay = { compact: '底部标签栏', regular: '侧边导航条', wide: panelOn() ? '侧栏和正在播放面板' : '侧栏' }[S.wc];
+  const np = { stack: '播放页整屏叠放', portrait: '播放页上下分区', landscape: '播放页左控制右歌词', tabletop: '播放页按折痕上下分开' }[app.dataset.npl];
+  $('#cap').textContent = `${p.name}，${p.approx ? '约 ' : ''}${w} × ${h}，${lay}，${np}`;
+}
+function setPreset(k) {
+  S.preset = k;
+  store.set('preset', k);
+  $('#preset').value = k;
+  layoutDevice();
+}
+function setBar(on) {
+  S.bar = on ? 'on' : 'off';
+  $('#demo').dataset.bar = S.bar;
+  $('#showBar').hidden = on;
+  requestAnimationFrame(layoutDevice);
+}
+$('#dirSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setDir(b.dataset.dir); });
+$('#schemeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setScheme(b.dataset.scheme); });
+$('#preset').addEventListener('change', e => setPreset(e.target.value));
+$('#hideBar').addEventListener('click', () => setBar(false));
+$('#showBar').addEventListener('click', () => setBar(true));
+mqDark.addEventListener('change', () => setScheme(S.scheme));
+new MutationObserver(() => setScheme(S.scheme)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+let rT = 0;
+window.addEventListener('resize', () => { cancelAnimationFrame(rT); rT = requestAnimationFrame(layoutDevice); });
+
+/* ---------------- boot ---------------- */
+function boot() {
+  $('#demo').classList.add('js');
+  const small = matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+  let dir = store.get('dir') || 'darkroom';
+  let preset = store.get('preset') || (small ? 'fill' : 'ipad-l');
+  let scheme = store.get('scheme') || 'system';
+  let openNp = null;
+  let bar = 'on';
+  const hash = location.hash.slice(1);
+  if (hash) {
+    for (const tok of hash.split('~')) {
+      if (DIRS[tok]) dir = tok;
+      else if (PRESETS[tok]) preset = tok;
+      else if (tok === 'light' || tok === 'dark') scheme = tok;
+      else if (tok === 'np' || tok.startsWith('np.')) openNp = tok.split('.')[1] || 'lyrics';
+      else if (tok === 'nopanel') S.panelUser = false;
+      else if (tok === 'play') S.playing = true;
+      else if (tok === 'nobar') bar = 'off';
+      else if (tok.startsWith('go.')) S.stack = [parseR(tok.slice(3).replace('.', ':'))];
+    }
+  }
+  if (!PRESETS[preset]) preset = 'ipad-l';
+  if (!DIRS[dir]) dir = 'darkroom';
+  setDir(dir);
+  setScheme(scheme);
+  S.preset = preset;
+  $('#preset').value = preset;
+  renderAll(true);
+  renderPlayer();
+  setBar(bar === 'on');
+  layoutDevice();
+  if (openNp) setNP(true, openNp === 'cover' ? null : openNp);
+  if (S.playing) setPlaying(true);
+}
+boot();
+})();
+</script>

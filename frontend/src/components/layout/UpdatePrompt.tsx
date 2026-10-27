@@ -3,12 +3,13 @@
  *
  * registerType 是 autoUpdate，但新的 Service Worker 要等所有标签页关闭才会接管——
  * 常驻标签页里的用户可能几周都停在旧版本上，而且完全不知情。
- * 这里显式提示并提供「立即更新」，与离线横幅共用同一条发丝线横幅语言。
+ * 这里显式提示并提供「立即更新」，与离线提示条共用同一副外形（挂在吸顶工具栏下面）。
  */
 
 import { useEffect, useState } from 'react'
 import { isTauriShell } from '@/lib/platform'
 import { ArrowsClockwise, X } from '@phosphor-icons/react'
+import { Button } from '@/components/ui/button'
 import { useT } from '@/i18n'
 
 type UpdateFn = (reload?: boolean) => Promise<void>
@@ -49,27 +50,28 @@ export function UpdatePrompt() {
     <div
       role="status"
       aria-live="polite"
-      className="flex items-center justify-center gap-3 border-b border-hair bg-paper-deep px-4 py-1.5 text-[12px] text-ink-soft"
+      className="mx-3 regular:mx-5 mt-1 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-paper-deep px-4 py-2.5 text-[13.5px] text-ink-soft"
     >
-      <span>
+      <span className="min-w-[12rem] flex-1">
         {t('update.available')}
         <span className="text-ink-faint">{t('update.hint')}</span>
       </span>
       <button
         onClick={() => { setUpdating(true); void updateFn?.(true) }}
         disabled={updating || !updateFn}
-        className="inline-flex items-center gap-1 border-b border-ink-soft pb-px text-ink transition-colors duration-200 hover:border-primary hover:text-primary disabled:opacity-50"
+        className="inline-flex min-h-9 items-center gap-1.5 rounded-sm px-1 font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline disabled:pointer-events-none disabled:text-ink-faint motion-reduce:transition-none"
       >
-        <ArrowsClockwise size={11} className={updating ? 'animate-spin' : undefined} aria-hidden="true" />
+        <ArrowsClockwise size={14} className={updating ? 'animate-spin motion-reduce:animate-none' : undefined} aria-hidden="true" />
         {t('update.now')}
       </button>
-      <button
+      <Button
+        variant="ghost"
+        size="icon-sm"
         onClick={() => setNeedRefresh(false)}
-        className="grid h-6 w-6 place-items-center rounded-full text-ink-faint transition-colors duration-200 hover:text-ink"
         aria-label={t('update.later')}
       >
-        <X size={12} />
-      </button>
+        <X size={14} />
+      </Button>
     </div>
   )
 }

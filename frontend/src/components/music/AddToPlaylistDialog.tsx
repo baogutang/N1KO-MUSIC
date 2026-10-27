@@ -215,18 +215,18 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
 
   const localSection = localPlaylists.length > 0 && (
     <>
-      <p className="px-2 pt-2 pb-1 text-[11px] tracking-[0.2em] text-ink-faint">
+      <p className="px-3 pt-3 pb-1 text-[13px] font-medium text-ink-faint">
         {t('sources.import.localSection')}
       </p>
       {localPlaylists.map(pl => (
         <button
           key={pl.id}
           onClick={() => handleAddLocal(pl.id, pl.name)}
-          className="w-full flex items-center gap-3 px-2 py-2.5 text-left transition-colors duration-200 hover:bg-paper-deep"
+          className="flex min-h-11 w-full items-center gap-3 rounded-sm px-3 py-2 text-left transition-colors duration-150 hover:bg-paper-deep"
         >
-          <HardDrive className="w-3.5 h-3.5 text-ink-faint flex-shrink-0" />
-          <span className="font-serif font-semibold text-[14.5px] truncate flex-1">{pl.name}</span>
-          <span className="num text-xs text-ink-faint flex-shrink-0">
+          <HardDrive className="w-4 h-4 text-ink-faint flex-shrink-0" />
+          <span className="flex-1 truncate text-[15px] font-medium">{pl.name}</span>
+          <span className="num flex-shrink-0 text-[13px] text-ink-faint">
             {t('playlist.songCount', { count: pl.items.length })}
           </span>
         </button>
@@ -238,46 +238,42 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
     <>
       {plan.sections.map(section => (
         <div key={section.serverId}>
-          <p className="flex items-center gap-2 px-2 pt-3 pb-1 text-[11px] tracking-[0.2em] text-ink-faint">
+          <p className="flex items-center gap-2 px-3 pt-3 pb-1 text-[13px] font-medium text-ink-faint">
             <SourceBadge serverId={section.serverId} withName />
           </p>
           {section.status === 'loading' ? (
-            // loading：hair-soft 骨架行闪烁（不用 spinner，DESIGN §4.5）
+            // loading：bg-skeleton 圆角条闪烁（不用 spinner）
             Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-2 py-3">
-                <span className="w-6 h-3 rounded-sm bg-skeleton animate-pulse" />
+              <div key={i} className="flex min-h-11 items-center gap-3 px-3 py-2">
                 <span className="h-3.5 flex-1 rounded-sm bg-skeleton animate-pulse" style={{ animationDelay: `${i * 0.1}s` }} />
               </div>
             ))
           ) : section.status === 'error' ? (
-            <ErrorState retry={() => { void refetchSections() }} />
+            <ErrorState ruled={false} className="py-8" retry={() => { void refetchSections() }} />
           ) : section.playlists.length ? (
-            section.playlists.map((pl, i) => (
+            section.playlists.map(pl => (
               <button
                 key={pl.id}
                 onClick={() => handleAdd(section.serverId, pl.id, pl.name)}
                 disabled={addToPlaylist.isPending || plan.crossSource}
-                className="w-full flex items-baseline gap-3 px-2 py-3 text-left transition-colors duration-200 hover:bg-paper-deep disabled:opacity-45 disabled:hover:bg-transparent"
+                className="flex min-h-11 w-full items-center gap-3 rounded-sm px-3 py-2 text-left transition-colors duration-150 hover:bg-paper-deep disabled:cursor-not-allowed disabled:text-ink-faint disabled:hover:bg-transparent"
               >
-                <span className="font-num text-xs text-ink-faint flex-shrink-0">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <span className="font-serif font-semibold text-[15px] truncate flex-1">{pl.name}</span>
+                <span className="flex-1 truncate text-[15px] font-medium">{pl.name}</span>
                 {pl.songCount !== undefined && (
-                  <span className="font-num text-xs text-ink-faint flex-shrink-0">
+                  <span className="num flex-shrink-0 text-[13px] text-ink-faint">
                     {t('playlist.songCount', { count: pl.songCount })}
                   </span>
                 )}
               </button>
             ))
           ) : (
-            <p className="px-2 py-4 text-sm text-ink-faint">{t('playlist.noneYet')}</p>
+            <p className="px-3 py-4 text-sm text-ink-faint">{t('playlist.noneYet')}</p>
           )}
         </div>
       ))}
       {/* 这个源根本不能写歌单：说清楚，而不是留一片空白让人以为还在加载 */}
       {!plan.crossSource && plan.singleSourceId !== null && plan.defaultCreate.kind === 'local' && (
-        <p className="px-2 py-4 text-[13px] leading-relaxed text-ink-faint">
+        <p className="px-3 py-4 text-[13.5px] leading-relaxed text-ink-faint">
           {t('playlist.sourceNoWrite')}
         </p>
       )}
@@ -286,25 +282,26 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{t('action.addToPlaylist')}</DialogTitle>
         </DialogHeader>
 
         {/* 跨源的理由必须看得见：藏在 title 里等于没说（触屏根本读不到） */}
         {plan.crossSource && (
-          <p className="text-[12.5px] leading-relaxed text-ink-faint border-l-2 border-primary/50 pl-3">
+          <p className="rounded-md bg-paper-deep px-4 py-3 text-[13.5px] leading-relaxed text-ink-soft">
             {t('playlist.localOnlyHint', { count: plan.sourceIds.length })}
           </p>
         )}
 
-        <div className="max-h-64 overflow-y-auto border-t border-hair divide-y divide-hair-soft">
+        {/* 列表不画分隔线：靠行高与 hover 底区分 */}
+        <div className="-mx-2 max-h-72 overflow-y-auto">
           {/* 跨源时本地歌单排在前面：它是这一次唯一收得下的去处 */}
           {plan.crossSource ? <>{localSection}{serverSections}</> : <>{serverSections}{localSection}</>}
         </div>
 
         {/* 新建：本地（跨源安全）与该源的服务端歌单两个出口 */}
-        <div className="flex gap-2 pt-2 border-t border-hair">
+        <div className="flex gap-2 pt-1">
           <Input
             placeholder={t('playlist.namePlaceholder')}
             value={newName}

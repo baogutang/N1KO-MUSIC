@@ -18,9 +18,8 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
       <input
         type={type}
         className={cn(
-          'flex h-10 w-full rounded-md border border-border bg-transparent px-3 py-2 text-base sm:text-sm transition-colors duration-200 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50',
-          // 波普：描边胶囊 + 卡面底 + 按压投影（DESIGN v3 §4.4）
-          'pop:rounded-pill pop:bg-surface pop:px-4 pop:shadow-press',
+          // 暖纸：纸片底的胶囊，描边用 input 色（对纸面 3:1），聚焦换陶土
+          'flex h-11 w-full rounded-pill border border-input bg-sheet px-4 py-2 text-base transition-colors duration-150 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:text-ink-faint disabled:opacity-60',
           className
         )}
         ref={ref}

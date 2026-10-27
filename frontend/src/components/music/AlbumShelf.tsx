@@ -4,29 +4,86 @@
  * getAlbumList2 有十种排序维度，此前只用了 newest 与 alphabeticalByName 两种，
  * frequent / recent / highest / starred 全都白放着。
  *
- * 渲染成编排式的文字榜单——章节线、中文标题配拉丁副题、编号行——
- * 而不是又一条封面滚动条：那会把这个界面变成流媒体商店。
+ * 渲染成一排横向的封面书架：封面是暖纸页面上唯一的大面积色块，
+ * 标题、歌手、次数/年份退到图注里。
+ *
+ * 同文件导出 AlbumCoverCard：首页「最近添加」用同一张卡，
+ * 键盘语义（外层 Enter/Space 进详情、内层播放键自管）由 CoverCard 统一提供。
  */
 
+import { Play } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
+import { findAdapterFor } from '@/api'
+import { CoverCard, CoverShelf } from '@/components/common/CoverCard'
+import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { useAlbumShelf, type AlbumShelfType } from '@/hooks/useServerQueries'
+import { playAlbum } from '@/utils/playActions'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
 import { detailPath } from '@/utils/detailPath'
+import type { Album } from '@/api/types'
+
+/**
+ * 书架上的专辑卡：封面 + 标题 + 歌手，右下角悬浮播放键。
+ * details 是图注第三行的若干条独立信息（曲目数、年份、播放次数），各占一个 span。
+ */
+export function AlbumCoverCard({ album, details = [] }: { album: Album; details?: string[] }) {
+  const { t } = useT()
+  const navigate = useNavigate()
+  const coverUrl = album.coverArt
+    ? (findAdapterFor(album.serverId)?.getCoverUrl(album.coverArt, 300) ?? undefined)
+    : undefined
+
+  return (
+    <CoverCard
+      aria-label={album.name}
+      onClick={() => navigate(detailPath('albums', album.id, album.serverId))}
+      tile={
+        <ImageWithFallback
+          src={coverUrl}
+          alt={album.name}
+          fallbackType="album"
+          className="h-full w-full object-cover"
+          customCoverParams={{ type: 'album', artist: album.artist, album: album.name }}
+        />
+      }
+      overlay={
+        /* 触屏常显；有 hover 的设备上悬停才浮现，键盘聚焦也会浮现 */
+        <button
+          type="button"
+          onClick={e => {
+            e.stopPropagation()
+            void playAlbum(album)
+          }}
+          aria-label={t('album.playLabel', { name: album.name })}
+          className="absolute bottom-2 right-2 grid h-11 w-11 place-items-center rounded-pill bg-sheet text-ink shadow-press transition-opacity duration-200 hover:text-primary focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+        >
+          <Play size={16} weight="fill" />
+        </button>
+      }
+      title={spaceCJK(album.name)}
+      meta={spaceCJK(album.artist)}
+      captionExtra={
+        details.length > 0 ? (
+          <p className="num mt-0.5 flex flex-wrap gap-x-3 text-[13px] text-ink-faint">
+            {details.map(detail => <span key={detail}>{detail}</span>)}
+          </p>
+        ) : undefined
+      }
+    />
+  )
+}
 
 export function AlbumShelf({
   type,
   label,
-  tag,
   limit = 6,
 }: {
   type: AlbumShelfType
   label: string
-  tag: string
   limit?: number
 }) {
   const { t } = useT()
-  const navigate = useNavigate()
   const { data, isLoading } = useAlbumShelf(type, limit)
   const albums = data?.items ?? []
 
@@ -36,39 +93,23 @@ export function AlbumShelf({
   return (
     <section aria-labelledby={`shelf-${type}`}>
       <div className="section-head">
-        <h2 id={`shelf-${type}`}>
-          {label}<small>{tag}</small>
-        </h2>
+        <h2 id={`shelf-${type}`}>{label}</h2>
       </div>
-      <ol className="border-t border-hair">
-        {albums.map((album, index) => (
-          <li key={album.id}>
-            <button
-              onClick={() => navigate(detailPath('albums', album.id, album.serverId))}
-              className="group flex w-full items-baseline gap-4 border-b border-hair-soft px-2 py-3 text-left transition-[background,transform] duration-200 hover:translate-x-1 hover:bg-paper-deep"
-            >
-              <span className="font-num w-7 flex-none text-[11px] text-ink-faint">
-                {String(index + 1).padStart(2, '0')}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-serif text-[15px] font-semibold group-hover:text-primary">
-                  {spaceCJK(album.name)}
-                </span>
-                <span className="mt-0.5 block truncate text-[11.5px] text-ink-faint">
-                  {spaceCJK(album.artist)}
-                </span>
-              </span>
-              {album.playCount ? (
-                <span className="font-num flex-none text-[11px] text-ink-faint">
-                  {t('album.playCount', { count: album.playCount })}
-                </span>
-              ) : album.year ? (
-                <span className="font-num flex-none text-[11px] text-ink-faint">{album.year}</span>
-              ) : null}
-            </button>
-          </li>
+      <CoverShelf>
+        {albums.map(album => (
+          <AlbumCoverCard
+            key={album.id}
+            album={album}
+            details={
+              album.playCount
+                ? [t('album.playCount', { count: album.playCount })]
+                : album.year
+                  ? [String(album.year)]
+                  : []
+            }
+          />
         ))}
-      </ol>
+      </CoverShelf>
     </section>
   )
 }

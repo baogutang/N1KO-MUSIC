@@ -4,13 +4,14 @@
  * 开车时的约束和平时完全不是一回事：一眼最多零点几秒，手指落点不准，
  * 车里有震动，屏幕可能在阳光下。所以这一屏只做三件事——
  *
- *   1. 触控目标全部按「不用瞄准」来做：主键 112–128px，副键 80–96px，
- *      最小的一档也是各家无障碍指南 44/48pt 下限的近两倍；
+ *   1. 触控目标全部按「不用瞄准」来做：主键（橡胶播放键）112–128px，副键 80–96px，
+ *      顶栏的键也有 64px，各家无障碍指南 44/48pt 下限的近一倍半以上；
  *   2. 字号按「余光扫一眼」来定，曲名 clamp 到接近整屏宽；
  *   3. 屏幕不许自己黑掉——用 Wake Lock 顶住，退出时立刻释放。
  *
- * 它仍然是「纸·墨·朱」：不为了对比度换一套配色，只是把同一套字号和线条
+ * 它仍然是暖纸那一套：不为了对比度换一套配色，只是把同一套字号和形状
  * 放大到能在颠簸里看清。真正提高可读性的是尺寸和留白，不是荧光色。
+ * 竖屏是上下三段（顶栏 / 曲目 / 控制），横屏把曲目放左、控制放右。
  */
 
 import { useCallback, useEffect, useRef } from 'react'
@@ -23,6 +24,7 @@ import { sourceSupportsFavorites } from '@/services/heartCapability'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { useT } from '@/i18n'
 
 /** 屏幕常亮句柄的最小接口，避免为一个实验性 API 引入整套 DOM 类型 */
@@ -133,20 +135,22 @@ export function CarMode({ onExit }: { onExit: () => void }) {
   if (!currentSong) {
     return (
       <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-paper">
-        <p className="font-serif text-3xl font-semibold">{t('player.nothingPlaying')}</p>
-        <button
+        <p className="font-display text-3xl font-semibold">{t('player.nothingPlaying')}</p>
+        <Button
+          variant="outline"
+          size="lg"
           onClick={onExit}
-          className="mt-10 h-16 px-10 font-serif text-xl underline decoration-hair decoration-1 underline-offset-8"
+          className="mt-10 h-16 px-10 text-xl"
         >
           {t('player.exitCarMode')}
-        </button>
+        </Button>
       </div>
     )
   }
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col bg-paper text-ink"
+      className="fixed inset-0 z-[100] flex flex-col bg-paper pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] text-ink"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       role="region"
@@ -157,96 +161,103 @@ export function CarMode({ onExit }: { onExit: () => void }) {
         收藏不是开车时的关键操作，把它从拇指区挪上来，下面那一排就只剩
         「上一首 / 播放 / 下一首」——窄屏上三个键才排得开，不会被切掉。
       */}
-      <div className="flex items-center justify-between p-4">
+      <div className="flex flex-shrink-0 items-center justify-between p-4">
         {canFavoriteCurrent ? (
-        <button
-          onClick={() => toggleStar.mutate({
-            id: currentSong.id,
-            type: 'song',
-            isStarred: !!currentSong.starred,
-            song: currentSong,
-          })}
-          aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
-          className="grid h-16 w-16 place-items-center rounded-full border border-hair transition-colors hover:border-ink"
-        >
-          <Heart
-            size={26}
-            weight={currentSong.starred ? 'fill' : 'regular'}
-            className={currentSong.starred ? 'text-sem-fav' : 'text-ink'}
-          />
-        </button>
+          <Button
+            variant="outline"
+            size="icon-lg"
+            onClick={() => toggleStar.mutate({
+              id: currentSong.id,
+              type: 'song',
+              isStarred: !!currentSong.starred,
+              song: currentSong,
+            })}
+            aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
+            className="h-16 w-16"
+          >
+            <Heart
+              size={28}
+              weight={currentSong.starred ? 'fill' : 'regular'}
+              className={currentSong.starred ? 'text-sem-fav' : 'text-ink'}
+            />
+          </Button>
         ) : (
           <span className="grid h-16 w-16" aria-hidden="true" />
         )}
-        <button
+        <Button
+          variant="icon"
+          size="icon-lg"
           onClick={onExit}
           aria-label={t('player.exitCarMode')}
-          className="grid h-16 w-16 place-items-center rounded-full text-ink-faint transition-colors hover:text-ink"
+          className="h-16 w-16"
         >
-          <X size={24} />
-        </button>
+          <X size={28} />
+        </Button>
       </div>
 
-      {/* 曲目信息：整屏最先被看到的东西 */}
-      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <p className="text-[13px] tracking-[0.3em] text-primary">{t('player.nowPlaying')}</p>
-        <h1 className="mt-5 line-clamp-2 font-serif text-[clamp(2.25rem,7vw,4.5rem)] font-bold leading-[1.15]">
-          {spaceCJK(currentSong.title)}
-        </h1>
-        <p className="mt-4 line-clamp-1 text-[clamp(1.1rem,3vw,1.75rem)] text-ink-soft">
-          {spaceCJK(currentSong.artist)}
-        </p>
+      {/* 竖屏上下排，横屏左右排：曲目信息在左，控制在右 */}
+      <div className="flex min-h-0 flex-1 flex-col landscape:flex-row landscape:items-center">
+        {/* 曲目信息：整屏最先被看到的东西 */}
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-6 text-center landscape:items-start landscape:text-left">
+          <h1 className="line-clamp-2 font-display text-[clamp(2.25rem,7vw,4.5rem)] font-semibold leading-[1.15]">
+            {spaceCJK(currentSong.title)}
+          </h1>
+          <p className="mt-4 line-clamp-1 text-[clamp(1.1rem,3vw,1.75rem)] text-ink-soft">
+            {spaceCJK(currentSong.artist)}
+          </p>
 
-        {/* 进度：一根发丝线加一段朱色，不做刻度也不做可拖拽——开车时不该去够它 */}
-        <div className="mt-12 w-full max-w-3xl">
-          <div className="h-[3px] w-full bg-hair pop:h-[12px] pop:rounded-pill pop:overflow-hidden pop:border pop:border-hair pop:bg-paper-deep">
-            <div
-              className="h-full bg-primary transition-[width] duration-500"
-              style={{ width: `${progress * 100}%` }}
-            />
-          </div>
-          <div className="font-num mt-3 flex justify-between text-[15px] text-ink-faint">
-            <span>{formatDuration(currentTime)}</span>
-            <span>{formatDuration(duration)}</span>
+          {/* 进度：一段陶土色填进凹槽，不做刻度也不做可拖拽——开车时不该去够它 */}
+          <div className="mt-12 w-full max-w-3xl landscape:mt-8">
+            <div className="h-3 w-full overflow-hidden rounded-pill bg-paper-3">
+              <div
+                className="h-full w-full origin-left rounded-pill bg-primary transition-transform duration-500 motion-reduce:transition-none"
+                style={{ transform: `scaleX(${progress})` }}
+              />
+            </div>
+            <div className="num mt-3 flex justify-between text-[17px] text-ink-faint">
+              <span>{formatDuration(currentTime)}</span>
+              <span>{formatDuration(duration)}</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/*
-        控制区：主键 112（窄屏）/ 128，副键 80 / 96。
-        最小的那一档也是 44pt 下限的近两倍，而三个键加间距在 375px 上仍排得开——
-        按钮被屏幕切掉，比按钮小更危险。
-      */}
-      <div className="flex items-center justify-center gap-4 pb-[max(2rem,env(safe-area-inset-bottom))] sm:gap-10">
-        <CarButton
-          label={t('player.previous')}
-          onClick={() => (currentTime > 3 ? seekHowl(0) : prev())}
-          className="h-20 w-20 sm:h-24 sm:w-24"
-        >
-          <SkipBack size={38} weight="fill" />
-        </CarButton>
+        {/*
+          控制区：主键 112（窄屏）/ 128，副键 80 / 96。
+          最小的那一档也是 44pt 下限的近两倍，而三个键加间距在 375px 上仍排得开——
+          按钮被屏幕切掉，比按钮小更危险。
+        */}
+        <div className="flex flex-shrink-0 items-center justify-center gap-4 pb-[max(2rem,env(safe-area-inset-bottom))] regular:gap-10 landscape:gap-5 landscape:px-8 landscape:pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <CarButton
+            label={t('player.previous')}
+            onClick={() => (currentTime > 3 ? seekHowl(0) : prev())}
+            className="h-20 w-20 regular:h-24 regular:w-24"
+          >
+            <SkipBack size={38} weight="fill" />
+          </CarButton>
 
-        <CarButton
-          label={isPlaying ? t('player.pause') : t('player.play')}
-          onClick={togglePlay}
-          className="h-28 w-28 sm:h-32 sm:w-32"
-          primary
-        >
-          {isPlaying ? <Pause size={52} weight="fill" /> : <Play size={52} weight="fill" className="ml-2" />}
-        </CarButton>
+          <CarButton
+            label={isPlaying ? t('player.pause') : t('player.play')}
+            onClick={togglePlay}
+            className="h-28 w-28 regular:h-32 regular:w-32"
+            primary
+          >
+            {isPlaying ? <Pause size={52} weight="fill" /> : <Play size={52} weight="fill" className="ml-2" />}
+          </CarButton>
 
-        <CarButton
-          label={t('player.next')}
-          onClick={next}
-          className="h-20 w-20 sm:h-24 sm:w-24"
-        >
-          <SkipForward size={38} weight="fill" />
-        </CarButton>
+          <CarButton
+            label={t('player.next')}
+            onClick={next}
+            className="h-20 w-20 regular:h-24 regular:w-24"
+          >
+            <SkipForward size={38} weight="fill" />
+          </CarButton>
+        </div>
       </div>
     </div>
   )
 }
 
+/** 主键是嵌在凹槽里的橡胶键（.rubber-key）；副键是抬起的纸片圆钮 */
 function CarButton({
   label, onClick, className, primary, children,
 }: {
@@ -258,13 +269,13 @@ function CarButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       aria-label={label}
       className={cn(
-        'grid flex-none place-items-center rounded-full border transition-transform duration-150 active:scale-95',
         primary
-          ? 'border-primary bg-primary text-paper'
-          : 'border-hair text-ink hover:border-ink',
+          ? 'rubber-key flex-none'
+          : 'grid flex-none place-items-center rounded-full bg-sheet text-ink shadow-press transition-[transform,background-color] duration-150 hover:bg-paper-deep active:scale-95 motion-reduce:transition-none',
         className
       )}
     >

@@ -11,7 +11,7 @@ import { ArrowsClockwise, CloudCheck, CloudSlash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/use-toast'
-import { Row, Section, SubHead, Toggle, hairInputClass } from '@/components/settings/primitives'
+import { Row, Section, SubHead, Toggle, fieldInputClass, rowClass } from '@/components/settings/primitives'
 import { useSyncStore, syncStatus } from '@/store/syncStore'
 import { enqueueLocalBacklog, pullRemoteHistory } from '@/services/historySync'
 import { t as translate, useT } from '@/i18n'
@@ -92,7 +92,7 @@ export function SyncSettings() {
   }
 
   return (
-    <Section title={t('sync.title')} tag="SYNC">
+    <Section title={t('sync.title')}>
       <Row
         name={t('sync.enable')}
         desc={t('sync.enableDesc')}
@@ -110,34 +110,32 @@ export function SyncSettings() {
           >
             <span
               className={cn(
-                'inline-flex items-center gap-1.5 text-sm',
-                status === 'connected' ? 'text-primary' : 'text-ink-faint'
+                'inline-flex items-center gap-1.5 text-[14px]',
+                status === 'connected' ? 'text-sem-connected' : 'text-ink-faint'
               )}
             >
               {status === 'connected'
-                ? <CloudCheck className="h-4 w-4" />
-                : <CloudSlash className="h-4 w-4" />}
+                ? <CloudCheck weight="fill" className="h-[18px] w-[18px]" />
+                : <CloudSlash className="h-[18px] w-[18px]" />}
               {t(STATUS_KEY[status])}
             </span>
           </Row>
 
-          <div className="border-b border-hair-soft py-4">
-            <div className="flex items-center gap-4">
-              <p className="w-20 flex-shrink-0 text-sm font-medium">{t('sync.serverUrl')}</p>
-              <Input
-                type="url"
-                value={draftUrl}
-                onChange={e => setDraftUrl(e.target.value)}
-                onBlur={handleUrlCommit}
-                placeholder="http://192.168.1.10:3001"
-                className={hairInputClass}
-              />
-              <Button variant="ghost" onClick={handleTest} disabled={busy} className="flex-shrink-0 gap-1.5 px-0">
-                {busy ? <ArrowsClockwise className="h-4 w-4 animate-spin" /> : null}
-                {t('sync.test')}
-              </Button>
-            </div>
-            <p className="mt-2 pl-24 text-xs text-ink-faint">
+          <div className={cn(rowClass, 'flex-wrap gap-y-2')}>
+            <p className="w-20 flex-shrink-0 text-[15px] font-medium">{t('sync.serverUrl')}</p>
+            <Input
+              type="url"
+              value={draftUrl}
+              onChange={e => setDraftUrl(e.target.value)}
+              onBlur={handleUrlCommit}
+              placeholder="http://192.168.1.10:3001"
+              className={cn(fieldInputClass, 'min-w-0 flex-1 basis-48')}
+            />
+            <Button variant="outline" size="sm" onClick={handleTest} disabled={busy} className="flex-shrink-0 gap-1.5">
+              {busy ? <ArrowsClockwise className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : null}
+              {t('sync.test')}
+            </Button>
+            <p className="basis-full text-[13px] leading-snug text-ink-faint regular:pl-24">
               {t('sync.serverUrlHint')}
             </p>
           </div>
@@ -145,16 +143,17 @@ export function SyncSettings() {
           {signedIn ? (
             <>
               <Row name={t('sync.manual')} desc={t('sync.manualDesc')}>
-                <Button variant="ghost" onClick={handlePull} disabled={pulling} className="gap-1.5 px-0">
-                  {pulling ? <ArrowsClockwise className="h-4 w-4 animate-spin" /> : null}
+                <Button variant="outline" size="sm" onClick={handlePull} disabled={pulling} className="gap-1.5">
+                  {pulling ? <ArrowsClockwise className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : null}
                   {pulling ? t('sync.syncing') : t('sync.syncNow')}
                 </Button>
               </Row>
               <Row name={t('sync.signOut')} desc={t('sync.signOutDesc')}>
                 <Button
-                  variant="ghost"
+                  variant="outline"
+                  size="sm"
                   onClick={() => { signOut(); toast({ title: t('sync.signedOut') }) }}
-                  className="gap-1.5 px-0 text-destructive hover:text-destructive"
+                  className="gap-1.5 text-destructive"
                 >
                   {t('sync.signOutAction')}
                 </Button>
@@ -163,53 +162,57 @@ export function SyncSettings() {
           ) : (
             <>
               <SubHead title={t('sync.signInHead')} />
-              <div className="border-b border-hair-soft py-4">
-                <div className="grid grid-cols-2 gap-4">
+              <div className={cn(rowClass, 'flex-col items-stretch gap-x-0')}>
+                <div className="grid grid-cols-1 gap-4 regular:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-[11px] tracking-[0.2em] text-ink-faint">{t('login.username')}</label>
+                    <label className="mb-1.5 block text-[13px] font-medium text-ink-faint">{t('login.username')}</label>
                     <Input
                       type="text"
                       value={account}
                       autoComplete="username"
                       onChange={e => setAccount(e.target.value)}
-                      className={hairInputClass}
+                      className={fieldInputClass}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[11px] tracking-[0.2em] text-ink-faint">{t('login.password')}</label>
+                    <label className="mb-1.5 block text-[13px] font-medium text-ink-faint">{t('login.password')}</label>
                     <Input
                       type="password"
                       value={password}
                       autoComplete="current-password"
                       onChange={e => setPassword(e.target.value)}
-                      className={hairInputClass}
+                      className={fieldInputClass}
                     />
                   </div>
                 </div>
-                <div className="mt-4 flex items-center gap-5">
+                <div className="mt-4 flex items-center gap-3">
                   <Button
                     onClick={() => void handleAuth('in')}
                     disabled={busy || !account.trim() || !password}
-                    className="gap-1.5 px-0"
+                    className="gap-1.5"
                   >
-                    {busy ? <ArrowsClockwise className="h-4 w-4 animate-spin" /> : null}
+                    {busy ? <ArrowsClockwise className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : null}
                     {t('login.signIn')}
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={() => void handleAuth('up')}
                     disabled={busy || !account.trim() || password.length < 8}
-                    className="gap-1.5 px-0"
+                    className="gap-1.5"
                   >
                     {t('login.signUp')}
                   </Button>
                 </div>
-                <p className="mt-2 text-xs text-ink-faint">{t('sync.passwordHint')}</p>
+                <p className="mt-3 text-[13px] text-ink-faint">{t('sync.passwordHint')}</p>
               </div>
             </>
           )}
 
-          {lastError && <p className="pt-3 text-xs text-destructive">{lastError}</p>}
+          {lastError && (
+            <div className={rowClass}>
+              <p className="text-[13px] text-sem-error">{lastError}</p>
+            </div>
+          )}
         </>
       )}
     </Section>

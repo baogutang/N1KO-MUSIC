@@ -78,7 +78,7 @@ export function FullscreenPlayerOverlay() {
              aria-label 已在 Content 上，Description 显式置空。 */
           aria-describedby={undefined}
           data-fullscreen-player=""
-          className="fixed inset-0 z-50 outline-none transition-all duration-300 ease-out"
+          className="fixed inset-0 z-50 outline-none transition-[opacity,transform] duration-300 ease-out"
           style={{
             opacity: animateIn ? 1 : 0,
             transform: animateIn ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',

@@ -64,6 +64,10 @@ interface ShareRecord {
   visitCount?: number
 }
 
+/** 行内图标键：36px 圆形，触屏拉到 44px；hover 铺一层更深的纸底 */
+const ICON_BTN =
+  'grid h-9 w-9 flex-none place-items-center rounded-pill text-ink-faint transition-colors duration-150 hover:bg-paper-3 hover:text-primary [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11'
+
 const EXPIRY_OPTIONS = [
   { days: 1, labelKey: 'share.expiry1Day' },
   { days: 7, labelKey: 'share.expiry7Days' },
@@ -157,14 +161,14 @@ export function ShareDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{target ? t(KIND_TITLE_KEYS[target.kind]) : t('share.title')}</DialogTitle>
           <DialogDescription>
             {target ? (
               <>
                 {t('share.description')}
-                <span className="mt-1 block font-serif text-foreground">
+                <span className="mt-1 block font-medium text-foreground">
                   {t('share.targetLabel', { label: target.label })}
                 </span>
               </>
@@ -173,19 +177,19 @@ export function ShareDialog({
         </DialogHeader>
 
         {created ? (
-          <div className="space-y-4 pt-1">
-            <div className="flex items-center gap-2 rounded border border-hair bg-paper-deep px-3 py-2.5">
-              <LinkSimple size={14} className="flex-none text-ink-faint" aria-hidden="true" />
-              <span className="font-num min-w-0 flex-1 truncate text-[12.5px]">{created.url}</span>
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center gap-2 rounded-md bg-paper-deep py-1.5 pl-3.5 pr-1.5">
+              <LinkSimple size={15} className="flex-none text-ink-faint" aria-hidden="true" />
+              <span className="num min-w-0 flex-1 truncate text-[13.5px]">{created.url}</span>
               <button
                 onClick={() => copy(created.url)}
-                className="flex-none text-ink-soft transition-colors hover:text-primary"
+                className={ICON_BTN}
                 aria-label={t('share.copyLink')}
               >
-                {copied ? <Check size={14} className="text-primary" /> : <Copy size={14} />}
+                {copied ? <Check size={15} className="text-primary" /> : <Copy size={15} />}
               </button>
             </div>
-            <p className="text-[12px] text-ink-faint">
+            <p className="text-[13px] text-ink-faint">
               {created.expiresAt
                 ? t('share.expiresOn', {
                     date: new Date(created.expiresAt).toLocaleDateString(locale),
@@ -196,7 +200,7 @@ export function ShareDialog({
         ) : (
           <div className="space-y-4 pt-1">
             <div>
-              <label htmlFor="share-desc" className="mb-1.5 block text-[11px] tracking-[0.16em] text-ink-faint">
+              <label htmlFor="share-desc" className="mb-1.5 block text-[13px] font-medium text-ink-soft">
                 {t('share.note')}
               </label>
               <Input
@@ -208,7 +212,7 @@ export function ShareDialog({
               />
             </div>
             <div>
-              <p className="mb-1.5 text-[11px] tracking-[0.16em] text-ink-faint">{t('share.expiry')}</p>
+              <p className="mb-1.5 text-[13px] font-medium text-ink-soft">{t('share.expiry')}</p>
               <div role="radiogroup" aria-label={t('share.expiry')} className="flex flex-wrap gap-2">
                 {EXPIRY_OPTIONS.map(opt => (
                   <button
@@ -218,10 +222,10 @@ export function ShareDialog({
                     aria-checked={expiryDays === opt.days}
                     onClick={() => setExpiryDays(opt.days)}
                     className={cn(
-                      'border px-3 py-1.5 text-[12.5px] transition-colors duration-200',
+                      'min-h-11 rounded-pill px-4 text-[13.5px] font-medium transition-colors duration-150',
                       expiryDays === opt.days
-                        ? 'border-primary text-primary'
-                        : 'border-hair text-ink-soft hover:border-ink hover:text-ink'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-paper-deep text-ink-soft hover:bg-paper-3 hover:text-ink'
                     )}
                   >
                     {t(opt.labelKey)}
@@ -244,37 +248,38 @@ export function ShareDialog({
         </div>
 
         {existing.length > 0 && (
-          <div className="mt-2 border-t border-hair pt-3">
-            <p className="mb-2 text-[10.5px] uppercase tracking-[0.22em] text-ink-faint">
-              {t('share.existing', { count: existing.length })}
+          <div className="mt-2">
+            <p className="mb-1 flex items-baseline gap-3 text-[13px] font-medium text-ink-faint">
+              <span>{t('share.existingTitle')}</span>
+              <span className="num font-normal">{existing.length}</span>
             </p>
-            <ul className="max-h-40 space-y-0 overflow-y-auto">
+            <ul className="max-h-44 overflow-y-auto">
               {existing.map(share => (
                 <li
                   key={share.id}
-                  className="flex items-center gap-2 border-b border-hair-soft py-2 text-[12px]"
+                  className="flex items-center gap-1 rounded-sm py-0.5 pl-2 text-[13px] hover:bg-paper-deep"
                 >
                   <span className="min-w-0 flex-1 truncate text-ink-soft">
                     {share.description || share.url}
                   </span>
                   {share.visitCount != null && (
-                    <span className="font-num flex-none text-[11px] text-ink-faint">
+                    <span className="num flex-none text-[13px] text-ink-faint">
                       {t('share.visits', { count: share.visitCount })}
                     </span>
                   )}
                   <button
                     onClick={() => copy(share.url)}
-                    className="flex-none text-ink-faint transition-colors hover:text-primary"
+                    className={ICON_BTN}
                     aria-label={t('share.copyOne')}
                   >
-                    <Copy size={12} />
+                    <Copy size={15} />
                   </button>
                   <button
                     onClick={() => revoke(share.id)}
-                    className="flex-none text-ink-faint transition-colors hover:text-destructive"
+                    className={cn(ICON_BTN, 'hover:text-destructive')}
                     aria-label={t('share.revokeOne')}
                   >
-                    <Trash size={12} />
+                    <Trash size={15} />
                   </button>
                 </li>
               ))}

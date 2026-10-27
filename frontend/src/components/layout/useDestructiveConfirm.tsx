@@ -36,7 +36,7 @@ function DestructiveConfirmDialog({ spec, onClose }: { spec: DestructiveConfirmS
   const { t } = useT()
   return (
     <Dialog open={spec !== null} onOpenChange={open => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="regular:max-w-md">
         <DialogHeader>
           <DialogTitle>{spec?.title ?? ''}</DialogTitle>
           {spec?.description && <DialogDescription>{spec.description}</DialogDescription>}
@@ -44,6 +44,7 @@ function DestructiveConfirmDialog({ spec, onClose }: { spec: DestructiveConfirmS
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose}>{t('action.cancel')}</Button>
           <Button
+            variant="destructive"
             onClick={() => {
               onClose()
               spec?.onConfirm()

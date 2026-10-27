@@ -3,9 +3,10 @@
  *
  * 多源聚合下每条曲目 / 分区都要能一眼看出「来自哪个音源」：
  * 内置音源（网易云 / QQ）用官方 App 图标（public/logos）；
- * 第三方插件没有官方图标，波普皮肤是彩色小方块（manifest color 或
- * id 哈希取 --src-1..5 色板），纸·墨·朱是单色描边空心方块。
+ * 第三方插件没有官方图标，用一枚色板实底的小圆点（manifest color 或
+ * id 哈希取 --src-1..5 色板）。
  * 样式主体在 index.css 的 .src-chip 组件类里，这里只负责选档与排版变体。
+ * 带名字的变体是「圆点 + 13px 音源名」的小胶囊行，名字走 ink-soft。
  */
 
 import { CSSProperties } from 'react'
@@ -58,7 +59,7 @@ export function SourceLogo({
 
 /**
  * 单个音源的徽标。`withName` 时带音源名（分区头用），
- * 否则只有小方块（曲目行内联用，紧凑）。
+ * 否则只有圆点 / 图标（曲目行内联用，紧凑）。
  *
  * manifest 的 color（安装时已校验 #RRGGBB）原样透传给 CSS，
  * 不在 JS 里解析。
@@ -104,7 +105,7 @@ export function SourceBadge({
     return (
       <span className={cn('inline-flex items-center gap-1.5 min-w-0', className)}>
         <img src={logoSrc} alt="" className="h-[15px] w-[15px] flex-shrink-0 rounded-[3px] object-cover" />
-        <span className="truncate text-[11px] tracking-[0.08em] text-ink-soft">{server.name}</span>
+        <span className="truncate text-[13px] text-ink-soft">{server.name}</span>
       </span>
     )
   }
@@ -114,7 +115,7 @@ export function SourceBadge({
   return (
     <span className={cn('inline-flex items-center gap-1.5 min-w-0', className)}>
       <span aria-hidden className={chipClass} style={chipStyle} />
-      <span className="truncate text-[11px] tracking-[0.08em] text-ink-soft">{server.name}</span>
+      <span className="truncate text-[13px] text-ink-soft">{server.name}</span>
     </span>
   )
 }

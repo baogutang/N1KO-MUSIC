@@ -1,17 +1,20 @@
 /**
- * 全屏播放器 — 杂志编辑风（docs/redesign/v2/DESIGN.md §4.3 正在播放页）
- * 纸面底 + 极淡封面取色晕染；左列封面/信息/控制 + 右列歌词流
+ * 全屏播放器（v5 暖纸）：同一首歌，四种排法，按窗口形状与折叠姿态自动选择。
  *
- * 性能优化：
- * - 细粒度 selector，不订阅 currentTime/duration
- * - 进度条拆成独立 memo 子组件（FSProgressBar 自行订阅）
- * - 歌词组件自行订阅 currentTime，不经过父组件
- * - 仅全屏时由 MainLayout 条件挂载，非全屏零开销
- *   （打开/关闭 fade+translateY 动画由 MainLayout 负责，见 §5）
+ *   stack      窄窗口（iPhone、Duo 外屏）：封面 / 歌词 / 接下来 三选一，下面是进度与控制；下拉收起
+ *   portrait   竖着的大窗口（Duo 展开竖握、iPad 竖屏、半屏分屏）：上面封面配控制，下面歌词或接下来
+ *   landscape  横着的窗口（iPad 横屏、Duo 横握、桌面）：参考特斯拉 App 的平板布局——
+ *              左列是你操作的东西（封面、进度、按键），右边一直摆着歌词，落在格纸上
+ *   tabletop   Duo 半折悬停（useDevicePosture）：折痕以上是歌词，以下是封面带与控制（参考 QQ 音乐的 Duo 适配）
+ *
+ * 签名部件：嵌在凹槽里的橡胶播放键（.rubber-key）、歌词底下那张淡淡的格纸（.paper-grid）。
+ * 不再做封面取色晕染：暖纸只留两团固定的暖光。
+ *
+ * 性能：细粒度 selector，不订阅 currentTime；进度条与歌词各自订阅。
  */
 
-import { useState, useEffect, useRef, useCallback, memo } from 'react'
-import type { KeyboardEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, memo, useSyncExternalStore } from 'react'
+import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react'
 import type { Song } from '@/api/types'
 import { useNavigate } from 'react-router-dom'
 import { detailPath } from '@/utils/detailPath'
@@ -20,20 +23,22 @@ import {
   Repeat, RepeatOnce, Shuffle, ArrowsDownUp,
   SpeakerHigh, SpeakerX, SpeakerLow,
   CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork, Moon,
-  Queue, FileText
+  ListPlus, FileText,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
-import { useThemeStore } from '@/store/themeStore'
-import { useIsMobileLayout } from '@/lib/platform'
+import { useWindowClass, needsTrafficLightInset } from '@/lib/platform'
+import { useDevicePosture } from '@/hooks/useDevicePosture'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useLyricsQuery, useToggleStar } from '@/hooks/useServerQueries'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import { sourceSupportsFavorites } from '@/services/heartCapability'
 import { useCoverUrl } from '@/hooks/useCoverUrl'
 import { LyricDisplay } from './LyricDisplay'
+import { UpNextList } from './UpNextList'
 import { CoverImage } from '@/components/common/CoverImage'
+import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -43,11 +48,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { getCachedColors } from '@/utils/colorExtract'
-import { toPaperSafe } from '@/utils/paperSafe'
 import { formatDuration } from '@/utils/formatters'
+import { spaceCJK } from '@/utils/cjkTypography'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
+import { findAdapterFor } from '@/api'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { ShareDialog } from '@/components/music/ShareDialog'
@@ -57,27 +62,24 @@ import {
 } from '@/components/ui/dialog'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 
-/** macOS 检测：FullscreenPlayer 是 fixed 覆盖层，需要独立处理 traffic-light 区域 */
-const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
+type Layout = 'stack' | 'portrait' | 'landscape' | 'tabletop'
+type PaneView = 'lyrics' | 'queue'
 
-/** 细线圆图标键（DESIGN §4.1 图标键）：1px hair 圆，hover 变 accent，:active scale(.95) */
-const lineCircleBtn = cn(
-  'act-icon rounded-full border border-hair text-ink-soft flex items-center justify-center',
-  'transition-[color,border-color,transform] duration-200 ease-[var(--ease)]',
-  'hover:text-primary hover:border-primary active:scale-95'
-)
+const LANDSCAPE_QUERY = '(orientation: landscape)'
+function subscribeOrientation(cb: () => void) {
+  const mql = window.matchMedia(LANDSCAPE_QUERY)
+  mql.addEventListener('change', cb)
+  return () => mql.removeEventListener('change', cb)
+}
 
-/** 歌手/专辑文字链接（demo .who a）：发丝下划线，hover 变 accent */
-const whoLinkCls = cn(
-  'truncate border-b border-hair cursor-pointer',
-  'transition-[color,border-color] duration-200 ease-[var(--ease)]',
-  'hover:text-primary hover:border-primary'
-)
+/** 次要键：圆形，hover 铺一层下沉底，按下时收一点 */
+const softBtn =
+  'grid flex-none place-items-center rounded-pill text-ink-soft transition-[background-color,color,transform] duration-150 ' +
+  'hover:bg-paper-deep hover:text-ink active:scale-95 aria-pressed:text-primary disabled:opacity-50'
 
 /**
- * 进度行子组件 — 独立订阅 currentTime / duration / buffered
- * 播放中每 200ms 更新一次，只有这个组件重渲染
- * 双层进度条：发丝层=缓冲进度，朱红层=播放进度（demo .playing-progress）
+ * 进度行：独立订阅 currentTime / duration / buffered，播放中只有它重渲染。
+ * 拖动期间只更新本地值，松手才 seek；松手后 500ms 内忽略回传的旧位置。
  */
 const FSProgressBar = memo(function FSProgressBar() {
   const { t } = useT()
@@ -85,9 +87,7 @@ const FSProgressBar = memo(function FSProgressBar() {
   const duration = usePlayerStore(s => s.duration)
   const buffered = usePlayerStore(s => s.buffered)
 
-  // 拖动中的本地进度值：拖动期间忽略 store currentTime，松开时才真正 seek
   const [dragValue, setDragValue] = useState<number | null>(null)
-  // 松开后的短暂保护窗口：seek 前排队的 timeupdate 会带回旧位置，此窗口内仍渲染 seek 目标
   const releaseGuardRef = useRef<{ target: number; until: number } | null>(null)
 
   const safeDuration = isFinite(duration) && duration > 0 ? duration : 1
@@ -97,8 +97,8 @@ const FSProgressBar = memo(function FSProgressBar() {
     : guard && performance.now() < guard.until && Math.abs(currentTime - guard.target) > 1
       ? guard.target
       : currentTime
-  const playPercent = Math.min(100, (displayTime / safeDuration) * 100)
-  const bufferPercent = Math.min(100, buffered * 100)
+  const playRatio = Math.min(1, displayTime / safeDuration)
+  const bufferRatio = Math.min(1, buffered)
 
   const progressRef = useRef<HTMLDivElement>(null)
   const safeDurationRef = useRef(safeDuration)
@@ -113,6 +113,7 @@ const FSProgressBar = memo(function FSProgressBar() {
     }
     if (dragUpRef.current) {
       document.removeEventListener('pointerup', dragUpRef.current)
+      document.removeEventListener('pointercancel', dragUpRef.current)
       dragUpRef.current = null
     }
   }, [])
@@ -129,21 +130,20 @@ const FSProgressBar = memo(function FSProgressBar() {
     }
   }, [clearDragListeners])
 
-  // Pointer Events 同时覆盖鼠标与触屏；touch-action:none 防止拖动时页面滚动
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  // Pointer Events 同时覆盖鼠标、触控板与触屏；touch-action:none 防止拖动时页面滚动
+  const handlePointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
+    e.stopPropagation()
     const rect = progressRef.current?.getBoundingClientRect()
     if (!rect) return
     const getR = (cx: number) => Math.max(0, Math.min(1, (cx - rect.left) / rect.width))
-    // 按下时只更新本地拖动值，不 seek 音频，避免 timeupdate 与拖动位置互相覆盖
     setDragValue(getR(e.clientX) * safeDurationRef.current)
+    e.currentTarget.setPointerCapture?.(e.pointerId)
 
     const onMove = (me: globalThis.PointerEvent) => {
-      // 拖动过程中只更新本地视觉进度，不触发音频 seek
       setDragValue(getR(me.clientX) * safeDurationRef.current)
     }
     const onUp = (me: globalThis.PointerEvent) => {
-      // 松开时才实际 seek 音频
       const target = getR(me.clientX) * safeDurationRef.current
       releaseGuardRef.current = { target, until: performance.now() + 500 }
       seekHowl(target)
@@ -155,9 +155,10 @@ const FSProgressBar = memo(function FSProgressBar() {
     dragUpRef.current = onUp
     document.addEventListener('pointermove', onMove)
     document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onUp)
   }, [clearDragListeners])
 
-  // 键盘 seek：←/→ ±5s（全局快捷键的方向键绑定均需 meta 修饰，无冲突）
+  // 键盘 seek：←/→ ±5s
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
     e.preventDefault()
@@ -173,12 +174,7 @@ const FSProgressBar = memo(function FSProgressBar() {
   }, [])
 
   return (
-    <div className="w-full flex items-center gap-3">
-      <span className="num text-[11.5px] text-ink-faint flex-none w-9">
-        {formatDuration(displayTime)}
-      </span>
-
-      {/* 2px 细进度轨，hover 浮现 accent 小圆点 */}
+    <div className="flex w-full flex-col gap-1.5">
       <div
         ref={progressRef}
         onPointerDown={handlePointerDown}
@@ -189,38 +185,29 @@ const FSProgressBar = memo(function FSProgressBar() {
         aria-valuemin={0}
         aria-valuemax={Math.round(safeDuration)}
         aria-valuenow={Math.round(displayTime)}
-        // 没有 valuetext 时读屏念的是「142」这样的裸秒数——
-        // 数字本身不构成信息，用户要的是「2:22，共 3:11」
+        // 读屏要听到「2:22，共 3:11」，不是裸秒数
         aria-valuetext={t('player.progressAt', {
           current: formatDuration(Math.round(displayTime)),
           total: formatDuration(Math.round(safeDuration)),
         })}
-        className="group/track relative flex-1 h-3.5 flex items-center cursor-pointer select-none touch-none"
+        className="group/track relative flex h-5 w-full cursor-pointer touch-none select-none items-center"
       >
-        {/* 轨道：编辑风 2px 细线；波普 10px 描边胶囊（DESIGN v3 §4.2） */}
-        <div className="relative w-full h-[2px] bg-hair-soft pop:h-[12px] pop:rounded-pill pop:overflow-hidden pop:border pop:border-hair pop:bg-paper-deep">
-          {/* 缓冲进度层（发丝色）*/}
+        <div className="relative h-[5px] w-full overflow-hidden rounded-pill bg-paper-3">
           <div
-            /* --hair 在波普里是不透明墨色（2px 实心描边），缓冲层照抄会把整条轨道涂黑。
-               缓冲是「已经下到哪儿」的弱提示，给它一个浅一档的实色。 */
-            className="absolute left-0 top-0 h-full bg-hair transition-[width] duration-500 pop:bg-ink-faint/30"
-            style={{ width: `${bufferPercent}%` }}
+            className="absolute inset-0 origin-left bg-ink-faint/25 transition-transform duration-500"
+            style={{ transform: `scaleX(${bufferRatio})` }}
           />
-          {/* 播放进度层（朱红 accent）*/}
-          <div
-            className="absolute left-0 top-0 h-full bg-primary transition-[width] duration-200"
-            style={{ width: `${playPercent}%` }}
-          />
+          <div className="absolute inset-0 origin-left bg-primary" style={{ transform: `scaleX(${playRatio})` }} />
         </div>
         <div
-          className="absolute top-1/2 w-2.5 h-2.5 rounded-full bg-primary -translate-x-1/2 -translate-y-1/2 scale-0 group-hover/track:scale-100 transition-transform duration-150 pointer-events-none pop:w-4 pop:h-4 pop:border pop:border-hair pop:bg-surface"
-          style={{ left: `${playPercent}%` }}
+          className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-sheet shadow-press transition-transform duration-150 [@media(hover:hover)]:scale-75 [@media(hover:hover)]:group-hover/track:scale-100"
+          style={{ left: `${playRatio * 100}%` }}
         />
       </div>
-
-      <span className="num text-[11.5px] text-ink-faint flex-none w-9 text-right">
-        {formatDuration(duration)}
-      </span>
+      <div className="flex justify-between text-[12.5px] text-ink-faint">
+        <span className="num">{formatDuration(displayTime)}</span>
+        <span className="num">-{formatDuration(Math.max(0, safeDuration - displayTime))}</span>
+      </div>
     </div>
   )
 })
@@ -230,28 +217,32 @@ export function FullscreenPlayer() {
   const { t } = useT()
 
   // 细粒度 selector：不订阅 currentTime / duration（由子组件处理）
-  const currentSong     = usePlayerStore(s => s.currentSong)
-  const multiSource     = useServerStore(s => s.connectedServerIds.length > 1)
-  const isPlaying       = usePlayerStore(s => s.isPlaying)
+  const currentSong = usePlayerStore(s => s.currentSong)
+  const multiSource = useServerStore(s => s.connectedServerIds.length > 1)
+  const isPlaying = usePlayerStore(s => s.isPlaying)
   const streamBuffering = usePlayerStore(s => s.streamBuffering)
-  const volume          = usePlayerStore(s => s.volume)
-  const muted           = usePlayerStore(s => s.muted)
-  const repeatMode      = usePlayerStore(s => s.repeatMode)
-  const shuffle         = usePlayerStore(s => s.shuffle)
-  const togglePlay      = usePlayerStore(s => s.togglePlay)
-  const next            = usePlayerStore(s => s.next)
-  const setVolume       = usePlayerStore(s => s.setVolume)
-  const toggleMute      = usePlayerStore(s => s.toggleMute)
-  const setRepeatMode   = usePlayerStore(s => s.setRepeatMode)
-  const toggleShuffle   = usePlayerStore(s => s.toggleShuffle)
+  const volume = usePlayerStore(s => s.volume)
+  const muted = usePlayerStore(s => s.muted)
+  const repeatMode = usePlayerStore(s => s.repeatMode)
+  const shuffle = usePlayerStore(s => s.shuffle)
+  const queue = usePlayerStore(s => s.queue)
+  const queueIndex = usePlayerStore(s => s.queueIndex)
+  const shuffledIndexes = usePlayerStore(s => s.shuffledIndexes)
+  const togglePlay = usePlayerStore(s => s.togglePlay)
+  const next = usePlayerStore(s => s.next)
+  const jumpToIndex = usePlayerStore(s => s.jumpToIndex)
+  const setVolume = usePlayerStore(s => s.setVolume)
+  const toggleMute = usePlayerStore(s => s.toggleMute)
+  const setRepeatMode = usePlayerStore(s => s.setRepeatMode)
+  const toggleShuffle = usePlayerStore(s => s.toggleShuffle)
   const toggleFullscreen = usePlayerStore(s => s.toggleFullscreen)
+  const setFullscreen = usePlayerStore(s => s.setFullscreen)
+  const setQueueOpen = usePlayerStore(s => s.setQueueOpen)
   const setCarMode = usePlayerStore(s => s.setCarMode)
   const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
 
   const [showVolumePanel, setShowVolumePanel] = useState(false)
-  // 这两个对话框都要把「打开那一刻的歌」钉住，而不是一直读 currentSong：
-  // 用户填备注、选有效期的这几秒里，上一首可能已经播完自动切走了，
-  // 那时按 currentSong 生成的会是下一首的链接，而且悄无声息。
+  // 两个对话框都要把「打开那一刻的歌」钉住：填写的这几秒里上一首可能已经播完切走了
   const [playlistSong, setPlaylistSong] = useState<Song | null>(null)
   const [shareSong, setShareSong] = useState<Song | null>(null)
   const [sleepOpen, setSleepOpen] = useState(false)
@@ -259,64 +250,30 @@ export function FullscreenPlayer() {
   const setSleepTimer = usePlayerStore(s => s.setSleepTimer)
   const capabilities = useServerCapabilities()
   const activeServerId = useServerStore(s => s.activeServerId)
-  const isMobile = useIsMobileLayout()
-  // 移动端封面 / 歌词 视图切换（桌面双列布局歌词常显，无需切换）
+
+  /* 排法：先看折叠姿态，再看窗口档位与横竖 */
+  const wc = useWindowClass()
+  const posture = useDevicePosture()
+  const landscape = useSyncExternalStore(subscribeOrientation, () => window.matchMedia(LANDSCAPE_QUERY).matches)
+  const layout: Layout = posture === 'tabletop' ? 'tabletop' : wc === 'compact' ? 'stack' : landscape ? 'landscape' : 'portrait'
+
   /**
-   * 封面 / 歌词的选择要留住。
-   *
-   * 这个 state 随 FullscreenPlayer 卸载而消失（浮层关闭 350ms 后就卸载），
-   * 于是每次重新打开都回到封面。偏爱看歌词的人每首歌都要多点一次——
-   * 一天几十次。放进 settings store 里持久化。
+   * 封面 / 歌词 / 接下来 的选择要留住：浮层关闭 350ms 后就卸载，
+   * 偏爱看歌词的人不该每首歌都多点一次。持久化在 settings store。
    */
   const mobileView = useSettingsStore(s => s.playerMobileView)
   const setMobileView = useSettingsStore(s => s.setPlayerMobileView)
+  const paneView: PaneView = mobileView === 'queue' ? 'queue' : 'lyrics'
 
-  const resolvedTheme = useThemeStore(s => s.resolvedTheme)
-  const isLight = resolvedTheme === 'light'
   const coverShape = useSettingsStore(s => s.coverShape)
   const isCircle = coverShape === 'circle'
 
-  const { primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 512 })
+  const { primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 640 })
   const toggleStar = useToggleStar()
-  /* B4：心形按 favorites 能力出现；桌面与移动两处共用 */
   const caps = useSourceCapabilities()
   const canFavoriteCurrent = sourceSupportsFavorites(caps, currentSong?.serverId)
 
-  // 封面取色晕染（DESIGN §1.3 唯一允许的渐变）：提取完成后才渲染，null = 尚未取色
-  const [bleedColors, setBleedColors] = useState<{ primary: string; secondary: string } | null>(null)
-  // 已解析的实际封面 URL（可能来自服务器或自定义 API），由 CoverImage 的 onLoad 回调设置
-  const [resolvedCoverUrl, setResolvedCoverUrl] = useState<string | undefined>(undefined)
-
-  // 切歌时重置取色状态：否则旧封面色会闪在新歌上；新歌无封面时旧晕染永久残留
-  useEffect(() => {
-    setResolvedCoverUrl(undefined)
-    setBleedColors(null)
-  }, [currentSong?.id])
-
-  useEffect(() => {
-    // 优先使用 resolvedCoverUrl（封面加载后触发），没有则用 coverUrl。
-    // 并发取消由 colorExtract 内部的 cancelPendingColorExtraction 保证，沿用原行为。
-    const url = resolvedCoverUrl || coverUrl
-    if (!url) return
-    let alive = true
-    getCachedColors(url).then(colors => {
-      if (!alive) return
-      /**
-       * 取到的原色不能直接用。一张荧光粉的封面会把整块版面染成粉色，
-       * 一张纯黑的会把纸压成灰——那就不是「纸、墨、朱」了。
-       * toPaperSafe 只留色相，把饱和度和明度夹进纸的邻域，
-       * 于是不管封面多刺眼，落到版面上的都是一层薄晕。
-       */
-      setBleedColors({
-        primary: toPaperSafe(colors.primary, !isLight),
-        secondary: toPaperSafe(colors.secondary, !isLight),
-      })
-    })
-    return () => { alive = false }
-  }, [resolvedCoverUrl, coverUrl, isLight])
-
-  /* 三态（阶段 1.8）：加载中 / 无歌词 / 出错都要有可见说法，
-   * 不能让歌词栏永远空白。 */
+  /* 三态（阶段 1.8）：加载中 / 无歌词 / 出错都要有可见说法 */
   const lyricsQuery = useLyricsQuery(
     currentSong?.id ?? '',
     currentSong?.title,
@@ -324,34 +281,29 @@ export function FullscreenPlayer() {
     currentSong?.album,
     currentSong?.path,
     currentSong?.duration,
-    !!currentSong,  // 组件已由 MainLayout 条件挂载，无需检查 isFullscreen
+    !!currentSong,
     currentSong?.serverId  // 歌词要向这首歌自己的音源要，不能问主库
   )
   const lyrics = lyricsQuery.data
-  const lyricsPlaceholder = lyricsQuery.isLoading
-    ? <p className="flex-1 grid place-items-center text-[13px] text-ink-faint animate-pulse">{t('lyrics.loading')}</p>
-    : lyricsQuery.isError
-      /* 中性色（复核 F18）：红只给 destructive 动作，歌词加载失败不是 */
-      ? <p className="flex-1 grid place-items-center text-[13px] text-ink-soft">{t('lyrics.loadFailed')}</p>
-      : <p className="flex-1 grid place-items-center text-[13px] text-ink-faint">{t('lyrics.none')}</p>
+
+  /* 播放顺序（开着随机就按随机序）：悬停排法的封面带用 */
+  const order = useMemo(() => {
+    const identity = queue.map((_, i) => i)
+    if (!shuffle || shuffledIndexes.length !== queue.length || new Set(shuffledIndexes).size !== queue.length) return identity
+    return shuffledIndexes
+  }, [queue, shuffle, shuffledIndexes])
 
   const cycleRepeatMode = () => {
     const modes: RepeatMode[] = ['none', 'all', 'one']
-    const idx = modes.indexOf(repeatMode)
-    setRepeatMode(modes[(idx + 1) % modes.length])
+    setRepeatMode(modes[(modes.indexOf(repeatMode) + 1) % modes.length])
   }
 
   /** 上一首：播放超过 3 秒重播当前歌曲，否则切到上一首 */
   const handlePrev = useCallback(() => {
     const state = usePlayerStore.getState()
-    if (state.currentTime > 3) {
-      seekHowl(0)
-    } else {
-      state.prev()
-    }
+    if (state.currentTime > 3) seekHowl(0)
+    else state.prev()
   }, [])
-
-  const VolumeIcon = muted || volume === 0 ? SpeakerX : volume < 0.5 ? SpeakerLow : SpeakerHigh
 
   const handleToggleStar = () => {
     if (!currentSong) return
@@ -373,580 +325,519 @@ export function FullscreenPlayer() {
     navigate(detailPath('albums', currentSong.albumId, currentSong.serverId))
   }
 
+  /* 窄窗口：从顶栏或封面往下拖，整页跟手，过 120px 松手就收起 */
+  const [dragY, setDragY] = useState(0)
+  const dragStart = useRef<{ y: number; id: number } | null>(null)
+  const onDragDown = (e: PointerEvent<HTMLElement>) => {
+    if (layout !== 'stack' || e.pointerType === 'mouse') return
+    dragStart.current = { y: e.clientY, id: e.pointerId }
+  }
+  const onDragMove = (e: PointerEvent<HTMLElement>) => {
+    const s = dragStart.current
+    if (!s || s.id !== e.pointerId) return
+    setDragY(Math.max(0, e.clientY - s.y))
+  }
+  const onDragEnd = (e: PointerEvent<HTMLElement>) => {
+    const s = dragStart.current
+    dragStart.current = null
+    if (!s || s.id !== e.pointerId) return
+    if (e.clientY - s.y > 120) setFullscreen(false)
+    setDragY(0)
+  }
+  const dragHandlers = { onPointerDown: onDragDown, onPointerMove: onDragMove, onPointerUp: onDragEnd, onPointerCancel: onDragEnd }
+
+  /* 悬停排法的封面带：横滑切歌 */
+  const carouselStart = useRef<{ x: number; id: number } | null>(null)
+
   if (!currentSong) return null
 
   const repeatLabel = repeatMode === 'one'
     ? t('player.repeatOne')
     : repeatMode === 'all' ? t('player.repeatAll') : t('player.repeatOff')
+  const playLabel = t(isPlaying && streamBuffering ? 'player.buffering' : isPlaying ? 'player.pause' : 'player.play')
+  const VolumeIcon = muted || volume === 0 ? SpeakerX : volume < 0.5 ? SpeakerLow : SpeakerHigh
+  const fileType = currentSong.contentType?.split('/')[1]?.toUpperCase()
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-paper text-ink">
-      {/* 封面取色淡晕染（唯一允许的渐变，DESIGN §1.3：浅色 ≤0.35，深色调低） */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
-        style={{
-          /*
-           * 晕染的浓度由皮肤决定，不在这里算：
-           * 纸·墨·朱靠它把纸面染出氛围；糖果·波普是平涂体系，
-           * 同样浓度会把奶油底糊成一片脏黄，所以那张皮把它压到很轻，
-           * 只留一点「这首歌是什么颜色」的暗示。见 index.css --cover-bleed-opacity。
-           */
-          opacity: bleedColors ? 'var(--cover-bleed-opacity)' : 0,
-          background: bleedColors
-            ? `radial-gradient(55% 60% at 20% 12%, ${bleedColors.primary} 0%, transparent 72%),` +
-              ` radial-gradient(45% 50% at 86% 92%, ${bleedColors.secondary} 0%, transparent 75%)`
-            : 'none',
-        }}
+  /* ---------- 共用的几块 ---------- */
+
+  const cover = (className: string, style?: CSSProperties) => (
+    <div
+      className={cn(
+        'cover-slab relative aspect-square flex-none overflow-hidden',
+        isCircle ? 'rounded-full animate-spin-vinyl' : 'rounded-lg',
+        className
+      )}
+      style={{ ...style, ...(isCircle ? { animationPlayState: isPlaying ? 'running' : 'paused' } : null) }}
+    >
+      <CoverImage
+        key={currentSong.id}
+        primary={coverUrl}
+        fallback={coverFallback}
+        alt={currentSong.album}
+        className="h-full w-full"
+        eager
+        songId={currentSong.id}
+        customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
       />
+    </div>
+  )
 
-      {/* 顶部栏：左收起 / 中央「正在播放」+ 曲名 / 右更多 — Mac 上多留 padding 避开红黄绿按钮；
-          移动端避让状态栏安全区 */}
-      <div
-        className={cn(
-          "flex items-center justify-between px-6 pb-3 flex-shrink-0 relative z-10 border-b border-hair-soft",
-          isMac ? "pt-12" : "pt-5"
-        )}
-        style={isMobile ? { paddingTop: 'max(env(safe-area-inset-top), 12px)' } : undefined}
-      >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button onClick={toggleFullscreen} aria-label={t('player.collapse')} className={cn(lineCircleBtn, 'w-9 h-9')}>
-              <CaretDown size={18} />
+  const songActions = (
+    <div className="flex flex-none items-center gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button onClick={() => setPlaylistSong(currentSong)} aria-label={t('action.addToPlaylist')} className={cn(softBtn, 'h-10 w-10')}>
+            <ListPlus size={20} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{t('action.addToPlaylist')}</TooltipContent>
+      </Tooltip>
+      {canFavoriteCurrent && (
+        <button
+          onClick={handleToggleStar}
+          disabled={toggleStar.isPending}
+          aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
+          aria-pressed={!!currentSong.starred}
+          className={cn(softBtn, 'h-10 w-10', currentSong.starred && 'text-sem-fav')}
+        >
+          <Heart size={21} weight={currentSong.starred ? 'fill' : 'regular'} />
+        </button>
+      )}
+    </div>
+  )
+
+  const titleBlock = (size: 'lg' | 'md', centered = false) => (
+    <div className={cn('flex items-start gap-3', centered && 'justify-center text-center')}>
+      <div className="min-w-0 flex-1">
+        <p
+          key={currentSong.id}
+          className={cn(
+            'line-clamp-2 font-display font-semibold tracking-[-0.02em] text-ink animate-page-turn motion-reduce:animate-none',
+            size === 'lg' ? 'text-[30px] leading-[1.12]' : 'text-[22px] leading-tight'
+          )}
+        >
+          {spaceCJK(currentSong.title)}
+        </p>
+        <p className={cn('mt-1.5 flex min-w-0 flex-wrap gap-x-3 text-[15px] text-ink-faint', centered && 'justify-center')}>
+          {currentSong.artist && (
+            <button
+              onClick={handleNavigateArtist}
+              className={cn('truncate', currentSong.artistId ? 'hover:text-primary' : 'cursor-default')}
+            >
+              {spaceCJK(currentSong.artist)}
             </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{t('player.collapse')}</TooltipContent>
-        </Tooltip>
+          )}
+          {currentSong.album && (
+            <button
+              onClick={handleNavigateAlbum}
+              className={cn('truncate', currentSong.albumId ? 'hover:text-primary' : 'cursor-default')}
+            >
+              {spaceCJK(currentSong.album)}
+            </button>
+          )}
+        </p>
+      </div>
+      {!centered && songActions}
+    </div>
+  )
 
-        <div className="text-center min-w-0 px-4">
-          <p className="text-[11px] tracking-[0.3em] text-ink-faint">{t('player.nowPlaying')}</p>
-          <p className="font-serif text-[13.5px] font-semibold mt-1 truncate max-w-md mx-auto text-ink inline-flex items-center gap-1.5">
+  const quality = (fileType || currentSong.bitRate) && (
+    <p className="flex justify-center gap-3 text-[12.5px] text-ink-faint">
+      {fileType && <span>{fileType}</span>}
+      {currentSong.bitRate && <span className="num">{currentSong.bitRate} kbps</span>}
+    </p>
+  )
+
+  const volumeControl = (
+    <div className="relative">
+      {showVolumePanel && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setShowVolumePanel(false)} />
+          <div className="glass absolute bottom-12 right-0 z-20 flex flex-col items-center gap-2 rounded-md px-4 py-5">
+            <span className="num text-xs text-ink-soft">{Math.round((muted ? 0 : volume) * 100)}%</span>
+            <Slider
+              orientation="vertical"
+              value={[muted ? 0 : volume]}
+              max={1}
+              /* 与全局快捷键 ⌘↑/⌘↓ 的 5% 对齐 */
+              step={0.05}
+              onValueChange={([v]) => setVolume(v)}
+              className="h-32"
+              aria-label={t('player.volume')}
+              aria-valuetext={`${Math.round((muted ? 0 : volume) * 100)}%`}
+            />
+            <button onClick={toggleMute} aria-label={t('player.mute')} aria-pressed={muted} className={cn(softBtn, 'h-9 w-9')}>
+              <VolumeIcon size={16} />
+            </button>
+          </div>
+        </>
+      )}
+      <button
+        onClick={() => setShowVolumePanel(v => !v)}
+        aria-label={t('player.volume')}
+        aria-expanded={showVolumePanel}
+        className={cn(softBtn, 'h-11 w-11')}
+      >
+        <VolumeIcon size={20} />
+      </button>
+    </div>
+  )
+
+  const transport = (withVolume: boolean) => (
+    <div className="mx-auto flex w-full max-w-[440px] items-center justify-between gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button onClick={toggleShuffle} className={cn(softBtn, 'h-11 w-11')} aria-label={t('player.shuffle')} aria-pressed={shuffle}>
+            {shuffle ? <Shuffle size={20} /> : <ArrowsDownUp size={20} />}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{shuffle ? t('player.shuffle') : t('player.inOrder')}</TooltipContent>
+      </Tooltip>
+      <button onClick={handlePrev} className={cn(softBtn, 'h-14 w-14 text-ink')} aria-label={t('player.previous')}>
+        <SkipBack size={28} weight="fill" />
+      </button>
+      {/* 签名部件：嵌在凹槽里的橡胶播放键 */}
+      <button
+        onClick={togglePlay}
+        className={cn('rubber-key mx-2 h-[68px] w-[68px]', isPlaying && streamBuffering && 'animate-buffering')}
+        aria-label={playLabel}
+        aria-busy={isPlaying && streamBuffering}
+      >
+        {isPlaying ? <Pause size={28} weight="fill" /> : <Play size={28} weight="fill" className="ml-1" />}
+      </button>
+      <button onClick={() => next()} className={cn(softBtn, 'h-14 w-14 text-ink')} aria-label={t('player.next')}>
+        <SkipForward size={28} weight="fill" />
+      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={cycleRepeatMode}
+            className={cn(softBtn, 'h-11 w-11')}
+            aria-label={t('player.repeatWithMode', { mode: repeatLabel })}
+            aria-pressed={repeatMode !== 'none'}
+          >
+            {repeatMode === 'one' ? <RepeatOnce size={20} /> : <Repeat size={20} />}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{repeatLabel}</TooltipContent>
+      </Tooltip>
+      {withVolume && volumeControl}
+    </div>
+  )
+
+  const lyricsSheet = (className?: string) => (
+    <div className={cn('paper-grid relative flex min-h-0 flex-col overflow-hidden rounded-lg', className)}>
+      {lyrics ? (
+        <LyricDisplay lines={lyrics.lines} variant="fullscreen" className="min-h-0 flex-1" />
+      ) : (
+        <p
+          className={cn(
+            'grid flex-1 place-items-center px-6 text-center text-[14px]',
+            lyricsQuery.isLoading ? 'animate-pulse text-ink-faint' : lyricsQuery.isError ? 'text-ink-soft' : 'text-ink-faint'
+          )}
+        >
+          {lyricsQuery.isLoading ? t('lyrics.loading') : lyricsQuery.isError ? t('lyrics.loadFailed') : t('lyrics.none')}
+        </p>
+      )}
+    </div>
+  )
+
+  const viewTabs = (views: Array<'cover' | PaneView>, centered = false) => (
+    <div
+      role="tablist"
+      aria-label={t('player.nowPlaying')}
+      className={cn('inline-flex flex-none gap-1 rounded-pill bg-paper-deep p-1', centered ? 'self-center' : 'self-start')}
+    >
+      {views.map(view => {
+        const on = views.includes('cover') ? mobileView === view : paneView === view
+        return (
+          <button
+            key={view}
+            role="tab"
+            aria-selected={on}
+            onClick={() => setMobileView(view)}
+            className={cn('seg-option h-9 px-4 text-[13.5px] font-medium text-ink-soft', on && 'is-on')}
+          >
+            {view === 'cover' ? t('player.tabCover') : view === 'lyrics' ? t('player.tabLyrics') : t('shell.upNext')}
+          </button>
+        )
+      })}
+    </div>
+  )
+
+  const pane = (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      {viewTabs(['lyrics', 'queue'])}
+      {paneView === 'queue'
+        ? <UpNextList count={40} className="min-h-0 flex-1 overflow-y-auto" onOpenQueue={() => { setFullscreen(false); setQueueOpen(true) }} />
+        : lyricsSheet('flex-1')}
+    </div>
+  )
+
+  const header = (
+    <header
+      className="relative z-10 flex flex-none items-center gap-2 px-4 pb-2 regular:px-6"
+      style={{ paddingTop: needsTrafficLightInset ? 40 : 'calc(env(safe-area-inset-top) + 10px)' }}
+      {...dragHandlers}
+    >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button onClick={toggleFullscreen} aria-label={t('player.collapse')} className={cn(softBtn, 'h-11 w-11 bg-sheet shadow-press')}>
+            <CaretDown size={20} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{t('player.collapse')}</TooltipContent>
+      </Tooltip>
+
+      <div className="min-w-0 flex-1 text-center">
+        <p className="text-[12.5px] text-ink-faint">{t('player.nowPlaying')}</p>
+        {layout !== 'landscape' && (
+          <p className="mx-auto inline-flex max-w-md items-center gap-1.5 truncate text-[14px] font-semibold text-ink">
             <span className="truncate">{currentSong.title}</span>
             {multiSource && <SourceBadge serverId={currentSong.serverId} />}
           </p>
-        </div>
-
-        {/* 右上：更多菜单 */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button aria-label={t('action.more')} className={cn(lineCircleBtn, 'w-9 h-9')}>
-              <DotsThree size={20} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
-            <div className="px-3 py-2.5 border-b border-hair-soft">
-              <p className="font-serif font-semibold text-sm truncate">{currentSong.title}</p>
-              <p className="text-xs text-ink-soft truncate mt-0.5">{currentSong.artist}</p>
-            </div>
-            {currentSong.artistId && (
-              <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2 cursor-pointer">
-                <MicrophoneStage size={16} />
-                {t('player.viewArtist', { name: currentSong.artist })}
-              </DropdownMenuItem>
-            )}
-            {currentSong.albumId && (
-              <DropdownMenuItem onClick={handleNavigateAlbum} className="gap-2 cursor-pointer">
-                <VinylRecord size={16} />
-                {t('player.viewAlbum', { name: currentSong.album })}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => { toggleFullscreen(); navigate(detailPath('songs', currentSong.id, currentSong.serverId), { state: { song: currentSong } }) }}
-              className="gap-2 cursor-pointer"
-            >
-              <FileText size={16} />
-              {t('player.viewSongDetail')}
-            </DropdownMenuItem>
-            {capabilities.shares && currentSong.serverId === activeServerId && (
-              <DropdownMenuItem
-                onClick={() => setShareSong(currentSong)}
-                className="gap-2 cursor-pointer"
-              >
-                <ShareNetwork size={16} />
-                {t('share.link')}
-              </DropdownMenuItem>
-            )}
-            {/*
-              睡眠定时此前只在桌面播放条上有入口，而它最常用的场景恰恰是
-              「躺着用手机听着睡」——那台设备上完全够不着。手机端的传输键
-              一排已经很挤（注释里写着为此省掉了音量键），所以放进这个菜单。
-            */}
-            <DropdownMenuItem
-              onSelect={e => { e.preventDefault(); setSleepOpen(true) }}
-              className="gap-2 cursor-pointer"
-            >
-              <Moon size={16} />
-              {t('player.sleepTimer')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => { toggleFullscreen(); setCarMode(true) }}
-              className="gap-2 cursor-pointer"
-            >
-              <SteeringWheel size={16} />
-              {t('player.carMode')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <div className="px-3 py-2 space-y-1.5">
-              <p className="text-[11px] tracking-[0.2em] text-ink-faint mb-1.5">{t('player.songInfo')}</p>
-              {currentSong.duration > 0 && (
-                <div className="flex items-center gap-2 text-xs text-ink-soft">
-                  <Clock size={12} className="flex-shrink-0" />
-                  <span className="num">{formatDuration(currentSong.duration)}</span>
-                </div>
-              )}
-              {currentSong.bitRate && (
-                <div className="flex items-center gap-2 text-xs text-ink-soft">
-                  <MusicNote size={12} className="flex-shrink-0" />
-                  <span className="num">{currentSong.bitRate} kbps</span>
-                  {currentSong.contentType && <span className="text-ink-faint">· {currentSong.contentType.split('/')[1]?.toUpperCase()}</span>}
-                </div>
-              )}
-              {currentSong.year && (
-                <div className="flex items-center gap-2 text-xs text-ink-soft">
-                  <Info size={12} className="flex-shrink-0" />
-                  <span className="num">{t('song.year', { year: currentSong.year })}</span>
-                  {currentSong.genre && <span className="text-ink-faint">· {currentSong.genre}</span>}
-                </div>
-              )}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        )}
       </div>
 
-      {/* 移动端：单列布局（封面 / 歌词 切换视图），避让系统安全区 */}
-      {isMobile ? (
-        <div
-          className="flex flex-1 min-h-0 flex-col px-6 relative z-10"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
-        >
-          {/* 封面 / 歌词 切换（沿用 TopNav 的 accent 短划线语言） */}
-          <div className="flex items-center justify-center gap-8 flex-none pt-1 pb-2">
-            {(['cover', 'lyrics'] as const).map(view => (
-              <button
-                key={view}
-                onClick={() => setMobileView(view)}
-                className={cn(
-                  'relative py-1.5 text-[13px] font-medium tracking-[0.08em] transition-colors duration-200',
-                  mobileView === view
-                    ? "text-primary after:absolute after:left-1/2 after:-translate-x-1/2 after:bottom-0 after:w-5 after:h-[2px] after:bg-primary after:content-['']"
-                    : 'text-ink-soft'
-                )}
-              >
-                {view === 'cover' ? t('player.tabCover') : t('player.tabLyrics')}
-              </button>
-            ))}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button aria-label={t('action.more')} className={cn(softBtn, 'h-11 w-11 bg-sheet shadow-press')}>
+            <DotsThree size={22} weight="bold" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64">
+          <div className="mb-1 border-b border-hair-soft px-3 py-2.5">
+            <p className="truncate text-sm font-semibold">{currentSong.title}</p>
+            <p className="mt-0.5 truncate text-xs text-ink-faint">{currentSong.artist}</p>
           </div>
-
-          {mobileView === 'cover' ? (
-            <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-5">
-              <div
-                className={cn(
-                  'cover-slab relative aspect-square w-full max-w-[min(68vw,30vh)] overflow-hidden shadow-float',
-                  isCircle ? 'rounded-full animate-spin-vinyl' : 'rounded-md'
-                )}
-                style={isCircle ? { animationPlayState: isPlaying ? 'running' : 'paused' } : undefined}
-              >
-                <CoverImage
-                  key={currentSong.id}
-                  primary={coverUrl}
-                  fallback={coverFallback}
-                  alt={currentSong.album}
-                  className="w-full h-full"
-                  eager
-                  songId={currentSong.id}
-                  customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
-                  onImageResolved={setResolvedCoverUrl}
-                />
-              </div>
-
-              <div className="w-full text-center">
-                <p className="font-serif font-black text-[21px] leading-[1.25] tracking-[-0.01em] text-ink line-clamp-2">
-                  {currentSong.title}
-                </p>
-                <div className="flex items-center justify-center gap-1.5 mt-1.5 text-[13px] tracking-[0.05em] text-ink-soft">
-                  {currentSong.artist && (
-                    <button
-                      onClick={handleNavigateArtist}
-                      className={currentSong.artistId ? whoLinkCls : 'truncate cursor-default'}
-                    >
-                      {currentSong.artist}
-                    </button>
-                  )}
-                  {currentSong.artist && currentSong.album && (
-                    <span className="flex-none text-ink-faint">·</span>
-                  )}
-                  {currentSong.album && (
-                    <button
-                      onClick={handleNavigateAlbum}
-                      className={currentSong.albumId ? whoLinkCls : 'truncate cursor-default'}
-                    >
-                      {currentSong.album}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setPlaylistSong(currentSong)}
-                  className={cn(lineCircleBtn, 'w-8 h-8')}
-                  aria-label={t('action.addToPlaylist')}
-                >
-                  <Queue size={16} />
-                </button>
-                {canFavoriteCurrent && (
-                <button
-                  onClick={handleToggleStar}
-                  disabled={toggleStar.isPending}
-                  className={cn(
-                    lineCircleBtn,
-                    'w-8 h-8',
-                    currentSong.starred && 'text-sem-fav border-sem-fav'
-                  )}
-                  aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
-                >
-                  <Heart size={16} weight={currentSong.starred ? 'fill' : 'regular'} />
-                </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 min-h-0 flex flex-col">
-              {lyrics ? (
-                <LyricDisplay
-                  lines={lyrics.lines}
-                  variant="fullscreen"
-                  className="flex-1 min-h-0"
-                />
-              ) : (
-                lyricsPlaceholder
-              )}
-            </div>
+          {currentSong.artistId && (
+            <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2">
+              <MicrophoneStage size={16} />
+              {t('player.viewArtist', { name: currentSong.artist })}
+            </DropdownMenuItem>
           )}
-
-          <div className="flex-none pt-3 flex flex-col gap-4">
-            <FSProgressBar />
-            {/* 传输键组：手机有物理音量键，省掉音量按钮避免换行 */}
-            <div className="flex items-center justify-center gap-4">
-              <button
-                onClick={toggleShuffle}
-                className={cn(lineCircleBtn, 'w-9 h-9', shuffle && 'text-primary border-primary')}
-                aria-label={t('player.shuffle')}
-                aria-pressed={shuffle}
-              >
-                {shuffle ? <Shuffle size={17} /> : <ArrowsDownUp size={17} />}
-              </button>
-              <button onClick={handlePrev} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.previous')}>
-                <SkipBack size={20} />
-              </button>
-              <button
-                onClick={togglePlay}
-                className={cn(
-                  'w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform duration-200',
-                  isPlaying && streamBuffering && 'animate-buffering'
-                )}
-                aria-label={
-                  isPlaying && streamBuffering ? t('player.buffering')
-                    : isPlaying ? t('player.pause') : t('player.play')
-                }
-                aria-busy={isPlaying && streamBuffering}
-              >
-                {isPlaying
-                  ? <Pause size={22} weight="fill" />
-                  : <Play size={22} weight="fill" className="ml-0.5" />
-                }
-              </button>
-              <button onClick={() => next()} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.next')}>
-                <SkipForward size={20} />
-              </button>
-              <button
-                onClick={cycleRepeatMode}
-                className={cn(lineCircleBtn, 'w-9 h-9', repeatMode !== 'none' && 'text-primary border-primary')}
-                aria-label={t('player.repeatWithMode', { mode: repeatLabel })}
-                aria-pressed={repeatMode !== 'none'}
-              >
-                {repeatMode === 'one' ? <RepeatOnce size={17} /> : <Repeat size={17} />}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-      /* 桌面端：左列封面+信息+控制（max 440px）｜右列歌词流 */
-      <div className="flex flex-1 min-h-0 items-center justify-center gap-16 xl:gap-24 px-10 pb-8 relative z-10 w-full max-w-[1360px] mx-auto">
-        {/* 左列 */}
-        <div className="w-full max-w-[min(440px,52vh)] flex-none flex flex-col gap-6">
-          {/* 专辑封面：圆角 6px + 唯一允许的浮层淡投影（DESIGN §1.3 / §4.3） */}
-          <div
-            className={cn(
-              'cover-slab relative aspect-square w-full overflow-hidden shadow-float',
-              isCircle ? 'rounded-full animate-spin-vinyl' : 'rounded-md'
-            )}
-            style={isCircle ? {
-              animationPlayState: isPlaying ? 'running' : 'paused',
-            } : undefined}
+          {currentSong.albumId && (
+            <DropdownMenuItem onClick={handleNavigateAlbum} className="gap-2">
+              <VinylRecord size={16} />
+              {t('player.viewAlbum', { name: currentSong.album })}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => { toggleFullscreen(); navigate(detailPath('songs', currentSong.id, currentSong.serverId), { state: { song: currentSong } }) }}
+            className="gap-2"
           >
-            <CoverImage
-              key={currentSong.id}
-              primary={coverUrl}
-              fallback={coverFallback}
-              alt={currentSong.album}
-              className="w-full h-full"
-              eager
-              songId={currentSong.id}
-              customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
-              onImageResolved={setResolvedCoverUrl}
-            />
-          </div>
-
-          {/* 衬线大曲名 / 歌手·专辑链接 + 喜欢 / 加入歌单 */}
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="font-serif font-black text-[30px] leading-[1.2] tracking-[-0.01em] text-ink line-clamp-2">
-                {currentSong.title}
-              </p>
-              <div className="flex items-center gap-1.5 mt-2 min-w-0 text-[13.5px] tracking-[0.05em] text-ink-soft">
-                {currentSong.artist && (
-                  <button
-                    onClick={handleNavigateArtist}
-                    className={currentSong.artistId ? whoLinkCls : 'truncate cursor-default'}
-                  >
-                    {currentSong.artist}
-                  </button>
-                )}
-                {currentSong.artist && currentSong.album && (
-                  <span className="flex-none text-ink-faint">·</span>
-                )}
-                {currentSong.album && (
-                  <button
-                    onClick={handleNavigateAlbum}
-                    className={currentSong.albumId ? whoLinkCls : 'truncate cursor-default'}
-                  >
-                    {currentSong.album}
-                  </button>
-                )}
+            <FileText size={16} />
+            {t('player.viewSongDetail')}
+          </DropdownMenuItem>
+          {capabilities.shares && currentSong.serverId === activeServerId && (
+            <DropdownMenuItem onClick={() => setShareSong(currentSong)} className="gap-2">
+              <ShareNetwork size={16} />
+              {t('share.link')}
+            </DropdownMenuItem>
+          )}
+          {/* 睡眠定时最常用的场景是「躺着用手机听着睡」：手机上的入口在这里 */}
+          <DropdownMenuItem onSelect={e => { e.preventDefault(); setSleepOpen(true) }} className="gap-2">
+            <Moon size={16} />
+            {t('player.sleepTimer')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => { toggleFullscreen(); setCarMode(true) }} className="gap-2">
+            <SteeringWheel size={16} />
+            {t('player.carMode')}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <div className="space-y-1.5 px-3 py-2">
+            <p className="mb-1.5 text-[12.5px] font-medium text-ink-faint">{t('player.songInfo')}</p>
+            {currentSong.duration > 0 && (
+              <div className="flex items-center gap-2 text-xs text-ink-soft">
+                <Clock size={12} className="flex-shrink-0" />
+                <span className="num">{formatDuration(currentSong.duration)}</span>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-none pt-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setPlaylistSong(currentSong)}
-                    aria-label={t('action.addToPlaylist')}
-                    className={cn(lineCircleBtn, 'w-8 h-8')}
-                  >
-                    <Queue size={17} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t('action.addToPlaylist')}</TooltipContent>
-              </Tooltip>
-              {canFavoriteCurrent && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleToggleStar}
-                    disabled={toggleStar.isPending}
-                    aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
-                    className={cn(
-                      lineCircleBtn,
-                      'w-8 h-8',
-                      currentSong.starred && 'text-primary border-primary hover:text-primary'
-                    )}
-                  >
-                    <Heart size={17} weight={currentSong.starred ? 'fill' : 'regular'} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{currentSong.starred ? t('player.unfavorite') : t('player.favorite')}</TooltipContent>
-              </Tooltip>
-              )}
-            </div>
+            )}
+            {currentSong.bitRate && (
+              <div className="flex items-center gap-2 text-xs text-ink-soft">
+                <MusicNote size={12} className="flex-shrink-0" />
+                <span className="num">{currentSong.bitRate} kbps</span>
+                {fileType && <span className="text-ink-faint">{fileType}</span>}
+              </div>
+            )}
+            {currentSong.year && (
+              <div className="flex items-center gap-2 text-xs text-ink-soft">
+                <Info size={12} className="flex-shrink-0" />
+                <span className="num">{t('song.year', { year: currentSong.year })}</span>
+                {currentSong.genre && <span className="text-ink-faint">{currentSong.genre}</span>}
+              </div>
+            )}
           </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </header>
+  )
 
-          {/* 进度行 */}
-          <FSProgressBar />
+  /* ---------- 四种排法 ---------- */
 
-          {/* 传输键组：主键实心朱红圆（§4.1 唯一例外），其余细线圆 */}
-          <div className="flex items-center justify-center gap-4">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={toggleShuffle}
-                  className={cn(
-                    lineCircleBtn,
-                    'w-9 h-9',
-                    shuffle && 'text-primary border-primary hover:text-primary'
-                  )}
-                  aria-label={t('player.shuffle')}
-                  aria-pressed={shuffle}
-                >
-                  {shuffle ? <Shuffle size={17} /> : <ArrowsDownUp size={17} />}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">{shuffle ? t('player.shuffle') : t('player.inOrder')}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {/* Tooltip 的文字对读屏不可见——它只在悬停时出现，
-                    所以每个按钮都要自带 aria-label，否则整排读作「button button button」 */}
-                <button onClick={handlePrev} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.previous')}>
-                  <SkipBack size={20} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">{t('player.previous')}</TooltipContent>
-            </Tooltip>
-
-            <button
-              onClick={togglePlay}
-              className={cn(
-                'w-[52px] h-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-transform duration-200 ease-[var(--ease)] hover:scale-105 active:scale-95',
-                isPlaying && streamBuffering && 'animate-buffering'
-              )}
-              aria-label={
-                isPlaying && streamBuffering ? t('player.buffering')
-                  : isPlaying ? t('player.pause') : t('player.play')
-              }
-              aria-busy={isPlaying && streamBuffering}
-            >
-              {isPlaying
-                ? <Pause size={22} weight="fill" />
-                : <Play size={22} weight="fill" className="ml-0.5" />
-              }
-            </button>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button onClick={() => next()} className={cn(lineCircleBtn, 'w-10 h-10')} aria-label={t('player.next')}>
-                  <SkipForward size={20} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">{t('player.next')}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={cycleRepeatMode}
-                  className={cn(
-                    lineCircleBtn,
-                    'w-9 h-9',
-                    repeatMode !== 'none' && 'text-primary border-primary hover:text-primary'
-                  )}
-                  aria-label={repeatLabel}
-                >
-                  {repeatMode === 'one' ? <RepeatOnce size={17} /> : <Repeat size={17} />}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">{repeatLabel}</TooltipContent>
-            </Tooltip>
-
-            {/* 音量按钮 + 竖向浮层（纸面玻璃 + 淡投影） */}
-            <div className="relative">
-              {showVolumePanel && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowVolumePanel(false)} />
-                  <div className="absolute bottom-12 right-0 z-20 flex flex-col items-center gap-2 glass shadow-float rounded-md px-4 py-5">
-                    <span className="num text-xs text-ink-soft">
-                      {Math.round((muted ? 0 : volume) * 100)}%
-                    </span>
-                    <Slider
-                      orientation="vertical"
-                      value={[muted ? 0 : volume]}
-                      max={1}
-                      /* 与全局快捷键 ⌘↑/⌘↓ 的 5% 对齐：同一个动作不该有两套手感。
-                         0.01 意味着焦点落在滑轨上时要按 100 下才能从静音到满格。 */
-                      step={0.05}
-                      onValueChange={([v]) => {
-                        // setVolume 内部已将 muted 置为 false，这里不能再 toggleMute（会重新静音）
-                        setVolume(v)
-                      }}
-                      className="h-32"
-                      aria-label={t('player.volume')}
-                      // 不给 valuetext 的话读屏念的是「0.65」
-                      aria-valuetext={`${Math.round((muted ? 0 : volume) * 100)}%`}
-                    />
-                    <button
-                      onClick={toggleMute}
-                      aria-label={t('player.mute')}
-                      className="text-ink-soft hover:text-ink transition-colors active:scale-95"
-                    >
-                      <VolumeIcon size={16} />
-                    </button>
-                  </div>
-                </>
-              )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setShowVolumePanel(v => !v)}
-                    aria-label={t('player.volume')}
-                    aria-expanded={showVolumePanel}
-                    className={cn(
-                      lineCircleBtn,
-                      'w-9 h-9',
-                      showVolumePanel && 'text-ink border-ink hover:text-ink hover:border-ink'
-                    )}
-                  >
-                    <VolumeIcon size={17} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  {t('player.volume')} <span className="num">{Math.round((muted ? 0 : volume) * 100)}%</span>
-                </TooltipContent>
-              </Tooltip>
+  let body: ReactNode
+  if (layout === 'stack') {
+    body = (
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-3 px-5" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
+        {viewTabs(['cover', 'lyrics', 'queue'], true)}
+        <div className="flex min-h-0 flex-1 flex-col [container-type:size]">
+          {mobileView === 'cover' ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-6" {...dragHandlers}>
+              {cover('', { width: 'min(100%, 56cqh)' })}
+              <div className="w-full">{titleBlock('md')}</div>
             </div>
-          </div>
-        </div>
-
-        {/* 右列：歌词流（上下 22% 渐隐由 LyricDisplay 处理） */}
-        <div className="hidden md:flex flex-1 max-w-xl self-stretch min-h-0 flex-col">
-          <p className="flex items-center gap-3.5 flex-none pb-2 text-[11px] tracking-[0.34em] text-ink-faint select-none">
-            <span className="whitespace-nowrap">{t('player.lyricsHeading')}<span className="latin-tag"> · LYRICS</span></span>
-            <span className="flex-1 h-px bg-hair-soft" />
-          </p>
-          {lyrics ? (
-            <LyricDisplay
-              lines={lyrics.lines}
-              variant="fullscreen"
-              className="flex-1 min-h-0"
-            />
           ) : (
-            // 加载中 / 无歌词 / 出错都有说法（阶段 1.8），不再永远空列
-            lyricsPlaceholder
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="flex items-center gap-3">
+                {cover('h-14 w-14 !rounded-md')}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[16px] font-semibold text-ink">{spaceCJK(currentSong.title)}</p>
+                  <p className="truncate text-[13.5px] text-ink-faint">{spaceCJK(currentSong.artist)}</p>
+                </div>
+                {songActions}
+              </div>
+              {mobileView === 'queue'
+                ? <UpNextList count={40} className="min-h-0 flex-1 overflow-y-auto" onOpenQueue={() => { setFullscreen(false); setQueueOpen(true) }} />
+                : lyricsSheet('flex-1')}
+            </div>
           )}
         </div>
+        <div className="flex flex-none flex-col gap-3 pt-1">
+          <FSProgressBar />
+          {transport(false)}
+        </div>
       </div>
-      )}
+    )
+  } else if (layout === 'portrait') {
+    body = (
+      <div
+        className="relative z-10 mx-auto grid min-h-0 w-full max-w-[900px] flex-1 grid-rows-[auto_minmax(0,1fr)] gap-7 px-6 regular:px-8"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}
+      >
+        <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] items-center gap-7">
+          {cover('w-full')}
+          <div className="flex min-w-0 flex-col gap-5">
+            {titleBlock('md')}
+            <FSProgressBar />
+            {quality}
+            {transport(false)}
+          </div>
+        </div>
+        {pane}
+      </div>
+    )
+  } else if (layout === 'landscape') {
+    body = (
+      <div
+        className="relative z-10 mx-auto grid min-h-0 w-full max-w-[1440px] flex-1 grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] gap-10 px-8 wide:gap-16 wide:px-14"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
+      >
+        <div className="flex min-h-0 flex-col justify-center gap-5 [container-type:size]">
+          {cover('mx-auto', { width: 'min(100%, calc(100cqh - 270px))' })}
+          {titleBlock('lg')}
+          <FSProgressBar />
+          {transport(wc === 'wide')}
+        </div>
+        {pane}
+      </div>
+    )
+  } else {
+    /* 悬停：上半是歌词（含顶栏），下半是封面带与控制；两半各占一半，正好对齐折痕 */
+    const pos = order.indexOf(queueIndex)
+    const slots = [-2, -1, 0, 1, 2].map(k => (pos >= 0 ? order[pos + k] : undefined))
+    body = (
+      <div className="relative z-10 grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="flex min-h-0 flex-col">
+          {header}
+          {lyricsSheet('mx-5 mb-4 flex-1')}
+        </div>
+        <div className="flex min-h-0 flex-col gap-3 px-5 pt-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
+          <div
+            className="grid min-h-0 flex-1 grid-cols-[1fr_1fr_1.9fr_1fr_1fr] items-center gap-3"
+            style={{ touchAction: 'pan-y' }}
+            onPointerDown={e => { carouselStart.current = { x: e.clientX, id: e.pointerId } }}
+            onPointerUp={e => {
+              const s = carouselStart.current
+              carouselStart.current = null
+              if (!s || s.id !== e.pointerId || Math.abs(e.clientX - s.x) < 50) return
+              if (e.clientX < s.x) next(); else handlePrev()
+            }}
+          >
+            {slots.map((qi, k) => {
+              const song = qi !== undefined ? queue[qi] : undefined
+              if (!song) return <span key={k} />
+              const url = song.coverArt ? findAdapterFor(song.serverId)?.getCoverUrl(song.coverArt, 320) ?? undefined : undefined
+              return (
+                <button
+                  key={`${song.id}-${qi}`}
+                  onClick={() => qi !== undefined && qi !== queueIndex && jumpToIndex(qi)}
+                  className={cn(
+                    'aspect-square w-full overflow-hidden rounded-md shadow-card transition-[transform,opacity] duration-300',
+                    k === 2 ? 'shadow-float' : 'scale-90 opacity-55 hover:opacity-80'
+                  )}
+                  aria-label={song.title}
+                  aria-current={k === 2 ? 'true' : undefined}
+                >
+                  <ImageWithFallback src={url} alt="" fallbackType="album" className="h-full w-full" />
+                </button>
+              )
+            })}
+          </div>
+          {titleBlock('md', true)}
+          <FSProgressBar />
+          {transport(false)}
+        </div>
+      </div>
+    )
+  }
 
-      {/* 睡眠定时的选择面板。桌面播放条上那个是 DropdownMenu，
-          嵌进另一个菜单会打架，所以这里用对话框。 */}
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-paper text-ink"
+      style={dragY ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
+    >
+      {/* 两团固定的暖光：右上陶土、左下赭石（暖纸只允许这两团，不随封面变） */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(42% 38% at 88% 6%, oklch(var(--accent) / 0.09), transparent 70%),' +
+            ' radial-gradient(46% 42% at 6% 96%, oklch(var(--accent-2) / 0.08), transparent 72%)',
+        }}
+      />
+
+      {layout !== 'tabletop' && header}
+      {body}
+
+      {/* 睡眠定时的选择面板。播放条上那个是 DropdownMenu，嵌进另一个菜单会打架，所以这里用对话框 */}
       <Dialog open={sleepOpen} onOpenChange={setSleepOpen}>
         <DialogContent className="sm:max-w-xs">
           <DialogHeader>
             <DialogTitle>{t('player.sleepTimer')}</DialogTitle>
             <DialogDescription>{t('player.sleepFadeHint')}</DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-0.5">
             {PRESETS.map(minutes => (
               <button
                 key={minutes}
                 onClick={() => { setSleepTimer(minutes); setSleepOpen(false) }}
-                className="border-b border-hair-soft py-3 text-left text-[15px] transition-colors hover:text-primary"
+                className="rounded-sm px-3 py-3 text-left text-[15px] transition-colors hover:bg-paper-deep"
               >
                 {t('player.sleepAfterMinutes', { minutes })}
               </button>
             ))}
             <button
               onClick={() => { setSleepTimer(null, 'endOfTrack'); setSleepOpen(false) }}
-              className="border-b border-hair-soft py-3 text-left text-[15px] transition-colors hover:text-primary"
+              className="rounded-sm px-3 py-3 text-left text-[15px] transition-colors hover:bg-paper-deep"
             >
               {t('player.sleepEndOfTrack')}
             </button>
             {sleepTimerAt !== null && (
               <button
                 onClick={() => { setSleepTimer(null); setSleepOpen(false) }}
-                className="py-3 text-left text-[15px] text-primary"
+                className="rounded-sm px-3 py-3 text-left text-[15px] font-semibold text-primary transition-colors hover:bg-paper-deep"
               >
                 {t('player.sleepCancel')}
               </button>

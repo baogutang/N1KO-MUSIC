@@ -1,8 +1,9 @@
 /**
  * 批量操作条。
  *
- * 选中任意一首歌后从列表底部升起，粘在滚动容器下沿。
- * 不用卡片、不用阴影堆叠——一条 2px 墨线加纸色底，和报头同一套语汇。
+ * 选中任意一首歌后从列表底部升起，粘在滚动容器下沿——
+ * 停在底部播放区的上方（--dock-h 是外壳量出来的播放区高度），不被它盖住。
+ * 一片浮起的纸片（glass），动作是纸片里的文字胶囊，靠 hover 底区分，不画线。
  */
 
 import { Play, ListPlus, Plus, Heart, X, CheckSquare } from '@phosphor-icons/react'
@@ -46,13 +47,13 @@ export function SelectionBar({
       role="toolbar"
       aria-label={t('selection.count', { count, total })}
       className={cn(
-        'sticky bottom-0 z-20 -mx-1 mt-px flex flex-wrap items-center gap-x-1 gap-y-1',
-        'border-t-2 border-ink bg-paper/95 px-1 py-2 backdrop-blur-sm',
-        'animate-fade-in',
+        'glass sticky bottom-[calc(var(--dock-h,96px)+12px)] z-20 mt-3 flex flex-wrap items-center gap-x-1 gap-y-1',
+        'rounded-lg px-3 py-1.5',
+        'animate-fade-in motion-reduce:animate-none',
         className
       )}
     >
-      <span className="font-num mr-2 whitespace-nowrap pl-1 text-[12px] tracking-[0.08em]">
+      <span className="num mr-2 whitespace-nowrap pl-1 text-[13.5px] font-medium">
         {t('selection.count', { count, total })}
       </span>
 
@@ -63,12 +64,12 @@ export function SelectionBar({
             key={action.key}
             onClick={action.onClick}
             className={cn(
-              'flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[12.5px]',
-              'text-ink-soft transition-colors duration-200',
-              'hover:bg-paper-deep hover:text-primary active:scale-[0.97]'
+              'flex min-h-11 items-center gap-1.5 rounded-pill px-3.5 text-[13.5px] font-medium',
+              'text-ink-soft transition-colors duration-150',
+              'hover:bg-paper-deep hover:text-ink active:scale-[0.97]'
             )}
           >
-            <Icon size={13} weight={action.icon === 'play' ? 'fill' : 'regular'} />
+            <Icon size={15} weight={action.icon === 'play' ? 'fill' : 'regular'} />
             {action.label}
           </button>
         )
@@ -77,9 +78,9 @@ export function SelectionBar({
       <button
         onClick={onClear}
         aria-label={t('selection.cancel')}
-        className="ml-auto flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[12.5px] text-ink-faint transition-colors duration-200 hover:text-ink"
+        className="ml-auto flex min-h-11 items-center gap-1.5 rounded-pill px-3.5 text-[13.5px] font-medium text-ink-faint transition-colors duration-150 hover:bg-paper-deep hover:text-ink"
       >
-        <X size={13} />
+        <X size={15} />
         {t('action.cancel')}
       </button>
     </div>

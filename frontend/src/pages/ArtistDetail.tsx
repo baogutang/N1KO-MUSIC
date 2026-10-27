@@ -4,7 +4,7 @@
  * 分区：热门歌曲 Top5 / 全部歌曲（默认 20，可展开）/ 专辑封面墙 / 相似歌手文字索引行
  */
 
-import { Fragment, useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { detailPath } from '@/utils/detailPath'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Play, Shuffle, CaretDown, CaretUp, MicrophoneStage } from '@phosphor-icons/react'
@@ -94,13 +94,16 @@ export default function ArtistDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="pt-10 animate-fade-in">
-        <div className="flex items-center gap-7">
-          <div className="h-28 w-28 flex-shrink-0 rounded-full bg-skeleton animate-pulse" />
+      <div className="pt-2 regular:pt-4 animate-fade-in" aria-hidden="true">
+        <div className="flex flex-col gap-6 regular:flex-row regular:items-center regular:gap-8">
+          <div className="h-36 w-36 flex-shrink-0 rounded-pill bg-skeleton animate-pulse regular:h-40 regular:w-40" />
           <div className="flex-1 space-y-4">
-            <div className="h-3 w-28 rounded-sm bg-skeleton animate-pulse" />
             <div className="h-10 w-1/3 rounded-sm bg-skeleton animate-pulse" />
-            <div className="h-3 w-2/3 rounded-sm bg-skeleton animate-pulse" />
+            <div className="h-3.5 w-2/3 rounded-sm bg-skeleton animate-pulse" />
+            <div className="flex gap-3 pt-2">
+              <div className="h-11 w-28 rounded-pill bg-skeleton animate-pulse" />
+              <div className="h-11 w-28 rounded-pill bg-skeleton animate-pulse" />
+            </div>
           </div>
         </div>
       </div>
@@ -110,7 +113,7 @@ export default function ArtistDetailPage() {
   if (!artist) {
     // 整页空白既解释不了发生了什么，也没给出路——连返回都要靠浏览器的后退键
     return (
-      <div className="pt-12 max-w-[720px] animate-fade-in">
+      <div className="pt-4 max-w-[720px] animate-fade-in">
         <ErrorState ruled={false} onBack={() => navigate(-1)} />
       </div>
     )
@@ -120,73 +123,68 @@ export default function ArtistDetailPage() {
   const hasMoreSongs = allSongs.length > SONGS_INITIAL_SHOW
 
   return (
-    <div className="pt-10 animate-fade-in">
-      {/* 头部：中小圆形头像居左 + 衬线 900 歌手名 + bio（无巨大 hero 底图） */}
-      <div className="flex flex-col gap-7 sm:flex-row sm:items-start">
-        <div className="h-28 w-28 flex-shrink-0 lg:h-32 lg:w-32">
+    <div className="pt-2 regular:pt-4 animate-fade-in">
+      {/* 头部：圆形头像 + 歌手名 + bio + 动作行 */}
+      <header className="flex flex-col gap-6 regular:flex-row regular:items-center regular:gap-8">
+        <div className="h-36 w-36 flex-shrink-0 overflow-hidden rounded-pill bg-paper-deep shadow-float regular:h-40 regular:w-40">
           {imageUrl ? (
             <img
               src={imageUrl}
               alt={artist.name}
-              className="h-full w-full rounded-full object-cover object-top ring-1 ring-hair-soft"
+              className="h-full w-full object-cover object-top"
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="grid h-full w-full place-items-center rounded-full bg-paper-deep ring-1 ring-hair-soft">
-              <MicrophoneStage size={26} className="text-ink-faint" />
+            <div className="grid h-full w-full place-items-center">
+              <MicrophoneStage size={32} className="text-ink-faint" />
             </div>
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">
-            {t('artist.eyebrow')}
-            <span className="latin-tag"> · ARTIST</span>
-          </p>
-          <h1 className="mt-3 font-serif text-4xl font-black tracking-[-0.01em] text-ink text-balance lg:text-5xl">
+          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em] text-balance">
             {spaceCJK(artist.name)}
           </h1>
           {artist.biography && (
-            <div className="mt-4 max-w-[34em]">
+            <div className="mt-3 max-w-[34em]">
               <p className={cn('text-sm leading-[1.8] text-ink-soft', !bioExpanded && 'line-clamp-3')}>
                 {artist.biography}
               </p>
               <button
                 onClick={() => setBioExpanded(v => !v)}
-                className="mt-2 text-xs tracking-[0.14em] text-ink-faint transition-colors duration-200 hover:text-primary"
+                className="inline-flex min-h-11 items-center gap-1 text-[13px] font-medium text-primary underline-offset-4 hover:underline"
               >
-                {bioExpanded ? `${t('action.collapse')} ↑` : `${t('action.expand')} ↓`}
+                {bioExpanded ? t('action.collapse') : t('action.expand')}
+                {bioExpanded ? <CaretUp size={13} /> : <CaretDown size={13} />}
               </button>
             </div>
           )}
-          <div className="mt-6 flex items-center gap-6">
-            {playableSongs.length > 0 && (
+          {playableSongs.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
                 onClick={() => playAllInOrder(playableSongs)}
-                className="act-primary inline-flex items-center gap-2 border-b border-ink pb-1 text-sm font-semibold tracking-[0.1em] text-ink transition-colors duration-200 hover:border-primary hover:text-primary active:scale-[0.97]"
+                className="act-primary inline-flex items-center gap-2 text-sm"
               >
-                <Play size={13} weight="fill" />
+                <Play size={15} weight="fill" />
                 {t('player.playAll')}
               </button>
-            )}
-            {playableSongs.length > 0 && (
               <button
                 onClick={() => playAllShuffled(playableSongs)}
-                className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                className="act-secondary inline-flex items-center gap-2 text-sm"
               >
-                <Shuffle size={14} />
+                <Shuffle size={15} />
                 {t('player.shuffle')}
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      </div>
+      </header>
 
       {/* 热门歌曲（Top5） */}
       {topSongs.length > 0 && (
         <section>
           <div className="section-head">
-            <h2>{t('section.topSongs')}<small>TOP SONGS</small></h2>
+            <h2>{t('section.topSongs')}</h2>
           </div>
           <SongList songs={topSongs.slice(0, TOP_SONGS_SHOW)} showCover showAlbum showIndex />
         </section>
@@ -196,20 +194,20 @@ export default function ArtistDetailPage() {
       {allSongs.length > 0 && (
         <section>
           <div className="section-head">
-            <h2>{t('section.allSongs')}<small>ALL SONGS</small></h2>
-            <span className="more num">{t('song.trackTotal', { count: allSongs.length })}</span>
+            <h2>{t('section.allSongs')}</h2>
+            <span className="num text-sm text-ink-faint">{t('song.trackTotal', { count: allSongs.length })}</span>
           </div>
           <SongList songs={displayedSongs} showCover showAlbum showIndex />
           {hasMoreSongs && (
             <div className="mt-6 flex justify-center">
               <button
                 onClick={() => setShowAllSongs(!showAllSongs)}
-                className="act-secondary inline-flex items-center gap-2 rounded border border-hair px-4 py-1.5 text-[13px] text-ink-soft transition-colors duration-200 hover:border-ink hover:text-ink active:scale-[0.97]"
+                className="act-secondary inline-flex items-center gap-2 text-sm"
               >
                 {showAllSongs ? (
-                  <>{t('action.collapse')} <CaretUp size={13} /></>
+                  <>{t('action.collapse')} <CaretUp size={14} /></>
                 ) : (
-                  <>{t('artist.showAllSongs', { count: allSongs.length })} <CaretDown size={13} /></>
+                  <>{t('artist.showAllSongs', { count: allSongs.length })} <CaretDown size={14} /></>
                 )}
               </button>
             </div>
@@ -217,11 +215,7 @@ export default function ArtistDetailPage() {
         </section>
       )}
 
-      {/*
-        唱片目录：年份轨 + 你自己的历史作页边注。
-        此前这里是一片 xl:grid-cols-6 的封面墙——恰恰是设计契约想避免的东西
-        （卡片堆叠 + 大面积重复色块），却留在最该体现「生涯」的那一页上。
-      */}
+      {/* 唱片目录：横向书架，按年份倒序；你自己的收听历史是书架下的一张纸片 */}
       <DiscographyRail
         albums={artist.albums}
         marginalia={marginalia}
@@ -229,31 +223,29 @@ export default function ArtistDetailPage() {
       />
 
       {/* 档案：曲库标签里没有的那部分。默认关闭，见设置「歌手档案」 */}
-      <ArtistDossier musicBrainzId={artist.musicBrainzId} className="mt-12" />
+      <ArtistDossier musicBrainzId={artist.musicBrainzId} className="mt-10" />
 
       {/* 你自己写的那一条，和上面「你与这位歌手」的自动统计并置：
           一边是行为算出来的，一边是你亲手写的 */}
       <MarginNote target="artist" targetId={artist.id} className="mt-10 max-w-[38em]" />
 
-      {/* 相似歌手：文字索引行（逗号分隔链接） */}
+      {/* 相似歌手：一排纸片胶囊 */}
       {artist.similarArtists && artist.similarArtists.length > 0 && (
         <section className="pb-4">
           <div className="section-head">
-            <h2>{t('section.similarArtists')}<small>SIMILAR ARTISTS</small></h2>
+            <h2>{t('section.similarArtists')}</h2>
           </div>
-          <p className="font-serif text-lg leading-[2.2] md:text-xl">
-            {artist.similarArtists.map((similar, i) => (
-              <Fragment key={similar.id}>
-                {i > 0 && <span className="text-ink-faint">{t('artist.listSeparator')}</span>}
-                <button
-                  onClick={() => navigate(detailPath('artists', similar.id, similar.serverId ?? serverId))}
-                  className="border-b border-transparent transition-colors duration-200 hover:border-primary hover:text-primary"
-                >
-                  {similar.name}
-                </button>
-              </Fragment>
+          <div className="flex flex-wrap gap-2">
+            {artist.similarArtists.map(similar => (
+              <button
+                key={similar.id}
+                onClick={() => navigate(detailPath('artists', similar.id, similar.serverId ?? serverId))}
+                className="press-pop inline-flex min-h-11 items-center rounded-pill bg-sheet px-4 text-[14.5px] font-medium text-ink shadow-press hover:text-primary"
+              >
+                {similar.name}
+              </button>
             ))}
-          </p>
+          </div>
         </section>
       )}
     </div>
