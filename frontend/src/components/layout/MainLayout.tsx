@@ -138,7 +138,7 @@ export default function MainLayout() {
       <div
         ref={shellRef}
         data-window-class={wc}
-        className="relative grid h-full overflow-hidden text-foreground"
+        className="relative grid h-full overflow-clip text-foreground"
         style={{ gridTemplateColumns: `${leftColumn} minmax(0, 1fr) ${rightColumn}`, gridTemplateRows: 'minmax(0, 1fr)' }}
       >
         {sidebarVisible && <AppSidebar />}
@@ -172,16 +172,25 @@ export default function MainLayout() {
 
         {panelVisible && <NowPlayingPanel />}
 
-        {/* 底部播放区：横跨内容列与面板列，浮在内容上方 */}
+        {/* 底部播放区：横跨内容列与面板列，浮在内容上方。
+            绝对定位在网格区域里（网格项的包含块就是它的网格区域），不用 sticky：
+            外壳本来就不滚动，sticky 只会多出一层要由 WebKit 在界面进程里摆位置的吸附层 */}
         <div
           ref={dockRef}
-          className="pointer-events-none sticky bottom-0 z-40 col-start-2 col-end-[-1] row-start-1 flex flex-col gap-2 self-end px-2 regular:px-3"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-40 col-start-2 col-end-[-1] row-start-1 flex flex-col gap-2 px-2 regular:px-3"
           style={{
             paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
             paddingRight: 'calc(env(safe-area-inset-right) + 8px)',
             paddingLeft: wc === 'compact' ? 'calc(env(safe-area-inset-left) + 8px)' : undefined,
           }}
         >
+          {/* 垫纸：从第一张纸片的半腰往下铺满底色。迷你条与标签栏之间的缝、
+              home 指示条那一段安全区，不再透出底下滚动的内容 */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 bottom-0 top-6 -z-10 bg-paper"
+            style={{ backgroundImage: 'var(--texture)', backgroundSize: 'var(--texture-size)' }}
+          />
           <PlayerBar wc={wc} />
           {wc === 'compact' && <TabBar />}
         </div>
