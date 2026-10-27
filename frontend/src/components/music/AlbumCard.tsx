@@ -38,7 +38,7 @@ export function CoverActions({ children, className }: { children: ReactNode; cla
   )
 }
 
-/** 动作簇里的一粒纸片圆键；hover 时换陶土。触屏 44px，鼠标下收小一点 */
+/** 动作簇里的一粒纸片圆键；hover 时换强调色。触屏 44px，鼠标下收小一点 */
 export const CoverActionButton = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement> & { small?: boolean }
@@ -51,7 +51,7 @@ export const CoverActionButton = forwardRef<
       small
         ? 'h-11 w-11 [@media(hover:hover)]:h-8 [@media(hover:hover)]:w-8'
         : 'h-11 w-11 [@media(hover:hover)]:h-9 [@media(hover:hover)]:w-9',
-      '[@media(hover:hover)]:hover:bg-primary [@media(hover:hover)]:hover:text-primary-foreground',
+      '[@media(hover:hover)]:hover:bg-vivid [@media(hover:hover)]:hover:text-vivid-foreground',
       className
     )}
     {...props}
@@ -99,7 +99,7 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
       overlay={
         <CoverActions>
           <CoverActionButton onClick={handlePlay} aria-label={t('album.playWhole')}>
-            <Play className="ml-px h-3.5 w-3.5" weight="fill" />
+            <Play className="h-3.5 w-3.5" weight="fill" />
           </CoverActionButton>
         </CoverActions>
       }

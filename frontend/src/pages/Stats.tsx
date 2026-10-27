@@ -203,7 +203,7 @@ export default function Stats() {
             />
           </section>
 
-          {/* 日历图：细柱，浅墨基底 + 峰值日陶土，hover 出数值 */}
+          {/* 日历图：细柱，浅墨基底 + 峰值日强调色，hover 出数值 */}
           <section className="mt-10">
             <SectionHead title={t('stats.recentDays', { count: range === 'all' ? 30 : range })} />
             <div className="flex items-end gap-1.5 pt-6 regular:gap-2">
@@ -222,7 +222,7 @@ export default function Stats() {
                     </span>
                     <div className="flex h-36 w-full max-w-[14px] items-end overflow-hidden rounded-pill bg-paper-deep">
                       <div
-                        className={cn('w-full rounded-pill', isPeak ? 'bg-primary' : 'bg-ink-faint/50')}
+                        className={cn('w-full rounded-pill', isPeak ? 'bg-vivid' : 'bg-ink-faint/50')}
                         style={{ height: `${(day.plays / maxDailyPlays) * 100}%` }}
                         title={t('stats.barTooltip', { label: day.label, count: day.plays })}
                       />
@@ -256,7 +256,7 @@ export default function Stats() {
                   <div key={hour} className="flex min-w-0 flex-1 flex-col items-center">
                     <div className="flex h-24 w-full max-w-[12px] items-end overflow-hidden rounded-pill bg-paper-deep">
                       <div
-                        className={cn('w-full rounded-pill', isPeak ? 'bg-primary' : 'bg-ink-faint/50')}
+                        className={cn('w-full rounded-pill', isPeak ? 'bg-vivid' : 'bg-ink-faint/50')}
                         style={{ height: `${(plays / maxHourlyPlays) * 100}%` }}
                         title={t('stats.barTooltip', { label: formatHourRange(hour), count: plays })}
                       />

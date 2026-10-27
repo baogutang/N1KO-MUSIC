@@ -7,7 +7,7 @@
  *              左列是你操作的东西（封面、进度、按键），右边一直摆着歌词，落在格纸上
  *   tabletop   Duo 半折悬停（useDevicePosture）：折痕以上是歌词，以下是封面带与控制（参考 QQ 音乐的 Duo 适配）
  *
- * 签名部件：嵌在凹槽里的橡胶播放键（.rubber-key）、歌词底下那张淡淡的格纸（.paper-grid）。
+ * 签名部件：扁平的青柠播放键（.play-key）、歌词底下那张淡淡的格纸（.paper-grid）。
  * 不再做封面取色晕染：暖纸只留两团固定的暖光。
  *
  * 性能：细粒度 selector，不订阅 currentTime；进度条与歌词各自订阅。
@@ -197,7 +197,7 @@ const FSProgressBar = memo(function FSProgressBar() {
             className="absolute inset-0 origin-left bg-ink-faint/25 transition-transform duration-500"
             style={{ transform: `scaleX(${bufferRatio})` }}
           />
-          <div className="absolute inset-0 origin-left bg-primary" style={{ transform: `scaleX(${playRatio})` }} />
+          <div className="absolute inset-0 origin-left bg-vivid" style={{ transform: `scaleX(${playRatio})` }} />
         </div>
         <div
           className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-sheet shadow-press transition-transform duration-150 [@media(hover:hover)]:scale-75 [@media(hover:hover)]:group-hover/track:scale-100"
@@ -496,14 +496,14 @@ export function FullscreenPlayer() {
       <button onClick={handlePrev} className={cn(softBtn, 'h-14 w-14 text-ink')} aria-label={t('player.previous')}>
         <SkipBack size={28} weight="fill" />
       </button>
-      {/* 签名部件：嵌在凹槽里的橡胶播放键 */}
+      {/* 签名部件：青柠播放键 */}
       <button
         onClick={togglePlay}
-        className={cn('rubber-key mx-2 h-[68px] w-[68px]', isPlaying && streamBuffering && 'animate-buffering')}
+        className={cn('play-key mx-2 h-[72px] w-[72px]', isPlaying && streamBuffering && 'animate-buffering')}
         aria-label={playLabel}
         aria-busy={isPlaying && streamBuffering}
       >
-        {isPlaying ? <Pause size={28} weight="fill" /> : <Play size={28} weight="fill" className="ml-1" />}
+        {isPlaying ? <Pause size={30} weight="fill" /> : <Play size={30} weight="fill" />}
       </button>
       <button onClick={() => next()} className={cn(softBtn, 'h-14 w-14 text-ink')} aria-label={t('player.next')}>
         <SkipForward size={28} weight="fill" />
@@ -797,14 +797,14 @@ export function FullscreenPlayer() {
       className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-paper text-ink"
       style={dragY ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
     >
-      {/* 两团固定的暖光：右上陶土、左下赭石（暖纸只允许这两团，不随封面变） */}
+      {/* 两团固定的光：右上青柠、左下嫩黄（只允许这两团，不随封面变） */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(42% 38% at 88% 6%, oklch(var(--accent) / 0.09), transparent 70%),' +
-            ' radial-gradient(46% 42% at 6% 96%, oklch(var(--accent-2) / 0.08), transparent 72%)',
+            'radial-gradient(42% 38% at 88% 6%, oklch(var(--vivid) / 0.16), transparent 70%),' +
+            ' radial-gradient(46% 42% at 6% 96%, oklch(var(--accent-2) / 0.14), transparent 72%)',
         }}
       />
 

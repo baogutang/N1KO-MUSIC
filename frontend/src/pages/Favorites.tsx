@@ -82,7 +82,7 @@ export default function Favorites() {
 
   return (
     <div className="pt-2 regular:pt-4 animate-fade-in">
-      {/* 页头：大标题 + 体量说明（各自独立的 span）+ 陶土主操作 */}
+      {/* 页头：大标题 + 体量说明（各自独立的 span）+ 强调色主操作 */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div>
           <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">

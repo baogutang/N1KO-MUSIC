@@ -150,7 +150,7 @@ export default function PlaylistDetail() {
             {totalDuration > 0 && <span>{formatDuration(totalDuration)}</span>}
           </p>
 
-          {/* 动作行：播放（陶土实心）/ 随机、导出（纸片胶囊） */}
+          {/* 动作行：播放（强调色实心）/ 随机、导出（纸片胶囊） */}
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               onClick={handlePlayAll}

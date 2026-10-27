@@ -50,6 +50,12 @@ export default {
           DEFAULT: c('primary'),
           foreground: c('primary-foreground'),
         },
+        // 青柠：只做填色（播放键、主按钮、进度、开关）；上面的字与图标用 vivid-foreground
+        vivid: {
+          DEFAULT: c('vivid'),
+          deep: c('vivid-deep'),
+          foreground: c('vivid-ink'),
+        },
         sem: {
           playing: c('sem-playing'),
           connected: c('sem-connected'),
@@ -68,7 +74,7 @@ export default {
           DEFAULT: c('muted'),
           foreground: c('muted-foreground'),
         },
-        // shadcn 的 accent 是 hover 底面语义；品牌陶土色请用 primary
+        // shadcn 的 accent 是 hover 底面语义；品牌色：文字用 primary（叶绿），填色用 vivid（青柠）
         accent: {
           DEFAULT: c('accent-surface'),
           foreground: c('accent-surface-foreground'),
@@ -101,8 +107,6 @@ export default {
           DEFAULT: c('surface'),
           hover: c('surface-hover'),
         },
-        rubber: c('rubber'),
-        bezel: c('bezel'),
         candy: {
           ok: c('candy-ok'),
           'ok-fill': c('candy-ok-fill'),

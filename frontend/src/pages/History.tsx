@@ -202,7 +202,7 @@ export default function History() {
                         </span>
                         <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 [@media(hover:hover)]:group-hover:opacity-100">
                           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sheet text-ink shadow-press">
-                            <Play className="ml-px h-3 w-3" weight="fill" />
+                            <Play className="h-3 w-3" weight="fill" />
                           </span>
                         </span>
                       </span>

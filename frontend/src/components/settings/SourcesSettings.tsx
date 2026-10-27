@@ -608,7 +608,7 @@ export function SourcesSettings() {
   )
 }
 
-/** 粘贴安装的多行输入：下沉底的圆角块，聚焦换纸片底加陶土描边 */
+/** 粘贴安装的多行输入：下沉底的圆角块，聚焦换纸片底加强调色描边 */
 const pasteFieldClass =
   'w-full rounded-md border border-transparent bg-paper-deep px-3 py-2 font-mono text-[12px] text-foreground ' +
   'placeholder:text-ink-faint focus-visible:border-primary focus-visible:bg-sheet focus-visible:outline-none ' +

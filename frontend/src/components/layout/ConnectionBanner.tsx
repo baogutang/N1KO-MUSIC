@@ -63,7 +63,7 @@ interface ExpiredSource {
 /** 三条提示条同一副外形：下沉底的圆角条，一句话加一个文字出口；窄屏放不下时出口折到下一行 */
 const BANNER_CLASS =
   'mx-3 regular:mx-5 mt-1 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-paper-deep px-4 py-2.5 text-[13.5px] text-ink-soft'
-/** 文字按钮：陶土色，不加下划线，hover 才出现 */
+/** 文字按钮：强调色，不加下划线，hover 才出现 */
 const ACTION_CLASS =
   'inline-flex min-h-9 items-center gap-1.5 rounded-sm px-1 font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline disabled:pointer-events-none disabled:text-ink-faint motion-reduce:transition-none'
 

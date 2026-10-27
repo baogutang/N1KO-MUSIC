@@ -36,7 +36,7 @@ const Slider = React.forwardRef<
         )}
       >
         <SliderPrimitive.Range
-          className={cn('absolute bg-primary', vertical ? 'w-full' : 'h-full')}
+          className={cn('absolute bg-vivid', vertical ? 'w-full' : 'h-full')}
         />
       </SliderPrimitive.Track>
       {/*

@@ -1,7 +1,7 @@
 /**
  * 底部播放条：浮在内容上方的一张纸片，按窗口档位换形态（原 PlayerBar + MiniPlayer 合一）。
  *
- *   compact  胶囊：封面 + 曲名 + 橡胶播放键 + 下一首；左右滑切歌，上滑打开正在播放
+ *   compact  胶囊：封面 + 曲名 + 播放键 + 下一首；左右滑切歌，上滑打开正在播放
  *   regular  一条：封面 / 上一首 播放 下一首 / 歌词 队列
  *   wide     完整：封面曲名收藏 / 随机 上一首 播放 下一首 循环 + 进度行 / 歌词 定时 队列 音量 全屏
  *
@@ -169,7 +169,7 @@ const ProgressRow = memo(function ProgressRow() {
             className="absolute inset-0 origin-left bg-ink-faint/25 transition-transform duration-500"
             style={{ transform: `scaleX(${bufferRatio})` }}
           />
-          <div className="absolute inset-0 origin-left bg-primary" style={{ transform: `scaleX(${playRatio})` }} />
+          <div className="absolute inset-0 origin-left bg-vivid" style={{ transform: `scaleX(${playRatio})` }} />
         </div>
         <div
           className="pointer-events-none absolute left-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-pill bg-sheet shadow-press"
@@ -183,7 +183,7 @@ const ProgressRow = memo(function ProgressRow() {
   )
 })
 
-/** 进度线（窄、中两档）：贴在纸片下缘内侧的一条细线，只读 */
+/** 进度线（窄、中两档）：贴在纸片下缘内侧的一条细线，只读。只有 2px，按文字的分量用叶绿，青柠在亮底上细到看不见 */
 const ProgressLine = memo(function ProgressLine({ className }: { className?: string }) {
   const currentTime = usePlayerStore(s => s.currentTime)
   const duration = usePlayerStore(s => s.duration)
@@ -350,14 +350,14 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
     <button
       onClick={() => { lightImpact(); togglePlay() }}
       className={cn(
-        'rubber-key flex-none',
-        size === 'sm' ? 'is-compact h-10 w-10' : 'h-11 w-11 mx-1.5',
+        'play-key flex-none',
+        size === 'sm' ? 'h-10 w-10' : 'h-11 w-11 mx-1.5',
         isPlaying && streamBuffering && 'animate-buffering'
       )}
       aria-label={playLabel}
       aria-busy={isPlaying && streamBuffering}
     >
-      {isPlaying ? <Pause size={size === 'sm' ? 17 : 19} weight="fill" /> : <Play size={size === 'sm' ? 17 : 19} weight="fill" className="ml-0.5" />}
+      {isPlaying ? <Pause size={size === 'sm' ? 17 : 19} weight="fill" /> : <Play size={size === 'sm' ? 17 : 19} weight="fill" />}
     </button>
   )
 

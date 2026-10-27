@@ -11,7 +11,7 @@
  * forceMount + 自管动画：退场的 350ms 里 Radix 不能先把它卸载了。
  */
 
-import { Suspense, lazy, useState, useEffect } from 'react'
+import { Suspense, lazy, useState, useEffect, useRef } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { usePlayerStore } from '@/store/playerStore'
 import { useT } from '@/i18n'
@@ -31,6 +31,7 @@ export function FullscreenPlayerOverlay() {
   const setCarMode = usePlayerStore(s => s.setCarMode)
   const setFullscreen = usePlayerStore(s => s.setFullscreen)
 
+  const contentRef = useRef<HTMLDivElement>(null)
   const [shouldMount, setShouldMount] = useState(false)
   const [animateIn, setAnimateIn] = useState(false)
 
@@ -71,6 +72,8 @@ export function FullscreenPlayerOverlay() {
             不因它让位（复审 A1）。快捷键选择器用 data-fullscreen-player 把它从
             [role=dialog] 里排除。 */}
         <DialogPrimitive.Content
+          ref={contentRef}
+          tabIndex={-1}
           forceMount
           aria-label={t('player.nowPlaying')}
           /* Radix 需要 Title（复审 B12）：没有它开发态每次打开都
@@ -86,6 +89,13 @@ export function FullscreenPlayerOverlay() {
           }}
           /* 全屏铺满视口，不存在「浮层外部」——别让边缘点击误关 */
           onInteractOutside={e => e.preventDefault()}
+          /* 打开时焦点落在浮层本身，而不是第一个按钮：Radix 默认聚焦「收起」键，
+             iPad 接着键盘或触控板时它的提示气泡会随每次打开弹出来。
+             焦点仍在浮层里，Tab 照常进入按钮，Esc 照常收起 */
+          onOpenAutoFocus={e => {
+            e.preventDefault()
+            contentRef.current?.focus({ preventScroll: true })
+          }}
         >
           <DialogPrimitive.Title className="sr-only">{t('player.nowPlaying')}</DialogPrimitive.Title>
           <Suspense fallback={<div className="absolute inset-0 bg-background/70" />}>

@@ -168,10 +168,10 @@ function ProfileColumn({
                   )}
                 </span>
               </div>
-              {/* 权重条：一条纸槽里的一段陶土色，不引入图表也不引入新色 */}
+              {/* 权重条：一条纸槽里的一段强调色，不引入图表也不引入新色 */}
               <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-pill bg-paper-3">
                 <div
-                  className={cn('h-full rounded-pill', isMuted ? 'bg-ink-faint/30' : 'bg-primary')}
+                  className={cn('h-full rounded-pill', isMuted ? 'bg-ink-faint/30' : 'bg-vivid')}
                   style={{ width: `${Math.max(2, Math.min(100, row.weight * 100))}%` }}
                 />
               </div>

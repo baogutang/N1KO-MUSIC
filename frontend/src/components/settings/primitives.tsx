@@ -55,7 +55,7 @@ export function Row({
 }
 
 /**
- * 开关：50×30 的胶囊轨道，开启为陶土色，滑块是一小片抬起的纸。
+ * 开关：50×30 的胶囊轨道，开启为强调色，滑块是一小片抬起的纸。
  * 外层按钮撑到 44px 高，保证触屏命中区。
  */
 export function Toggle({
@@ -79,7 +79,7 @@ export function Toggle({
       <span
         className={cn(
           'relative block h-[30px] w-[50px] rounded-pill transition-colors duration-200 motion-reduce:transition-none',
-          checked ? 'bg-primary' : 'bg-paper-3'
+          checked ? 'bg-vivid' : 'bg-paper-3'
         )}
       >
         <span
@@ -132,7 +132,7 @@ export function SubHead({ title }: { title: string }) {
 }
 
 /**
- * 纸片里的输入框：在白纸片上落一层下沉底，聚焦换成纸片底加陶土描边。
+ * 纸片里的输入框：在白纸片上落一层下沉底，聚焦换成纸片底加强调色描边。
  * 叠在 ui/Input 的类后面（twMerge 去重），不另起一套形状。
  */
 export const fieldInputClass =

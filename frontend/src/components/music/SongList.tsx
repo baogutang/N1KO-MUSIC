@@ -765,7 +765,7 @@ const SongRow = React.memo(function SongRow({
                   <span /><span /><span />
                 </span>
               ) : (
-                <Play className="w-2.5 h-2.5 ml-px" weight="fill" />
+                <Play className="w-2.5 h-2.5" weight="fill" />
               )}
             </span>
           </button>
@@ -801,12 +801,13 @@ const SongRow = React.memo(function SongRow({
             <SourceBadge serverId={song.serverId} className="ml-1.5 align-baseline inline-block translate-y-[-1px]" />
           ))}
         </p>
-        <p className="text-[13px] text-ink-faint line-clamp-1 mt-0.5">
+        {/* 截断放在按钮自己身上：WebKit 的 line-clamp 遇到行内块（button）不论放不放得下都补「…」 */}
+        <p className="mt-0.5 flex min-w-0 text-[13px] text-ink-faint">
           <button
             type="button"
             onClick={handleNavigateArtist}
             className={cn(
-              'transition-colors',
+              'min-w-0 truncate text-left transition-colors',
               song.artistId ? 'hover:text-primary hover:underline cursor-pointer' : ''
             )}
           >
@@ -818,12 +819,12 @@ const SongRow = React.memo(function SongRow({
       {/* 专辑名（大屏才显示）*/}
       {showAlbum && (
         <div className="hidden lg:block flex-1 min-w-0 px-4">
-          <p className="text-xs text-ink-faint line-clamp-1">
+          <p className="flex min-w-0 text-xs text-ink-faint">
             <button
               type="button"
               onClick={handleNavigateAlbum}
               className={cn(
-                'transition-colors',
+                'min-w-0 truncate text-left transition-colors',
                 song.albumId ? 'hover:text-primary hover:underline cursor-pointer' : ''
               )}
             >

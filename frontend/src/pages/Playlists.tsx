@@ -149,7 +149,7 @@ export default function Playlists() {
 
   return (
     <div className="pt-2 regular:pt-4 animate-fade-in">
-      {/* 页头：大标题 + 总数；右侧 导入（纸片胶囊）与 新建（陶土实心） */}
+      {/* 页头：大标题 + 总数；右侧 导入（纸片胶囊）与 新建（强调色实心） */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div>
           <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
@@ -320,7 +320,7 @@ export default function Playlists() {
                               title={t('player.playAll')}
                               aria-label={t('player.playAll')}
                             >
-                              <Play className="ml-px h-3.5 w-3.5" weight="fill" />
+                              <Play className="h-3.5 w-3.5" weight="fill" />
                             </CoverActionButton>
                           </CoverActions>
                           {/* 更多操作 */}

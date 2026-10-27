@@ -123,7 +123,7 @@ export default function AlbumDetailPage() {
             ))}
           </p>
 
-          {/* 动作行：播放（陶土实心）/ 随机（纸片胶囊）/ 收藏（圆形纸片键） */}
+          {/* 动作行：播放（强调色实心）/ 随机（纸片胶囊）/ 收藏（圆形纸片键） */}
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               onClick={() => playAllInOrder(album.songs)}

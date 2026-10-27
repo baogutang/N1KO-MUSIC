@@ -3,11 +3,13 @@
 > 真源永远是 `frontend/src/index.css` 的 token 块与 `frontend/tailwind.config.ts`。这份文档说的是怎么用它们。
 > 2026-10-27 起，三张皮（奶油·软陶 / 糖果·波普 / 纸·墨·朱）收敛为这一套，只剩亮 / 暗两档。
 > 方向由 Hallmark 发牌（Bloom，deal 3/3）后经 demo（`docs/redesign/v5/demo.html`）由用户选定。
+> 2026-10-27 第二轮（v1.13）：用户要「年轻、活泼」，强调色从陶土换成**青柠**，所有按钮改**扁平**（去掉橡胶键的渐变、凹槽与受光边），底色仍是暖纸。
 
 ## 一句话
 
-暖白纸面、抬起的纸片、一盏陶土色。**封面是唯一的大面积色块**；界面本身靠纸片的高低和留白分区，不靠线。
-签名部件：嵌在凹槽里的**橡胶播放键**（`.rubber-key`），歌词底下那张淡淡的**格纸**（`.paper-grid`）。
+暖白纸面、抬起的纸片、一盏青柠。**封面是唯一的大面积色块**；界面本身靠纸片的高低和留白分区，不靠线。
+签名部件：扁平的**青柠播放键**（`.play-key`），歌词底下那张淡淡的**格纸**（`.paper-grid`）。
+按钮一律扁平：实心色块或下沉一档的纸色，不画渐变、受光边和凹槽，hover 不抬起，按下收一点。
 
 ## 外壳（已完成，页面不要重复做）
 
@@ -34,11 +36,12 @@
 | 抬起的纸片 | `bg-sheet` | 卡片、面板、浮层；配 `shadow-card` |
 | 主文字 / 次 / 说明 | `text-ink` / `text-ink-soft` / `text-ink-faint` | 说明与元信息一律 `ink-faint` |
 | 线 | `border-hair` / `border-hair-soft` | 尽量不用：暖纸靠面不靠线 |
-| 强调（陶土） | `text-primary` / `bg-primary` | **只给**：主操作、当前项（正在播放、选中）、状态。不给标题、不做装饰 |
+| 强调·填色（青柠） | `bg-vivid` + `text-vivid-foreground` | 播放键、主按钮、进度条（≥4px）、开关、当前行底色（`/20`）。**不当文字色**：青柠在暖纸上只有约 1.3:1 |
+| 强调·文字（叶绿） | `text-primary` / `ring-primary` / 细于 4px 的线 | 链接、当前项曲名、收藏心、焦点环。暗色下它就是青柠本身 |
 | 危险（玫瑰） | `destructive` | 只给不可撤销的动作 |
 | 状态 | `text-sem-playing` / `sem-fav` / `sem-connected` / `sem-error` | |
 | 圆角 | `rounded-sm` 8 · `rounded-md` 12 · `rounded-lg` 18 · `rounded-pill` | 同一嵌套层级只用一种 |
-| 投影 | `shadow-card` 卡片 · `shadow-press` 胶囊控件 · `shadow-float` 浮层与大封面 | |
+| 投影 | `shadow-card` 卡片 · `shadow-press` 小控件（分段当前项、滑块把手，扁平软影）· `shadow-float` 浮层与大封面 | 按钮本身不加影 |
 | 字体 | `font-display` 标题 · `font-sans` 正文（同族 Schibsted Grotesk + 苹方） | `font-serif` 是旧名，改成 `font-display` |
 | 衬线数字 | `font-figure`（Young Serif） | **全站只给一个大数字**（统计页的总时长那种），不进标题 |
 | 数字对齐 | `num` | 时长、计数、序号 |
@@ -47,7 +50,7 @@
 
 ## 现成的部件
 
-- 组件类（`index.css`）：`.sheet`（抬起的纸片）、`.act-primary` / `.act-secondary` / `.act-icon`（页面动作三级）、`.section-head`（h2 + `.more`）、`.cover-tile`（可 hover 抬起的封面砖）、`.cover-slab`（大封面）、`.song-row`、`.seg-option.is-on`（分段控件当前项）、`.sticker`（小纸片标签）、`.press-pop`（按压手感）、`.glass`（浮层面）、`.rubber-key`（**只给播放主键**）、`.paper-grid`（**只给歌词与空状态的工作纸**）、`.scrollbar-hide`。
+- 组件类（`index.css`）：`.sheet`（抬起的纸片）、`.act-primary` / `.act-secondary` / `.act-icon`（页面动作三级）、`.section-head`（h2 + `.more`）、`.cover-tile`（可 hover 抬起的封面砖）、`.cover-slab`（大封面）、`.song-row`、`.seg-option.is-on`（分段控件当前项）、`.sticker`（小纸片标签）、`.press-pop`（按压手感：按下收一点，不抬起）、`.glass`（浮层面）、`.play-key`（**只给播放主键**；三角图标不要手动右移，Phosphor 已按重心居中）、`.paper-grid`（**只给歌词与空状态的工作纸**）、`.scrollbar-hide`。
 - React：`Button`（default / outline / secondary / ghost / link / icon）、`Input`、`Dialog`、`DropdownMenu`、`Slider`、`Tooltip`、`SongList`（右键菜单、拖动、多选都已做好）、`ImageWithFallback` / `CoverImage`、`EmptyState` / `ErrorState`、`UpNextList`。
 
 ## 版式

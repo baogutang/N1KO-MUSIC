@@ -2,7 +2,7 @@
  * 设置页（v5 暖纸）
  * iOS「设置」式的分组列表：页面大标题，每组是一张纸片，分组标题在纸片上方，
  * 选项行左名称 / 说明、右控件。皮肤切换已删除，明暗切换保留。
- * 多色 accent 预设与歌词高亮色选择器已随 v2 契约移除（统一陶土 accent）。
+ * 多色 accent 预设与歌词高亮色选择器已随 v2 契约移除（统一强调色）。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -106,7 +106,7 @@ function EndpointRow({ label, value, onChange, placeholder, desc }: {
 }
 
 /**
- * 纸片里的一组单选：名称与说明在上，选项在下；选中项的圆点与文字是陶土色。
+ * 纸片里的一组单选：名称与说明在上，选项在下；选中项的圆点与文字是强调色。
  * inline 时选项横向排开（选项短、数量少），否则一项一行。
  */
 function ChoiceRow<T extends string>({ name, desc, groupLabel, value, onChange, options, inline }: {

@@ -140,7 +140,7 @@ export function DiscographyRail({
                     onClick={e => { e.stopPropagation(); onPlayAlbum(album) }}
                     aria-label={t('album.playNamed', { name: album.name })}
                   >
-                    <Play size={14} weight="fill" className="ml-px" />
+                    <Play size={14} weight="fill" />
                   </CoverActionButton>
                 </CoverActions>
               )

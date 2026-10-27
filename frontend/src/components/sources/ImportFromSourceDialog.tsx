@@ -285,11 +285,11 @@ export function ImportFromSourceDialog({
                 {t('sources.import.progress', { done: progress.done, total: progress.total })}
               </span>
             </p>
-            {/* 进度条：凹槽里一段陶土色，用 scaleX 推进（不动画宽度） */}
+            {/* 进度条：凹槽里一段强调色，用 scaleX 推进（不动画宽度） */}
             <div className="mx-auto h-2 w-48 overflow-hidden rounded-pill bg-paper-3" role="progressbar"
               aria-valuenow={progress.done} aria-valuemin={0} aria-valuemax={progress.total}>
               <div
-                className="h-full origin-left rounded-pill bg-primary transition-transform duration-300 motion-reduce:transition-none"
+                className="h-full origin-left rounded-pill bg-vivid transition-transform duration-300 motion-reduce:transition-none"
                 style={{ transform: `scaleX(${progress.total ? progress.done / progress.total : 0})` }}
               />
             </div>

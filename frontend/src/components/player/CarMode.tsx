@@ -206,11 +206,11 @@ export function CarMode({ onExit }: { onExit: () => void }) {
             {spaceCJK(currentSong.artist)}
           </p>
 
-          {/* 进度：一段陶土色填进凹槽，不做刻度也不做可拖拽——开车时不该去够它 */}
+          {/* 进度：一段强调色填进凹槽，不做刻度也不做可拖拽——开车时不该去够它 */}
           <div className="mt-12 w-full max-w-3xl landscape:mt-8">
             <div className="h-3 w-full overflow-hidden rounded-pill bg-paper-3">
               <div
-                className="h-full w-full origin-left rounded-pill bg-primary transition-transform duration-500 motion-reduce:transition-none"
+                className="h-full w-full origin-left rounded-pill bg-vivid transition-transform duration-500 motion-reduce:transition-none"
                 style={{ transform: `scaleX(${progress})` }}
               />
             </div>
@@ -241,7 +241,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
             className="h-28 w-28 regular:h-32 regular:w-32"
             primary
           >
-            {isPlaying ? <Pause size={52} weight="fill" /> : <Play size={52} weight="fill" className="ml-2" />}
+            {isPlaying ? <Pause size={52} weight="fill" /> : <Play size={52} weight="fill" />}
           </CarButton>
 
           <CarButton
@@ -257,7 +257,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
   )
 }
 
-/** 主键是嵌在凹槽里的橡胶键（.rubber-key）；副键是抬起的纸片圆钮 */
+/** 主键是青柠播放键（.play-key）；副键是下沉一档的纸色圆钮 */
 function CarButton({
   label, onClick, className, primary, children,
 }: {
@@ -274,8 +274,8 @@ function CarButton({
       aria-label={label}
       className={cn(
         primary
-          ? 'rubber-key flex-none'
-          : 'grid flex-none place-items-center rounded-full bg-sheet text-ink shadow-press transition-[transform,background-color] duration-150 hover:bg-paper-deep active:scale-95 motion-reduce:transition-none',
+          ? 'play-key flex-none'
+          : 'grid flex-none place-items-center rounded-full bg-paper-3 text-ink transition-[transform,background-color] duration-150 hover:bg-hair active:scale-95 motion-reduce:transition-none',
         className
       )}
     >

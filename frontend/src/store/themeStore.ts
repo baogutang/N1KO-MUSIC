@@ -23,7 +23,7 @@ export const THEME_BACKGROUNDS: Record<'light' | 'dark', string> = {
 }
 
 /**
- * @deprecated 单一陶土强调色，多色 accent 预设早已移除；仅作类型兼容保留。
+ * @deprecated 单一强调色，多色 accent 预设早已移除；仅作类型兼容保留。
  */
 export type AccentColor = 'green' | 'red' | 'blue' | 'purple' | 'orange'
 

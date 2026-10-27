@@ -90,7 +90,7 @@ export function ContinueShelf() {
                   </span>
                   {/* 进度是一条细轨：这里不可拖动，不用进度条控件 */}
                   <span className="mt-2 block h-1 w-full overflow-hidden rounded-pill bg-paper-3" aria-hidden="true">
-                    <span className="block h-full rounded-pill bg-primary" style={{ width: `${ratio * 100}%` }} />
+                    <span className="block h-full rounded-pill bg-vivid" style={{ width: `${ratio * 100}%` }} />
                   </span>
                 </span>
                 <span className="num flex-none text-[13px] text-ink-faint">

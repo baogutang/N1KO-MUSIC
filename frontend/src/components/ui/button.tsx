@@ -5,11 +5,11 @@ import { cn } from '@/lib/utils'
 
 /**
  * 按钮（v5 暖纸）。全部是胶囊，形状由角色决定：
- *   default      陶土实心：一屏的主操作
+ *   default      青柠实心：一屏的主操作
  *   destructive  玫瑰实心：不可撤销的动作
- *   outline / secondary  抬起的纸片：受光上缘 + 一圈影
+ *   outline / secondary  下沉一档的纸色胶囊，扁平，不画影
  *   ghost / icon 平时不占面，hover 铺一层下沉底
- *   link         陶土文字，hover 下划线
+ *   link         叶绿文字，hover 下划线
  * 禁用态三条通道同时变：填充、文字色、指针（不只靠透明度）。
  */
 const buttonVariants = cva(
@@ -18,11 +18,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow-[0_6px_14px_-6px_oklch(var(--accent)/0.55)] hover:bg-primary/90 disabled:bg-paper-3 disabled:text-ink-faint disabled:shadow-none',
+          'bg-vivid text-vivid-foreground hover:bg-vivid-deep disabled:bg-paper-3 disabled:text-ink-faint',
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:bg-paper-3 disabled:text-ink-faint',
         outline:
-          'bg-sheet text-foreground shadow-press hover:bg-paper-deep disabled:bg-paper-3 disabled:text-ink-faint disabled:shadow-none',
+          'bg-paper-3 text-foreground hover:bg-hair disabled:text-ink-faint',
         secondary:
           'bg-paper-deep text-secondary-foreground hover:bg-paper-3 disabled:text-ink-faint',
         ghost:

@@ -1,7 +1,7 @@
 /* Hallmark · shape: app screen · genre: atmospheric · theme: Bloom (deal 3/3, seed personal-music-player-home-c863·faefcd3f·2026-10-27·r0) · redesign: full
- * nav: sidebar from 1024px, side rail 600 to 1023px, tab bar under 600px, chosen by window width · signature: the rubber play key in its bezel, lyrics laid on the working grid · states: loading, empty, error (kept from the app)
+ * nav: sidebar from 1024px, side rail 600 to 1023px, tab bar under 600px, chosen by window width · signature: the flat lime play key, lyrics laid on the working grid · states: loading, empty, error (kept from the app)
  * axes: light/grotesk-sans/warm · posture: committed · contrast: pass · v2.0.0 */
-/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: S, a sheet-and-shadow shell could front any player; the rubber key and the lyric grid carry the identity, and covers stay the only colour fields */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: S, a sheet-and-shadow shell could front any player; the lime play key and the lyric grid carry the identity, and covers stay the only large colour fields */
 
 /* 自托管字体注册（@import 必须位于文件最前，见 src/styles/fonts.css） */
 @import './styles/fonts.css';
@@ -13,7 +13,10 @@
 /* ===================================================
    v5 暖纸（Bloom）—— 唯一一套设计 token
    ---------------------------------------------------
-   暖白纸面、抬起的纸片、一盏陶土色；封面是唯一的大面积色块。
+   暖白纸面、抬起的纸片、一盏青柠；封面是唯一的大面积色块。
+   强调色分两层：--vivid 青柠只做填色（播放键、主按钮、进度），
+   --accent 叶绿是压暗一档、落在纸面上读得清的文字色（链接、当前项、焦点环）。
+   青柠当文字放在暖纸上只有约 1.3:1，所以两者不能共用一个 token。
    明暗由 <html> 上的 data-theme（同时带 .dark 供 Tailwind 的 dark: 变体）决定。
 
    颜色一律写成 oklch 的三个通道（L C H），**不带 alpha**：
@@ -40,21 +43,20 @@
   --skeleton: 92.5% 0.014 66;
   --input-edge: 62% 0.02 56;      /* 输入框描边：对纸面 3.2:1 */
 
-  /* ----- 唯一的强调色：陶土 ----- */
-  --accent: 53% 0.145 36;
-  --accent-deep: 46% 0.14 34;
-  --accent-2: 66% 0.10 55;
-  --accent-ink: 98.5% 0.008 72;
-  --danger: 49% 0.17 358;         /* 推到玫瑰 358°，与陶土 36° 拉开 */
+  /* ----- 唯一的强调色：青柠（填色）+ 叶绿（文字） ----- */
+  --vivid: 87% 0.19 127;          /* 填色；上面的图标与文字用 --vivid-ink，8:1 以上 */
+  --vivid-deep: 82.5% 0.2 129;    /* 填色 hover */
+  --vivid-ink: 24% 0.05 135;
+  --accent: 50% 0.135 138;        /* 叶绿：纸面上 5.5:1 */
+  --accent-deep: 43% 0.125 140;
+  --accent-2: 90% 0.11 108;       /* 只给正在播放页左下那团光 */
+  --accent-ink: 98.5% 0.008 72;   /* 叶绿 / 危险色实底上的浅色字 */
+  --danger: 49% 0.17 358;         /* 玫瑰 358°，与绿色拉开 */
   --ok: 50% 0.11 150;
   --warn: 76% 0.12 75;
 
-  /* ----- 实体部件：橡胶键、凹槽、受光边 ----- */
-  --rubber: 55% 0.15 34;
-  --rubber-hi: 66% 0.125 42;
-  --rubber-lo: 43% 0.125 31;
-  --bezel: 92.5% 0.014 68;
-  --hi: 99.6% 0.006 80;           /* 受光边，配 / 0.75 使用 */
+  /* ----- 受光边（只给纸片，不给按钮） ----- */
+  --hi: 99.6% 0.006 80;           /* 配 / 0.75 使用 */
   --shade: 21% 0.024 40;          /* 投影墨，配不透明度使用 */
   --shade-warm: 30% 0.06 40;
 
@@ -124,7 +126,8 @@
   /* ----- 纸片的光：上方受光，投影落在下方 ----- */
   --shadow-card: 0 1px 2px oklch(var(--shade) / 0.06), 0 18px 36px -18px oklch(var(--shade) / 0.26);
   --shadow-float: 0 2px 4px oklch(var(--shade) / 0.07), 0 36px 72px -32px oklch(var(--shade-warm) / 0.4);
-  --shadow-press: 0 0 0 1px oklch(var(--shade) / 0.06), 0 8px 18px -10px oklch(var(--shade) / 0.18), inset 0 1px 0 oklch(var(--hi) / 0.75);
+  /* 控件的影：扁平，只有一点贴地的软影，不画受光边 */
+  --shadow-press: 0 0 0 1px oklch(var(--shade) / 0.05), 0 2px 6px -2px oklch(var(--shade) / 0.16);
   --lit-edge: inset 0 1px 0 oklch(var(--hi) / 0.75);
 
   /* ----- 动效 ----- */
@@ -141,14 +144,14 @@
   --grid-line: oklch(var(--shade) / 0.06);
   --grid-line-soft: oklch(var(--shade) / 0.035);
 
-  --selection-bg: oklch(var(--accent) / 0.2);
+  --selection-bg: oklch(var(--vivid) / 0.45);
   --selection-fg: inherit;
   /* 正在播放页不做封面取色晕染：暖纸只允许两团固定的暖光 */
   --cover-bleed-opacity: 0;
   --leading-cjk: 1.75;
 }
 
-/* 暗色：棕墨夜色，同一盏陶土色调亮一档；纸片比底色亮，越抬越亮 */
+/* 暗色：棕墨夜色；青柠在暗底上本身就够亮，文字色直接用它；纸片比底色亮，越抬越亮 */
 :root[data-theme='dark'] {
   color-scheme: dark;
   --paper: 17% 0.015 45;
@@ -162,13 +165,16 @@
   --hair-soft: 26% 0.018 45;
   --skeleton: 25% 0.018 45;
   --input-edge: 50% 0.02 55;
-  --accent: 66% 0.14 38;
-  --accent-deep: 71% 0.13 40;  /* 暗色下 hover 往亮处走一档，深色字在上面仍有 6:1 */
+  --vivid: 86% 0.19 127;
+  --vivid-deep: 90% 0.17 125;  /* 暗色下 hover 往亮处走一档 */
+  --vivid-ink: 20% 0.04 135;
+  --accent: 86% 0.19 127;
+  --accent-deep: 90% 0.17 125;
+  --accent-2: 60% 0.12 130;
   --accent-ink: 17% 0.015 45;
   --danger: 70% 0.15 358;
   --ok: 72% 0.12 150;
   --warn: 80% 0.12 80;
-  --bezel: 27% 0.02 45;
   --hi: 99% 0.006 80;
   --shade: 5% 0.01 45;
   --shade-warm: 5% 0.02 40;
@@ -178,7 +184,7 @@
   --destructive-foreground: 17% 0.015 45;
   --shadow-card: 0 1px 2px oklch(var(--shade) / 0.4), 0 18px 36px -18px oklch(var(--shade) / 0.75);
   --shadow-float: 0 2px 4px oklch(var(--shade) / 0.5), 0 36px 72px -32px oklch(var(--shade-warm) / 0.85);
-  --shadow-press: 0 0 0 1px oklch(var(--hi) / 0.06), 0 8px 18px -10px oklch(var(--shade) / 0.6), inset 0 1px 0 oklch(var(--hi) / 0.08);
+  --shadow-press: 0 0 0 1px oklch(var(--hi) / 0.07), 0 2px 6px -2px oklch(var(--shade) / 0.6);
   --lit-edge: inset 0 1px 0 oklch(var(--hi) / 0.08);
   --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.9 0 0 0 0 0.85 0 0 0 0.04 0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
   --grid-line: oklch(var(--ink) / 0.06);
@@ -316,7 +322,7 @@ h1, h2, h3 {
     box-shadow: var(--shadow-card), var(--lit-edge);
   }
 
-  /* 按压手感：hover 抬起 1px，按下沉回并收一点 */
+  /* 按压手感：扁平，不抬起；按下收一点 */
   .press-pop {
     transition:
       transform var(--dur-short) var(--ease),
@@ -325,14 +331,8 @@ h1, h2, h3 {
       color var(--dur-short) var(--ease);
   }
 
-  @media (hover: hover) {
-    .press-pop:hover {
-      transform: translateY(-1px);
-    }
-  }
-
   .press-pop:active {
-    transform: translateY(1px) scale(0.98);
+    transform: scale(0.97);
   }
 
   .line-clamp-1 {
@@ -508,9 +508,10 @@ h1, h2, h3 {
   /*
    * 页面动作三级。调用方 TSX 里仍有旧编辑风的下划线链接类（border-b / tracking），
    * 用 :root 抬一档特异性压住，形状统一由这里给出。
-   *   act-primary   陶土实心胶囊：一屏只有一个
-   *   act-secondary 纸片胶囊：受光上缘 + 一圈影
-   *   act-icon      44px 圆形纸片键
+   *   act-primary   青柠实心胶囊：一屏只有一个
+   *   act-secondary 下沉一档的纸色胶囊
+   *   act-icon      44px 圆形，同上
+   * 全部扁平：不画受光边、不抬起，按下收一点。
    */
   :root .act-primary,
   :root .act-secondary,
@@ -530,39 +531,35 @@ h1, h2, h3 {
   :root .act-primary {
     min-height: 44px;
     padding: 0 24px;
-    background: oklch(var(--accent));
-    color: oklch(var(--accent-ink));
-    box-shadow: 0 6px 14px -6px oklch(var(--accent) / 0.55), inset 0 1px 0 oklch(var(--hi) / 0.25);
+    background: oklch(var(--vivid));
+    color: oklch(var(--vivid-ink));
+    box-shadow: none;
   }
 
   :root .act-secondary {
     min-height: 44px;
     padding: 0 20px;
-    background: oklch(var(--sheet));
+    background: oklch(var(--paper-3));
     color: oklch(var(--ink));
-    box-shadow: var(--shadow-press);
+    box-shadow: none;
   }
 
   :root .act-icon {
     min-width: 44px;
     min-height: 44px;
-    background: oklch(var(--sheet));
+    background: oklch(var(--paper-3));
     color: oklch(var(--ink-soft));
-    box-shadow: var(--shadow-press);
+    box-shadow: none;
   }
 
   @media (hover: hover) {
-    :root .act-primary:hover,
-    :root .act-secondary:hover,
-    :root .act-icon:hover {
-      transform: translateY(-1px);
-    }
     :root .act-primary:hover {
-      background: oklch(var(--accent-deep));
-      color: oklch(var(--accent-ink));
+      background: oklch(var(--vivid-deep));
+      color: oklch(var(--vivid-ink));
     }
     :root .act-secondary:hover,
     :root .act-icon:hover {
+      background: oklch(var(--hair));
       color: oklch(var(--ink));
     }
   }
@@ -570,7 +567,7 @@ h1, h2, h3 {
   :root .act-primary:active,
   :root .act-secondary:active,
   :root .act-icon:active {
-    transform: translateY(1px) scale(0.97);
+    transform: scale(0.96);
   }
 
   :root .act-icon.is-on {
@@ -657,7 +654,12 @@ h1, h2, h3 {
   }
 
   .song-row.is-current {
-    background: oklch(var(--accent) / 0.08);
+    background: oklch(var(--vivid) / 0.2);
+  }
+
+  /* 暗底上同样的透明度会发浑，收一档 */
+  :root[data-theme='dark'] .song-row.is-current {
+    background: oklch(var(--vivid) / 0.11);
   }
 
   .song-row.is-current .song-title {
@@ -665,44 +667,33 @@ h1, h2, h3 {
   }
 
   /*
-   * 橡胶播放键：签名部件。
-   * 嵌在一圈凹槽（bezel）里的穹顶橡胶，上方受光；按下沉 1px。
+   * 播放键：签名部件。一枚实心青柠圆键，扁平，没有渐变、凹槽和受光边；
+   * 只在下方落一团同色的软影，让它从纸面上浮出来。
+   * 播放三角不要手动右移：Phosphor 的 Play 已经按三角形重心居中，再推就偏了。
    */
-  .rubber-key {
+  .play-key {
     position: relative;
     display: grid;
     place-items: center;
     border-radius: 999px;
-    color: oklch(var(--accent-ink));
-    background: radial-gradient(120% 110% at 50% 18%, oklch(var(--rubber-hi)), oklch(var(--rubber)) 48%, oklch(var(--rubber-lo)));
-    box-shadow:
-      inset 0 1px 0.5px oklch(var(--hi) / 0.75),
-      0 5px 9px -3px oklch(var(--shade-warm) / 0.28),
-      0 0 0 6px oklch(var(--bezel)),
-      0 0 0 7px oklch(var(--shade) / 0.12);
-    transition: transform var(--dur-micro) var(--ease), filter var(--dur-micro) var(--ease);
-  }
-
-  .rubber-key.is-compact {
-    box-shadow:
-      inset 0 1px 0.5px oklch(var(--hi) / 0.75),
-      0 3px 6px -2px oklch(var(--shade-warm) / 0.3),
-      0 0 0 3px oklch(var(--bezel)),
-      0 0 0 4px oklch(var(--shade) / 0.1);
+    color: oklch(var(--vivid-ink));
+    background: oklch(var(--vivid));
+    box-shadow: 0 8px 18px -10px oklch(var(--vivid) / 0.95);
+    transition: transform var(--dur-micro) var(--ease), background-color var(--dur-micro) var(--ease);
   }
 
   @media (hover: hover) {
-    .rubber-key:hover {
-      filter: brightness(1.05);
+    .play-key:hover {
+      background: oklch(var(--vivid-deep));
     }
   }
 
-  .rubber-key:active {
-    transform: translateY(1px);
+  .play-key:active {
+    transform: scale(0.94);
   }
 
-  .rubber-key:focus-visible {
-    outline-offset: 9px;
+  .play-key:focus-visible {
+    outline-offset: 3px;
   }
 }
 

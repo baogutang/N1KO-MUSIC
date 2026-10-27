@@ -1,7 +1,7 @@
 /**
  * 服务器登录页 —— 暖纸版式（v5），首次打开 App 的第一屏
  * 居中一张 sheet（regular / wide 下约 520px）：品牌字 N1KO + 标题；
- * 服务器类型是 2×2 纸片格（选中 bg-paper-3 + 陶土图标），
+ * 服务器类型是 2×2 纸片格（选中 bg-paper-3 + 强调色图标），
  * 已存服务器与流媒体音源是纸片行；错误直接陈述。
  * 这一页不在主外壳里：自己处理 safe-area，并且整页自己滚动
  * NAS：Subsonic/Navidrome/Jellyfin/Emby；流媒体音源：已安装插件（PLAN 1.6）——
@@ -607,7 +607,7 @@ export default function LoginPage() {
                   </section>
                 )}
 
-                {/* 服务器类型：2×2 纸片格（当前项 bg-paper-3 + 陶土图标） */}
+                {/* 服务器类型：2×2 纸片格（当前项 bg-paper-3 + 强调色图标） */}
                 <section aria-labelledby="login-types">
                   <h2 id="login-types" className={GROUP_HEAD_CLS}>{t('login.typeHeading')}</h2>
                   <div className="grid grid-cols-2 gap-3">
@@ -813,7 +813,7 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* 连接按钮：整屏唯一的主操作（陶土胶囊） */}
+                {/* 连接按钮：整屏唯一的主操作（强调色胶囊） */}
                 <div className="pt-2">
                   <Button
                     size="lg"

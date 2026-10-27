@@ -224,7 +224,7 @@ export function ShareDialog({
                     className={cn(
                       'min-h-11 rounded-pill px-4 text-[13.5px] font-medium transition-colors duration-150',
                       expiryDays === opt.days
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'bg-vivid text-vivid-foreground'
                         : 'bg-paper-deep text-ink-soft hover:bg-paper-3 hover:text-ink'
                     )}
                   >
