@@ -1,8 +1,9 @@
 /**
  * N1KO MUSIC 官网的全部交互：
  *  - 中 / 英切换（data-i18n 节点换 innerHTML，data-i18n-alt 换图片 alt，语言存 localStorage）
- *  - 「正在播放」一节的截图切换（含键盘左右键、图注与 alt 跟随）
- * v5 起应用只有一套暖纸设计，官网也不再换肤；明暗跟随系统，由 CSS 处理。
+ *  - 「播放」一节的画面切换（含键盘方向键，图注、alt、舞台灯的颜色跟随所选画面）
+ *  - 顶栏：在页面顶上透明，滚下去才铺上玻璃
+ * 应用只有一套 v6 设计，官网也不换肤；明暗跟随系统，由 CSS 处理。
  * 没有框架、没有构建步骤：GitHub Pages 推上去就能跑。
  */
 ;(function () {
@@ -10,14 +11,14 @@
 
   /* ── 双语词典：值允许内嵌 <b> <br /> 等行内标记（与 HTML 里的一致） ── */
   var ZH = {
-    'nav.windows': '布局', 'nav.ipad': 'iPad', 'nav.features': '功能',
+    'nav.windows': '布局', 'nav.player': '播放器', 'nav.ipad': 'iPad', 'nav.features': '功能',
     'nav.sources': '音源', 'nav.download': '下载',
     'hero.title': '听自己的曲库',
     'hero.lede': '连上 Navidrome、Subsonic、Jellyfin 或 Emby；没有 NAS，用网易云音乐、QQ 音乐扫码也能听。',
     'hero.cta1': '免费下载', 'hero.cta2': '看看源码',
     'hero.meta': 'macOS、Windows、Linux、Android、iOS 和 Web 都能用，免费开源，不要账号，没有埋点。',
     'hero.alt': 'N1KO MUSIC 在 iPad 横屏上：侧栏、首页和正在播放面板并排',
-    'hero.caption': '宽窗口：侧栏、页面和正在播放面板并排。iPad 横屏与桌面都是这一套。',
+    'hero.caption': '宽窗口：侧栏、页面和正在播放面板并排，iPad 横屏与桌面都是这一套。页面顶上那片光取自正在播放的封面。',
     'windows.title': '跟着窗口换布局',
     'windows.sub': '只看窗口有多宽，不看是什么设备。iPhone、展开的 iPhone Duo、iPad 分屏和桌面，各拿到合适的那一套。',
     'windows.phone': '窄窗口：底部标签栏，迷你播放条可以左右滑动切歌',
@@ -26,12 +27,20 @@
     'windows.duo.alt': 'iPhone Duo 半折时的正在播放：歌词在上，封面带和控制在下',
     'windows.ipad': '中等宽度：左侧导航条，iPad 竖屏和半屏分屏',
     'windows.ipad.alt': 'iPad 竖屏上的专辑页：左侧导航条',
-    'player.title': '正在播放',
-    'player.sub': '封面是界面上唯一的大块颜色。播放键是一枚扁平的青柠圆键，歌词落在一张淡淡的格纸上。',
-    'player.tab.player': '横屏', 'player.tab.dark': '深色', 'player.tab.login': '连接',
-    'player.cap.player': '横着的窗口：左边封面和控制，右边歌词。点任意一行跳过去。',
-    'player.cap.dark': '深色：棕墨夜色，青柠在暗底上更亮。跟随系统切换。',
-    'player.cap.login': '连接：NAS 几秒连上；网易云音乐、QQ 音乐用手机扫个码。',
+    'player.title': '房间取封面的颜色',
+    'player.sub': '当前封面的色相落进房间的光里。亮度按主题固定，所以不管封面是什么颜色，字都读得清。点下面的画面，看光怎么换。',
+    'player.tab.player': '舞台', 'player.tab.phone': '手机',
+    'player.tab.dark': '深色', 'player.tab.login': '欢迎页',
+    'player.cap.player': '横着的窗口：封面叠在左边，下面是控制，右边是放大的歌词，正在唱的那一行全亮。点任意一行跳过去。',
+    'player.cap.phone': '手机上的全屏播放器：从播放条上展开，封面从迷你播放条飞过来，叠在最上面。',
+    'player.cap.dark': '深色：青柠在暗底上本身就够亮，直接当强调色。亮暗切换从开关处铺开，也可以跟随系统。',
+    'player.cap.login': '欢迎页：糯米和毛豆挥手；还没有歌在放，房间的光是青柠色。NAS 几秒连上，网易云音乐、QQ 音乐用手机扫个码。',
+    'stage.f1t': '全屏播放器是一座暗色舞台',
+    'stage.f1b': '光场取自当前封面。歌词放得很大，正在唱的那一行全亮。它从播放条上展开，封面从迷你播放条飞过来。',
+    'stage.f2t': '队列是一叠封面',
+    'stage.f2b': '向左一甩是下一首，向右是上一首。点一下露出来的那几张，打开「接下来」。',
+    'stage.f3t': '换歌时，光从封面漫开',
+    'stage.f3b': '新封面的颜色从它所在的位置向外铺开，把上一首的光推出去。系统开了「减弱动态效果」时只换颜色，不铺开。',
     'ipad.title': '在 iPad 上，像个 iPad 应用',
     'ipad.sub': '接上妙控键盘或触控板，桌面上那套操作都在。按住 ⌘ 一秒，屏幕上会列出全部快捷键。',
     'ipad.hold': '按住', 'ipad.k.hold': '列出全部快捷键',
@@ -56,6 +65,11 @@
     'f.yours.1': '《本期》：每月一期，句子由真实数字拼成',
     'f.yours.2': '重听与边注',
     'f.yours.3': '听歌历史能导入，也能导出',
+    'f.feel': '手感',
+    'f.feel.1': '按下去稳稳落定，不晃',
+    'f.feel.2': '拖动保留手的速度，随时可以接住打断',
+    'f.feel.3': '鼠标滚轮有惯性滑行，书架一张卡一格地吸附',
+    'f.feel.4': '亮暗切换从开关处铺开；开启「减少动态效果」后，位移全部变成淡入淡出',
     'sources.title': '连上你的曲库',
     'sources.sub': '两种来源并排：搜索按来源分组，队列里混着放。',
     'sources.nas': '自建服务器', 'sources.recommended': '推荐',
@@ -73,24 +87,26 @@
     'privacy.r4k': '导出文件', 'privacy.r4v': '在浏览器里生成，不上传。',
     'privacy.r5v': '可选，默认关闭。后者只发歌手编号。',
     'dl.unit': '元', 'dl.title': '下载', 'dl.sub': '完全免费，完全开源。挑你的平台，几秒钟开始。',
+    'duo.note': '糯米（白兔，黄背带裤）和毛豆（绿青蛙，戴耳机）只出现在开屏、欢迎页、空列表和出错的时候。两个角色的形象版权归作者 N1KO 所有，不随 MIT 许可授权。',
     'dl.macarm': 'Apple 芯片', 'dl.macintel': 'Intel', 'dl.win': '安装包或 MSI',
     'dl.linux': '免安装或 DEB 包', 'dl.android': '工作流 Artifacts 下载', 'dl.ios': 'AltStore 或 Sideloadly 侧载',
     'dl.note': 'macOS 首次打开若提示「无法验证开发者」，到「系统设置」的「隐私与安全性」里允许即可；若提示「已损坏」，终端执行 <code>xattr -cr "/Applications/N1KO MUSIC.app"</code> 后再打开。不想装应用？用 Docker 跑 Web 版，一条命令。',
-    'footer.type': '字体', 'footer.selfhosted': '全部自托管，不走第三方 CDN。',
+    'footer.type': '字体', 'footer.type.body': '标题用 Geologica，界面用系统字体。',
+    'footer.selfhosted': 'Geologica 自托管，不走第三方 CDN。',
     'footer.stack': '技术', 'footer.promo': '同作者',
     'footer.promo.body': '一个 key 打通 Claude、GPT、Gemini，按量计费。',
     'footer.star': '如果 N1KO MUSIC 对你有用，在 GitHub 上点一颗星，意义重大。',
   }
 
   var EN = {
-    'nav.windows': 'Layouts', 'nav.ipad': 'iPad', 'nav.features': 'Features',
+    'nav.windows': 'Layouts', 'nav.player': 'Player', 'nav.ipad': 'iPad', 'nav.features': 'Features',
     'nav.sources': 'Sources', 'nav.download': 'Download',
     'hero.title': 'Your own library, played well',
     'hero.lede': 'Connect Navidrome, Subsonic, Jellyfin or Emby. No NAS? Sign in to NetEase Cloud Music or QQ Music with a QR code.',
     'hero.cta1': 'Download free', 'hero.cta2': 'Read the source',
     'hero.meta': 'Runs on macOS, Windows, Linux, Android, iOS and the web. Free and open source, no account, no telemetry.',
     'hero.alt': 'N1KO MUSIC on an iPad in landscape: sidebar, home page and the Now Playing panel side by side',
-    'hero.caption': 'Wide windows: sidebar, page and Now Playing panel side by side. iPad in landscape and the desktop get this one.',
+    'hero.caption': 'Wide windows: sidebar, page and Now Playing panel side by side, on iPad in landscape and on the desktop alike. The light across the top comes from the cover that is playing.',
     'windows.title': 'The layout follows the window',
     'windows.sub': 'It reads how wide the window is, never which device it is on. iPhone, an unfolded iPhone Duo, iPad Split View and the desktop each get the layout that fits.',
     'windows.phone': 'Narrow: a tab bar at the bottom, and a mini player you swipe to skip',
@@ -99,12 +115,20 @@
     'windows.duo.alt': 'Now Playing on a half-folded iPhone Duo: lyrics on top, covers and controls below',
     'windows.ipad': 'Medium: a side rail, for iPad in portrait and half-screen Split View',
     'windows.ipad.alt': 'An album page on iPad in portrait with the side rail',
-    'player.title': 'Now Playing',
-    'player.sub': 'The cover is the only large field of colour. The play button is a flat lime key, and the lyrics sit on a faint sheet of grid paper.',
-    'player.tab.player': 'Landscape', 'player.tab.dark': 'Dark', 'player.tab.login': 'Connect',
-    'player.cap.player': 'A landscape window: cover and controls on the left, lyrics on the right. Tap any line to jump there.',
-    'player.cap.dark': 'Dark: a warm umber night where the lime glows brighter. Follows the system.',
-    'player.cap.login': 'Connect: a NAS in seconds; NetEase Cloud Music and QQ Music with a scan from your phone.',
+    'player.title': 'The room takes the colour of the cover',
+    'player.sub': 'The hue of the cover that is playing falls into the light of the room. Lightness is fixed for each theme, so text stays readable on any cover. Pick a screen below and watch the light change.',
+    'player.tab.player': 'Stage', 'player.tab.phone': 'Phone',
+    'player.tab.dark': 'Dark', 'player.tab.login': 'Welcome',
+    'player.cap.player': 'A landscape window: the deck of covers and the controls on the left, large lyrics on the right with the current line fully lit. Tap any line to jump there.',
+    'player.cap.phone': 'The full-screen player on iPhone: it unfolds from the player bar, and the cover flies up from the mini player to sit on top.',
+    'player.cap.dark': 'Dark: lime is bright enough on a dark ground to be the accent itself. Switching between light and dark spreads out from the toggle, or follows the system.',
+    'player.cap.login': 'The welcome page: Nuomi and Maodou wave, and with no song playing the light of the room is lime. A NAS connects in seconds; NetEase Cloud Music and QQ Music take a scan from your phone.',
+    'stage.f1t': 'The full-screen player is a dark stage',
+    'stage.f1b': 'A light field sampled from the cover lights it. Lyrics are large and the current line is fully lit. It unfolds from the player bar, and the cover flies up from the mini player.',
+    'stage.f2t': 'The queue is a deck of covers',
+    'stage.f2b': 'Flick left for the next track, right for the previous one. Tap the cards peeking out behind to open Up Next.',
+    'stage.f3t': 'On a new track, the light spreads from the cover',
+    'stage.f3b': 'The new cover’s colour spreads out from where the cover sits and pushes the previous light away. With Reduce Motion on, the colour simply changes.',
     'ipad.title': 'On iPad, it behaves like an iPad app',
     'ipad.sub': 'Attach a Magic Keyboard or a trackpad and the desktop moves come with it. Hold ⌘ for a second to see every shortcut.',
     'ipad.hold': 'hold', 'ipad.k.hold': 'Show every shortcut',
@@ -129,6 +153,11 @@
     'f.yours.1': 'The Issue: your month, told in real numbers',
     'f.yours.2': 'Rediscovery and marginalia',
     'f.yours.3': 'Import and export your listening history',
+    'f.feel': 'Feel',
+    'f.feel.1': 'Presses settle without wobble',
+    'f.feel.2': 'Drags keep their velocity and can be interrupted',
+    'f.feel.3': 'Mouse wheels glide with inertia, and shelves snap one card at a time',
+    'f.feel.4': 'Switching light and dark spreads out from the toggle; with Reduce Motion on, movement turns into fades',
     'sources.title': 'Point it at your library',
     'sources.sub': 'Both kinds side by side: search groups by source, the queue mixes freely.',
     'sources.nas': 'Your own server', 'sources.recommended': 'recommended',
@@ -146,10 +175,12 @@
     'privacy.r4k': 'Exported files', 'privacy.r4v': 'Generated in the browser. Never uploaded.',
     'privacy.r5v': 'Opt in, off by default. The latter sends artist ids only.',
     'dl.unit': 'dollars', 'dl.title': 'Download', 'dl.sub': 'Completely free, completely open source. Pick your platform.',
+    'duo.note': 'Nuomi, a white bunny in yellow overalls, and Maodou, a green frog in headphones, appear only on the splash, the welcome screen, in empty lists and on errors. The characters are © N1KO and are not licensed under MIT.',
     'dl.macarm': 'Apple silicon', 'dl.macintel': 'Intel', 'dl.win': 'Installer or MSI',
     'dl.linux': 'AppImage or DEB', 'dl.android': 'From workflow artifacts', 'dl.ios': 'Sideload with AltStore or Sideloadly',
     'dl.note': 'On macOS, allow the app under System Settings, Privacy & Security on first launch; if macOS calls it damaged, run <code>xattr -cr "/Applications/N1KO MUSIC.app"</code> and open it again. Prefer no install? The web version runs in Docker with one command.',
-    'footer.type': 'Type', 'footer.selfhosted': 'All self-hosted, no third-party CDN.',
+    'footer.type': 'Type', 'footer.type.body': 'Headings in Geologica, the interface in the system font.',
+    'footer.selfhosted': 'Geologica is self-hosted, with no third-party CDN.',
     'footer.stack': 'Stack', 'footer.promo': 'Also by N1KO',
     'footer.promo.body': 'One key for Claude, GPT and Gemini, pay as you go.',
     'footer.star': 'If N1KO MUSIC is useful to you, a star on GitHub means a lot.',
@@ -180,32 +211,69 @@
     try { localStorage.setItem(LANG_KEY, currentLang) } catch (e) { /* 私密模式无所谓 */ }
   }
 
-  /* ── 「正在播放」截图切换 ── */
+  /* ── 「播放」一节的画面切换：room 决定舞台灯哪一层亮（见 styles.css 的 .stage-lights） ── */
   var SHOTS = {
-    player: { src: 'assets/player.webp', alt: ['横屏的正在播放：左边封面和控制，右边歌词', 'Now Playing in landscape: cover and controls on the left, lyrics on the right'] },
-    dark:   { src: 'assets/home-dark.webp', alt: ['深色的首页', 'Home in dark mode'] },
-    login:  { src: 'assets/login.webp', alt: ['连接页', 'The connect page'] },
+    player: {
+      src: 'assets/player.webp', w: 1376, h: 1032, room: 'player', orient: 'landscape',
+      alt: ['横屏的全屏播放器：左边是叠在一起的封面和控制，右边是放大的歌词', 'The full-screen player in landscape: a deck of covers and controls on the left, large lyrics on the right'],
+    },
+    phone: {
+      src: 'assets/phone-player.webp', w: 1179, h: 2556, room: 'phone', orient: 'portrait',
+      alt: ['iPhone 上的全屏播放器：封面叠在上方，下面是进度条和播放键', 'The full-screen player on iPhone: a deck of covers on top, progress and play controls below'],
+    },
+    dark: {
+      src: 'assets/home-dark.webp', w: 1376, h: 1032, room: 'dark', orient: 'landscape',
+      alt: ['深色的首页', 'Home in dark mode'],
+    },
+    login: {
+      src: 'assets/login.webp', w: 1376, h: 1032, room: 'login', orient: 'landscape',
+      alt: ['欢迎页：糯米和毛豆挥手，右边是服务器类型和流媒体来源', 'The welcome page: Nuomi and Maodou wave, with the server types and streaming sources on the right'],
+    },
   }
   var currentShot = 'player'
   var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab[data-shot]'))
   var stageImg = document.getElementById('stageImg')
   var stageCaption = document.getElementById('stageCaption')
+  var stageFigure = document.querySelector('.stage')
+  var stageBand = document.querySelector('.stage-band')
+  var stagePanel = document.getElementById('stagePanel')
+  var swapToken = 0
 
   function selectShot(name) {
     var shot = SHOTS[name]
     if (!shot || !stageImg) return
     currentShot = name
+
+    /* 灯先换：层与层之间淡入淡出，和画面的淡出同时开始 */
+    if (stageBand) stageBand.setAttribute('data-room', shot.room)
+
+    /* 画面：先预取，淡出至少 180ms，图到了再换，避免旧图淡回来又跳变 */
+    var token = ++swapToken
+    var started = Date.now()
     stageImg.classList.add('switching')
-    setTimeout(function () {
-      stageImg.src = shot.src
-      stageImg.alt = shot.alt[currentLang === 'en' ? 1 : 0]
-      stageImg.classList.remove('switching')
-    }, 180)
+    var swap = function () {
+      var wait = Math.max(0, 180 - (Date.now() - started))
+      setTimeout(function () {
+        if (token !== swapToken) return
+        stageImg.src = shot.src
+        stageImg.width = shot.w
+        stageImg.height = shot.h
+        stageImg.alt = shot.alt[currentLang === 'en' ? 1 : 0]
+        if (stageFigure) stageFigure.setAttribute('data-orient', shot.orient)
+        stageImg.classList.remove('switching')
+      }, wait)
+    }
+    var pre = new Image()
+    pre.onload = swap
+    pre.onerror = swap
+    pre.src = shot.src
+
     if (stageCaption) {
       var key = 'player.cap.' + name
       stageCaption.setAttribute('data-i18n', key)
       stageCaption.innerHTML = t(key)
     }
+    if (stagePanel) stagePanel.setAttribute('aria-labelledby', 'tab-' + name)
     for (var i = 0; i < tabs.length; i++) {
       var on = tabs[i].getAttribute('data-shot') === name
       tabs[i].classList.toggle('is-on', on)
@@ -220,18 +288,35 @@
     })(tabs[tb])
   }
 
-  /* tablist 支持左右键（WAI-ARIA tabs 模式的最小实现） */
+  /* tablist 支持方向键与 Home / End（WAI-ARIA tabs 模式的最小实现） */
   var tablist = document.querySelector('.tabs')
   if (tablist) {
     tablist.addEventListener('keydown', function (e) {
-      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
       var idx = tabs.findIndex(function (tab) { return tab.classList.contains('is-on') })
-      var next = (idx + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+      var next = -1
+      if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length
+      else if (e.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length
+      else if (e.key === 'Home') next = 0
+      else if (e.key === 'End') next = tabs.length - 1
+      if (next < 0) return
+      e.preventDefault()
       tabs[next].focus()
       selectShot(tabs[next].getAttribute('data-shot'))
     })
   }
   for (var k = 0; k < tabs.length; k++) tabs[k].tabIndex = tabs[k].classList.contains('is-on') ? 0 : -1
+
+  /* ── 顶栏：在页面顶上透明（data-top），滚下去才铺上玻璃。没有脚本时一直是玻璃 ── */
+  var topbar = document.querySelector('.topbar')
+  if (topbar) {
+    var syncTopbar = function () {
+      var y = window.pageYOffset || document.documentElement.scrollTop || 0
+      if (y > 4) topbar.removeAttribute('data-top')
+      else topbar.setAttribute('data-top', '')
+    }
+    window.addEventListener('scroll', syncTopbar, { passive: true })
+    syncTopbar()
+  }
 
   var toggle = document.getElementById('langToggle')
   if (toggle) {

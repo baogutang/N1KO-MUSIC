@@ -9,8 +9,9 @@
 <meta property="og:description" content="A player for your own music library. Navidrome, Subsonic, Jellyfin, Emby, plus NetEase and QQ Music. Built for iPhone, iPhone Duo, iPad and desktop." />
 <meta property="og:image" content="https://baogutang.github.io/N1KO-MUSIC/assets/og.jpg" />
 <meta property="og:type" content="website" />
-<meta name="theme-color" content="#f9f4ee" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#150d0a" media="(prefers-color-scheme: dark)" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#101317" media="(prefers-color-scheme: dark)" />
 <link rel="canonical" href="https://baogutang.github.io/N1KO-MUSIC/" />
 <link rel="icon" type="image/png" href="assets/logo.png" />
 <link rel="stylesheet" href="assets/fonts/fonts.css" />
@@ -27,6 +28,7 @@
 
     <nav class="topnav" aria-label="Sections">
       <a href="#windows"  data-i18n="nav.windows">布局</a>
+      <a href="#player"   data-i18n="nav.player">播放器</a>
       <a href="#ipad"     data-i18n="nav.ipad">iPad</a>
       <a href="#features" data-i18n="nav.features">功能</a>
       <a href="#sources"  data-i18n="nav.sources">音源</a>
@@ -54,8 +56,9 @@
       <p class="hero-lede" data-i18n="hero.lede">连上 Navidrome、Subsonic、Jellyfin 或 Emby；没有 NAS，用网易云音乐、QQ 音乐扫码也能听。</p>
       <div class="hero-actions">
         <a class="btn btn-primary btn-lg" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener" data-i18n="hero.cta1">免费下载</a>
-        <a class="btn btn-quiet btn-lg" href="https://github.com/baogutang/N1KO-MUSIC" target="_blank" rel="noopener" data-i18n="hero.cta2">看看源码</a>
+        <a class="btn btn-secondary btn-lg" href="https://github.com/baogutang/N1KO-MUSIC" target="_blank" rel="noopener" data-i18n="hero.cta2">看看源码</a>
       </div>
+      <p class="hero-meta" data-i18n="hero.meta">macOS、Windows、Linux、Android、iOS 和 Web 都能用，免费开源，不要账号，没有埋点。</p>
     </div>
   </div>
 
@@ -64,7 +67,7 @@
       <source srcset="assets/home-dark.webp" media="(prefers-color-scheme: dark)" />
       <img class="shot" src="assets/home.webp" alt="N1KO MUSIC 在 iPad 横屏上：侧栏、首页和正在播放面板并排" width="1376" height="1032" fetchpriority="high" data-i18n-alt="hero.alt" />
     </picture>
-    <figcaption><span data-i18n="hero.caption">宽窗口：侧栏、页面和正在播放面板并排。iPad 横屏与桌面都是这一套。</span> <span data-i18n="hero.meta">macOS、Windows、Linux、Android、iOS 和 Web 都能用，免费开源，不要账号，没有埋点。</span></figcaption>
+    <figcaption data-i18n="hero.caption">宽窗口：侧栏、页面和正在播放面板并排，iPad 横屏与桌面都是这一套。页面顶上那片光取自正在播放的封面。</figcaption>
   </figure>
 </section>
 
@@ -90,22 +93,55 @@
   </div>
 </section>
 
-<section class="section wrap" id="player">
-  <div class="section-head">
-    <h2 data-i18n="player.title">正在播放</h2>
-    <p data-i18n="player.sub">封面是界面上唯一的大块颜色。播放键是一枚扁平的青柠圆键，歌词落在一张淡淡的格纸上。</p>
-  </div>
+<section class="section" id="player">
+  <div class="wrap">
+    <div class="stage-band" data-room="player">
+      <div class="stage-lights" aria-hidden="true">
+        <span class="light light-warm"></span>
+        <span class="light light-blue"></span>
+        <span class="light light-sand"></span>
+        <span class="light light-lime"></span>
+      </div>
 
-  <div class="tabs" role="tablist" aria-label="Screenshots">
-    <button class="tab is-on" type="button" role="tab" aria-selected="true"  data-shot="player" data-i18n="player.tab.player">横屏</button>
-    <button class="tab" type="button" role="tab" aria-selected="false" data-shot="dark"   data-i18n="player.tab.dark">深色</button>
-    <button class="tab" type="button" role="tab" aria-selected="false" data-shot="login"  data-i18n="player.tab.login">连接</button>
-  </div>
+      <div class="stage-inner">
+        <div class="section-head">
+          <h2 data-i18n="player.title">房间取封面的颜色</h2>
+          <p data-i18n="player.sub">当前封面的色相落进房间的光里。亮度按主题固定，所以不管封面是什么颜色，字都读得清。点下面的画面，看光怎么换。</p>
+        </div>
 
-  <figure class="stage">
-    <img class="shot" id="stageImg" src="assets/player.webp" alt="横屏的正在播放：左边封面和控制，右边歌词" width="1376" height="1032" loading="lazy" />
-    <figcaption id="stageCaption" data-i18n="player.cap.player">横着的窗口：左边封面和控制，右边歌词。点任意一行跳过去。</figcaption>
-  </figure>
+        <div class="tabs" role="tablist" aria-label="Screens">
+          <button class="tab is-on" id="tab-player" type="button" role="tab" aria-selected="true"  aria-controls="stagePanel" data-shot="player" data-i18n="player.tab.player">舞台</button>
+          <button class="tab" id="tab-phone" type="button" role="tab" aria-selected="false" aria-controls="stagePanel" data-shot="phone"  data-i18n="player.tab.phone">手机</button>
+          <button class="tab" id="tab-dark" type="button" role="tab" aria-selected="false" aria-controls="stagePanel" data-shot="dark"   data-i18n="player.tab.dark">深色</button>
+          <button class="tab" id="tab-login" type="button" role="tab" aria-selected="false" aria-controls="stagePanel" data-shot="login"  data-i18n="player.tab.login">欢迎页</button>
+        </div>
+
+        <div id="stagePanel" role="tabpanel" aria-labelledby="tab-player" tabindex="0">
+          <figure class="stage" data-orient="landscape">
+            <div class="stage-frame">
+              <img class="shot" id="stageImg" src="assets/player.webp" alt="横屏的全屏播放器：左边是叠在一起的封面和控制，右边是放大的歌词" width="1376" height="1032" loading="lazy" />
+            </div>
+            <figcaption id="stageCaption" data-i18n="player.cap.player">横着的窗口：封面叠在左边，下面是控制，右边是放大的歌词，正在唱的那一行全亮。点任意一行跳过去。</figcaption>
+          </figure>
+        </div>
+
+        <div class="stage-facts">
+          <div class="stage-fact">
+            <h3 data-i18n="stage.f1t">全屏播放器是一座暗色舞台</h3>
+            <p data-i18n="stage.f1b">光场取自当前封面。歌词放得很大，正在唱的那一行全亮。它从播放条上展开，封面从迷你播放条飞过来。</p>
+          </div>
+          <div class="stage-fact">
+            <h3 data-i18n="stage.f2t">队列是一叠封面</h3>
+            <p data-i18n="stage.f2b">向左一甩是下一首，向右是上一首。点一下露出来的那几张，打开「接下来」。</p>
+          </div>
+          <div class="stage-fact">
+            <h3 data-i18n="stage.f3t">换歌时，光从封面漫开</h3>
+            <p data-i18n="stage.f3b">新封面的颜色从它所在的位置向外铺开，把上一首的光推出去。系统开了「减弱动态效果」时只换颜色，不铺开。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <section class="section wrap" id="ipad">
@@ -115,7 +151,7 @@
       <p data-i18n="ipad.sub">接上妙控键盘或触控板，桌面上那套操作都在。按住 ⌘ 一秒，屏幕上会列出全部快捷键。</p>
     </div>
 
-    <dl class="keys sheet">
+    <dl class="keys card">
       <div class="key-row"><dt><kbd>⌘</kbd> <span data-i18n="ipad.hold">按住</span></dt><dd data-i18n="ipad.k.hold">列出全部快捷键</dd></div>
       <div class="key-row"><dt><kbd>⌘</kbd><kbd>1</kbd> <kbd>⌘</kbd><kbd>2</kbd> <kbd>⌘</kbd><kbd>3</kbd></dt><dd data-i18n="ipad.k.nav">首页、推荐、音乐库</dd></div>
       <div class="key-row"><dt><kbd>⌘</kbd><kbd>F</kbd></dt><dd data-i18n="ipad.k.search">搜索</dd></div>
@@ -135,7 +171,7 @@
   </div>
 
   <div class="feature-grid">
-    <article class="feature sheet">
+    <article class="feature card">
       <h3 data-i18n="f.playback">播放</h3>
       <ul>
         <li data-i18n="f.playback.1">全库随机，从服务器抽样</li>
@@ -143,7 +179,7 @@
         <li data-i18n="f.playback.3">队列放完自动接相似曲目</li>
       </ul>
     </article>
-    <article class="feature sheet">
+    <article class="feature card">
       <h3 data-i18n="f.control">操作</h3>
       <ul>
         <li data-i18n="f.control.1">每个列表都能多选</li>
@@ -151,7 +187,7 @@
         <li data-i18n="f.control.3">车载模式：超大按键，滑动切歌</li>
       </ul>
     </article>
-    <article class="feature sheet">
+    <article class="feature card">
       <h3 data-i18n="f.library">曲库</h3>
       <ul>
         <li data-i18n="f.library.1">一万首也不卡</li>
@@ -159,12 +195,21 @@
         <li data-i18n="f.library.3">服务器支持什么，才出现什么</li>
       </ul>
     </article>
-    <article class="feature sheet">
+    <article class="feature card">
       <h3 data-i18n="f.yours">你自己的</h3>
       <ul>
         <li data-i18n="f.yours.1">《本期》：每月一期，句子由真实数字拼成</li>
         <li data-i18n="f.yours.2">重听与边注</li>
         <li data-i18n="f.yours.3">听歌历史能导入，也能导出</li>
+      </ul>
+    </article>
+    <article class="feature feature-wide card">
+      <h3 data-i18n="f.feel">手感</h3>
+      <ul>
+        <li data-i18n="f.feel.1">按下去稳稳落定，不晃</li>
+        <li data-i18n="f.feel.2">拖动保留手的速度，随时可以接住打断</li>
+        <li data-i18n="f.feel.3">鼠标滚轮有惯性滑行，书架一张卡一格地吸附</li>
+        <li data-i18n="f.feel.4">亮暗切换从开关处铺开；开启「减少动态效果」后，位移全部变成淡入淡出</li>
       </ul>
     </article>
   </div>
@@ -220,7 +265,7 @@
     <p data-i18n="privacy.sub">没有埋点，没有崩溃上报，也没有可以发过去的服务器。</p>
   </div>
 
-  <dl class="privacy sheet">
+  <dl class="privacy card">
     <div class="privacy-row"><dt data-i18n="privacy.r1k">你的音乐</dt><dd data-i18n="privacy.r1v">你的音乐服务器（NAS），以及你登录过的插件音源。没有别处。</dd></div>
     <div class="privacy-row"><dt data-i18n="privacy.r2k">历史、统计、口味画像</dt><dd data-i18n="privacy.r2v">这台设备（IndexedDB），以及你自己跑的同步服务（如果有）。</dd></div>
     <div class="privacy-row"><dt data-i18n="privacy.r3k">凭据</dt><dd data-i18n="privacy.r3v">用页面脚本取不出来的 AES-GCM 密钥加密落盘。</dd></div>
@@ -231,40 +276,46 @@
 
 <section class="section wrap" id="download">
   <div class="download-head">
-    <p class="price" aria-hidden="true"><span class="price-figure">0</span><span class="price-unit" data-i18n="dl.unit">元</span></p>
-    <div class="section-head">
-      <h2 data-i18n="dl.title">下载</h2>
-      <p data-i18n="dl.sub">完全免费，完全开源。挑你的平台，几秒钟开始。</p>
+    <div class="download-copy">
+      <p class="price" aria-hidden="true"><span class="price-figure">0</span><span class="price-unit" data-i18n="dl.unit">元</span></p>
+      <div class="section-head">
+        <h2 data-i18n="dl.title">下载</h2>
+        <p data-i18n="dl.sub">完全免费，完全开源。挑你的平台，几秒钟开始。</p>
+      </div>
+    </div>
+    <div class="duo">
+      <img class="duo-img" src="assets/mascots-duo.webp" alt="" aria-hidden="true" width="960" height="896" loading="lazy" />
+      <p class="duo-note" data-i18n="duo.note">糯米（白兔，黄背带裤）和毛豆（绿青蛙，戴耳机）只出现在开屏、欢迎页、空列表和出错的时候。两个角色的形象版权归作者 N1KO 所有，不随 MIT 许可授权。</p>
     </div>
   </div>
 
   <div class="dl-grid">
-    <a class="dl sheet" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
+    <a class="dl card" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
       <span class="dl-os">macOS</span>
       <span class="dl-note" data-i18n="dl.macarm">Apple 芯片</span>
       <span class="dl-pkg">aarch64.dmg</span>
     </a>
-    <a class="dl sheet" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
+    <a class="dl card" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
       <span class="dl-os">macOS</span>
       <span class="dl-note" data-i18n="dl.macintel">Intel</span>
       <span class="dl-pkg">x64.dmg</span>
     </a>
-    <a class="dl sheet" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
+    <a class="dl card" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
       <span class="dl-os">Windows</span>
       <span class="dl-note" data-i18n="dl.win">安装包或 MSI</span>
       <span class="dl-pkg">x64-setup.exe / .msi</span>
     </a>
-    <a class="dl sheet" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
+    <a class="dl card" href="https://github.com/baogutang/N1KO-MUSIC/releases/latest" target="_blank" rel="noopener">
       <span class="dl-os">Linux</span>
       <span class="dl-note" data-i18n="dl.linux">免安装或 DEB 包</span>
       <span class="dl-pkg">.AppImage / .deb</span>
     </a>
-    <a class="dl sheet" href="https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml" target="_blank" rel="noopener">
+    <a class="dl card" href="https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml" target="_blank" rel="noopener">
       <span class="dl-os">Android</span>
       <span class="dl-note" data-i18n="dl.android">工作流 Artifacts 下载</span>
       <span class="dl-pkg">app-debug.apk</span>
     </a>
-    <a class="dl sheet" href="https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml" target="_blank" rel="noopener">
+    <a class="dl card" href="https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml" target="_blank" rel="noopener">
       <span class="dl-os">iOS / iPadOS</span>
       <span class="dl-note" data-i18n="dl.ios">AltStore 或 Sideloadly 侧载</span>
       <span class="dl-pkg">unsigned .zip</span>
@@ -280,11 +331,11 @@
   <div class="wrap footer-grid">
     <div>
       <h3 data-i18n="footer.type">字体</h3>
-      <p>Schibsted Grotesk, Young Serif<br /><span data-i18n="footer.selfhosted">全部自托管，不走第三方 CDN。</span></p>
+      <p><span data-i18n="footer.type.body">标题用 Geologica，界面用系统字体。</span><br /><span data-i18n="footer.selfhosted">Geologica 自托管，不走第三方 CDN。</span></p>
     </div>
     <div>
       <h3 data-i18n="footer.stack">技术</h3>
-      <p>React 18, Tauri 2, Capacitor 8<br />MIT License, © 2026 N1KO</p>
+      <p>React 18, Tauri 2, Capacitor 8<br />MIT License, &copy; 2026 N1KO</p>
     </div>
     <div>
       <h3 data-i18n="footer.promo">同作者</h3>

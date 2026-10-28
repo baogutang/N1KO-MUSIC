@@ -22,7 +22,7 @@ and listen anyway. iPhone, iPhone Duo, iPad and the desktop each get a layout th
 
 <br/>
 
-<img src="docs/screenshots/v5/home.png" alt="N1KO MUSIC on an iPad in landscape: sidebar, home page and the Now Playing panel side by side" width="860" />
+<img src="docs/screenshots/v6/home.png" alt="N1KO MUSIC on an iPad in landscape: sidebar, home page and the Now Playing panel side by side" width="860" />
 
 </div>
 
@@ -38,28 +38,28 @@ and listen anyway. iPhone, iPhone Duo, iPad and the desktop each get a layout th
 
 <br/>
 
-## Warm paper
+## Stage light
 
-Most music clients are admin dashboards with cover art bolted on, organised around
-*what the server has*: tables, filters, counts. N1KO MUSIC wants to be a player you
-leave open all day. In v5 the three old skins became one design:
+Most music clients are admin panels with album art: tables, filters and counts, organised around what the server holds.
+N1KO MUSIC wants to be a player you leave open all day. v6 rebuilt the interface around one idea: **the song that is playing is the light in the room.**
 
-| | |
+|  | |
 |---|---|
-| **The window decides, not the device** | Narrow windows get a bottom tab bar, medium ones a side rail, wide ones an iPadOS sidebar plus a Now Playing panel. iPhone, an unfolded iPhone Duo, iPad Split View and any Stage Manager window you drag around all get the layout that fits. |
-| **Artwork is the only colour** | Warm white paper, raised sheets and one lime accent. Sections are separated by elevation and space, not lines; album covers are the only large colour fields. |
-| **Two things you remember** | A flat lime play key, and a faint sheet of grid paper under the lyrics. |
-| **Self-hosted type** | Schibsted Grotesk for headings and text, Young Serif for exactly one large figure; CJK falls back to the system face. |
-| **Nothing is invented** | Every generated sentence (the editor's note, rediscovery captions, taste weights) is assembled from real numbers. When the data won't support a sentence, it doesn't appear. |
+| **The room takes the colour of the song** | The shell is a quiet porcelain white (graphite at night), and the cover of the current track washes it in its own colour. Only the hue is taken; lightness is fixed per theme, so text stays just as readable whatever the cover. When the track changes, the new colour spreads outward from the cover. |
+| **The lights go down** | The full-screen player is always a dark stage: the background is a light field sampled from the cover, four soft lights drifting slowly; lyrics are set large and the current line is fully lit. Opening it unfolds the stage from the player bar while the cover flies over from the mini player; closing it reverses the trip. |
+| **The queue is a deck** | The next two covers peek out behind the one that is playing. Flick left for the next track, right for the previous one; the card behind leans forward as you flick. Tap the peeking cards to open the full Up Next list. |
+| **It moves like a thing** | Every press answers immediately and settles back without wobble; drags follow the finger, keep their velocity and can be interrupted at any time. Mouse wheels get an inertial glide (trackpads and touch already have one, so they are left alone), shelves snap card by card, and switching light and dark spreads out from the toggle. With Reduce Motion on, movement turns into plain fades. |
+| **Window-shaped, not device-shaped** | A narrow window gets a floating tab bar, a medium one a navigation rail, a wide one an iPadOS-style sidebar plus a Now Playing panel. |
+| **Nuomi and Maodou** | A white bunny in overalls and a green frog in headphones. They only appear when there is nothing else to look at: the splash, the welcome screen, an empty list, an error, with one pose per state. |
+| **Nothing made up** | Every generated sentence in the app (editor's notes, rediscovery reasons, taste weights) is built from real numbers. If the data cannot carry a sentence, the sentence does not appear. |
 
-Sound is not sacrificed to any of it: FLAC / WAV / ALAC passthrough, 320 / 192 /
-128kbps tiers for when bandwidth matters, and ReplayGain applied from the values
-your server already computed.
+Headings and large figures use Geologica (self-hosted); the interface uses the system font (SF / PingFang). Sound quality was not traded for any of it:
+FLAC / WAV / ALAC play untouched, 320 / 192 / 128 kbps are there when bandwidth is tight, and ReplayGain uses the gain your server already computed.
 
-Fully free, fully open source. No accounts, no telemetry, no upsell.
+Free and open source. No account, no tracking, no paid tier.
 
-The design contract (tokens, components, layout rules) lives in
-[`docs/redesign/v5/DESIGN.md`](docs/redesign/v5/DESIGN.md).
+The design contract (tokens, components, motion rules) is in [`DESIGN.md`](DESIGN.md). Nuomi and Maodou are the author's own characters, © N1KO and not licensed under MIT;
+the source renders, the prompts behind them and the local cut-out script are in [`docs/redesign/v6/mascots/`](docs/redesign/v6/mascots/).
 
 <br/>
 
@@ -67,25 +67,31 @@ The design contract (tokens, components, layout rules) lives in
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/v5/player.png" alt="Now Playing in landscape" /></td>
-<td width="50%"><img src="docs/screenshots/v5/home-dark.png" alt="Home in dark mode" /></td>
+<td width="50%"><img src="docs/screenshots/v6/player.png" alt="Now Playing in landscape: a light field sampled from the cover, the queue as a deck, large lyrics" /></td>
+<td width="50%"><img src="docs/screenshots/v6/home-dark.png" alt="Home in dark mode" /></td>
 </tr>
 <tr>
-<td><b>Now Playing</b>: in a landscape window the cover and controls sit on the left and the lyrics on grid paper to the right; tap any line to seek.</td>
-<td><b>Dark</b>: a warm umber night where the lime glows brighter, following the system.</td>
+<td><b>Now Playing</b>: in a landscape window the deck and controls sit on the left, lyrics stay on the right; tap any line to jump to it.</td>
+<td><b>Dark</b>: graphite at night, with the room lit by the current cover. Follows the system setting.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/v6/album.png" alt="An album page on iPad in landscape: a large cover, the tracks and a margin note" /></td>
+<td width="50%"><img src="docs/screenshots/v6/login.png" alt="The connect page: Nuomi and Maodou waving hello" /></td>
+</tr>
+<tr>
+<td><b>Album page</b>: tap a card and its cover flies into place; scroll and the header folds away. Tracks, liner notes and your own margin note live on one page.</td>
+<td><b>Connect</b>: self-hosted servers and streaming sources both start here.</td>
 </tr>
 </table>
 
 <p align="center">
-<img src="docs/screenshots/v5/phone.png" alt="Home on iPhone" height="360" />&nbsp;
-<img src="docs/screenshots/v5/phone-player.png" alt="Now Playing on iPhone" height="360" />&nbsp;
-<img src="docs/screenshots/v5/duo-tabletop.png" alt="Now Playing on a half-folded iPhone Duo" height="360" />&nbsp;
-<img src="docs/screenshots/v5/ipad-portrait.png" alt="An album page on iPad in portrait" height="360" />
+<img src="docs/screenshots/v6/phone.png" alt="Home on iPhone" height="360" />&nbsp;
+<img src="docs/screenshots/v6/phone-player.png" alt="Now Playing on iPhone" height="360" />&nbsp;
+<img src="docs/screenshots/v6/duo-tabletop.png" alt="Now Playing on a half-folded iPhone Duo" height="360" />&nbsp;
+<img src="docs/screenshots/v6/ipad-portrait.png" alt="An album page on iPad in portrait" height="360" />
 </p>
 
-<sub>Left to right: iPhone home (bottom tab bar, swipe the mini player to skip), iPhone Now Playing,
-iPhone Duo half folded (lyrics above the hinge, covers and controls below), an iPad album page in portrait (side rail).
-There is also a [connect page](docs/screenshots/v5/login.png) still.</sub>
+<sub>Left to right: Home on iPhone (floating tab bar and mini player; swipe the mini player to change tracks), Now Playing on iPhone, a half-folded iPhone Duo (lyrics above the fold, cover and controls below), an album page on iPad in portrait (navigation rail).</sub>
 
 <br/>
 
@@ -308,7 +314,7 @@ flowchart LR
 
     subgraph app["N1KO MUSIC"]
         direction TB
-        UI["Warm paper UI<br/><sub>React · Zustand · TanStack Query</sub>"]
+        UI["Stage light UI<br/><sub>React · Zustand · TanStack Query</sub>"]
         AD["Adapter layer<br/><sub>capability detection</sub>"]
         LO["Local data<br/><sub>IndexedDB · history · notes · cache</sub>"]
     end
@@ -453,9 +459,9 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 
 Pull requests welcome. Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first —
 especially the design-contract section. This project has a deliberate visual
-stance (one accent colour, no card stacking, Phosphor icons only), and colours
-always come from the tokens in `frontend/src/index.css`; see
-[`docs/redesign/v5/DESIGN.md`](docs/redesign/v5/DESIGN.md) for how to use them.
+stance (one accent colour: lime for fills, leaf green for text; no card stacking;
+Phosphor icons only), and colours always come from the tokens in
+`frontend/src/index.css`; see [`DESIGN.md`](DESIGN.md) for how to use them.
 
 Translating needs no React knowledge at all — see **[TRANSLATING.md](TRANSLATING.md)**.
 

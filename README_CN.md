@@ -22,7 +22,7 @@ iPhone、iPhone Duo、iPad 和桌面，各有合适的布局。
 
 <br/>
 
-<img src="docs/screenshots/v5/home.png" alt="N1KO MUSIC 在 iPad 横屏上：侧栏、首页和正在播放面板并排" width="860" />
+<img src="docs/screenshots/v6/home.png" alt="N1KO MUSIC 在 iPad 横屏上：侧栏、首页和正在播放面板并排" width="860" />
 
 </div>
 
@@ -37,25 +37,28 @@ iPhone、iPhone Duo、iPad 和桌面，各有合适的布局。
 
 <br/>
 
-## 一张暖纸
+## 舞台光
 
 大多数音乐客户端是加了封面图的后台管理系统，按「服务器里有什么」组织：表格、筛选器、计数。
-N1KO MUSIC 想做的是一个你愿意一直开着的播放器。v5 把以前的三张皮收成了一套：
+N1KO MUSIC 想做的是一个你愿意一直开着的播放器。v6 把界面从头重做了一遍，只围着一个想法：**正在放的那首歌，是房间里的光。**
 
 |  | |
 |---|---|
-| **只看窗口，不看设备** | 窄窗口是底部标签栏，中等宽度是左侧导航条，宽窗口是 iPadOS 式侧栏加右侧「正在播放」面板。iPhone、展开的 iPhone Duo、iPad 分屏、台前调度里随手拖的窗口，都拿到合适的那一套。 |
-| **封面是唯一的颜色** | 暖白纸面、抬起的纸片、一盏青柠。界面靠纸片的高低和留白分区，不靠线；专辑封面是版面上唯一的大色块。 |
-| **两个记得住的部件** | 一枚扁平的青柠播放键；歌词底下一张淡淡的格纸。 |
-| **自托管字体** | Schibsted Grotesk 标题正文同族，Young Serif 全站只给一个大数字；中文走系统苹方。 |
+| **房间随歌变色** | 外壳是安静的冷瓷白（深色是石墨夜），当前曲目的封面把它的颜色洒进房间。取色只取色相，亮度按主题锁住，所以换哪张封面，文字都一样清楚。切歌时，新的颜色从封面的位置向外漫开。 |
+| **灯暗下来的舞台** | 全屏播放器永远是暗场：背景是从封面取色的光场，四盏柔光慢慢游走；歌词是大字，当前行全亮。打开时舞台从底部播放条展开、封面从迷你条飞过去，收起原路飞回。 |
+| **队列是一叠牌** | 正在放的封面后面露出接下来的两张。左甩下一首、右甩上一首，甩的时候后面那张会跟着往前凑；点露出来的牌，展开完整的「接下来」。 |
+| **像实物一样动** | 按下立刻有反馈，松手平稳弹回；拖动跟手、带速度、随时可以打断。鼠标滚轮补上了惯性滑行（触控板和触屏本来就有，不碰）；横向书架按卡片吸附；切亮暗从开关处扩散。系统开了「减弱动态效果」，位移一律退成淡入淡出。 |
+| **只看窗口，不看设备** | 窄窗口是底部浮动标签栏，中等宽度是左侧导航条，宽窗口是 iPadOS 式侧栏加右侧「正在播放」面板。iPhone、展开的 iPhone Duo、iPad 分屏、台前调度里随手拖的窗口，都拿到合适的那一套。 |
+| **糯米和毛豆** | 一只穿背带裤的白兔，一只戴耳机的绿青蛙。它们只在没有内容可看的时候出来：开屏、登录欢迎、空列表、出错的时候；每种状态一个姿势。 |
 | **一个字都不编** | 应用里所有自动生成的句子（编者按、重听说明、口味权重）全部由真实数字拼成。数据撑不起某一句，那一句就不出现。 |
 
-音质没有为此让步：FLAC / WAV / ALAC 原码直通，带宽紧张时有 320 / 192 / 128kbps
-三档，ReplayGain 直接用服务器已经算好的增益。
+标题和大数字用 Geologica（自托管），界面字走系统的 SF / 苹方。音质没有为此让步：FLAC / WAV / ALAC 原码直通，
+带宽紧张时有 320 / 192 / 128kbps 三档，ReplayGain 直接用服务器已经算好的增益。
 
 完全免费、完全开源，不需要账号，没有埋点，没有增值项。
 
-设计契约（token、组件、布局规则）见 [`docs/redesign/v5/DESIGN.md`](docs/redesign/v5/DESIGN.md)。
+设计契约（token、组件、动效规则）见 [`DESIGN.md`](DESIGN.md)。糯米和毛豆是作者自己的角色，形象版权归作者所有，不随 MIT 许可授权；
+原图、出图提示词和本机抠图脚本见 [`docs/redesign/v6/mascots/`](docs/redesign/v6/mascots/)。
 
 <br/>
 
@@ -63,24 +66,31 @@ N1KO MUSIC 想做的是一个你愿意一直开着的播放器。v5 把以前的
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/v5/player.png" alt="横屏的正在播放" /></td>
-<td width="50%"><img src="docs/screenshots/v5/home-dark.png" alt="深色的首页" /></td>
+<td width="50%"><img src="docs/screenshots/v6/player.png" alt="横屏的正在播放：封面取色的光场、叠起来的队列、大字歌词" /></td>
+<td width="50%"><img src="docs/screenshots/v6/home-dark.png" alt="深色的首页" /></td>
 </tr>
 <tr>
-<td><b>正在播放</b>：横着的窗口左边封面和控制，右边歌词落在格纸上，点任意一行跳过去。</td>
-<td><b>深色</b>：棕墨夜色，青柠在暗底上更亮，跟随系统切换。</td>
+<td><b>正在播放</b>：横着的窗口左边是牌堆和控制，右边一直摆着歌词，点任意一行跳过去。</td>
+<td><b>深色</b>：石墨夜色，房间的光换成当前封面的颜色，跟随系统切换。</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/v6/album.png" alt="iPad 横屏上的专辑页：大封面、曲目、边注" /></td>
+<td width="50%"><img src="docs/screenshots/v6/login.png" alt="连接页：糯米和毛豆挥手欢迎" /></td>
+</tr>
+<tr>
+<td><b>专辑页</b>：从卡片点进来，封面从原来的位置飞过来；往下滚，头部跟着收起。曲目、唱片说明和你自己的边注都在这一页。</td>
+<td><b>连接页</b>：自建服务器和流媒体音源都从这里连。</td>
 </tr>
 </table>
 
 <p align="center">
-<img src="docs/screenshots/v5/phone.png" alt="iPhone 上的首页" height="360" />&nbsp;
-<img src="docs/screenshots/v5/phone-player.png" alt="iPhone 上的正在播放" height="360" />&nbsp;
-<img src="docs/screenshots/v5/duo-tabletop.png" alt="iPhone Duo 半折时的正在播放" height="360" />&nbsp;
-<img src="docs/screenshots/v5/ipad-portrait.png" alt="iPad 竖屏上的专辑页" height="360" />
+<img src="docs/screenshots/v6/phone.png" alt="iPhone 上的首页" height="360" />&nbsp;
+<img src="docs/screenshots/v6/phone-player.png" alt="iPhone 上的正在播放" height="360" />&nbsp;
+<img src="docs/screenshots/v6/duo-tabletop.png" alt="iPhone Duo 半折时的正在播放" height="360" />&nbsp;
+<img src="docs/screenshots/v6/ipad-portrait.png" alt="iPad 竖屏上的专辑页" height="360" />
 </p>
 
-<sub>从左到右：iPhone 首页（底部标签栏，迷你播放条左右滑动切歌）、iPhone 正在播放、iPhone Duo 半折（歌词在折痕上方，封面和控制在下方）、iPad 竖屏专辑页（左侧导航条）。
-另有一张 [连接页](docs/screenshots/v5/login.png)。</sub>
+<sub>从左到右：iPhone 首页（浮动的标签栏和迷你播放条，迷你条左右滑动切歌）、iPhone 正在播放、iPhone Duo 半折（歌词在折痕上方，封面和控制在下方）、iPad 竖屏专辑页（左侧导航条）。</sub>
 
 <br/>
 
@@ -277,7 +287,7 @@ flowchart LR
 
     subgraph app["N1KO MUSIC"]
         direction TB
-        UI["暖纸界面<br/><sub>React · Zustand · TanStack Query</sub>"]
+        UI["舞台光界面<br/><sub>React · Zustand · TanStack Query</sub>"]
         AD["适配器层<br/><sub>能力探测</sub>"]
         LO["本地数据<br/><sub>IndexedDB · 历史 · 边注 · 缓存</sub>"]
     end
@@ -410,9 +420,8 @@ docker run -d --name n1ko-music-web -p 8080:80 \
 ## 参与
 
 欢迎 PR。动手前请先读 **[CONTRIBUTING.md](CONTRIBUTING.md)**，尤其是设计契约那一节。
-这个项目的视觉是有立场的（只有一种强调色、不叠卡片、只用 Phosphor 图标），
-颜色一律取自 `frontend/src/index.css` 里的 token，用法见
-[`docs/redesign/v5/DESIGN.md`](docs/redesign/v5/DESIGN.md)。
+这个项目的视觉是有立场的（只有一种强调色：青柠填色、叶绿写字；不叠卡片；只用 Phosphor 图标），
+颜色一律取自 `frontend/src/index.css` 里的 token，用法见 [`DESIGN.md`](DESIGN.md)。
 
 翻译完全不需要懂 React —— 见 **[TRANSLATING.md](TRANSLATING.md)**。
 
