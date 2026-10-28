@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { computeSeekTarget, SEEK_STEP_SEC } from '@/utils/seekMath'
+import { notePauseReason } from '@/lib/playbackTrail'
 
 /** 不应被快捷键抢走按键的文本录入类型 */
 const TEXT_INPUT_TYPES = new Set([
@@ -78,6 +79,7 @@ export function useKeyboardShortcuts() {
         // 焦点在某个控件上时空格属于那个控件，不要无条件截走
         if (spaceBelongsToFocusedControl(e.target)) return
         e.preventDefault()
+        notePauseReason('ui', 'space key')
         if (store.currentSong) store.togglePlay()
         return
       }

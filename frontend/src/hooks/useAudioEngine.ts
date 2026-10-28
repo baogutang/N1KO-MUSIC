@@ -38,6 +38,7 @@ import { toast } from '@/components/ui/use-toast'
 import type { Song } from '@/api/types'
 import { computeReplayGainScalar } from '@/utils/replayGain'
 import { isMeteredConnection, onConnectionChange } from '@/lib/network'
+import { clearPauseReason, notePauseReason, readPauseContext, recordPause } from '@/lib/playbackTrail'
 import { t } from '@/i18n'
 import {
   createListeningEventId,
@@ -54,6 +55,7 @@ import {
   playbackKey,
   getFiniteDuration,
   isAtBufferedTail,
+  bufferedAheadSec,
   isNearEndOfTrack,
   isPrematureEnd,
   isStreamExpired,
@@ -876,6 +878,7 @@ export function useAudioEngine() {
           // 把 isPlaying 收回来：元素还握着旧流，但加载目标已经失败，
           // 按钮停在「播放中」是在撒谎；收回后用户按播放可从旧流续听
           needsReloadOnPlay = true
+          notePauseReason('error', `quality switch failed: ${failureClass}`)
           usePlayerStore.getState().pause()
           toast({
             title: t('player.streamFailed', { title: capturedSong.title }),
@@ -946,6 +949,7 @@ export function useAudioEngine() {
          */
         if (!worthFallback) {
           needsReloadOnPlay = true
+          notePauseReason('error', `resolve failed: ${failureClass}`)
           usePlayerStore.getState().pause()
           toast({
             title: t('player.streamNetworkHalted', { title: capturedSong.title }),
@@ -967,6 +971,7 @@ export function useAudioEngine() {
           // 停下时把 isPlaying 收回来：没有流在放，按钮停在「播放中」
           // 会让按播放看起来失灵（见下方 play effect 的重载修复）
           needsReloadOnPlay = true
+          notePauseReason('error', 'too many failed tracks in a row')
           usePlayerStore.getState().pause()
           toast({ title: t('player.queueHalted'), variant: 'destructive' })
           return
@@ -1051,20 +1056,25 @@ export function useAudioEngine() {
         }
       }
 
+      /** 「放完存货」的状态（见下面 RIDE_OUT_MIN_SEC）；任何一次重载都会清掉它 */
+      let rideOut: { code: number; lastT: number; lastMoveAt: number } | null = null
+
       /**
        * 保位重载当前流 — 错误恢复 / 提前 ended / 中途停滞共用：
        * 先记录恢复点（bestKnownTime），再重载；恢复点由 applyPendingRecover 在就绪后消费
        */
       const reloadForRecovery = (retryUrl: string, delayMs: number, reason: string) => {
-        const resumeAt = bestKnownTime()
-        if (resumeAt > 1) {
-          pendingRecoverTime = resumeAt
-          recoverSeekAttempts = 0
-        }
-        console.warn('[AudioEngine]', reason, '— reloading, resume at', Math.round(resumeAt), 's')
+        rideOut = null
+        console.warn('[AudioEngine]', reason, '— reloading in', delayMs, 'ms')
         const doReload = () => {
           // 延迟期间若已切歌/换加载，放弃本次恢复，避免覆盖新歌的 src
           if (loadedKey !== capturedKey) return
+          // 恢复点在真正重载这一刻取：等的那一会儿里元素可能还在放（存货），提前取会倒回去重放一截
+          const resumeAt = bestKnownTime()
+          if (resumeAt > 1) {
+            pendingRecoverTime = resumeAt
+            recoverSeekAttempts = 0
+          }
           // load() 可能引发 pause 事件，别被误判为外部暂停同步进 store
           isSwitchingSong = true
           setTimeout(() => { isSwitchingSong = false }, 200)
@@ -1268,6 +1278,14 @@ export function useAudioEngine() {
       }
 
       const onPause = () => {
+        // 「放完存货」途中元素停了：存货真的见底（或已放完）才是要重连；
+        // 存货还多却停了，是系统（来电、Siri、AirPods 摘下）或用户停的——照常同步暂停，等恢复播放后看门狗接着盯
+        if (rideOut && usePlayerStore.getState().isPlaying && (audio.ended || bufferedAheadSec(audio, audio.currentTime) < RIDE_OUT_RECONNECT_SEC)) {
+          const code = rideOut.code
+          rideOut = null
+          finishRideOut(code)
+          return
+        }
         /**
          * 耳机拔出 / 系统打断（电话来电等）会触发 audio pause 事件，
          * 但此时 store 仍认为 isPlaying=true，导致按钮状态与实际不符。
@@ -1275,6 +1293,7 @@ export function useAudioEngine() {
          * —— 满足时同步 store 为暂停，这样按钮状态、重新接入耳机后的恢复都能正确工作。
          */
         if (!audio.ended && !isSwitchingSong && usePlayerStore.getState().isPlaying) {
+          notePauseReason('element', document.visibilityState === 'hidden' ? 'while hidden (locked / background)' : 'while visible')
           usePlayerStore.getState().pause()
         }
         /* 暂停也要上报（6.3）：服务器那边的「正在播放」状态才停得下来 */
@@ -1291,6 +1310,17 @@ export function useAudioEngine() {
       const STALL_ADVANCE_MS = 5000
       /** 中途（非结尾）缓冲耗尽的停滞：多等一会儿再保位重载，给浏览器自愈机会 */
       const MID_STALL_RELOAD_MS = 8000
+
+      /*
+       * 网络断了、缓冲里还有存货：先把存货放完，快到头了再重连（「放完存货」）。
+       *
+       * 以前流一报网络错误（code 2）就动手：断网就暂停，在线就马上保位重载。可这时当前位置往后
+       * 常常还缓冲着几十秒，浏览器本来能接着放——于是用户看到的是「缓冲明明有余量，却自己停了」。
+       * 现在：还有 ≥ 4 秒存货就先放着；剩不到 2.5 秒、或者位置 1.5 秒不动了，再走原来的恢复
+       * （断网就停下等网，在线就保位重载）。存货不够 4 秒的照旧立刻恢复。
+       */
+      const RIDE_OUT_MIN_SEC = 4
+      const RIDE_OUT_RECONNECT_SEC = 2.5
 
       /*
        * 倒带重置（6.12；复审 A5 补全）：第二遍是一条新的收听——
@@ -1360,6 +1390,27 @@ export function useAudioEngine() {
           return
         }
         if (st.currentSong?.id !== capturedSongId) return
+
+        if (rideOut) {
+          const now = performance.now()
+          const at = audio.currentTime
+          // 整首都已经缓冲完：不必重连，放完自然结束（ended 照常切下一首）
+          const fullDur = getFiniteDuration(audio) ?? capturedSong.duration ?? 0
+          if (fullDur > 0 && at + bufferedAheadSec(audio, at) >= fullDur - 0.5) {
+            rideOut = null
+            return
+          }
+          if (Math.abs(at - rideOut.lastT) > 0.04) {
+            rideOut.lastT = at
+            rideOut.lastMoveAt = now
+          }
+          if (bufferedAheadSec(audio, at) < RIDE_OUT_RECONNECT_SEC || now - rideOut.lastMoveAt > 1500) {
+            const code = rideOut.code
+            rideOut = null
+            finishRideOut(code)
+          }
+          return
+        }
 
         const t = audio.currentTime
         if (stallPrevT < 0) {
@@ -1433,6 +1484,7 @@ export function useAudioEngine() {
         if (typeof navigator !== 'undefined' && navigator.onLine) return false
         const token = ++offlineResumeToken
         engineInitiatedPause = true
+        notePauseReason('offline')
         usePlayerStore.getState().pause()
         const onBack = () => {
           offlineOnlineHandler = null
@@ -1464,6 +1516,22 @@ export function useAudioEngine() {
 
         // code=1 是 load() 中止旧播放，不是真正错误
         if (code === 1) return
+        // 网络错误、缓冲里还有存货：先放完存货再说（见 RIDE_OUT_MIN_SEC）
+        if (code === 2 && !rideOut && !audio.paused && bufferedAheadSec(audio, audio.currentTime) >= RIDE_OUT_MIN_SEC) {
+          const at = audio.currentTime
+          rideOut = { code: rawCode, lastT: at, lastMoveAt: performance.now() }
+          console.warn('[AudioEngine] network error with', Math.round(bufferedAheadSec(audio, at)), 's still buffered — playing on, reconnecting near the end of it')
+          return
+        }
+        if (rideOut) return
+        recoverFromError(rawCode, code)
+      }
+
+      /** 网络 / 解码 / 源不可用三类错误的恢复：断网就停下等网，否则按策略保位重载；次数用完才报错停下 */
+      const recoverFromError = (rawCode: number, code: number, immediate = false) => {
+        const err = audio.error
+        /** 放完存货再来恢复时不必再等：错误早就发生过了 */
+        const wait = (ms: number) => (immediate ? 0 : ms)
         // 离线：挂起等网，不消耗恢复次数（阶段 3.11）。
         // code 4 也先查离线（复核 F5）：开播前取流失败常报 src not supported (4)，
         // 离线时它同样是「没网」而不是「流坏了」，不该烧恢复次数
@@ -1491,16 +1559,16 @@ export function useAudioEngine() {
               void resolveStream(capturedSong, effectiveQuality, { skipCache: true })
                 .then(fresh => {
                   if (loadedKey !== capturedKey) return
-                  reloadForRecovery(fresh.url, 1000, `Recovery 1/${maxRecoverAttempts}: refetched stream after code ${rawCode}`)
+                  reloadForRecovery(fresh.url, wait(1000), `Recovery 1/${maxRecoverAttempts}: refetched stream after code ${rawCode}`)
                 })
                 .catch(() => {
                   if (loadedKey !== capturedKey) return
                   // 重取也失败：退回原地址重载一次，别比现有的同步路径恢复力更差
-                  reloadForRecovery(activeUrl, 1000, `Recovery 1/${maxRecoverAttempts}: refetch failed, retrying same URL after code ${rawCode}`)
+                  reloadForRecovery(activeUrl, wait(1000), `Recovery 1/${maxRecoverAttempts}: refetch failed, retrying same URL after code ${rawCode}`)
                 })
               return
             }
-            reloadForRecovery(activeUrl, 600, `Recovery ${recoverAttempts}/${maxRecoverAttempts} after code ${rawCode}`)
+            reloadForRecovery(activeUrl, wait(600), `Recovery ${recoverAttempts}/${maxRecoverAttempts} after code ${rawCode}`)
             return
           }
 
@@ -1556,7 +1624,7 @@ export function useAudioEngine() {
           healthyPlaySec = 0
           reloadForRecovery(
             retryUrl,
-            recoverAttempts === 1 ? 1000 : 600,
+            wait(recoverAttempts === 1 ? 1000 : 600),
             `Recovery ${recoverAttempts}/${maxRecoverAttempts} after code ${rawCode}`
           )
           return
@@ -1583,7 +1651,14 @@ export function useAudioEngine() {
         })
         usePlayerStore.getState().setStreamBuffering(false)
         persistListeningSession()
+        notePauseReason('error', `media error ${rawCode}`)
         usePlayerStore.getState().pause()
+      }
+
+      /** 存货放完了（或者位置不动了）：走这次网络错误本来该走的恢复 */
+      const finishRideOut = (rawCode: number) => {
+        if (loadedKey !== capturedKey) return
+        recoverFromError(rawCode, rawCode < 0 ? -rawCode : rawCode, true)
       }
 
       const onWaiting = () => {
@@ -1815,6 +1890,12 @@ export function useAudioEngine() {
     audioEl.src = ''
     loadedKey = null
   }, [])
+
+  // 播放诊断：每次 isPlaying 由真变假，记下是谁停的、当时 <audio> 什么状态（见 lib/playbackTrail）
+  useEffect(() => usePlayerStore.subscribe((state, prev) => {
+    if (prev.isPlaying && !state.isPlaying) recordPause(readPauseContext(audioEl), prev.currentSong?.title)
+    else if (!prev.isPlaying && state.isPlaying) clearPauseReason()
+  }), [])
 
   // --- 播放/暂停控制 ---
   useEffect(() => {

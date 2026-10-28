@@ -19,6 +19,7 @@ import { usePlayerStore } from '@/store/playerStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { findAdapterFor } from '@/api'
+import { notePauseReason } from '@/lib/playbackTrail'
 
 /** 锁屏在高分屏上会把封面铺满整屏，512 明显发糊 */
 const ARTWORK_SIZES = [96, 256, 512, 1024] as const
@@ -134,8 +135,8 @@ export function useMediaSession() {
     }
 
     set('play', () => store().resume())
-    set('pause', () => store().pause())
-    set('stop', () => store().pause())
+    set('pause', () => { notePauseReason('media-session', 'pause'); store().pause() })
+    set('stop', () => { notePauseReason('media-session', 'stop'); store().pause() })
 
     if (notificationActions !== 'seek') {
       set('nexttrack', () => store().next())

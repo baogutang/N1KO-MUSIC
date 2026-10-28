@@ -41,6 +41,7 @@ import { findAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
+import { notePauseReason } from '@/lib/playbackTrail'
 
 /** 次要键：40px 圆，44px 命中区由胶囊的内边距补足；hover 铺一层墨色的底 */
 const iconBtnBase =
@@ -340,6 +341,7 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
 
   const handleTogglePlay = useCallback(() => {
     haptic('light')
+    notePauseReason('ui', 'player bar')
     togglePlay()
   }, [togglePlay])
 

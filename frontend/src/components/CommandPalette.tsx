@@ -26,6 +26,7 @@ import type { Song } from '@/api/types'
 import { useSourceSearch, usePlaybackPriorityOrder } from '@/hooks/useSourceQueries'
 import { mergeSongs } from '@/plugins/match'
 import { detailPath } from '@/utils/detailPath'
+import { notePauseReason } from '@/lib/playbackTrail'
 
 interface Command {
   id: string
@@ -135,7 +136,7 @@ export function CommandPalette() {
       {
         id: 'act-play', label: isPlaying ? t('player.pause') : t('player.play'),
         keywords: 'play pause bofang zanting', icon: <Play size={18} />,
-        run: () => usePlayerStore.getState().togglePlay(),
+        run: () => { notePauseReason('ui', 'command palette'); usePlayerStore.getState().togglePlay() },
       },
       {
         id: 'act-next', label: t('player.next'), keywords: 'next xiayishou',

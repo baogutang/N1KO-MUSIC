@@ -12,6 +12,7 @@ import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { findAdapterFor } from '@/api'
 import { isNativePlatform } from '@/lib/platform'
+import { notePauseReason } from '@/lib/playbackTrail'
 
 /** 上一首：播放超过 3 秒重播当前歌曲（与 PlayerBar 行为一致） */
 function prevWithRestart() {
@@ -29,10 +30,29 @@ export function useNativeMediaControls() {
 
     let created = false
     let lastElapsedPush = 0
+    /*
+     * create() 还没回来的时候别再叫第二次。以前 created 要等 create() 回来才变真，
+     * 这期间每一次 store 更新（播放中每秒好几次）都会再叫一次 create()——
+     * iOS 那边每次都同步下载一遍封面、注销再注册一遍锁屏按键，一首歌开头能排起一长串。
+     * 等待期间换了歌就记一笔，回来后只为最新那首再建一次；建失败了 10 秒内不重试。
+     */
+    let creating = false
+    /** 正在建的是哪一首（serverId:id）；等待期间换了歌才需要再建一次 */
+    let creatingFor: string | null = null
+    let recreatePending = false
+    let retryAt = 0
+    const keyOf = (song: { serverId?: string; id: string } | null) => (song ? `${song.serverId ?? ''}:${song.id}` : null)
 
     const createForCurrentSong = () => {
       const { currentSong, isPlaying, currentTime } = usePlayerStore.getState()
       if (!currentSong) return
+      if (creating) {
+        if (keyOf(currentSong) !== creatingFor) recreatePending = true
+        return
+      }
+      if (!created && Date.now() < retryAt) return
+      creating = true
+      creatingFor = keyOf(currentSong)
       // 256 封面：插件会把 bitmap 两次塞进 MediaSession metadata，
       // 512 位图接近 Binder 事务上限（TransactionTooLargeException 闪退）
       const cover = currentSong.coverArt
@@ -63,8 +83,32 @@ export function useNativeMediaControls() {
         notificationIcon: '',
       }).then(() => {
         created = true
+        retryAt = 0
         lastElapsedPush = Date.now()
-      }).catch(() => {})
+      }).catch(() => {
+        // 建失败了：锁屏上可能还挂着上一首，标成没建好，10 秒后再试
+        created = false
+        retryAt = Date.now() + 10_000
+      }).finally(() => {
+        creating = false
+        creatingFor = null
+        // 建的那一会儿里队列被清空了：别把控件留在锁屏上
+        if (!usePlayerStore.getState().currentSong) {
+          recreatePending = false
+          destroyControls()
+          return
+        }
+        if (recreatePending) {
+          recreatePending = false
+          createForCurrentSong()
+          return
+        }
+        // 建的那一会儿里播放状态可能变过（比如刚好暂停了）：补推一次，锁屏上别停在旧状态
+        if (created) {
+          const latest = usePlayerStore.getState()
+          CapacitorMusicControls.updateElapsed({ elapsed: Math.round(latest.currentTime), isPlaying: latest.isPlaying })
+        }
+      })
     }
 
     const destroyControls = () => {
@@ -84,9 +128,11 @@ export function useNativeMediaControls() {
     })
     on('music-controls-pause', () => {
       const s = usePlayerStore.getState()
+      notePauseReason('remote', 'pause')
       if (s.isPlaying) s.togglePlay()
     })
     on('music-controls-toggle-play-pause', () => {
+      notePauseReason('remote', 'toggle')
       usePlayerStore.getState().togglePlay()
     })
     on('music-controls-next', () => usePlayerStore.getState().next())
@@ -99,6 +145,7 @@ export function useNativeMediaControls() {
     // 用户划掉通知 → 暂停并销毁
     on('music-controls-destroy', () => {
       const s = usePlayerStore.getState()
+      notePauseReason('remote', 'notification dismissed')
       if (s.isPlaying) s.togglePlay()
       created = false
     })

@@ -163,6 +163,27 @@ export function isAtBufferedTail(
 }
 
 /**
+ * 当前位置往后还缓冲着多少秒。只认把当前位置包在里面的那一段（跳着缓冲的后一段够不着）；
+ * 读 buffered 抛错时当作没有存货。
+ */
+export function bufferedAheadSec(
+  audio: Pick<HTMLAudioElement, 'buffered'>,
+  currentTime: number
+): number {
+  try {
+    for (let i = 0; i < audio.buffered.length; i++) {
+      const start = audio.buffered.start(i)
+      const end = audio.buffered.end(i)
+      // 起点放宽一点：seek 落在段首前一丁点时浏览器报的段会从稍后开始
+      if (start <= currentTime + 0.25 && end > currentTime) return end - currentTime
+    }
+  } catch {
+    return 0
+  }
+  return 0
+}
+
+/**
  * 两次 timeupdate 之间应计入收听时长的秒数，不该计入时返回 0。
  * 只承认小步前进：用户拖动进度条产生的跳变（无论前后）都不是真的听过。
  */

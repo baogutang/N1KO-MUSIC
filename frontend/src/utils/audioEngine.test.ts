@@ -8,6 +8,7 @@ import {
   DEFAULT_STREAM_TTL_MS,
   getFiniteDuration,
   isAtBufferedTail,
+  bufferedAheadSec,
   isNearEndOfTrack,
   isPrematureEnd,
   isStreamExpired,
@@ -111,6 +112,28 @@ describe('isAtBufferedTail', () => {
       },
     }
     expect(isAtBufferedTail(broken, 30)).toBe(true)
+  })
+})
+
+describe('bufferedAheadSec', () => {
+  it('只算把当前位置包住的那一段', () => {
+    expect(bufferedAheadSec(audioWithBuffer([[0, 50]]), 30)).toBeCloseTo(20)
+    // 后面那段跳着缓冲的够不着：放到 20 秒就会断
+    expect(bufferedAheadSec(audioWithBuffer([[0, 20], [100, 200]]), 15)).toBeCloseTo(5)
+  })
+
+  it('当前位置不在任何一段里、或者没有缓冲时是 0', () => {
+    expect(bufferedAheadSec(audioWithBuffer([]), 10)).toBe(0)
+    expect(bufferedAheadSec(audioWithBuffer([[40, 80]]), 10)).toBe(0)
+  })
+
+  it('读取 buffered 抛错时当作没有存货', () => {
+    const broken = {
+      get buffered(): TimeRanges {
+        throw new Error('InvalidStateError')
+      },
+    }
+    expect(bufferedAheadSec(broken, 30)).toBe(0)
   })
 })
 

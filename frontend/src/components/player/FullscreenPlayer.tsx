@@ -38,6 +38,7 @@ import { useWindowClass, needsTrafficLightInset } from '@/lib/platform'
 import { haptic } from '@/lib/haptics'
 import { EASE_OUT, SPRING_MORPH, SPRING_PRESS, SPRING_SMOOTH, SPRING_SNAPPY, prefersReducedMotion } from '@/lib/motion'
 import { markSkip } from '@/lib/skipDirection'
+import { notePauseReason } from '@/lib/playbackTrail'
 import { useDevicePosture } from '@/hooks/useDevicePosture'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useLyricsQuery, useToggleStar } from '@/hooks/useServerQueries'
@@ -356,6 +357,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
 
   const handleTogglePlay = useCallback(() => {
     haptic('light')
+    notePauseReason('ui', 'full-screen player')
     togglePlay()
   }, [togglePlay])
 

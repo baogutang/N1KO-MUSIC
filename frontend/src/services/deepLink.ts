@@ -22,6 +22,7 @@
 import { getAdapter, hasAdapter } from '@/api'
 import { usePlayerStore } from '@/store/playerStore'
 import { playAllInOrder, playListFrom, shuffleWholeLibrary } from '@/utils/playActions'
+import { notePauseReason } from '@/lib/playbackTrail'
 
 export const DEEP_LINK_SCHEME = 'n1ko'
 
@@ -141,6 +142,7 @@ export async function runDeepLinkCommand(command: NonNullable<DeepLinkAction['co
       player.resume()
       return
     case 'pause':
+      notePauseReason('ui', 'link command')
       player.pause()
       return
     case 'next':

@@ -42,6 +42,7 @@ import {
 } from '@/components/settings/primitives'
 import { SyncSettings } from '@/components/settings/SyncSettings'
 import { ScrobbleSettings } from '@/components/settings/ScrobbleSettings'
+import { PlaybackDiagnostics } from '@/components/settings/PlaybackDiagnostics'
 import { importListeningEvents, readListeningEvents } from '@/services/listeningHistory'
 import { capImport, parseHistoryFile } from '@/services/historyImport'
 import { clearProfileCache } from '@/services/musicbrainz'
@@ -904,6 +905,7 @@ export default function Settings() {
           <Row name={t('settings.about.version')}>
             <span className="num text-[15px] text-ink-2">v{pkg.version}</span>
           </Row>
+          <PlaybackDiagnostics />
           <Row name={t('settings.about.license')}>
             <span className="text-[15px] text-ink-2">MIT License</span>
           </Row>

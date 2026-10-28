@@ -1,4 +1,5 @@
 import UIKit
+import AVFoundation
 import Capacitor
 
 @UIApplicationMain
@@ -7,7 +8,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // 音乐播放器的声音要走「播放」类别。App 自己不设的话是系统默认的 soloAmbient：
+        // 一锁屏（包括自动锁屏）声音就被停掉，WKWebView 里的 <audio> 跟着暂停——
+        // 用户回来看到的是「播着播着自己停了，缓冲明明还有」。Info.plist 里的后台音频只是许可，类别得自己给。
+        // 只设类别、不激活：激活留给 WebKit 真正开始放的那一刻，免得一打开 App 就把别的 App 的声音停掉。
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
         return true
     }
 

@@ -9,6 +9,7 @@ import { createPersistStorage } from '@/store/persistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 import type { Song } from '@/api/types'
 import { generateShuffledIndexes, resolveShuffleCursor, appendHistory } from '@/store/queueMath'
+import { notePauseReason } from '@/lib/playbackTrail'
 
 export type RepeatMode = 'none' | 'one' | 'all'
 
@@ -337,7 +338,10 @@ export const usePlayerStore = create<PlayerState>()(
               nextIndex = reshuffled[0]
             } else {
               // 随机序列走完：自然播完就停，手动按到底则维持现状
-              if (options?.auto) set({ isPlaying: false })
+              if (options?.auto) {
+                notePauseReason('queue-end', 'shuffle order finished')
+                set({ isPlaying: false })
+              }
               return
             }
           } else {
@@ -350,7 +354,10 @@ export const usePlayerStore = create<PlayerState>()(
           nextIndex = 0
         } else {
           // 队尾：同上。用户按「下一首」不该让音乐停掉。
-          if (options?.auto) set({ isPlaying: false })
+          if (options?.auto) {
+            notePauseReason('queue-end')
+            set({ isPlaying: false })
+          }
           return
         }
 
@@ -371,6 +378,7 @@ export const usePlayerStore = create<PlayerState>()(
         // 「这首放完」的睡眠定时只在自然播完这条路径上生效。
         // 若改成监听曲目变化，用户手动按「下一首」也会被当成播完而静默停止。
         if (state.sleepTimerAt !== null && state.sleepTimerMode === 'endOfTrack') {
+          notePauseReason('sleep', 'end of track')
           set({ isPlaying: false, sleepTimerAt: null, sleepFadeScalar: 1 })
           return
         }

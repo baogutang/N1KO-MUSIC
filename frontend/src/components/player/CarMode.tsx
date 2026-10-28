@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { HeartGlyph } from '@/components/player/glyphs'
 import { useT } from '@/i18n'
+import { notePauseReason } from '@/lib/playbackTrail'
 
 /** 屏幕常亮句柄的最小接口，避免为一个实验性 API 引入整套 DOM 类型 */
 interface WakeLockSentinelLike {
@@ -235,7 +236,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
 
           <CarButton
             label={isPlaying ? t('player.pause') : t('player.play')}
-            onClick={togglePlay}
+            onClick={() => { notePauseReason('ui', 'car mode'); togglePlay() }}
             className="h-28 w-28 regular:h-32 regular:w-32"
             primary
           >

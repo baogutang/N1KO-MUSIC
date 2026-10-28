@@ -11,6 +11,7 @@
 import { useEffect } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import { useSettingsStore } from '@/store/settingsStore'
+import { notePauseReason } from '@/lib/playbackTrail'
 
 /** 最后这段时间用于渐弱 */
 const FADE_MS = 8000
@@ -36,6 +37,7 @@ export function useSleepTimer() {
          * 接近 0 的渐弱值，但紧接着的复位把它跳回 1，音量在静音边缘
          * 弹回满格再被切断，正好在「就要睡着了」那一刻爆一声。
          */
+        notePauseReason('sleep')
         usePlayerStore.setState({
           isPlaying: false,
           sleepTimerAt: null,

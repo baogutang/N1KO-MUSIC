@@ -11,6 +11,11 @@
  *
  * 键盘和耳机线控的播放键不在这里：它们由系统转成 Media Session 的
  * play / pause / nexttrack / previoustrack，useMediaSession 已经接住了。
+ *
+ * 这个判断只看数量，所以自己要防误判（「播着播着自己暂停」的嫌疑之一）：
+ * - iOS 原生壳里不做：WebKit 在耳机被拔掉（旧设备不可用）时自己会停，用不着再猜一次；
+ * - 页面在后台时不做：那时浏览器给的设备列表不可靠（可能整份是空的），只更新基数；
+ * - 数到变少了，隔 600ms 再数一遍，还是少了才算——切换输出设备的那一下列表会抖。
  */
 
 import { useEffect, useRef } from 'react'
@@ -18,6 +23,8 @@ import { usePlayerStore } from '@/store/playerStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { toast } from '@/components/ui/use-toast'
 import { t } from '@/i18n'
+import { notePauseReason } from '@/lib/playbackTrail'
+import { nativeOS } from '@/lib/platform'
 
 /**
  * 插回耳机后多久之内算「同一次打断」。
@@ -25,6 +32,9 @@ import { t } from '@/i18n'
  * 拔掉两分钟后再插回来，人多半已经不在听了，这时候突然出声反而是惊吓。
  */
 const RESUME_WINDOW_MS = 60_000
+
+/** 数到设备变少之后，隔多久再数一遍确认 */
+const CONFIRM_DELAY_MS = 600
 
 async function countAudioOutputs(): Promise<number | null> {
   if (!navigator.mediaDevices?.enumerateDevices) return null
@@ -42,7 +52,7 @@ export function useAudioInterruptions(): void {
   resumeRef.current = resumeAfterInterruption
 
   useEffect(() => {
-    if (!navigator.mediaDevices?.addEventListener) return
+    if (nativeOS === 'ios' || !navigator.mediaDevices?.addEventListener) return
 
     let outputCount: number | null = null
     /** 上一次因为设备消失而暂停的时刻；null 表示当前不是被打断的状态 */
@@ -60,9 +70,21 @@ export function useAudioInterruptions(): void {
       if (previous === null) return
 
       if (next < previous) {
-        // 输出设备变少：耳机 / 蓝牙断了。正在放就停下，别甩到外放。
+        // 后台时的列表不作数：不停歌，也不拿它当新的基数（不然一份空列表会让之后真的拔耳机变成「变多了」）；
+        // 回到前台再重新对账
+        if (document.visibilityState !== 'visible') {
+          outputCount = previous
+          return
+        }
+        await new Promise(resolve => setTimeout(resolve, CONFIRM_DELAY_MS))
+        const confirmed = await countAudioOutputs()
+        if (disposed || confirmed === null) return
+        outputCount = confirmed
+        if (confirmed >= previous) return
+        // 输出设备确实变少了：耳机 / 蓝牙断了。正在放就停下，别甩到外放。
         const state = usePlayerStore.getState()
         if (state.isPlaying) {
+          notePauseReason('device', `audio outputs ${previous} → ${confirmed}`)
           state.pause()
           interruptedAt = Date.now()
           interruptedSongId = state.currentSong?.id ?? null
@@ -87,11 +109,20 @@ export function useAudioInterruptions(): void {
       }
     }
 
+    // 回到前台：静默地重数一次当基数（后台期间发生的变化不追溯停歌）
+    const resync = async () => {
+      if (document.visibilityState !== 'visible') return
+      const count = await countAudioOutputs()
+      if (!disposed && count !== null) outputCount = count
+    }
+
     void sync()
     navigator.mediaDevices.addEventListener('devicechange', sync)
+    document.addEventListener('visibilitychange', resync)
     return () => {
       disposed = true
       navigator.mediaDevices.removeEventListener('devicechange', sync)
+      document.removeEventListener('visibilitychange', resync)
     }
   }, [])
 }
