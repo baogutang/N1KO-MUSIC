@@ -1,8 +1,9 @@
 /**
  * 唱片说明 —— 专辑页的第二状态。
  *
- * 札记、制作人员、版本记录各是一张 sheet 纸片，靠纸片的高低和留白分区，不画线。
- * 制作人员是两栏定义列表：左侧角色（ink-faint），右侧姓名（可点，去歌手页或搜索）。
+ * 札记、制作人员、版本记录排成一页小册子：Geologica 小标题，正文 16px / 1.75 行距、
+ * 限宽 65ch，分区靠留白，不画框也不画线。
+ * 制作人员是两栏定义列表：左侧角色（ink-3），右侧姓名（可点，去歌手页或搜索）。
  * 这些数据（contributors / notes / isrc / musicBrainzId）服务器早就随响应返回，
  * 此前被整批丢弃；没有一个同类客户端把 credits 当作一个「页面」来做。
  */
@@ -10,6 +11,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { AlbumDetail, Contributor, Song } from '@/api/types'
+import { EmptyState } from '@/components/common/EmptyState'
 import { buildSpecLine } from '@/utils/audioSpec'
 import { useT } from '@/i18n'
 import { detailPath } from '@/utils/detailPath'
@@ -70,7 +72,10 @@ function collectContributors(songs: Song[]): Array<{ role: string; names: string
 
 /** 姓名链接：文字级，hover 才出下划线；触屏上命中区拉到 44px */
 const NAME_LINK =
-  'inline-flex min-h-8 items-center rounded-sm text-ink underline-offset-4 transition-colors hover:text-primary hover:underline [@media(pointer:coarse)]:min-h-11'
+  'inline-flex min-h-8 items-center rounded-sm text-ink underline-offset-4 transition-colors hover:text-leaf hover:underline [@media(pointer:coarse)]:min-h-11'
+
+/** 小册子分区的小标题 */
+const BOOKLET_HEADING = 'font-display text-[22px] font-semibold leading-tight tracking-[-0.02em] text-ink'
 
 export function LinerNotes({ album }: { album: AlbumDetail }) {
   const { t } = useT()
@@ -91,24 +96,22 @@ export function LinerNotes({ album }: { album: AlbumDetail }) {
   const hasAnything = !!album.notes || credits.length > 0 || spec.length > 0 || isrcs.length > 0
   if (!hasAnything) {
     return (
-      <p className="rounded-lg bg-paper-deep px-6 py-10 text-center text-[14px] text-ink-soft">
-        {t('album.linerNotes.emptyTitle')}
-        <span className="mt-1 block text-[13px] text-ink-faint">
-          {t('album.linerNotes.emptyHint')}
-        </span>
-      </p>
+      <EmptyState mascot="nuomi-sleep"
+        title={t('album.linerNotes.emptyTitle')}
+        description={t('album.linerNotes.emptyHint')}
+      />
     )
   }
 
   return (
-    <div className="space-y-4">
-      {/* 札记：单栏正文，控制在 34em 以内 */}
+    <div className="max-w-[65ch] space-y-12 pt-4">
+      {/* 札记：单栏正文 */}
       {album.notes && (
-        <section className="sheet p-5 regular:p-6">
-          <h3 className="mb-3 font-display text-[17px] font-semibold">
+        <section>
+          <h2 className={BOOKLET_HEADING}>
             {t('album.notes.title')}
-          </h3>
-          <p className="max-w-[34em] whitespace-pre-line text-[15px] leading-[1.85] text-ink-soft">
+          </h2>
+          <p className="mt-4 whitespace-pre-line text-[16px] leading-[1.75] text-ink-2">
             {album.notes}
           </p>
           {album.externalUrl && (
@@ -116,7 +119,7 @@ export function LinerNotes({ album }: { album: AlbumDetail }) {
               href={album.externalUrl}
               target="_blank"
               rel="noreferrer noopener"
-              className="mt-2 inline-flex min-h-11 items-center text-[14px] font-medium text-primary underline-offset-4 hover:underline"
+              className="mt-2 inline-flex min-h-11 items-center text-[14px] font-semibold text-leaf underline-offset-4 hover:underline"
             >
               {t('album.linerNotes.sourceLink')}
             </a>
@@ -126,25 +129,26 @@ export function LinerNotes({ album }: { album: AlbumDetail }) {
 
       {/* 制作人员：左角色、右姓名 */}
       {credits.length > 0 && (
-        <section className="sheet p-5 regular:p-6">
-          <h3 className="mb-3 font-display text-[17px] font-semibold">
+        <section>
+          <h2 className={BOOKLET_HEADING}>
             {t('album.credits.title')}
-          </h3>
-          <dl>
+          </h2>
+          <dl className="mt-3">
             {credits.map(({ role, names, ids }) => (
               <div
                 key={role}
-                className="grid grid-cols-[minmax(5.5rem,9rem)_1fr] gap-x-6 rounded-sm px-2 py-1.5"
+                className="grid grid-cols-[minmax(5.5rem,9rem)_1fr] gap-x-6 py-1"
               >
-                <dt className="flex min-h-8 items-center text-[13px] text-ink-faint [@media(pointer:coarse)]:min-h-11">
+                <dt className="flex min-h-8 items-center text-[13px] text-ink-3 [@media(pointer:coarse)]:min-h-11">
                   {roleLabel(role, t)}
                 </dt>
-                <dd className="m-0 flex flex-wrap items-center gap-x-4 gap-y-0 text-[14.5px]">
+                <dd className="m-0 flex flex-wrap items-center gap-x-4 gap-y-0 text-[15px]">
                   {names.map(name => {
                     const artistId = ids.get(name)
                     return artistId ? (
                       <button
                         key={name}
+                        type="button"
                         onClick={() => navigate(detailPath('artists', artistId, album.serverId))}
                         className={NAME_LINK}
                       >
@@ -153,6 +157,7 @@ export function LinerNotes({ album }: { album: AlbumDetail }) {
                     ) : (
                       <button
                         key={name}
+                        type="button"
                         onClick={() => navigate(`/search?q=${encodeURIComponent(name)}`)}
                         className={NAME_LINK}
                       >
@@ -169,11 +174,11 @@ export function LinerNotes({ album }: { album: AlbumDetail }) {
 
       {/* 版本记录：规格、ISRC、MusicBrainz */}
       {(spec.length > 0 || isrcs.length > 0 || album.musicBrainzId) && (
-        <section className="sheet p-5 regular:p-6">
-          <h3 className="mb-3 font-display text-[17px] font-semibold">
+        <section>
+          <h2 className={BOOKLET_HEADING}>
             {t('album.pressing.title')}
-          </h3>
-          <dl className="text-[13.5px]">
+          </h2>
+          <dl className="mt-3 text-[14px]">
             {spec.length > 0 && (
               <SpecRow label={t('album.spec.format')}>
                 <span className="num flex flex-wrap gap-x-3">
@@ -194,7 +199,7 @@ export function LinerNotes({ album }: { album: AlbumDetail }) {
                   href={`https://musicbrainz.org/release/${album.musicBrainzId}`}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="num break-all text-primary underline-offset-4 hover:underline"
+                  className="num break-all text-leaf underline-offset-4 hover:underline"
                 >
                   {album.musicBrainzId}
                 </a>
@@ -209,9 +214,9 @@ export function LinerNotes({ album }: { album: AlbumDetail }) {
 
 function SpecRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[minmax(5.5rem,9rem)_1fr] items-baseline gap-x-6 rounded-sm px-2 py-2">
-      <dt className="text-[13px] text-ink-faint">{label}</dt>
-      <dd className="m-0 text-ink-soft">{children}</dd>
+    <div className="grid grid-cols-[minmax(5.5rem,9rem)_1fr] items-baseline gap-x-6 py-2">
+      <dt className="text-[13px] text-ink-3">{label}</dt>
+      <dd className="m-0 text-ink-2">{children}</dd>
     </div>
   )
 }
@@ -233,7 +238,7 @@ export function SongCredits({
   if (!list.length && !composer) return null
 
   return (
-    <dl className="text-[13.5px]">
+    <dl className="text-[14px]">
       {composer && (
         <SpecRow label={t('song.role.composer')}>
           <span className="text-ink">{composer}</span>
@@ -242,9 +247,9 @@ export function SongCredits({
       {list.map((c, i) => (
         <div
           key={`${c.role}-${c.name}-${i}`}
-          className="grid grid-cols-[minmax(5.5rem,9rem)_1fr] items-baseline gap-x-6 rounded-sm px-2 py-2"
+          className="grid grid-cols-[minmax(5.5rem,9rem)_1fr] items-baseline gap-x-6 py-2"
         >
-          <dt className="text-[13px] text-ink-faint">
+          <dt className="text-[13px] text-ink-3">
             {roleLabel(c.role, t)}
             {c.subRole && (
               <span className="ml-1">
@@ -254,6 +259,7 @@ export function SongCredits({
           </dt>
           <dd className="m-0">
             <button
+              type="button"
               onClick={() =>
                 c.artistId
                   ? navigate(detailPath('artists', c.artistId, serverId))

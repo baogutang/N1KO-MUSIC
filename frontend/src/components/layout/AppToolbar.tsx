@@ -22,6 +22,7 @@ import { useThemeStore } from '@/store/themeStore'
 import { useServerStore } from '@/store/serverStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useDestructiveConfirm } from '@/components/layout/useDestructiveConfirm'
+import { useThemeToggle } from '@/hooks/useThemeToggle'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,8 +37,8 @@ import { sectionKeyFor } from './sections'
 import { useShellLayout } from './useShellLayout'
 
 const toolBtn =
-  'grid h-9 w-9 flex-none place-items-center rounded-pill text-ink-soft transition-colors duration-150 ' +
-  'hover:bg-paper-deep hover:text-ink active:scale-95 disabled:opacity-40 disabled:hover:bg-transparent'
+  'press-pop grid h-9 w-9 flex-none place-items-center rounded-pill text-ink-2 ' +
+  'hover:bg-ink/[0.06] hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent'
 
 /** react-router v7 在 history.state.idx 里记着当前条目的序号：0 就是第一页，没得退 */
 function historyIndex(): number {
@@ -49,7 +50,7 @@ function MoreMenu() {
   const { t } = useT()
   const navigate = useNavigate()
   const resolvedTheme = useThemeStore(s => s.resolvedTheme)
-  const toggleTheme = useThemeStore(s => s.toggleTheme)
+  const toggleTheme = useThemeToggle()
   const setCarMode = usePlayerStore(s => s.setCarMode)
   const { username, disconnect } = useServerStore()
   const confirm = useDestructiveConfirm()
@@ -89,7 +90,7 @@ function MoreMenu() {
             {t('player.carMode')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={toggleTheme}>
+          <DropdownMenuItem onClick={e => toggleTheme(e)}>
             {resolvedTheme === 'dark' ? <Sun size={16} className="mr-2" /> : <Moon size={16} className="mr-2" />}
             {themeLabel}
           </DropdownMenuItem>
@@ -160,8 +161,8 @@ export function AppToolbar({ scrolled, titled, children }: { scrolled: boolean; 
 
         <p
           className={cn(
-            'min-w-0 flex-1 truncate text-center text-[15px] font-semibold text-ink transition-opacity duration-200',
-            titled ? 'opacity-100' : 'opacity-0'
+            'min-w-0 flex-1 truncate text-center font-display text-[15.5px] font-semibold tracking-[-0.01em] text-ink transition-[opacity,transform] duration-3 ease-out',
+            titled ? 'translate-y-0 opacity-100' : 'translate-y-1.5 opacity-0'
           )}
           aria-hidden={!titled}
           data-tauri-drag-region
@@ -174,18 +175,18 @@ export function AppToolbar({ scrolled, titled, children }: { scrolled: boolean; 
             <button
               onClick={() => navigate('/search')}
               onMouseEnter={() => prefetchRoute('/search')}
-              className="flex h-9 w-[220px] items-center gap-2 rounded-pill bg-paper-deep px-3.5 text-[13.5px] text-ink-faint transition-colors hover:bg-paper-3"
+              className="press-pop flex h-9 w-[240px] items-center gap-2 rounded-pill bg-ink/[0.05] px-3.5 text-[13.5px] text-ink-3 hover:bg-ink/[0.08]"
               aria-label={t('nav.search')}
             >
               <MagnifyingGlass size={15} />
               <span className="flex-1 text-left">{t('nav.search')}</span>
-              <kbd className="num font-sans text-[12px] text-ink-faint">⌘K</kbd>
+              <kbd className="num font-sans text-[12px] text-ink-3">⌘K</kbd>
             </button>
           )}
           {wide ? (
             <button
               onClick={() => setNowPlayingPanel(!panelVisible)}
-              className={cn(toolBtn, panelVisible && 'text-primary')}
+              className={cn(toolBtn, panelVisible && 'text-leaf')}
               aria-label={t(panelVisible ? 'shell.hidePanel' : 'shell.showPanel')}
               aria-pressed={panelVisible}
               title={`${t(panelVisible ? 'shell.hidePanel' : 'shell.showPanel')}  ⌥⌘P`}

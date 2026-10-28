@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-27T00:00:00Z",
+  "title": "Design System: N1KO MUSIC",
+  "extensions": {
+    "shadows": [
+      { "name": "shadow-sm", "value": "0 1px 2px oklch(22% 0.02 262 / 0.06), 0 1px 1px oklch(22% 0.02 262 / 0.04)", "purpose": "sheet, seg-pill, cover-tile at rest" },
+      { "name": "shadow-md", "value": "0 2px 4px oklch(22% 0.02 262 / 0.05), 0 12px 28px -12px oklch(22% 0.02 262 / 0.2)", "purpose": "shadow-card" },
+      { "name": "shadow-lg", "value": "0 4px 12px oklch(22% 0.02 262 / 0.06), 0 28px 60px -20px oklch(22% 0.02 262 / 0.3)", "purpose": "glass, shadow-float" },
+      { "name": "shadow-cover", "value": "0 2px 6px oklch(22% 0.02 262 / 0.1), 0 20px 44px -18px oklch(22% 0.02 262 / 0.38)", "purpose": "large covers, tile hover" }
+    ],
+    "motion": [
+      { "name": "SPRING_SNAPPY", "value": "stiffness 520, damping 44, mass 1", "purpose": "UI state" },
+      { "name": "SPRING_PRESS", "value": "stiffness 420, damping 26, mass 1", "purpose": "gesture release, overshoot" },
+      { "name": "SPRING_SMOOTH", "value": "stiffness 260, damping 30, mass 1", "purpose": "layout, overlays" },
+      { "name": "SPRING_GENTLE", "value": "stiffness 170, damping 24, mass 1", "purpose": "large panels" },
+      { "name": "SPRING_MORPH", "value": "stiffness 300, damping 32, mass 1", "purpose": "shared cover flight" },
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "default CSS easing" }
+    ],
+    "breakpoints": [
+      { "name": "regular", "value": "600px" },
+      { "name": "wide", "value": "1024px" }
+    ]
+  },
+  "narrative": {
+    "northStar": "舞台光",
+    "rules": [
+      { "name": "The Fill-Or-Text Rule", "body": "lime is a fill, leaf is text.", "section": "colors" },
+      { "name": "The Locked-Lightness Rule", "body": "The cover decides hue and capped chroma, never lightness.", "section": "colors" },
+      { "name": "The Plain-Label Rule", "body": "No tracked caps, no eyebrows.", "section": "typography" },
+      { "name": "The No-Card-In-Card Rule", "body": "One surface, one layer.", "section": "elevation" }
+    ]
+  }
+}

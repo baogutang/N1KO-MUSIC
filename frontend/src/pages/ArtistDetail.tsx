@@ -1,13 +1,13 @@
 /**
- * 歌手详情页 —— 杂志编辑风（DESIGN v2 §3）
- * 顶部：中小圆形头像居左 + 衬线 900 歌手名 + ink-soft bio（限宽 34em，可展开/收起）
- * 分区：热门歌曲 Top5 / 全部歌曲（默认 20，可展开）/ 专辑封面墙 / 相似歌手文字索引行
+ * 歌手详情页
+ * 头部是 DetailHero（圆形头像带着自己的光，往下滚时收小），简介在头部下面（限宽、可展开/收起）。
+ * 分区：热门歌曲 Top5 / 全部歌曲（默认 20，可展开）/ 唱片目录书架 / 档案 / 边注 / 相似歌手
  */
 
 import { useEffect, useState, useMemo } from 'react'
 import { detailPath } from '@/utils/detailPath'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { Play, Shuffle, CaretDown, CaretUp, MicrophoneStage } from '@phosphor-icons/react'
+import { Play, Shuffle, MicrophoneStage } from '@phosphor-icons/react'
 import { DiscographyRail, type ArtistMarginalia } from '@/components/music/DiscographyRail'
 import { MarginNote } from '@/components/music/MarginNote'
 import { ArtistDossier } from '@/components/music/ArtistDossier'
@@ -17,6 +17,8 @@ import { findAdapterFor, getAdapterFor } from '@/api'
 import { playAllInOrder, playAllShuffled, playAlbum } from '@/utils/playActions'
 import { artistKey } from '@/utils/songIdentity'
 import { ErrorState } from '@/components/common/ErrorState'
+import { DetailHero } from '@/components/common/DetailHero'
+import { Button } from '@/components/ui/button'
 import { useServerStore } from '@/store/serverStore'
 import { isQualifiedListeningEvent, readListeningEvents } from '@/services/listeningHistory'
 import { cn } from '@/lib/utils'
@@ -28,6 +30,25 @@ import { sourceParam } from '@/lib/sourceParam'
 const SONGS_INITIAL_SHOW = 20
 /** 热门歌曲展示数量 */
 const TOP_SONGS_SHOW = 5
+
+/** 加载骨架：与 DetailHero 同一套网格，圆形头像 + 文字条 */
+function ArtistSkeleton() {
+  return (
+    <div className="pb-2 pt-2 regular:pt-4" aria-hidden="true">
+      <div className="grid grid-cols-1 items-end justify-items-center gap-6 regular:grid-cols-[220px_minmax(0,1fr)] regular:justify-items-start regular:gap-8 wide:grid-cols-[264px_minmax(0,1fr)] wide:gap-10">
+        <div className="skeleton cover-frame aspect-square w-[min(72vw,280px)] rounded-full regular:w-full" />
+        <div className="flex w-full min-w-0 flex-col items-center gap-3 regular:items-start">
+          <div className="skeleton h-10 w-1/2 rounded-md regular:h-12" />
+          <div className="skeleton h-4 w-40 rounded-md" />
+          <div className="mt-2 flex gap-3">
+            <div className="skeleton h-11 w-32 rounded-pill" />
+            <div className="skeleton h-11 w-36 rounded-pill" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function ArtistDetailPage() {
   const { t } = useT()
@@ -76,7 +97,6 @@ export default function ArtistDetailPage() {
   }, [artist?.name, artist?.albums, serverId])
 
   /* 播整张专辑走共享的 playActions.playAlbum（阶段 8.7，缓存优先策略归一） */
-  /* 播整张专辑走共享的 playActions.playAlbum（阶段 8.7，缓存优先策略归一） */
   const handlePlayAlbum = (album: { id: string; serverId: string }) => { void playAlbum(album) }
 
   const serverImageUrl = artist?.artistImageUrl ||
@@ -93,27 +113,13 @@ export default function ArtistDetailPage() {
   const playableSongs = allSongs.length > 0 ? allSongs : topSongs
 
   if (isLoading) {
-    return (
-      <div className="pt-2 regular:pt-4 animate-fade-in" aria-hidden="true">
-        <div className="flex flex-col gap-6 regular:flex-row regular:items-center regular:gap-8">
-          <div className="h-36 w-36 flex-shrink-0 rounded-pill bg-skeleton animate-pulse regular:h-40 regular:w-40" />
-          <div className="flex-1 space-y-4">
-            <div className="h-10 w-1/3 rounded-sm bg-skeleton animate-pulse" />
-            <div className="h-3.5 w-2/3 rounded-sm bg-skeleton animate-pulse" />
-            <div className="flex gap-3 pt-2">
-              <div className="h-11 w-28 rounded-pill bg-skeleton animate-pulse" />
-              <div className="h-11 w-28 rounded-pill bg-skeleton animate-pulse" />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return <ArtistSkeleton />
   }
 
   if (!artist) {
     // 整页空白既解释不了发生了什么，也没给出路——连返回都要靠浏览器的后退键
     return (
-      <div className="pt-4 max-w-[720px] animate-fade-in">
+      <div className="mx-auto max-w-[560px] pt-6">
         <ErrorState ruled={false} onBack={() => navigate(-1)} />
       </div>
     )
@@ -121,13 +127,15 @@ export default function ArtistDetailPage() {
 
   const displayedSongs = showAllSongs ? allSongs : allSongs.slice(0, SONGS_INITIAL_SHOW)
   const hasMoreSongs = allSongs.length > SONGS_INITIAL_SHOW
+  const albumCount = artist.albums?.length ?? 0
 
   return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
-      {/* 头部：圆形头像 + 歌手名 + bio + 动作行 */}
-      <header className="flex flex-col gap-6 regular:flex-row regular:items-center regular:gap-8">
-        <div className="h-36 w-36 flex-shrink-0 overflow-hidden rounded-pill bg-paper-deep shadow-float regular:h-40 regular:w-40">
-          {imageUrl ? (
+    <div>
+      {/* 头部：圆形头像 + 歌手名 + 专辑数 / 曲目数 + 动作行 */}
+      <DetailHero
+        round
+        cover={
+          imageUrl ? (
             <img
               src={imageUrl}
               alt={artist.name}
@@ -135,50 +143,53 @@ export default function ArtistDetailPage() {
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="grid h-full w-full place-items-center">
-              <MicrophoneStage size={32} className="text-ink-faint" />
+            <div className="grid h-full w-full place-items-center text-ink-3">
+              <MicrophoneStage className="h-1/3 w-1/3" aria-hidden="true" />
             </div>
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em] text-balance">
-            {spaceCJK(artist.name)}
-          </h1>
-          {artist.biography && (
-            <div className="mt-3 max-w-[34em]">
-              <p className={cn('text-sm leading-[1.8] text-ink-soft', !bioExpanded && 'line-clamp-3')}>
-                {artist.biography}
-              </p>
-              <button
-                onClick={() => setBioExpanded(v => !v)}
-                className="inline-flex min-h-11 items-center gap-1 text-[13px] font-medium text-primary underline-offset-4 hover:underline"
-              >
-                {bioExpanded ? t('action.collapse') : t('action.expand')}
-                {bioExpanded ? <CaretUp size={13} /> : <CaretDown size={13} />}
-              </button>
-            </div>
-          )}
-          {playableSongs.length > 0 && (
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => playAllInOrder(playableSongs)}
-                className="act-primary inline-flex items-center gap-2 text-sm"
-              >
-                <Play size={15} weight="fill" />
+          )
+        }
+        coverUrl={imageUrl}
+        title={spaceCJK(artist.name)}
+        meta={
+          albumCount > 0 || allSongs.length > 0 ? (
+            <>
+              {albumCount > 0 && <span>{t('album.count', { count: albumCount })}</span>}
+              {allSongs.length > 0 && <span>{t('song.count', { count: allSongs.length })}</span>}
+            </>
+          ) : undefined
+        }
+        actions={
+          playableSongs.length > 0 ? (
+            <>
+              <Button type="button" onClick={() => playAllInOrder(playableSongs)}>
+                <Play size={18} weight="fill" />
                 {t('player.playAll')}
-              </button>
-              <button
-                onClick={() => playAllShuffled(playableSongs)}
-                className="act-secondary inline-flex items-center gap-2 text-sm"
-              >
-                <Shuffle size={15} />
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => playAllShuffled(playableSongs)}>
+                <Shuffle size={18} />
                 {t('player.shuffle')}
-              </button>
-            </div>
-          )}
+              </Button>
+            </>
+          ) : undefined
+        }
+      />
+
+      {/* 简介：限宽的正文，三行折叠，可展开 */}
+      {artist.biography && (
+        <div className="mt-6 max-w-[65ch]">
+          <p className={cn('text-[15px] leading-[1.75] text-ink-2', !bioExpanded && 'line-clamp-3')}>
+            {artist.biography}
+          </p>
+          <button
+            type="button"
+            onClick={() => setBioExpanded(v => !v)}
+            aria-expanded={bioExpanded}
+            className="inline-flex min-h-11 items-center text-[14px] font-semibold text-leaf underline-offset-4 hover:underline"
+          >
+            {bioExpanded ? t('action.collapse') : t('action.expand')}
+          </button>
         </div>
-      </header>
+      )}
 
       {/* 热门歌曲（Top5） */}
       {topSongs.length > 0 && (
@@ -195,27 +206,27 @@ export default function ArtistDetailPage() {
         <section>
           <div className="section-head">
             <h2>{t('section.allSongs')}</h2>
-            <span className="num text-sm text-ink-faint">{t('song.trackTotal', { count: allSongs.length })}</span>
+            <span className="num text-[14px] text-ink-3">{t('song.trackTotal', { count: allSongs.length })}</span>
           </div>
           <SongList songs={displayedSongs} showCover showAlbum showIndex />
           {hasMoreSongs && (
             <div className="mt-6 flex justify-center">
-              <button
+              <Button
+                type="button"
+                variant="secondary"
                 onClick={() => setShowAllSongs(!showAllSongs)}
-                className="act-secondary inline-flex items-center gap-2 text-sm"
+                aria-expanded={showAllSongs}
               >
-                {showAllSongs ? (
-                  <>{t('action.collapse')} <CaretUp size={14} /></>
-                ) : (
-                  <>{t('artist.showAllSongs', { count: allSongs.length })} <CaretDown size={14} /></>
-                )}
-              </button>
+                {showAllSongs
+                  ? t('action.collapse')
+                  : t('artist.showAllSongs', { count: allSongs.length })}
+              </Button>
             </div>
           )}
         </section>
       )}
 
-      {/* 唱片目录：横向书架，按年份倒序；你自己的收听历史是书架下的一张纸片 */}
+      {/* 唱片目录：横向书架，按年份倒序；你自己的收听历史是书架下的一块安静面板 */}
       <DiscographyRail
         albums={artist.albums}
         marginalia={marginalia}
@@ -223,13 +234,13 @@ export default function ArtistDetailPage() {
       />
 
       {/* 档案：曲库标签里没有的那部分。默认关闭，见设置「歌手档案」 */}
-      <ArtistDossier musicBrainzId={artist.musicBrainzId} className="mt-10" />
+      <ArtistDossier musicBrainzId={artist.musicBrainzId} />
 
       {/* 你自己写的那一条，和上面「你与这位歌手」的自动统计并置：
           一边是行为算出来的，一边是你亲手写的 */}
-      <MarginNote target="artist" targetId={artist.id} className="mt-10 max-w-[38em]" />
+      <MarginNote target="artist" targetId={artist.id} className="mt-10" />
 
-      {/* 相似歌手：一排纸片胶囊 */}
+      {/* 相似歌手：一排中性胶囊 */}
       {artist.similarArtists && artist.similarArtists.length > 0 && (
         <section className="pb-4">
           <div className="section-head">
@@ -239,8 +250,9 @@ export default function ArtistDetailPage() {
             {artist.similarArtists.map(similar => (
               <button
                 key={similar.id}
+                type="button"
                 onClick={() => navigate(detailPath('artists', similar.id, similar.serverId ?? serverId))}
-                className="press-pop inline-flex min-h-11 items-center rounded-pill bg-sheet px-4 text-[14.5px] font-medium text-ink shadow-press hover:text-primary"
+                className="press-pop inline-flex min-h-11 items-center rounded-pill bg-fill px-4 text-[14px] font-semibold text-ink-2 hover:bg-fill-2 hover:text-ink"
               >
                 {similar.name}
               </button>

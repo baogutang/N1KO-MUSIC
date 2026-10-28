@@ -26,7 +26,7 @@ export function CoverActions({ children, className }: { children: ReactNode; cla
   return (
     <div
       className={cn(
-        'absolute bottom-2 right-2 flex items-center gap-2 transition-[opacity,transform] duration-200',
+        'absolute bottom-2.5 right-2.5 flex items-center gap-2 transition-[opacity,transform] duration-3 ease-out',
         'focus-within:translate-y-0 focus-within:opacity-100',
         '[@media(hover:hover)]:translate-y-1.5 [@media(hover:hover)]:opacity-0',
         '[@media(hover:hover)]:group-hover:translate-y-0 [@media(hover:hover)]:group-hover:opacity-100',
@@ -38,7 +38,7 @@ export function CoverActions({ children, className }: { children: ReactNode; cla
   )
 }
 
-/** 动作簇里的一粒纸片圆键；hover 时换强调色。触屏 44px，鼠标下收小一点 */
+/** 动作簇里的一粒玻璃圆键；hover 时换成青柠。触屏 44px，鼠标下收小一点 */
 export const CoverActionButton = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement> & { small?: boolean }
@@ -47,11 +47,11 @@ export const CoverActionButton = forwardRef<
     ref={ref}
     type="button"
     className={cn(
-      'grid place-items-center rounded-pill bg-sheet text-ink shadow-press transition-[transform,background-color,color] duration-200 active:scale-[0.94]',
+      'press-pop glass grid place-items-center rounded-pill text-ink',
       small
         ? 'h-11 w-11 [@media(hover:hover)]:h-8 [@media(hover:hover)]:w-8'
         : 'h-11 w-11 [@media(hover:hover)]:h-9 [@media(hover:hover)]:w-9',
-      '[@media(hover:hover)]:hover:bg-vivid [@media(hover:hover)]:hover:text-vivid-foreground',
+      '[@media(hover:hover)]:hover:bg-lime [@media(hover:hover)]:hover:text-lime-ink',
       className
     )}
     {...props}

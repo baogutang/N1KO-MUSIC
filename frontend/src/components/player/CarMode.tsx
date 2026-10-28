@@ -4,18 +4,19 @@
  * 开车时的约束和平时完全不是一回事：一眼最多零点几秒，手指落点不准，
  * 车里有震动，屏幕可能在阳光下。所以这一屏只做三件事——
  *
- *   1. 触控目标全部按「不用瞄准」来做：主键（橡胶播放键）112–128px，副键 80–96px，
+ *   1. 触控目标全部按「不用瞄准」来做：主键（青柠播放键）112–128px，副键 72–96px，
  *      顶栏的键也有 64px，各家无障碍指南 44/48pt 下限的近一倍半以上；
  *   2. 字号按「余光扫一眼」来定，曲名 clamp 到接近整屏宽；
  *   3. 屏幕不许自己黑掉——用 Wake Lock 顶住，退出时立刻释放。
  *
- * 它仍然是暖纸那一套：不为了对比度换一套配色，只是把同一套字号和形状
- * 放大到能在颠簸里看清。真正提高可读性的是尺寸和留白，不是荧光色。
+ * 它是一整块「灯暗下来」的舞台（.stage：与全屏播放器同一套暗色 token，色相取自当前封面），
+ * 开车时不该有一块亮屏晃眼睛。真正提高可读性的是尺寸和留白，不是荧光色：
+ * 只有播放键和进度是青柠。
  * 竖屏是上下三段（顶栏 / 曲目 / 控制），横屏把曲目放左、控制放右。
  */
 
 import { useCallback, useEffect, useRef } from 'react'
-import { Play, Pause, SkipBack, SkipForward, Heart, X } from '@phosphor-icons/react'
+import { Play, Pause, SkipBack, SkipForward, X } from '@phosphor-icons/react'
 import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useToggleStar } from '@/hooks/useServerQueries'
@@ -25,6 +26,7 @@ import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { HeartGlyph } from '@/components/player/glyphs'
 import { useT } from '@/i18n'
 
 /** 屏幕常亮句柄的最小接口，避免为一个实验性 API 引入整套 DOM 类型 */
@@ -134,10 +136,10 @@ export function CarMode({ onExit }: { onExit: () => void }) {
 
   if (!currentSong) {
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-paper">
-        <p className="font-display text-3xl font-semibold">{t('player.nothingPlaying')}</p>
+      <div className="stage stage-fallback fixed inset-0 z-[100] flex flex-col items-center justify-center px-6 text-center text-ink">
+        <p className="font-display text-3xl font-semibold tracking-[-0.02em]">{t('player.nothingPlaying')}</p>
         <Button
-          variant="outline"
+          variant="secondary"
           size="lg"
           onClick={onExit}
           className="mt-10 h-16 px-10 text-xl"
@@ -150,7 +152,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col bg-paper pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] text-ink"
+      className="stage stage-fallback fixed inset-0 z-[100] flex flex-col pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] text-ink"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       role="region"
@@ -161,10 +163,10 @@ export function CarMode({ onExit }: { onExit: () => void }) {
         收藏不是开车时的关键操作，把它从拇指区挪上来，下面那一排就只剩
         「上一首 / 播放 / 下一首」——窄屏上三个键才排得开，不会被切掉。
       */}
-      <div className="flex flex-shrink-0 items-center justify-between p-4">
+      <div className="flex flex-shrink-0 items-center justify-between p-4 regular:p-6">
         {canFavoriteCurrent ? (
           <Button
-            variant="outline"
+            variant="secondary"
             size="icon-lg"
             onClick={() => toggleStar.mutate({
               id: currentSong.id,
@@ -175,46 +177,42 @@ export function CarMode({ onExit }: { onExit: () => void }) {
             aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
             className="h-16 w-16"
           >
-            <Heart
-              size={28}
-              weight={currentSong.starred ? 'fill' : 'regular'}
-              className={currentSong.starred ? 'text-sem-fav' : 'text-ink'}
-            />
+            <HeartGlyph on={!!currentSong.starred} size={30} />
           </Button>
         ) : (
           <span className="grid h-16 w-16" aria-hidden="true" />
         )}
         <Button
-          variant="icon"
+          variant="secondary"
           size="icon-lg"
           onClick={onExit}
           aria-label={t('player.exitCarMode')}
           className="h-16 w-16"
         >
-          <X size={28} />
+          <X size={30} />
         </Button>
       </div>
 
       {/* 竖屏上下排，横屏左右排：曲目信息在左，控制在右 */}
       <div className="flex min-h-0 flex-1 flex-col landscape:flex-row landscape:items-center">
         {/* 曲目信息：整屏最先被看到的东西 */}
-        <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-6 text-center landscape:items-start landscape:text-left">
-          <h1 className="line-clamp-2 font-display text-[clamp(2.25rem,7vw,4.5rem)] font-semibold leading-[1.15]">
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-6 text-center landscape:items-start landscape:text-left regular:px-10">
+          <h1 className="line-clamp-2 font-display text-[clamp(2.5rem,8vw,5rem)] font-bold leading-[1.08] tracking-[-0.03em]">
             {spaceCJK(currentSong.title)}
           </h1>
-          <p className="mt-4 line-clamp-1 text-[clamp(1.1rem,3vw,1.75rem)] text-ink-soft">
+          <p className="mt-4 line-clamp-1 text-[clamp(1.25rem,3.4vw,2rem)] font-medium text-ink-2">
             {spaceCJK(currentSong.artist)}
           </p>
 
-          {/* 进度：一段强调色填进凹槽，不做刻度也不做可拖拽——开车时不该去够它 */}
+          {/* 进度：青柠填进淡墨轨，不做刻度也不做可拖拽——开车时不该去够它；只动 transform */}
           <div className="mt-12 w-full max-w-3xl landscape:mt-8">
-            <div className="h-3 w-full overflow-hidden rounded-pill bg-paper-3">
+            <div className="h-3 w-full overflow-hidden rounded-pill bg-ink/20">
               <div
-                className="h-full w-full origin-left rounded-pill bg-vivid transition-transform duration-500 motion-reduce:transition-none"
+                className="h-full w-full origin-left rounded-pill bg-lime transition-transform duration-500 motion-reduce:transition-none"
                 style={{ transform: `scaleX(${progress})` }}
               />
             </div>
-            <div className="num mt-3 flex justify-between text-[17px] text-ink-faint">
+            <div className="num mt-3 flex justify-between text-[18px] font-medium text-ink-3">
               <span>{formatDuration(currentTime)}</span>
               <span>{formatDuration(duration)}</span>
             </div>
@@ -222,17 +220,17 @@ export function CarMode({ onExit }: { onExit: () => void }) {
         </div>
 
         {/*
-          控制区：主键 112（窄屏）/ 128，副键 80 / 96。
+          控制区：主键 112（窄屏）/ 128，副键 72 / 96。
           最小的那一档也是 44pt 下限的近两倍，而三个键加间距在 375px 上仍排得开——
           按钮被屏幕切掉，比按钮小更危险。
         */}
-        <div className="flex flex-shrink-0 items-center justify-center gap-4 pb-[max(2rem,env(safe-area-inset-bottom))] regular:gap-10 landscape:gap-5 landscape:px-8 landscape:pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="flex flex-shrink-0 items-center justify-center gap-5 pb-[max(2rem,env(safe-area-inset-bottom))] regular:gap-10 landscape:gap-5 landscape:px-8 landscape:pb-[max(1rem,env(safe-area-inset-bottom))]">
           <CarButton
             label={t('player.previous')}
             onClick={() => (currentTime > 3 ? seekHowl(0) : prev())}
-            className="h-20 w-20 regular:h-24 regular:w-24"
+            className="h-[72px] w-[72px] regular:h-24 regular:w-24"
           >
-            <SkipBack size={38} weight="fill" />
+            <SkipBack size={36} weight="fill" />
           </CarButton>
 
           <CarButton
@@ -241,15 +239,15 @@ export function CarMode({ onExit }: { onExit: () => void }) {
             className="h-28 w-28 regular:h-32 regular:w-32"
             primary
           >
-            {isPlaying ? <Pause size={52} weight="fill" /> : <Play size={52} weight="fill" />}
+            {isPlaying ? <Pause size={56} weight="fill" /> : <Play size={56} weight="fill" />}
           </CarButton>
 
           <CarButton
             label={t('player.next')}
             onClick={next}
-            className="h-20 w-20 regular:h-24 regular:w-24"
+            className="h-[72px] w-[72px] regular:h-24 regular:w-24"
           >
-            <SkipForward size={38} weight="fill" />
+            <SkipForward size={36} weight="fill" />
           </CarButton>
         </div>
       </div>
@@ -257,7 +255,7 @@ export function CarMode({ onExit }: { onExit: () => void }) {
   )
 }
 
-/** 主键是青柠播放键（.play-key）；副键是下沉一档的纸色圆钮 */
+/** 主键是青柠播放键（.play-key）；副键是舞台上抬一档的圆钮 */
 function CarButton({
   label, onClick, className, primary, children,
 }: {
@@ -275,7 +273,7 @@ function CarButton({
       className={cn(
         primary
           ? 'play-key flex-none'
-          : 'grid flex-none place-items-center rounded-full bg-paper-3 text-ink transition-[transform,background-color] duration-150 hover:bg-hair active:scale-95 motion-reduce:transition-none',
+          : 'press-pop grid flex-none place-items-center rounded-full bg-fill text-ink hover:bg-fill-2',
         className
       )}
     >

@@ -1,8 +1,8 @@
 /**
- * 唱片目录 · 书架。
+ * 唱片目录的书架。
  *
- * 一排横向滑动的专辑封面，按年份倒序摆放，每张标出年份与曲目数；
- * 没有年份的专辑收在末尾，不丢。书架下面是一张 sheet 纸片，放「你自己的历史」——
+ * 一排横向吸附的专辑封面卡（CoverShelf），按年份倒序摆放，每张标出年份与曲目数；
+ * 没有年份的专辑收在末尾，不丢。书架下面是一块安静的第二中性面板，放「你自己的历史」——
  * 全部来自本地收听历史，不需要任何额外请求。
  */
 
@@ -17,6 +17,7 @@ import { findAdapterFor } from '@/api'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { t as translate, useT } from '@/i18n'
 import { detailPath } from '@/utils/detailPath'
+import { cn } from '@/lib/utils'
 
 export interface ArtistMarginalia {
   /** 第一次听到这位歌手的时间 */
@@ -110,7 +111,7 @@ export function DiscographyRail({
     <section aria-labelledby="discography">
       <div className="section-head">
         <h2 id="discography">{t('section.discography')}</h2>
-        <span className="num flex flex-wrap justify-end gap-x-3 text-sm text-ink-faint">
+        <span className="num flex flex-wrap justify-end gap-x-3 text-[14px] text-ink-3">
           {span && <span>{t('artist.discographyYears', { from: span.min, to: span.max })}</span>}
           <span>{t('artist.discographyCount', { count: albums.length })}</span>
         </span>
@@ -158,13 +159,13 @@ export function DiscographyRail({
         ))}
       </CoverShelf>
 
-      {/* 你自己的历史：一张纸片 */}
+      {/* 你自己的历史：一块安静的面板 */}
       {marginalia && marginalia.plays > 0 && (
-        <aside className="sheet mt-4 p-5 regular:p-6">
-          <p className="mb-4 font-display text-[17px] font-semibold">
+        <aside className="mt-2 rounded-lg bg-surface-2 p-5 regular:p-6">
+          <p className="mb-4 font-display text-[17px] font-semibold text-ink">
             {t('artist.yourHistory')}
           </p>
-          <dl className="grid grid-cols-2 gap-x-8 gap-y-4 regular:grid-cols-3">
+          <dl className="grid grid-cols-2 gap-x-8 gap-y-5 regular:grid-cols-3">
             {formatDate(marginalia.firstHeardAt) && (
               <MarginRow
                 label={t('artist.firstHeard')}
@@ -174,7 +175,7 @@ export function DiscographyRail({
             <MarginRow
               label={t('artist.totalPlays')}
               value={t('artist.playCount', { count: marginalia.plays })}
-              mono
+              tabular
             />
             {marginalia.favouriteAlbum && (
               <MarginRow label={t('artist.mostPlayed')} value={marginalia.favouriteAlbum} />
@@ -189,7 +190,7 @@ export function DiscographyRail({
               <MarginRow
                 label={t('artist.neverPlayed')}
                 value={t('artist.albumCount', { count: marginalia.neverPlayedAlbums })}
-                mono
+                tabular
               />
             )}
           </dl>
@@ -199,11 +200,11 @@ export function DiscographyRail({
   )
 }
 
-function MarginRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MarginRow({ label, value, tabular }: { label: string; value: string; tabular?: boolean }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[13px] text-ink-faint">{label}</dt>
-      <dd className={mono ? 'num mt-0.5 text-[15px] font-medium' : 'mt-0.5 text-[15px] font-medium'}>
+      <dt className="text-[13px] text-ink-3">{label}</dt>
+      <dd className={cn('m-0 mt-0.5 text-[17px] font-semibold leading-snug text-ink', tabular && 'num')}>
         {spaceCJK(value)}
       </dd>
     </div>

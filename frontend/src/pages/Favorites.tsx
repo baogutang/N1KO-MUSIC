@@ -1,13 +1,15 @@
 /**
  * 收藏页（PLAN 2.4）：多源时按音源分节（歌曲/专辑双分段保留），
  * ?src=<serverId> 只看某一源；单源行为与原版一致。
- * 版式：大标题 + 体量说明 + 播放全部；一枚分段控件切歌曲 / 专辑；专辑是封面网格。
+ * 版式：大标题 + 体量说明 + 播放全部（青柠）；一枚分段控件切歌曲 / 专辑；专辑是封面网格。
  */
 
 import { useState } from 'react'
 import { Play } from '@phosphor-icons/react'
 import { useSearchParams } from 'react-router-dom'
+import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
+import { SPRING_SNAPPY } from '@/lib/motion'
 import { useStarred } from '@/hooks/useServerQueries'
 import { useConnectedSources, useSourceStarred } from '@/hooks/useSourceQueries'
 import { playAllInOrder } from '@/utils/playActions'
@@ -16,6 +18,7 @@ import { AlbumCard } from '@/components/music/AlbumCard'
 import { useQueryClient } from '@tanstack/react-query'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SourceGroupState } from '@/components/sources/SourceGroupState'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/common/EmptyState'
 import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
 import { CoverGrid } from '@/components/common/CoverCard'
@@ -23,6 +26,15 @@ import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
 
 type FavTab = 'songs' | 'albums'
+
+/**
+ * 分段控件的一格：看起来 36px，触点用 ::before 向上下各多出 4px（落在轨道的内边距里），凑足 44px。
+ */
+const SEG_OPTION =
+  'press-pop relative isolate inline-flex h-9 flex-none items-center gap-2 whitespace-nowrap rounded-pill px-4 text-[14px] font-semibold before:absolute before:inset-x-0 before:-inset-y-1'
+
+/** 当前格底下托起的那块片。暗色下 surface 与轨道（ink 6%）几乎同亮（对比 1.03:1），改用 fill-2 才托得起来 */
+const SEG_PILL = 'absolute inset-0 -z-10 rounded-pill seg-pill'
 
 export default function Favorites() {
   const { t } = useT()
@@ -62,9 +74,9 @@ export default function Favorites() {
 
   if (!multi && single.isLoading) {
     return (
-      <div className="pt-2 regular:pt-4 animate-fade-in" aria-hidden="true">
-        <div className="h-10 w-56 rounded-sm bg-skeleton animate-pulse" />
-        <div className="mt-4 h-4 w-32 rounded-sm bg-skeleton animate-pulse" />
+      <div className="pt-2 regular:pt-4" aria-hidden="true">
+        <div className="skeleton h-9 w-60 rounded-md regular:h-11" />
+        <div className="skeleton mt-4 h-4 w-40 rounded-pill" />
         <div className="mt-10">
           <SongRowsSkeleton rows={8} />
         </div>
@@ -81,47 +93,50 @@ export default function Favorites() {
   ]
 
   return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
-      {/* 页头：大标题 + 体量说明（各自独立的 span）+ 强调色主操作 */}
+    <div className="pt-2 regular:pt-4">
+      {/* 页头：大标题 + 体量说明（各自独立的 span）+ 青柠主操作 */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div>
-          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
+        <div className="min-w-0">
+          <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
             {t('library.favoritesTitle')}
           </h1>
-          <p className="num mt-3 flex flex-wrap gap-x-3 text-sm text-ink-faint">
+          <p className="num mt-3 flex flex-wrap gap-x-3 text-[14px] font-medium text-ink-3">
             <span>{t('library.songsCount', { count: allSongs.length })}</span>
             <span>{t('library.albumsCount', { count: allAlbums.length })}</span>
           </p>
         </div>
         {allSongs.length > 0 && (
-          <button
-            onClick={() => playAllInOrder(allSongs, 0)}
-            className="act-primary inline-flex flex-shrink-0 items-center gap-2 text-sm"
-          >
-            <Play size={15} weight="fill" />
+          <Button className="flex-shrink-0" onClick={() => playAllInOrder(allSongs, 0)}>
+            <Play size={18} weight="fill" />
             {t('player.playAll')}
-          </button>
+          </Button>
         )}
       </header>
 
-      {/* 分段控件：歌曲 / 专辑，当前项是凹槽里被托起的一块纸片 */}
-      <div className="mt-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-paper-deep p-1 scrollbar-hide">
-        {tabs.map(item => (
-          <button
-            key={item.key}
-            onClick={() => setTab(item.key)}
-            aria-pressed={tab === item.key}
-            className={cn(
-              'seg-option inline-flex min-h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill px-5 text-[14px] font-medium transition-colors duration-150',
-              tab === item.key
-                ? 'is-on'
-                : 'text-ink-soft [@media(hover:hover)]:hover:text-ink'
-            )}
-          >
-            {item.label}
-            <span className="num text-[13px] text-ink-faint">{item.count}</span>
-          </button>
-        ))}
+      {/* 分段控件：歌曲 / 专辑，当前项是轨道里被托起的一块，换项时它会滑过去 */}
+      <div className="mt-6 inline-flex max-w-full overflow-x-auto rounded-pill bg-ink/[0.06] p-1 scrollbar-hide">
+        {tabs.map(item => {
+          const active = tab === item.key
+          return (
+            <button
+              key={item.key}
+              onClick={() => setTab(item.key)}
+              aria-pressed={active}
+              className={cn(SEG_OPTION, active ? 'text-ink' : 'text-ink-3 hover:text-ink-2')}
+            >
+              {active && (
+                <motion.span
+                  layoutId="favorites-tabs"
+                  transition={SPRING_SNAPPY}
+                  aria-hidden="true"
+                  className={SEG_PILL}
+                />
+              )}
+              {item.label}
+              <span className="num text-[13px] text-ink-3">{item.count}</span>
+            </button>
+          )
+        })}
       </div>
 
       <div className="mt-6">

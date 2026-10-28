@@ -1,10 +1,11 @@
 /**
  * 边注。
  *
- * 页面下方一张纸片卡，专门放你自己写的话：它在页面上占一格，
+ * 页面下方一块安静的第二中性面板，专门放你自己写的话：它在页面上占一格，
  * 说明它是这一页的一部分，而不是一个折叠起来的附属功能。
  *
- * 没写过的时候只是一行很淡的提示；写过之后是一段正文加落款日期。
+ * 没写过的时候收成一行（标题、一句很淡的提示、「写一句」），和上面的曲目列表同宽；
+ * 写过之后是一段正文加落款日期，正文限一个舒服的行长。
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -88,19 +89,45 @@ export function MarginNote({
     setEditing(false)
   }
 
+  // 还没写过：一行就够，不为一句提示撑起一整块面板
+  if (!editing && !note) {
+    return (
+      <aside
+        className={cn('flex items-center gap-4 rounded-lg bg-surface-2 py-1 pl-5 pr-1.5', className)}
+        aria-label={t('section.marginalia')}
+      >
+        <p className="flex-none font-display text-[16px] font-semibold text-ink">{t('section.marginalia')}</p>
+        <button
+          type="button"
+          onClick={startEditing}
+          className="press-pop group/note flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-pill pl-1 pr-3 text-left"
+        >
+          <span className="min-w-0 flex-1 truncate text-[14px] text-ink-3 [@media(hover:hover)]:group-hover/note:text-ink-2">
+            {spaceCJK(placeholder)}
+          </span>
+          <span className="inline-flex flex-none items-center gap-1.5 text-[13px] font-semibold text-ink-2 [@media(hover:hover)]:group-hover/note:text-leaf">
+            <PencilSimple size={14} />
+            {t('action.writeNote')}
+          </span>
+        </button>
+      </aside>
+    )
+  }
+
   return (
     <aside
-      className={cn('sheet p-5', className)}
+      className={cn('rounded-lg bg-surface-2 p-5', className)}
       aria-label={t('section.marginalia')}
     >
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="font-display text-[17px] font-semibold">
+        <p className="font-display text-[17px] font-semibold text-ink">
           {t('section.marginalia')}
         </p>
         {!editing && (
           <button
+            type="button"
             onClick={startEditing}
-            className="-mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-pill px-3 text-[13px] font-medium text-ink-soft transition-colors hover:bg-paper-deep hover:text-primary"
+            className="press-pop -mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-pill px-3 text-[13px] font-semibold text-ink-2 hover:bg-ink/[0.05] hover:text-leaf"
           >
             <PencilSimple size={14} />
             {note ? t('action.edit') : t('action.writeNote')}
@@ -110,6 +137,7 @@ export function MarginNote({
 
       {editing ? (
         <div>
+          {/* 触屏上输入框字号必须 ≥16px，否则 iOS 聚焦时会放大整个页面（见 ui/input） */}
           <textarea
             ref={textareaRef}
             value={draft}
@@ -122,23 +150,23 @@ export function MarginNote({
             }}
             rows={5}
             placeholder={placeholder}
-            className="w-full resize-none rounded-md bg-paper-deep px-4 py-3 text-[14px] leading-[1.85] text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            className="w-full resize-none rounded-md border border-edge/80 bg-surface px-4 py-3 text-base leading-[1.75] text-ink transition-colors duration-2 placeholder:text-ink-3 hover:border-edge regular:text-[15px]"
           />
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={commit}>
-              <Check size={14} />
+            <Button onClick={commit}>
+              <Check size={16} />
               {t('action.save')}
             </Button>
-            <Button size="sm" variant="ghost" onClick={discard}>
-              <X size={14} />
+            <Button variant="ghost" onClick={discard}>
+              <X size={16} />
               {t('action.discard')}
             </Button>
-            <span className="num ml-auto text-xs text-ink-faint">
+            <span className="num ml-auto text-[12px] text-ink-3">
               {draft.length} / {MAX_NOTE_LENGTH}
             </span>
             {note && (
-              <Button size="sm" variant="ghost" onClick={remove} className="hover:text-destructive">
-                <Trash size={14} />
+              <Button variant="ghost" onClick={remove} className="hover:text-danger">
+                <Trash size={16} />
                 {t('action.delete')}
               </Button>
             )}
@@ -146,24 +174,18 @@ export function MarginNote({
         </div>
       ) : note ? (
         <button
+          type="button"
           onClick={startEditing}
-          className="-mx-2 block w-[calc(100%+1rem)] rounded-md px-2 py-1.5 text-left transition-colors [@media(hover:hover)]:hover:bg-paper-deep"
+          className="-mx-2 block w-[calc(100%+1rem)] rounded-md px-2 py-1.5 text-left transition-colors [@media(hover:hover)]:hover:bg-ink/[0.05]"
         >
-          <p className="whitespace-pre-wrap text-[14.5px] leading-[1.85] text-ink">
+          <p className="max-w-[38em] whitespace-pre-wrap text-[15px] leading-[1.75] text-ink">
             {spaceCJK(note.body)}
           </p>
-          <p className="num mt-2 text-xs text-ink-faint">
+          <p className="num mt-2 text-[12px] text-ink-3">
             {formatDate(note.updatedAt)}
           </p>
         </button>
-      ) : (
-        <button
-          onClick={startEditing}
-          className="-mx-2 block w-[calc(100%+1rem)] rounded-md px-2 py-1.5 text-left text-[14px] leading-[1.85] text-ink-faint transition-colors [@media(hover:hover)]:hover:bg-paper-deep [@media(hover:hover)]:hover:text-ink-soft"
-        >
-          {spaceCJK(placeholder)}
-        </button>
-      )}
+      ) : null}
     </aside>
   )
 }

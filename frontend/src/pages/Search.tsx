@@ -1,8 +1,8 @@
 /**
- * 搜索页 —— 暖纸版式（v5）＋ 多源聚合（PLAN §4.5）
+ * 搜索页 —— 舞台光版式（v6）＋ 多源聚合（PLAN §4.5）
  *
- * 大标题「搜索」＋ 大号胶囊搜索框（ui/Input，左侧放大镜）＋ 分区结果：
- * 歌手纸片胶囊 / 专辑封面网格 / 歌曲列表；空态放在一张格纸 sheet 上
+ * 大标题「搜索」＋ 大号胶囊搜索框（ui/Input，左侧放大镜，静止时也留一圈可见的描边）＋ 分区结果：
+ * 最佳匹配（一张大卡）/ 歌手胶囊 / 专辑书架 / 歌曲列表；空态直接落在页面上
  *
  * 多源（≥2 个已连接音源）时结果区有两种视图：
  * - 「全部」：match.ts 三级同曲合并成一条带来源徽标（默认视图，聚合是产品主张）
@@ -10,13 +10,17 @@
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { MagnifyingGlass, X } from '@phosphor-icons/react'
+import { MagnifyingGlass, Play, X } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { AlbumCard } from '@/components/music/AlbumCard'
 import { SongList } from '@/components/music/SongList'
+import { CoverShelf } from '@/components/common/CoverCard'
+import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { SegmentedPill } from '@/components/settings/primitives'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { useSearch } from '@/hooks/useServerQueries'
 import {
@@ -27,12 +31,14 @@ import {
 } from '@/hooks/useSourceQueries'
 import { mergeSongs, normalizeText } from '@/plugins/match'
 import type { Album, Artist, Song } from '@/api/types'
+import { findAdapterFor } from '@/api'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
 import { useT } from '@/i18n'
 import { detailPath } from '@/utils/detailPath'
+import { playAlbum, playListFrom } from '@/utils/playActions'
 
 type SearchView = 'all' | 'grouped'
 
@@ -48,17 +54,17 @@ const SECTION_LABEL_KEYS = {
   playlists: 'search.section.playlists',
 } as const
 
-/** 专辑封面网格（单源 / 多源共用） */
-const ALBUM_GRID =
-  'grid grid-cols-[repeat(auto-fill,minmax(min(100%,160px),1fr))] gap-x-4 gap-y-6 [&>*]:min-w-0'
-
 /** 分区右侧的计数（说明级文字，数字等宽） */
 function SectionCount({ children }: { children: React.ReactNode }) {
-  return <span className="num text-[14px] text-ink-faint">{children}</span>
+  return <span className="num text-[14px] text-ink-3">{children}</span>
 }
 
+/** 状态提示行（单源失败 / 分区没加载 / 还在路上）：一条安静的淡底提示，不抢结果的戏 */
+const NOTICE_CLS =
+  'flex max-w-full flex-wrap items-center gap-x-2 rounded-md bg-fill px-3.5 py-2 text-[13px] text-ink-2'
+
 /**
- * 歌手：纸片胶囊。名字之后依次是专辑数（说明级）与来源徽标（多源才有）。
+ * 歌手：胶囊。名字之后依次是专辑数（说明级）与来源徽标（多源才有）。
  * 多源时 key 带来源前缀；单源沿用歌手 id。
  */
 function ArtistPills({ artists, withSource }: { artists: Artist[]; withSource: boolean }) {
@@ -69,15 +75,141 @@ function ArtistPills({ artists, withSource }: { artists: Artist[]; withSource: b
         <button
           key={withSource ? `${artist.serverId}:${artist.id}` : artist.id}
           onClick={() => navigate(detailPath('artists', artist.id, artist.serverId))}
-          className="press-pop inline-flex min-h-11 max-w-full items-center gap-2 rounded-pill bg-sheet px-4 text-[15px] font-medium text-ink shadow-press hover:bg-paper-deep"
+          className="press-pop inline-flex min-h-11 max-w-full items-center gap-2 rounded-pill bg-fill px-4 text-[15px] font-semibold text-ink hover:bg-fill-2"
         >
           <span className="truncate">{spaceCJK(artist.name)}</span>
           {artist.albumCount !== undefined && (
-            <span className="num flex-none text-[13px] font-normal text-ink-faint">{artist.albumCount}</span>
+            <span className="num flex-none text-[13px] font-normal text-ink-3">{artist.albumCount}</span>
           )}
           {withSource && <SourceBadge serverId={artist.serverId} className="flex-none" />}
         </button>
       ))}
+    </div>
+  )
+}
+
+/** 最佳匹配的三种形态：歌手 / 专辑 / 歌曲（歌曲带它在展示列表里的下标，起播用） */
+type TopPick =
+  | { kind: 'artist'; artist: Artist }
+  | { kind: 'album'; album: Album }
+  | { kind: 'song'; song: Song; index: number }
+
+/**
+ * 从已有的结果里挑最佳匹配（不另发请求、不编分数）：
+ * 名字与搜索词完全一致的歌手 / 专辑优先；否则取排在最前的歌曲（多源时已按相关度混排）；
+ * 歌曲都没有时退到第一位歌手 / 第一张专辑。
+ */
+function pickTopResult(query: string, artists: Artist[], albums: Album[], songs: Song[]): TopPick | null {
+  const wanted = normalizeText(query)
+  const artist = artists.find(a => normalizeText(a.name) === wanted)
+  if (artist) return { kind: 'artist', artist }
+  const album = albums.find(a => normalizeText(a.name) === wanted)
+  if (album) return { kind: 'album', album }
+  if (songs.length > 0) return { kind: 'song', song: songs[0], index: 0 }
+  if (artists.length > 0) return { kind: 'artist', artist: artists[0] }
+  if (albums.length > 0) return { kind: 'album', album: albums[0] }
+  return null
+}
+
+/**
+ * 最佳匹配大卡：整块是去详情页的链接，右侧一枚青柠播放键（歌手没有可直接播的东西，不放）。
+ * 这是结果页唯一的青柠主操作；卡片里不再套卡片。
+ */
+function TopResultCard({ pick, songs, withSource }: { pick: TopPick; songs: Song[]; withSource: boolean }) {
+  const { t } = useT()
+
+  const view =
+    pick.kind === 'artist'
+      ? {
+          href: detailPath('artists', pick.artist.id, pick.artist.serverId),
+          serverId: pick.artist.serverId,
+          title: pick.artist.name,
+          typeLabel: t('search.type.artist'),
+          meta: pick.artist.albumCount !== undefined
+            ? [t('artist.albumCountShort', { count: pick.artist.albumCount })]
+            : [],
+          coverArt: pick.artist.coverArt,
+          round: true,
+          fallbackType: 'artist' as const,
+          customCoverParams: { type: 'artist' as const, artist: pick.artist.name },
+          onPlay: undefined as (() => void) | undefined,
+        }
+      : pick.kind === 'album'
+        ? {
+            href: detailPath('albums', pick.album.id, pick.album.serverId),
+            serverId: pick.album.serverId,
+            title: pick.album.name,
+            typeLabel: t('search.type.album'),
+            meta: [pick.album.artist, ...(pick.album.year ? [String(pick.album.year)] : [])],
+            coverArt: pick.album.coverArt,
+            round: false,
+            fallbackType: 'album' as const,
+            customCoverParams: { type: 'album' as const, artist: pick.album.artist, album: pick.album.name },
+            onPlay: (() => { void playAlbum(pick.album) }) as (() => void) | undefined,
+          }
+        : {
+            href: detailPath('songs', pick.song.id, pick.song.serverId),
+            serverId: pick.song.serverId,
+            title: pick.song.title,
+            typeLabel: t('search.type.song'),
+            meta: [pick.song.artist, ...(pick.song.album ? [pick.song.album] : [])],
+            coverArt: pick.song.coverArt,
+            round: false,
+            fallbackType: 'music' as const,
+            customCoverParams: {
+              type: 'song' as const,
+              title: pick.song.title,
+              artist: pick.song.artist,
+              album: pick.song.album,
+              path: pick.song.path,
+            },
+            onPlay: (() => { playListFrom(songs, pick.index) }) as (() => void) | undefined,
+          }
+
+  const coverUrl = view.coverArt
+    ? (findAdapterFor(view.serverId)?.getCoverUrl(view.coverArt, 400) ?? undefined)
+    : undefined
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-surface p-4 shadow-sm transition-shadow duration-3 hover:shadow-md regular:gap-5 regular:p-5">
+      <Link to={view.href} className="flex min-w-0 flex-1 items-center gap-4 rounded-md regular:gap-6">
+        <div
+          className={cn(
+            'cover-frame h-24 w-24 flex-none shadow-sm regular:h-32 regular:w-32',
+            view.round && 'rounded-full'
+          )}
+        >
+          <ImageWithFallback
+            src={coverUrl}
+            alt=""
+            fallbackType={view.fallbackType}
+            className="h-full w-full object-cover"
+            customCoverParams={view.customCoverParams}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-display text-[24px] font-bold leading-tight tracking-[-0.025em] text-ink regular:text-[32px]">
+            {spaceCJK(view.title)}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-ink-3">
+            <span className="font-semibold text-ink-2">{view.typeLabel}</span>
+            {view.meta.map((part, i) => (
+              <span key={i} className="min-w-0 truncate">{spaceCJK(part)}</span>
+            ))}
+            {withSource && <SourceBadge serverId={view.serverId} withName />}
+          </div>
+        </div>
+      </Link>
+      {view.onPlay && (
+        <Button
+          size="icon-lg"
+          onClick={view.onPlay}
+          aria-label={t('album.playNamed', { name: view.title })}
+          className="flex-none"
+        >
+          <Play size={20} weight="fill" />
+        </Button>
+      )}
     </div>
   )
 }
@@ -345,16 +477,31 @@ export default function SearchPage() {
   // 清空输入后 keepPreviousData 仍会保留上次结果，query 刚变化时结果也还是旧查询的
   const showResults = query.trim().length > 0 && debouncedQuery.trim().length > 0
 
+  // 最佳匹配所依据的歌曲表：多源「全部」视图里就是屏幕上那份（含用户换过来源的行），起播下标才对得上
+  const displayedMergedSongs = useMemo(
+    () => merged?.map(m => swaps[mergedKey(m.song)] ?? m.song) ?? [],
+    [merged, swaps]
+  )
+  const topPick = useMemo(() => {
+    if (!showResults) return null
+    const q = debouncedQuery.trim()
+    return multi
+      ? pickTopResult(q, mergedArtists, mergedAlbums, displayedMergedSongs)
+      : pickTopResult(q, singleResults?.artists ?? [], singleResults?.albums ?? [], singleResults?.songs ?? [])
+  }, [showResults, debouncedQuery, multi, mergedArtists, mergedAlbums, displayedMergedSongs, singleResults])
+  const topSongs = multi ? displayedMergedSongs : (singleResults?.songs ?? [])
+
   return (
-    <div className="animate-fade-in">
+    <div>
       {/* ============ 大标题 + 大号搜索框 ============ */}
-      <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
+      <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
         {t('nav.search')}
       </h1>
       <div className="relative mt-5">
         <MagnifyingGlass
           size={20}
-          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint"
+          weight="bold"
+          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-3"
         />
         <Input
           value={query}
@@ -362,49 +509,38 @@ export default function SearchPage() {
           placeholder={t('search.placeholder')}
           autoFocus
           aria-label={t('nav.search')}
-          className="h-12 pl-12 pr-12 text-[16px] sm:text-[16px]"
+          className="h-12 rounded-pill border-transparent bg-ink/[0.05] pl-12 pr-12 text-[17px] ring-1 ring-inset ring-edge/60 hover:border-transparent hover:ring-edge regular:text-[17px]"
         />
         {query && (
           <button
             onClick={handleClear}
-            className="absolute right-0.5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-pill text-ink-faint transition-colors duration-150 hover:bg-paper-deep hover:text-ink active:scale-[0.94]"
+            className="absolute right-0.5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-pill text-ink-3 transition-colors duration-2 hover:bg-ink/[0.06] hover:text-ink"
             aria-label={t('search.clear')}
           >
-            <X size={16} />
+            <X size={16} weight="bold" />
           </button>
         )}
       </div>
 
       {/* ============ 视图切换（多源才出现）：全部 / 按音源分组 ============ */}
       {multi && showResults && (
-        <div
-          className="mt-4 inline-flex gap-1 rounded-pill bg-paper-deep p-1"
-          role="tablist"
-          aria-label={t('search.viewSwitch')}
-        >
-          {([['all', t('search.viewAll')], ['grouped', t('search.viewGrouped')]] as Array<[SearchView, string]>).map(
-            ([key, label]) => (
-              <button
-                key={key}
-                role="tab"
-                aria-selected={view === key}
-                onClick={() => setView(key)}
-                className={cn(
-                  'seg-option h-9 px-4 text-[13.5px] font-medium transition-colors duration-150',
-                  view === key ? 'is-on' : 'text-ink-soft hover:text-ink'
-                )}
-              >
-                {label}
-              </button>
-            )
-          )}
-        </div>
+        <SegmentedPill
+          semantics="tabs"
+          label={t('search.viewSwitch')}
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'all', label: t('search.viewAll') },
+            { value: 'grouped', label: t('search.viewGrouped') },
+          ]}
+          className="mt-4"
+        />
       )}
 
-      {/* 空态：一张格纸 sheet 上的一句话 + 说明 */}
+      {/* 空态：直接落在页面上的一句话 + 说明 */}
       {!query && (
-        <div className="sheet paper-grid mt-8 overflow-hidden">
-          <EmptyState
+        <div className="mt-8">
+          <EmptyState mascot="maodou-wave"
             title={t('empty.search.title')}
             description={t('empty.search.description')}
           />
@@ -417,7 +553,7 @@ export default function SearchPage() {
       {/* 全部源都失败：与「无结果」分开——大空态会让人以为这首歌不存在 */}
       {showResults && multi && !isLoading && failedGroups.length === groups.length && groups.length > 0 && !hasResults && (
         <div className="mt-8">
-          <EmptyState
+          <EmptyState mascot="maodou-surprised"
             title={t('search.allFailedTitle')}
             description={t('search.allFailedDesc')}
             className="pb-6"
@@ -426,12 +562,12 @@ export default function SearchPage() {
             {failedGroups.map(g => (
               <p
                 key={g.serverId}
-                className="flex max-w-full items-center gap-2 rounded-pill bg-paper-deep px-3.5 py-1.5 text-[13px] text-ink-faint"
+                className="flex max-w-full items-center gap-2 rounded-pill bg-fill px-3.5 py-1.5 text-[13px] text-ink-2"
               >
                 <SourceBadge serverId={g.serverId} withName />
                 {/* 原始异常只给开发态：插件抛的是英文开发者串，正式界面上帮不了任何人 */}
                 {import.meta.env.DEV && (
-                  <span className="truncate font-mono text-[12px] opacity-70">{g.error?.slice(0, 120)}</span>
+                  <span className="truncate text-[12px] opacity-70">{g.error?.slice(0, 120)}</span>
                 )}
               </p>
             ))}
@@ -439,8 +575,8 @@ export default function SearchPage() {
           <div className="mt-5 text-center">
             {/* 聚合搜索的键是 [serverId, 'search', q, page]，
                 用前缀 ['search'] 一个都匹配不上——这个按钮此前点了毫无反应 */}
-            <button
-              className="act-secondary inline-flex items-center justify-center text-[14px]"
+            <Button
+              variant="secondary"
               onClick={() =>
                 void queryClient.invalidateQueries({
                   predicate: query => query.queryKey[1] === 'search',
@@ -448,7 +584,7 @@ export default function SearchPage() {
               }
             >
               {t('action.retry')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -461,7 +597,7 @@ export default function SearchPage() {
       {/* 无结果（等待防抖或请求进行中时不提前展示；全失败态已单独处理） */}
       {showResults && !isLoading && !isFetching && !hasResults && !single.isError
         && !(multi && failedGroups.length === groups.length && groups.length > 0) && (
-        <EmptyState
+        <EmptyState mascot="maodou-surprised"
           title={t('empty.searchNoResult.title', { query })}
           description={t('empty.searchNoResult.description')}
         />
@@ -469,13 +605,10 @@ export default function SearchPage() {
 
       {showResults && multi && view === 'all' && (
         <>
-          {/* 单源失败 / 分区没加载 / 还在路上：每条一枚淡纸片，不挡其他源的结果 */}
+          {/* 单源失败 / 分区没加载 / 还在路上：每条一行淡底提示，不挡其他源的结果 */}
           <div className="mt-6 flex flex-col items-start gap-2 empty:hidden">
             {failedGroups.map(g => (
-              <p
-                key={g.serverId}
-                className="flex max-w-full flex-wrap items-center gap-x-2 rounded-md bg-paper-deep px-3.5 py-2 text-[13px] text-ink-faint"
-              >
+              <p key={g.serverId} className={NOTICE_CLS}>
                 <SourceBadge serverId={g.serverId} />
                 <span>{t('search.sourceErrorLine', { name: g.name, message: t('search.sourceError') })}</span>
                 {import.meta.env.DEV && g.error ? <span>{`（${g.error.slice(0, 120)}）`}</span> : null}
@@ -489,10 +622,7 @@ export default function SearchPage() {
               const sections = failures.map(f => t(SECTION_LABEL_KEYS[f.section])).join(t('common.listSeparator'))
               const authish = failures.some(f => f.code === 'unauthorized' || f.code === 'forbidden')
               return (
-                <p
-                  key={`sec-${g.serverId}`}
-                  className="flex max-w-full flex-wrap items-center gap-x-2 rounded-md bg-paper-deep px-3.5 py-2 text-[13px] text-ink-faint"
-                >
+                <p key={`sec-${g.serverId}`} className={NOTICE_CLS}>
                   <SourceBadge serverId={g.serverId} />
                   <span>{t('search.sectionFailed', { source: g.name, sections })}</span>
                   {authish ? <span>{t('search.sectionFailedAuthHint')}</span> : null}
@@ -506,25 +636,32 @@ export default function SearchPage() {
                 只是一份「就这些了」的结果，而慢的那个源可能正好有他要的那首。
                 全部都还没到时上面已经是骨架，这里不再重复。 */}
             {!isLoading && groups.filter(g => g.status === 'loading').map(g => (
-              <p
-                key={g.serverId}
-                className="flex max-w-full items-center gap-2 rounded-md bg-paper-deep px-3.5 py-2 text-[13px] text-ink-faint"
-              >
+              <p key={g.serverId} className={NOTICE_CLS}>
                 <SourceBadge serverId={g.serverId} />
-                <span className="animate-pulse motion-reduce:animate-none">{t('search.sourcePendingLine', { name: g.name })}</span>
+                <span className="animate-buffering">{t('search.sourcePendingLine', { name: g.name })}</span>
               </p>
             ))}
           </div>
 
           {/* 同曲合并的信息行：几首跨源、几首待确认 */}
           {(multiSourceCount > 0 || fuzzyCount > 0) && (
-            <p className="num mt-4 flex flex-wrap gap-x-3 text-[13px] text-ink-faint">
+            <p className="num mt-4 flex flex-wrap gap-x-3 text-[13px] text-ink-3">
               {multiSourceCount > 0 && <span>{t('search.mergedCount', { count: multiSourceCount })}</span>}
               {fuzzyCount > 0 && <span>{t('search.fuzzyCount', { count: fuzzyCount })}</span>}
             </p>
           )}
 
-          {/* ============ 歌手 · 纸片胶囊（跨源去重，非主源带徽标） ============ */}
+          {/* ============ 最佳匹配 ============ */}
+          {topPick && (
+            <section aria-labelledby="search-top">
+              <div className="section-head">
+                <h2 id="search-top">{t('search.topResult')}</h2>
+              </div>
+              <TopResultCard pick={topPick} songs={topSongs} withSource />
+            </section>
+          )}
+
+          {/* ============ 歌手（跨源去重，非主源带徽标） ============ */}
           {mergedArtists.length > 0 && (
             <section aria-labelledby="search-artists">
               <div className="section-head">
@@ -535,22 +672,22 @@ export default function SearchPage() {
             </section>
           )}
 
-          {/* ============ 专辑 · 封面网格（跨源去重） ============ */}
+          {/* ============ 专辑书架（跨源去重） ============ */}
           {mergedAlbums.length > 0 && (
             <section aria-labelledby="search-albums">
               <div className="section-head">
                 <h2 id="search-albums">{t('section.albums')}</h2>
                 <SectionCount>{t('search.albumCount', { count: mergedAlbums.length })}</SectionCount>
               </div>
-              <div className={ALBUM_GRID}>
+              <CoverShelf>
                 {mergedAlbums.map(album => (
                   <AlbumCard key={`${album.serverId}:${album.id}`} album={album} />
                 ))}
-              </div>
+              </CoverShelf>
             </section>
           )}
 
-          {/* ============ 歌曲 · 列表（同曲合并，行内来源徽标，多源行可切换来源） ============ */}
+          {/* ============ 歌曲列表（同曲合并，行内来源徽标，多源行可切换来源） ============ */}
           {merged && merged.length > 0 && (
             <section aria-labelledby="search-songs">
               <div className="section-head">
@@ -558,7 +695,7 @@ export default function SearchPage() {
                 <SectionCount>{t('song.trackCount', { count: merged.length })}</SectionCount>
               </div>
               <SongList
-                songs={merged.map(m => swaps[mergedKey(m.song)] ?? m.song)}
+                songs={displayedMergedSongs}
                 showCover
                 showAlbum
                 showIndex
@@ -569,13 +706,13 @@ export default function SearchPage() {
               {/* 加载更多：插件源默认页长有限，全部视图不再静默截断在第一页 */}
               {moreAvailable && (
                 <div className="mt-6 text-center">
-                  <button
-                    className="act-secondary inline-flex items-center justify-center text-[14px]"
+                  <Button
+                    variant="secondary"
                     disabled={loadingMore}
                     onClick={() => setPage(p => p + 1)}
                   >
                     {loadingMore ? t('search.loadingMore') : t('search.loadMore')}
-                  </button>
+                  </Button>
                 </div>
               )}
             </section>
@@ -594,8 +731,8 @@ export default function SearchPage() {
                   withName
                   className="[&>span:last-child]:text-[19px] [&>span:last-child]:font-semibold [&>span:last-child]:text-ink"
                 />
-                {/* 类型是**状态/类型标记**：常驻的小纸片，不放进 <small> */}
-                <span className="flex-none rounded-pill bg-paper-deep px-2.5 py-0.5 text-[12px] font-medium text-ink-faint">
+                {/* 类型是**状态/类型标记**：常驻的小胶囊，不放进 <small> */}
+                <span className="flex-none rounded-pill bg-fill px-2 py-0.5 text-[11px] font-semibold text-ink-2">
                   {g.type === 'plugin' ? t('sources.typeLabel') : t('sources.typeLabelNas')}
                 </span>
               </h2>
@@ -607,7 +744,7 @@ export default function SearchPage() {
             </div>
             {g.status === 'loading' && <SongRowsSkeleton rows={3} />}
             {g.status === 'error' && (
-              <p className="rounded-md bg-paper-deep px-4 py-3 text-[14px] text-ink-faint">
+              <p className="rounded-md bg-fill px-4 py-3 text-[14px] text-ink-2">
                 {t('search.sourceError')}
                 {import.meta.env.DEV && g.error ? `（${g.error.slice(0, 120)}）` : ''}
               </p>
@@ -616,7 +753,7 @@ export default function SearchPage() {
               <SongList songs={acc[g.serverId] ?? g.data!.songs} showCover showAlbum showIndex />
             )}
             {g.status === 'success' && (acc[g.serverId]?.length ?? g.data?.songs.length ?? 0) === 0 && (
-              <p className="rounded-md bg-paper-deep px-4 py-3 text-[14px] text-ink-faint">
+              <p className="rounded-md bg-fill px-4 py-3 text-[14px] text-ink-2">
                 {t('search.noResultInSource')}
               </p>
             )}
@@ -626,7 +763,17 @@ export default function SearchPage() {
 
       {showResults && !multi && (
         <>
-          {/* ============ 歌手 · 纸片胶囊（单源） ============ */}
+          {/* ============ 最佳匹配（单源） ============ */}
+          {topPick && (
+            <section aria-labelledby="search-top">
+              <div className="section-head">
+                <h2 id="search-top">{t('search.topResult')}</h2>
+              </div>
+              <TopResultCard pick={topPick} songs={topSongs} withSource={false} />
+            </section>
+          )}
+
+          {/* ============ 歌手（单源） ============ */}
           {singleResults?.artists && singleResults.artists.length > 0 && (
             <section aria-labelledby="search-artists">
               <div className="section-head">
@@ -637,22 +784,22 @@ export default function SearchPage() {
             </section>
           )}
 
-          {/* ============ 专辑 · 封面网格（单源） ============ */}
+          {/* ============ 专辑书架（单源） ============ */}
           {singleResults?.albums && singleResults.albums.length > 0 && (
             <section aria-labelledby="search-albums">
               <div className="section-head">
                 <h2 id="search-albums">{t('section.albums')}</h2>
                 <SectionCount>{t('search.albumCount', { count: singleResults.albums.length })}</SectionCount>
               </div>
-              <div className={ALBUM_GRID}>
+              <CoverShelf>
                 {singleResults.albums.map(album => (
                   <AlbumCard key={album.id} album={album} />
                 ))}
-              </div>
+              </CoverShelf>
             </section>
           )}
 
-          {/* ============ 歌曲 · 列表（单源） ============ */}
+          {/* ============ 歌曲列表（单源） ============ */}
           {singleResults?.songs && singleResults.songs.length > 0 && (
             <section aria-labelledby="search-songs">
               <div className="section-head">

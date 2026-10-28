@@ -93,7 +93,7 @@ export function AddPluginDialog({
   const notInstalled = (entries ?? []).filter(e => !plugins.some(p => p.id === e.id))
 
   const fieldCls =
-    'w-full rounded-md border border-input bg-sheet px-3.5 py-2.5 font-mono text-[16px] text-ink placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 regular:text-[13px]'
+    'w-full rounded-sm border border-edge/60 bg-fill px-3.5 py-2.5 text-[16px] text-ink placeholder:text-ink-3 hover:border-edge focus-visible:bg-surface regular:text-[14px]'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,61 +103,64 @@ export function AddPluginDialog({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* 目录 */}
-          <div>
-            <p className="mb-2 text-[13px] font-medium text-ink-faint">
+          {/* 目录：一组行，行间一个设备像素的线 */}
+          <section>
+            <h3 className="mb-2 text-[13px] font-semibold text-ink-3">
               {t('sources.settings.fromCatalog')}
-            </p>
+            </h3>
             {entries === null ? (
-              <p className="text-[14px] text-ink-faint">{t('sources.settings.catalogLoading')}</p>
+              <p className="text-[14px] text-ink-3">{t('sources.settings.catalogLoading')}</p>
             ) : notInstalled.length === 0 ? (
-              <p className="text-[14px] text-ink-faint">{t('sources.settings.catalogAllInstalled')}</p>
+              <p className="text-[14px] text-ink-3">{t('sources.settings.catalogAllInstalled')}</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="rounded-lg bg-surface-2">
                 {notInstalled.map(entry => (
-                  <li key={entry.id} className="flex items-center justify-between gap-3 rounded-md bg-paper-deep py-2.5 pl-4 pr-2.5">
+                  <li
+                    key={entry.id}
+                    className="flex items-center justify-between gap-3 py-2.5 pl-4 pr-2.5 hairline-b last:shadow-none"
+                  >
                     <span className="min-w-0">
-                      <span className="block truncate text-[15px] font-medium">{entry.name}</span>
-                      <span className="num flex flex-wrap gap-x-3 text-[12px] text-ink-faint">
+                      <span className="block truncate text-[15px] font-medium text-ink">{entry.name}</span>
+                      <span className="num flex flex-wrap gap-x-3 text-[12px] text-ink-3">
                         <span>{entry.id}</span>
                         <span>v{entry.version}</span>
                       </span>
                     </span>
-                    <Button variant="outline" size="sm" disabled={busy} onClick={() => void doCatalogInstall(entry.id)}>
+                    <Button variant="secondary" disabled={busy} onClick={() => void doCatalogInstall(entry.id)}>
                       {t('sources.settings.install')}
                     </Button>
                   </li>
                 ))}
               </ul>
             )}
-          </div>
+          </section>
 
           {/* URL */}
-          <div>
-            <p className="mb-2 text-[13px] font-medium text-ink-faint">
+          <section>
+            <h3 className="mb-2 text-[13px] font-semibold text-ink-3">
               {t('sources.settings.fromUrl')}
-            </p>
+            </h3>
             <div className="flex items-center gap-2">
               <Input
                 value={urlInput}
                 onChange={e => setUrlInput(e.target.value)}
                 placeholder="https://example.com/plugin/manifest.json"
-                className="font-mono"
+                className="min-w-0 flex-1"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
               />
-              <Button variant="outline" size="sm" disabled={busy || !urlInput.trim()} onClick={() => void doUrlInstall()}>
+              <Button variant="secondary" disabled={busy || !urlInput.trim()} onClick={() => void doUrlInstall()}>
                 {t('sources.settings.install')}
               </Button>
             </div>
-          </div>
+          </section>
 
           {/* 粘贴 */}
-          <div>
-            <p className="mb-2 text-[13px] font-medium text-ink-faint">
+          <section>
+            <h3 className="mb-2 text-[13px] font-semibold text-ink-3">
               {t('sources.settings.pasteToggle')}
-            </p>
+            </h3>
             <div className="space-y-2">
               <textarea
                 value={pasteManifest}
@@ -175,13 +178,13 @@ export function AddPluginDialog({
                 spellCheck={false}
                 className={fieldCls}
               />
-              <div className="text-right">
-                <Button size="sm" disabled={busy || !pasteManifest.trim() || !pasteCode.trim()} onClick={() => void doPasteInstall()}>
+              <div className="flex justify-end">
+                <Button disabled={busy || !pasteManifest.trim() || !pasteCode.trim()} onClick={() => void doPasteInstall()}>
                   {t('sources.settings.install')}
                 </Button>
               </div>
             </div>
-          </div>
+          </section>
         </div>
       </DialogContent>
     </Dialog>

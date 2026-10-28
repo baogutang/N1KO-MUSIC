@@ -128,8 +128,8 @@ describe('歌单页：骨架只在分节内（F12）', () => {
     await flush()
 
     expect(document.body.textContent, '已返回的分节不被整页骨架盖掉').toContain('路上的歌单')
-    // 还在加载的那节摆骨架（animate-pulse 的占位块），而不是整页 12 格
-    const skeletons = document.querySelectorAll('.animate-pulse')
+    // 还在加载的那节摆骨架（v6 起是 .skeleton 的闪光块；旧的 animate-pulse 也算），而不是整页 12 格
+    const skeletons = document.querySelectorAll('.skeleton, .animate-pulse')
     expect(skeletons.length, '骨架数量有限（分节内 6 格 ×2）').toBeLessThanOrEqual(14)
     expect(skeletons.length, '确实有骨架').toBeGreaterThanOrEqual(2)
   })

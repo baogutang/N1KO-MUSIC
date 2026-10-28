@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
+import { Splash } from './components/common/Splash'
 import './index.css'
 import { queryClient } from './lib/queryClient'
 import { useServerStore } from './store/serverStore'
@@ -99,5 +100,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <Bootstrap>
       <App />
     </Bootstrap>
+    {/* 开屏盖在最上面，和启动守卫并排：不论落在登录页还是主界面，它都第一时间出现 */}
+    <Splash />
   </QueryClientProvider>,
 )

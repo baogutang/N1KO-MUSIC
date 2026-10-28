@@ -157,6 +157,8 @@ export function reclaimStorage(protectedKey?: string): number {
   // 一级：完全可重建的缓存
   freed += removeKeys(listKeys(key => key.startsWith(LEGACY_COVER_KEY_PREFIX)))
   freed += removeKeys(listKeys(key => key.startsWith(RECOMMENDATION_CACHE_PREFIX)))
+  // 封面取色（房间的光）随时可以重算
+  freed += removeKeys(listKeys(key => key === STORAGE_KEYS.artLight && key !== protectedKey))
   if (freed > 0) return freed
 
   // 二级：远端可重新获取的封面/歌词缓存

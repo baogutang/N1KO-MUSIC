@@ -44,9 +44,9 @@ export function VipTag({
     <span
       title={grey ? t('song.vipBlockedHint') : t('song.vipHint')}
       className={cn(
-        'ml-1.5 inline-block translate-y-[-1px] rounded-pill border px-1.5 align-baseline font-sans text-[10px] font-semibold leading-[1.5]',
+        'ml-1.5 inline-block translate-y-[-1px] rounded-pill px-1.5 align-baseline font-sans text-[11px] font-semibold leading-[1.5]',
         // 账号确知没有会员：这首多半点了也放不了，标记本身就该看起来是「灰的」
-        grey ? 'border-ink-faint/40 text-ink-faint' : 'border-primary/40 text-primary',
+        grey ? 'bg-ink/[0.06] text-ink-3' : 'bg-leaf/[0.12] text-leaf',
         className
       )}
     >

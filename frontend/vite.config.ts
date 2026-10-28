@@ -369,8 +369,8 @@ export default defineConfig(({ mode }) => ({
               name: 'N1KO MUSIC',
               short_name: 'N1KO',
               description: 'Modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby',
-              theme_color: '#f9f4ee',
-              background_color: '#f9f4ee',
+              theme_color: '#f8fafc',
+              background_color: '#f8fafc',
               display: 'standalone',
               /**
                * 浏览器里没有自定义协议，但 PWA 可以登记为 web+ 前缀的处理器。
@@ -421,7 +421,8 @@ export default defineConfig(({ mode }) => ({
             workbox: {
               // 字体是自托管的，必须进预缓存——此前 glob 里没有 woff2，
               // 离线时整套衬线/等宽字体全部退回系统字体。
-              globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+              // 吉祥物（v6）几十 KB 一张，空状态、断网时也要看得到，跟着首装预缓存
+              globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}', 'mascots/*.webp'],
               /*
                * 插件代码与目录走网络优先（阶段 6.11）：插件有 codeHash 校验、
                * hosts 白名单与版本更新链，预缓存把它们冻在 SW 里一版，
@@ -507,6 +508,7 @@ export default defineConfig(({ mode }) => ({
           // 同理：@tanstack/react-query 的主体在 query-core 里
           if (id.includes('@tanstack/')) return 'react-query'
           if (id.includes('@radix-ui')) return 'radix-ui'
+          if (/node_modules\/(motion|motion-dom|motion-utils|framer-motion)\//.test(id)) return 'motion'
           return 'vendor'
         },
       },

@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { parseDeepLink, runDeepLinkCommand, DEEP_LINK_SCHEME } from '@/services/deepLink'
 import { LoadingState } from '@/components/common/EmptyState'
+import { Button } from '@/components/ui/button'
 import { useT } from '@/i18n'
 
 export default function OpenLinkPage() {
@@ -37,26 +38,22 @@ export default function OpenLinkPage() {
 
   if (!failed) {
     return (
-      <div className="sheet mx-auto mt-10 max-w-[560px] animate-fade-in overflow-hidden">
+      <div className="mx-auto mt-10 max-w-[560px]">
         <LoadingState label={t('empty.opening')} />
       </div>
     )
   }
 
-  /* 解析失败：一张格纸上的一句话 + 收到的原始地址 + 回首页（主操作） */
+  /* 解析失败：一块面板上的一句话 + 收到的原始地址 + 回首页（主操作） */
   return (
-    <div className="sheet paper-grid mx-auto mt-10 max-w-[560px] animate-fade-in px-6 py-14 text-center">
-      <h1 className="font-display text-[26px] font-semibold leading-tight tracking-[-0.01em]">
+    <div className="sheet mx-auto mt-10 max-w-[560px] px-6 py-14 text-center">
+      <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink">
         {t('empty.deepLink.title')}
       </h1>
-      <p className="mx-auto mt-3 max-w-[34em] break-all text-[14px] text-ink-faint">{failed}</p>
-      <button
-        type="button"
-        className="act-primary mt-7 inline-flex items-center justify-center text-[15px]"
-        onClick={() => navigate('/', { replace: true })}
-      >
+      <p className="mx-auto mt-3 max-w-[34em] break-all text-[14px] text-ink-3">{failed}</p>
+      <Button type="button" className="mt-7" onClick={() => navigate('/', { replace: true })}>
         {t('action.backHome')}
-      </button>
+      </Button>
     </div>
   )
 }

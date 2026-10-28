@@ -1,7 +1,7 @@
 /**
- * 设置页（v5 暖纸）
- * iOS「设置」式的分组列表：页面大标题，每组是一张纸片，分组标题在纸片上方，
- * 选项行左名称 / 说明、右控件。皮肤切换已删除，明暗切换保留。
+ * 设置页（v6 舞台光）
+ * iOS「设置」式的分组列表：页面大标题，每组是一块抬起的面板，分组标题在面板上方，
+ * 选项行左名称 / 说明、右控件，行间一个设备像素的 hairline。皮肤切换已删除，明暗切换保留。
  * 多色 accent 预设与歌词高亮色选择器已随 v2 契约移除（统一强调色）。
  */
 
@@ -92,7 +92,7 @@ function EndpointRow({ label, value, onChange, placeholder, desc }: {
 }) {
   return (
     <div className={cn(rowClass, 'flex-wrap gap-y-2')}>
-      <p className="w-20 flex-shrink-0 text-[15px] font-medium">{label}</p>
+      <p className="w-20 flex-shrink-0 text-[15px] font-medium text-ink">{label}</p>
       <Input
         type="text"
         value={value}
@@ -100,13 +100,13 @@ function EndpointRow({ label, value, onChange, placeholder, desc }: {
         placeholder={placeholder}
         className={cn(fieldInputClass, 'min-w-0 flex-1 basis-48')}
       />
-      {desc && <p className="basis-full text-[13px] leading-snug text-ink-faint regular:pl-24">{desc}</p>}
+      {desc && <p className="basis-full text-[13px] leading-snug text-ink-3 regular:pl-24">{desc}</p>}
     </div>
   )
 }
 
 /**
- * 纸片里的一组单选：名称与说明在上，选项在下；选中项的圆点与文字是强调色。
+ * 面板里的一组单选：名称与说明在上，选项在下；选中项的圆点是叶绿（暗色下是青柠）。
  * inline 时选项横向排开（选项短、数量少），否则一项一行。
  */
 function ChoiceRow<T extends string>({ name, desc, groupLabel, value, onChange, options, inline }: {
@@ -120,8 +120,8 @@ function ChoiceRow<T extends string>({ name, desc, groupLabel, value, onChange, 
 }) {
   return (
     <div className={cn(rowClass, 'flex-col items-stretch gap-x-0')}>
-      <p className="text-[15px] font-medium leading-snug">{name}</p>
-      <p className="mt-0.5 max-w-[52ch] text-[13px] leading-snug text-ink-faint">{desc}</p>
+      <p className="text-[15px] font-medium leading-snug text-ink">{name}</p>
+      <p className="mt-0.5 max-w-[52ch] text-[13px] leading-snug text-ink-3">{desc}</p>
       <div
         role="radiogroup"
         aria-label={groupLabel}
@@ -143,16 +143,16 @@ function ChoiceRow<T extends string>({ name, desc, groupLabel, value, onChange, 
             >
               <span
                 className={cn(
-                  'grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full border-2 transition-colors duration-150 motion-reduce:transition-none',
-                  on ? 'border-primary' : 'border-input group-hover:border-ink-faint'
+                  'grid h-5 w-5 flex-shrink-0 place-items-center rounded-full border-2 transition-colors duration-2 motion-reduce:transition-none',
+                  on ? 'border-leaf' : 'border-edge group-hover:border-ink-3'
                 )}
               >
-                {on && <span className="h-2 w-2 rounded-full bg-primary" />}
+                {on && <span className="h-2.5 w-2.5 rounded-full bg-leaf" />}
               </span>
               <span
                 className={cn(
-                  'text-[15px] transition-colors duration-150 motion-reduce:transition-none',
-                  on ? 'text-primary' : 'text-ink-soft group-hover:text-ink'
+                  'text-[15px] transition-colors duration-2 motion-reduce:transition-none',
+                  on ? 'font-medium text-ink' : 'text-ink-2 group-hover:text-ink'
                 )}
               >
                 {opt.label}
@@ -255,10 +255,10 @@ function DataExportSection() {
         }
       >
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => handleExport('json')}>
+          <Button variant="secondary" size="sm" onClick={() => handleExport('json')} className="h-11 [@media(hover:hover)]:h-9">
             JSON
           </Button>
-          <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>
+          <Button variant="secondary" size="sm" onClick={() => handleExport('csv')} className="h-11 [@media(hover:hover)]:h-9">
             CSV
           </Button>
         </div>
@@ -276,10 +276,11 @@ function DataExportSection() {
           }}
         />
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={importing || !serverId}
           onClick={() => importInputRef.current?.click()}
+          className="h-11 [@media(hover:hover)]:h-9"
         >
           {importing ? t('settings.import.busy') : t('action.chooseFile')}
         </Button>
@@ -374,13 +375,13 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-full pb-8 pt-3 animate-fade-in motion-reduce:animate-none">
+    <div className="min-h-full pb-8 pt-3">
       <div className="max-w-[720px]">
-        <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
+        <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
           {t('nav.settings')}
         </h1>
 
-        <div className="mt-8 flex flex-col gap-9">
+        <div className="mt-8 flex flex-col gap-8">
         {/*
           音源 —— NAS 类服务器与插件音源同列。
           在这个 App 里它们是同一种东西：一个能出曲子的来源。此前分成
@@ -400,22 +401,22 @@ export default function Settings() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <SourceBadge serverId={server.id} />
-                    <p className="min-w-0 truncate text-[15px] font-medium">{server.name}</p>
+                    <p className="min-w-0 truncate text-[15px] font-medium text-ink">{server.name}</p>
                     {/* 类型徽标：一眼分清这一行是 NAS 服务器还是插件音源。
                         文案是要翻译、要读懂的，不是装饰性的拉丁小标签 */}
-                    <span className="flex-shrink-0 rounded-pill bg-paper-deep px-2 py-0.5 text-[11px] text-ink-faint">
+                    <span className="flex-shrink-0 rounded-pill bg-fill px-2 py-0.5 text-[11px] font-semibold text-ink-2">
                       {isPlugin ? t('sources.typeLabel') : t('sources.typeLabelNas')}
                     </span>
                     {isPrimary && (
-                      <span className="flex flex-shrink-0 items-center gap-1 text-[12px] font-medium text-primary">
+                      <span className="flex flex-shrink-0 items-center gap-1 text-[12px] font-semibold text-leaf">
                         <CheckCircle weight="fill" className="h-3.5 w-3.5" />
                         {t('sources.settings.primary')}
                       </span>
                     )}
                   </div>
                   {/* 地址只有 NAS 有意义：插件的服务端是它自己写死的，用户既填不了也改不了 */}
-                  {!isPlugin && <p className="num mt-0.5 truncate text-[13px] text-ink-faint">{server.url}</p>}
-                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-[13px] text-ink-faint">
+                  {!isPlugin && <p className="num mt-0.5 truncate text-[13px] text-ink-3">{server.url}</p>}
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-[13px] text-ink-3">
                     <span>{isPlugin ? (server.pluginId ?? t('sources.typeLabel')) : getServerTypeLabel(server.type)}</span>
                     {/* 早先的插件行在盘上存的账号名是字面量 'anonymous'：按有无凭据翻成人话 */}
                     {server.username && (
@@ -425,7 +426,7 @@ export default function Settings() {
                           : server.username}
                       </span>
                     )}
-                    <span className={connected ? 'text-ink-soft' : undefined}>
+                    <span className={connected ? 'text-ink-2' : undefined}>
                       {connected ? t('settings.source.connected') : t('settings.server.notConnected')}
                     </span>
                   </div>
@@ -458,7 +459,7 @@ export default function Settings() {
                       /* 换主库会清空播放队列并清缓存（serverStore.setPrimaryServer），
                          这是个有代价的动作，先说清楚再问 */
                       onClick={() => setPendingPrimary(server.id)}
-                      className="h-11 w-11 hover:text-primary"
+                      className="h-11 w-11 hover:text-leaf"
                       title={t('settings.source.setPrimary')}
                       aria-label={t('settings.source.setPrimaryAria', { name: server.name })}
                     >
@@ -470,7 +471,7 @@ export default function Settings() {
                     variant="icon"
                     size="icon"
                     onClick={() => setPendingRemove(server.id)}
-                    className="h-11 w-11 hover:text-destructive"
+                    className="h-11 w-11 hover:text-danger"
                     title={t('settings.source.remove')}
                     aria-label={t('settings.server.removeAria', { name: server.name })}
                   >
@@ -487,10 +488,11 @@ export default function Settings() {
               desc={t('settings.scan.desc')}
             >
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => scan.mutate()}
                 disabled={scan.isPending}
+                className="h-11 [@media(hover:hover)]:h-9"
               >
                 <ArrowsClockwise
                   size={14}
@@ -503,10 +505,10 @@ export default function Settings() {
 
           <div className={rowClass}>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => navigate('/login')}
-              className="gap-1.5"
+              className="gap-1.5 h-11 [@media(hover:hover)]:h-9"
             >
               <Plus className="h-3.5 w-3.5" />
               {t('settings.source.add')}
@@ -575,7 +577,7 @@ export default function Settings() {
                 aria-label={t('settings.volume.name')}
                 className="flex-1"
               />
-              <span className="num w-9 text-right text-[13px] text-ink-soft">
+              <span className="num w-9 text-right text-[13px] text-ink-2">
                 {Math.round(volume * 100)}%
               </span>
             </div>
@@ -639,7 +641,7 @@ export default function Settings() {
                   })}
                   className="flex-1"
                 />
-                <span className="num w-14 text-right text-[13px] text-ink-soft">
+                <span className="num w-14 text-right text-[13px] text-ink-2">
                   {replayGainPreamp > 0 ? '+' : ''}{replayGainPreamp} dB
                 </span>
               </div>
@@ -658,7 +660,7 @@ export default function Settings() {
                 aria-valuetext={t('settings.playbackRate.valueText', { rate: playbackRate.toFixed(2) })}
                 className="flex-1"
               />
-              <span className="num w-12 text-right text-[13px] text-ink-soft">
+              <span className="num w-12 text-right text-[13px] text-ink-2">
                 {playbackRate.toFixed(2)}×
               </span>
             </div>
@@ -698,7 +700,7 @@ export default function Settings() {
                   onValueChange={([v]) => setSeekStepSeconds(v)}
                   className="w-[140px]"
                 />
-                <span className="num w-10 text-right text-[13px] text-ink-soft">{seekStepSeconds}s</span>
+                <span className="num w-10 text-right text-[13px] text-ink-2">{seekStepSeconds}s</span>
               </div>
             </Row>
           )}
@@ -708,9 +710,10 @@ export default function Settings() {
           >
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => usePlayerStore.getState().setCarMode(true)}
+              className="h-11 [@media(hover:hover)]:h-9"
             >
               {t('settings.carMode.enter')}
             </Button>
@@ -744,7 +747,7 @@ export default function Settings() {
             desc={(
               <>
                 {t('settings.api.authTokenDesc1')}
-                <code className="num mx-1 rounded-sm bg-paper-deep px-1.5 py-0.5 text-ink-soft">Authorization</code>
+                <code className="num mx-1 rounded-sm bg-fill px-1.5 py-0.5 text-ink-2">Authorization</code>
                 {t('settings.api.authTokenDesc2')}
               </>
             )}
@@ -835,7 +838,7 @@ export default function Settings() {
                 aria-label={t('settings.lyrics.fontSizeAria')}
                 className="w-28"
               />
-              <span className="num w-10 text-right text-[13px] text-ink-soft">{lyricsFontSize}px</span>
+              <span className="num w-10 text-right text-[13px] text-ink-2">{lyricsFontSize}px</span>
               <Segmented
                 label={t('settings.lyrics.fontSize')}
                 value={String(lyricsFontSize)}
@@ -876,12 +879,13 @@ export default function Settings() {
             >
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => {
                   clearProfileCache()
                   toast({ title: t('settings.musicBrainz.cleared') })
                 }}
+                className="h-11 [@media(hover:hover)]:h-9"
               >
                 {t('settings.musicBrainz.clear')}
               </Button>
@@ -898,17 +902,17 @@ export default function Settings() {
         {/* 关于：版本号是页面上唯一保留的版本信息 */}
         <Section title={t('settings.about')}>
           <Row name={t('settings.about.version')}>
-            <span className="num text-[15px]">v{pkg.version}</span>
+            <span className="num text-[15px] text-ink-2">v{pkg.version}</span>
           </Row>
           <Row name={t('settings.about.license')}>
-            <span className="text-[15px]">MIT License</span>
+            <span className="text-[15px] text-ink-2">MIT License</span>
           </Row>
           <Row name="GitHub">
             <a
               href="https://github.com/baogutang/N1KO-MUSIC"
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-sm text-[15px] text-primary underline-offset-4 hover:underline"
+              className="rounded-sm text-[15px] text-leaf underline-offset-4 hover:underline"
             >
               N1KO-MUSIC
             </a>
@@ -926,6 +930,7 @@ export default function Settings() {
                     variant="destructive"
                     size="sm"
                     onClick={handleDisconnect}
+                    className="h-11 [@media(hover:hover)]:h-9"
                   >
                     {t('settings.disconnect.confirm')}
                   </Button>
@@ -934,6 +939,7 @@ export default function Settings() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setConfirmDisconnect(false)}
+                    className="h-11 [@media(hover:hover)]:h-9"
                   >
                     {t('action.cancel')}
                   </Button>
@@ -941,10 +947,10 @@ export default function Settings() {
               ) : (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() => setConfirmDisconnect(true)}
-                  className="gap-1.5 text-destructive"
+                  className="gap-1.5 text-danger h-11 [@media(hover:hover)]:h-9"
                 >
                   <SignOut className="h-4 w-4" />
                   {t('settings.disconnect.action')}
@@ -966,11 +972,11 @@ export default function Settings() {
               {t('settings.primaryDialog.desc', {
                 name: servers.find(s => s.id === pendingPrimary)?.name ?? '',
               })}
-              <span className="block mt-2 text-ink-faint">{t('settings.primaryDialog.safe')}</span>
+              <span className="mt-2 block text-ink-3">{t('settings.primaryDialog.safe')}</span>
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setPendingPrimary(null)}>{t('action.cancel')}</Button>
+            <Button variant="secondary" onClick={() => setPendingPrimary(null)}>{t('action.cancel')}</Button>
             <Button
               onClick={() => {
                 const id = pendingPrimary
@@ -990,20 +996,20 @@ export default function Settings() {
             <DialogTitle>{t('settings.removeDialog.title')}</DialogTitle>
             <DialogDescription>
               {t('settings.removeDialog.before')}
-              <span className="font-medium text-foreground">
+              <span className="font-semibold text-ink">
                 {t('settings.removeDialog.name', {
                   name: servers.find(s => s.id === pendingRemove)?.name ?? '',
                 })}
               </span>
               {t('settings.removeDialog.after')}
               {pendingRemove === activeServerId && t('settings.removeDialog.activeWarning')}
-              <span className="block mt-2 text-ink-faint">
+              <span className="mt-2 block text-ink-3">
                 {t('settings.removeDialog.safe')}
               </span>
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setPendingRemove(null)}>{t('action.cancel')}</Button>
+            <Button variant="secondary" onClick={() => setPendingRemove(null)}>{t('action.cancel')}</Button>
             <Button
               variant="destructive"
               onClick={() => {

@@ -2,6 +2,10 @@ import * as React from 'react'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { cn } from '@/lib/utils'
 
+/**
+ * 提示气泡：墨色小片，从触发点的方向弹出。
+ * 悬停延迟由外壳的 TooltipProvider 给（850ms）；键盘聚焦时 Radix 立即打开，不等延迟。
+ */
 const TooltipProvider = TooltipPrimitive.Provider
 const Tooltip = TooltipPrimitive.Root
 const TooltipTrigger = TooltipPrimitive.Trigger
@@ -9,12 +13,12 @@ const TooltipTrigger = TooltipPrimitive.Trigger
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
+>(({ className, sideOffset = 6, ...props }, ref) => (
   <TooltipPrimitive.Content
     ref={ref}
     sideOffset={sideOffset}
     className={cn(
-      'z-50 overflow-hidden rounded-sm bg-ink px-2.5 py-1.5 text-xs font-medium text-paper shadow-float animate-fade-in-scale',
+      'z-tooltip origin-[var(--radix-tooltip-content-transform-origin)] overflow-hidden rounded-[10px] bg-ink px-2.5 py-1.5 text-[12.5px] font-medium text-ground shadow-md animate-menu-in',
       className
     )}
     {...props}

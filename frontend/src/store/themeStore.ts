@@ -18,8 +18,8 @@ export type Theme = 'dark' | 'light' | 'system'
  * 值必须和 index.css 的 --paper（亮 / 暗）一致；public/theme-preflash.js 里有同一份副本。
  */
 export const THEME_BACKGROUNDS: Record<'light' | 'dark', string> = {
-  light: '#f9f4ee',
-  dark: '#150d0a',
+  light: '#f8fafc',
+  dark: '#101317',
 }
 
 /**

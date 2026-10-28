@@ -3,7 +3,7 @@
  * - 使用 IntersectionObserver 实现视口懒加载：只有元素接近可见区域时才发起封面请求
  * - 配置了自定义封面 API 时，与服务器封面并发请求
  * - 与设置「封面来源」(coverSource) 一致；勿使用 apiPreferServer（那是歌词 API 优先级）
- * - 所有来源都失败时显示纸面占位（paper-3 底 + 居中的 ink-faint 图标）
+ * - 所有来源都失败时显示占位（下沉一档的底 + 居中的浅墨图标）；图片到了淡入，不是一下子跳出来
  */
 
 import React, { useState, useEffect, useRef } from 'react'
@@ -36,7 +36,7 @@ interface ImageWithFallbackProps extends React.ImgHTMLAttributes<HTMLImageElemen
   songId?: string
 }
 
-/** 纸面占位：paper-3 底 + 居中的 ink-faint 图标，圆角继承父级（由消费方控制） */
+/** 占位：下沉一档的底 + 居中的浅墨图标，圆角继承父级（由消费方控制） */
 function CoverPlaceholder({
   className,
   artist = false,
@@ -46,7 +46,7 @@ function CoverPlaceholder({
 }) {
   const Icon = artist ? User : MusicNote
   return (
-    <div className={cn('flex items-center justify-center rounded-[inherit] bg-paper-3 text-ink-faint', className)}>
+    <div className={cn('flex items-center justify-center rounded-[inherit] bg-fill text-ink-3/70', className)}>
       <Icon className="h-1/3 w-1/3" aria-hidden="true" />
     </div>
   )
@@ -167,7 +167,7 @@ export function ImageWithFallback({
         decoding="async"
         {...{ fetchpriority: eager ? "auto" : "low" }}
         data-no-abort={eager ? 'true' : undefined}
-        className={cn('block w-full h-full object-cover', !isLoaded && 'opacity-0', className)}
+        className={cn('block w-full h-full object-cover transition-opacity duration-500 ease-out', !isLoaded && 'opacity-0', className)}
         onLoad={() => setIsLoaded(true)}
         onError={() => {
           setIsLoaded(false)

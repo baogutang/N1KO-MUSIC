@@ -16,6 +16,9 @@
     -->
     <meta http-equiv="Content-Security-Policy" content="frame-src blob:" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 开屏的合影和它的闭眼帧：先发请求，React 挂上开屏时图已经到了 -->
+    <link rel="preload" as="image" type="image/webp" href="/mascots/duo-wave.webp" />
+    <link rel="preload" as="image" type="image/webp" href="/mascots/duo-wave-blink.webp" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!--
       两条 theme-color 按配色方案分流。只写一条固定值的话，暗色模式下
@@ -23,8 +26,8 @@
       顶上会横着一条突兀的亮边。值取自暖纸的 --paper（亮 / 暗）。手动切明暗后 themeStore 会
       在运行时用一条 meta 覆盖掉这两条；这里只负责首屏那一瞬间。
     -->
-    <meta name="theme-color" content="#f9f4ee" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#150d0a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101317" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="N1KO MUSIC - 现代化音乐流媒体客户端，支持 Navidrome/Subsonic/Jellyfin/Emby" />
     <title>N1KO MUSIC</title>
     <script src="./theme-preflash.js"></script>

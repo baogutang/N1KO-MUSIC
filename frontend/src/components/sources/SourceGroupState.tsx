@@ -44,7 +44,7 @@ export function SourceGroupState({ serverId, status, error, onRetry }: SourceGro
     return (
       <div className="flex min-h-[44px] items-center gap-3 py-2" aria-live="polite">
         <SourceBadge serverId={serverId} withName />
-        <span className="h-3 max-w-[220px] flex-1 animate-pulse rounded-sm bg-skeleton motion-reduce:animate-none" />
+        <span className="skeleton h-3 max-w-[220px] flex-1 rounded-sm" />
       </div>
     )
   }
@@ -54,9 +54,9 @@ export function SourceGroupState({ serverId, status, error, onRetry }: SourceGro
     return (
       <div className="flex min-h-[44px] flex-wrap items-center gap-x-3 gap-y-1.5 py-2" role="status">
         <SourceBadge serverId={serverId} withName />
-        <span className="text-[14px] text-ink-soft">{t('sources.authExpired')}</span>
+        <span className="text-[14px] text-ink-2">{t('sources.authExpired')}</span>
         <button
-          className="-my-3 inline-flex items-center gap-1.5 py-3 text-[14px] font-medium text-primary hover:underline hover:underline-offset-4"
+          className="-my-3 inline-flex items-center gap-1.5 py-3 text-[14px] font-semibold text-leaf hover:underline hover:underline-offset-4"
           onClick={() => navigate(pluginId ? `/login?plugin=${encodeURIComponent(pluginId)}&relogin=1` : '/login')}
         >
           <Key size={14} />
@@ -64,7 +64,7 @@ export function SourceGroupState({ serverId, status, error, onRetry }: SourceGro
         </button>
         {/* 原始信息只在开发态露出：正式界面上一段英文异常帮不了任何人 */}
         {import.meta.env.DEV && error && (
-          <span className="w-full break-all text-[12px] text-ink-faint">{error.slice(0, 160)}</span>
+          <span className="w-full break-all text-[12px] text-ink-3">{error.slice(0, 160)}</span>
         )}
       </div>
     )
@@ -79,10 +79,10 @@ export function SourceGroupState({ serverId, status, error, onRetry }: SourceGro
   return (
     <div className="flex min-h-[44px] flex-wrap items-center gap-x-3 gap-y-1.5 py-2" role="status">
       <SourceBadge serverId={serverId} withName />
-      <span className="text-[14px] text-sem-error">{t('sources.loadError')}</span>
+      <span className="text-[14px] text-danger">{t('sources.loadError')}</span>
       {onRetry && (
         <button
-          className="-my-3 inline-flex items-center gap-1.5 py-3 text-[14px] font-medium text-primary hover:underline hover:underline-offset-4"
+          className="-my-3 inline-flex items-center gap-1.5 py-3 text-[14px] font-semibold text-leaf hover:underline hover:underline-offset-4"
           onClick={onRetry}
         >
           <ArrowsClockwise size={14} />
@@ -91,7 +91,7 @@ export function SourceGroupState({ serverId, status, error, onRetry }: SourceGro
       )}
       {/* 原始信息只在开发态露出：正式界面上一段英文异常帮不了任何人 */}
       {import.meta.env.DEV && error && (
-        <span className="w-full break-all text-[12px] text-ink-faint">{error.slice(0, 160)}</span>
+        <span className="w-full break-all text-[12px] text-ink-3">{error.slice(0, 160)}</span>
       )}
     </div>
   )
@@ -137,7 +137,7 @@ export function RateLimitedRow({ serverId, initialSeconds }: { serverId: string;
   return (
     <div className="flex min-h-[44px] flex-wrap items-center gap-x-3 gap-y-1.5 py-2" role="status">
       <SourceBadge serverId={serverId} withName />
-      <span className="text-[14px] text-ink-soft">{t('sources.rateLimited', { seconds })}</span>
+      <span className="text-[14px] text-ink-2">{t('sources.rateLimited', { seconds })}</span>
     </div>
   )
 }

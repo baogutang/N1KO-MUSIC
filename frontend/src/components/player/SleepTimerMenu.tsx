@@ -37,7 +37,7 @@ function PresetLabel({ template, minutes }: { template: string; minutes: number 
   return (
     <>
       {before}
-      <span className="num text-ink-faint">{minutes}</span>
+      <span className="num font-semibold">{minutes}</span>
       {after}
     </>
   )
@@ -67,21 +67,21 @@ export function SleepTimerMenu({ className }: { className?: string }) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className={cn(className, active && 'text-primary')}
+          className={cn(className, active && 'text-leaf')}
           aria-label={t('player.sleepTimer')}
           aria-pressed={active}
         >
           {active && sleepTimerMode === 'duration' ? (
-            <span className="num text-[11px]">{formatRemaining(remaining)}</span>
+            <span className="num text-[11.5px] font-semibold">{formatRemaining(remaining)}</span>
           ) : (
             <Moon size={16} weight={active ? 'fill' : 'regular'} />
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48 glass">
+      <DropdownMenuContent align="end" className="w-56">
         <div className="px-3 pb-2 pt-2.5">
-          <p className="font-display text-[15px] font-semibold">{t('player.sleepTimer')}</p>
-          <p className="mt-0.5 text-[12.5px] leading-snug text-ink-faint">
+          <p className="font-display text-[16px] font-semibold tracking-[-0.01em] text-ink">{t('player.sleepTimer')}</p>
+          <p className="mt-0.5 text-[12.5px] leading-snug text-ink-3">
             {active
               ? sleepTimerMode === 'endOfTrack'
                 ? t('player.sleepStopAfterTrack')
@@ -100,7 +100,7 @@ export function SleepTimerMenu({ className }: { className?: string }) {
         {active && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setSleepTimer(null)} className="text-primary">
+            <DropdownMenuItem onClick={() => setSleepTimer(null)} className="text-leaf focus:text-leaf">
               {t('player.sleepCancel')}
             </DropdownMenuItem>
           </>

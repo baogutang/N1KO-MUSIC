@@ -1,27 +1,33 @@
 /**
- * 底部播放条：浮在内容上方的一张纸片，按窗口档位换形态（原 PlayerBar + MiniPlayer 合一）。
+ * 底部播放条（v6）：浮在内容上方的一枚玻璃胶囊，按窗口档位换形态。
  *
- *   compact  胶囊：封面 + 曲名 + 播放键 + 下一首；左右滑切歌，上滑打开正在播放
- *   regular  一条：封面 / 上一首 播放 下一首 / 歌词 队列
+ *   compact  胶囊：封面 + 曲名 + 播放键 + 下一首；左右滑切歌（曲名跟着手指走，松手按方向翻过去），
+ *            上滑打开正在播放
+ *   regular  一条：封面 / 上一首 播放 下一首 / 收藏 歌词 队列
  *   wide     完整：封面曲名收藏 / 随机 上一首 播放 下一首 循环 + 进度行 / 歌词 定时 队列 音量 全屏
  *
+ * 封面带 data-np-anchor：全屏播放器打开时从它的位置飞出来、收起时飞回它这里（共享元素）。
  * 性能：细粒度 selector 订阅 store；进度行与进度线拆成独立 memo 子组件，
  * 播放中每秒四次的 currentTime 更新只重渲染它们。
  */
 
-import { useCallback, useEffect, memo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, memo, useRef, useState } from 'react'
 import type { KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 import {
-  Play, Pause, SkipBack, SkipForward, SpeakerHigh, SpeakerX,
-  SpeakerLow, Heart, Queue, Repeat, RepeatOnce,
+  SkipBack, SkipForward, SpeakerHigh, SpeakerX,
+  SpeakerLow, Queue, Repeat, RepeatOnce,
   Shuffle, MicrophoneStage, ArrowsOutSimple,
 } from '@phosphor-icons/react'
-import { Haptics, ImpactStyle } from '@capacitor/haptics'
+import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react'
 import { cn } from '@/lib/utils'
-import { isNativePlatform, type WindowClass } from '@/lib/platform'
+import { type WindowClass } from '@/lib/platform'
+import { haptic } from '@/lib/haptics'
+import { SPRING_PRESS, SPRING_SNAPPY } from '@/lib/motion'
+import { markSkip, skipDirection } from '@/lib/skipDirection'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
 import { SleepTimerMenu } from '@/components/player/SleepTimerMenu'
+import { HeartGlyph, PlayPauseGlyph } from '@/components/player/glyphs'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { VipTag } from '@/components/sources/VipTag'
 import { seekHowl } from '@/hooks/useAudioEngine'
@@ -36,16 +42,12 @@ import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
 
-/** 次要键：44px 命中区，图标居中；hover 铺一层下沉底 */
-const iconBtn =
-  'w-10 h-10 rounded-pill flex flex-none items-center justify-center text-ink-soft ' +
-  'hover:bg-paper-deep hover:text-ink transition-colors duration-150 active:scale-95 ' +
-  'aria-pressed:text-primary'
-
-/** 主控制轻触感（仅原生壳） */
-function lightImpact() {
-  if (isNativePlatform) Haptics.impact({ style: ImpactStyle.Light }).catch(() => {})
-}
+/** 次要键：40px 圆，44px 命中区由胶囊的内边距补足；hover 铺一层墨色的底 */
+const iconBtnBase =
+  'press-pop grid h-10 w-10 flex-none place-items-center rounded-pill text-ink-2 ' +
+  'hover:bg-ink/[0.06] hover:text-ink disabled:cursor-not-allowed disabled:opacity-40'
+/** 开关类（随机、循环、队列）按下时是叶绿；收藏不算「当前」，按下只是墨色 */
+const iconBtn = `${iconBtnBase} aria-pressed:text-leaf`
 
 /**
  * 进度行（宽窗口）：时间码 + 可拖动的进度轨。
@@ -144,7 +146,7 @@ const ProgressRow = memo(function ProgressRow() {
 
   return (
     <div className="flex w-full items-center gap-2.5">
-      <span className="num w-10 flex-none text-right text-[12px] text-ink-faint">
+      <span className="num w-10 flex-none text-right text-[11.5px] font-medium text-ink-3">
         {formatDuration(displayTime)}
       </span>
       <div
@@ -162,48 +164,84 @@ const ProgressRow = memo(function ProgressRow() {
           current: formatDuration(Math.round(displayTime)),
           total: formatDuration(Math.round(safeDuration)),
         })}
-        className="group/track relative flex h-4 flex-1 cursor-pointer select-none items-center"
+        className="group/track relative flex h-5 flex-1 cursor-pointer select-none items-center"
       >
-        <div className="relative h-[4px] w-full overflow-hidden rounded-pill bg-paper-3">
+        {/* 拖动或悬停时轨道加粗一档：按住的东西要看得见 */}
+        <div
+          className={cn(
+            'relative h-[4px] w-full overflow-hidden rounded-pill bg-ink/[0.1] transition-transform duration-3 ease-out group-hover/track:scale-y-150',
+            dragValue !== null && 'scale-y-150'
+          )}
+        >
           <div
-            className="absolute inset-0 origin-left bg-ink-faint/25 transition-transform duration-500"
+            className="absolute inset-0 origin-left bg-ink/[0.1] transition-transform duration-500"
             style={{ transform: `scaleX(${bufferRatio})` }}
           />
-          <div className="absolute inset-0 origin-left bg-vivid" style={{ transform: `scaleX(${playRatio})` }} />
+          <div className="absolute inset-0 origin-left rounded-pill bg-leaf" style={{ transform: `scaleX(${playRatio})` }} />
         </div>
         <div
-          className="pointer-events-none absolute left-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-pill bg-sheet shadow-press"
+          className={cn(
+            'pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 rounded-pill bg-surface shadow-md ring-[0.5px] ring-ink/10',
+            'transition-[scale] duration-3 ease-press [@media(hover:hover)]:scale-0 group-hover/track:scale-100',
+            dragValue !== null && '[@media(hover:hover)]:scale-110'
+          )}
           style={{ transform: `translate(calc(${playRatio} * var(--track-w, 0px) - 50%), -50%)` }}
         />
       </div>
-      <span className="num w-10 flex-none text-[12px] text-ink-faint">
+      <span className="num w-10 flex-none text-[11.5px] font-medium text-ink-3">
         {formatDuration(duration)}
       </span>
     </div>
   )
 })
 
-/** 进度线（窄、中两档）：贴在纸片下缘内侧的一条细线，只读。只有 2px，按文字的分量用叶绿，青柠在亮底上细到看不见 */
+/** 进度线（窄、中两档）：贴在胶囊下缘内侧的一条细线，只读。细线用叶绿（文字的分量），青柠在亮底上细到看不见 */
 const ProgressLine = memo(function ProgressLine({ className }: { className?: string }) {
   const currentTime = usePlayerStore(s => s.currentTime)
   const duration = usePlayerStore(s => s.duration)
   const safeDuration = isFinite(duration) && duration > 0 ? duration : 1
   const ratio = Math.min(1, currentTime / safeDuration)
   return (
-    <div className={cn('pointer-events-none absolute h-[3px] overflow-hidden rounded-pill bg-paper-3', className)} aria-hidden>
-      <div className="h-full origin-left bg-primary" style={{ transform: `scaleX(${ratio})` }} />
+    <div className={cn('pointer-events-none absolute h-[2px] overflow-hidden rounded-pill bg-ink/[0.08]', className)} aria-hidden>
+      <div className="h-full origin-left rounded-pill bg-leaf transition-transform duration-300 ease-linear" style={{ transform: `scaleX(${ratio})` }} />
     </div>
   )
 })
 
-/** 迷你播放条的横滑切歌：左滑下一首、右滑上一首、上滑打开正在播放 */
+/**
+ * 迷你播放条的横滑切歌：曲名和封面跟着手指走（越过阈值后阻尼变大），
+ * 松手时按位移或速度判定：左滑下一首、右滑上一首；上滑打开正在播放；都不够就弹回原位。
+ * 只接触屏与触控笔；鼠标在这里只点不拖。
+ */
 function useMiniSwipe(onNext: () => void, onPrev: () => void, onOpen: () => void) {
-  const start = useRef<{ x: number; y: number; id: number } | null>(null)
+  const x = useMotionValue(0)
+  const start = useRef<{ x: number; y: number; t: number; id: number; axis: 'x' | 'y' | null } | null>(null)
   const swiped = useRef(false)
+  const crossed = useRef(false)
+  const THRESHOLD = 64
+
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse') return
-    start.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
+    start.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId, axis: null }
     swiped.current = false
+    crossed.current = false
+  }
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const s = start.current
+    if (!s || s.id !== e.pointerId) return
+    const dx = e.clientX - s.x
+    const dy = e.clientY - s.y
+    if (!s.axis && Math.hypot(dx, dy) > 8) s.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+    if (s.axis !== 'x') return
+    // 过了阈值阻尼变大：告诉手指「够了，可以松了」
+    const sign = Math.sign(dx)
+    const mag = Math.abs(dx)
+    x.set(sign * (mag < THRESHOLD ? mag : THRESHOLD + (mag - THRESHOLD) * 0.35))
+    const over = mag > THRESHOLD
+    if (over !== crossed.current) {
+      crossed.current = over
+      if (over) haptic('selection')
+    }
   }
   const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
     const s = start.current
@@ -211,14 +249,25 @@ function useMiniSwipe(onNext: () => void, onPrev: () => void, onOpen: () => void
     if (!s || s.id !== e.pointerId) return
     const dx = e.clientX - s.x
     const dy = e.clientY - s.y
-    if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+    const dt = Math.max(1, performance.now() - s.t)
+    const vx = (dx / dt) * 1000
+    if (s.axis === 'x' && (Math.abs(dx) > THRESHOLD || Math.abs(vx) > 650)) {
       swiped.current = true
-      lightImpact()
+      haptic('light')
+      markSkip(dx < 0 ? 1 : -1)
       if (dx < 0) onNext(); else onPrev()
-    } else if (dy < -44 && Math.abs(dy) > Math.abs(dx)) {
+      x.jump(0)
+      return
+    }
+    if (s.axis === 'y' && dy < -44) {
       swiped.current = true
       onOpen()
     }
+    animate(x, 0, SPRING_PRESS)
+  }
+  const onPointerCancel = () => {
+    start.current = null
+    animate(x, 0, SPRING_PRESS)
   }
   /** 刚滑过就吞掉随后的 click，免得一滑又点开了全屏 */
   const onClickCapture = (e: MouseEvent) => {
@@ -228,11 +277,19 @@ function useMiniSwipe(onNext: () => void, onPrev: () => void, onOpen: () => void
       e.stopPropagation()
     }
   }
-  return { onPointerDown, onPointerUp, onClickCapture }
+  return { x, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture }
+}
+
+/** 切歌时曲名按方向翻页：下一首从右边进来、旧的往左走；上一首反过来 */
+const titleVariants = {
+  enter: (d: number) => ({ x: d * 28, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (d: number) => ({ x: d * -28, opacity: 0 }),
 }
 
 export function PlayerBar({ wc }: { wc: WindowClass }) {
   const { t } = useT()
+  const reduceMotion = useReducedMotion()
   const currentSong = usePlayerStore(s => s.currentSong)
   const isPlaying = usePlayerStore(s => s.isPlaying)
   const streamBuffering = usePlayerStore(s => s.streamBuffering)
@@ -269,8 +326,22 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
   const handlePrev = useCallback(() => {
     const state = usePlayerStore.getState()
     if (state.currentTime > 3) seekHowl(0)
-    else state.prev()
+    else {
+      markSkip(-1)
+      state.prev()
+    }
   }, [])
+
+  const handleNext = useCallback(() => {
+    haptic('light')
+    markSkip(1)
+    next()
+  }, [next])
+
+  const handleTogglePlay = useCallback(() => {
+    haptic('light')
+    togglePlay()
+  }, [togglePlay])
 
   const cycleRepeatMode = useCallback(() => {
     const modes: RepeatMode[] = ['none', 'all', 'one']
@@ -279,6 +350,7 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
 
   const handleToggleStar = useCallback(() => {
     if (!currentSong) return
+    if (!currentSong.starred) haptic('light')
     toggleStar.mutate(
       { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong },
       { onSuccess: () => updateCurrentSong({ starred: !currentSong.starred }) }
@@ -286,6 +358,8 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
   }, [currentSong, toggleStar, updateCurrentSong])
 
   const swipe = useMiniSwipe(() => next(), handlePrev, () => setFullscreen(true))
+  // 甩的时候封面跟着手指，曲名多走一点，像被带着往前翻
+  const coverDrag = useTransform(swipe.x, v => v * 0.55)
 
   // 宽进度轨的把手要知道轨道宽度才能按比例平移（transform 不接受百分比之外的宽度参照）
   const barRef = useRef<HTMLDivElement>(null)
@@ -299,6 +373,10 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
     return () => ro.disconnect()
   }, [wc, currentSong])
 
+  // 切歌方向在换歌那一刻读一次，曲名的翻页按它走
+  const songKey = currentSong ? `${currentSong.serverId}:${currentSong.id}` : ''
+  const direction = useMemo(() => (songKey ? skipDirection() : 1), [songKey])
+
   const VolumeIcon = muted || volume === 0 ? SpeakerX : volume < 0.5 ? SpeakerLow : SpeakerHigh
   const repeatLabel = repeatMode === 'one'
     ? t('player.repeatOne')
@@ -306,17 +384,17 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
   const playLabel = t(isPlaying && streamBuffering ? 'player.buffering' : isPlaying ? 'player.pause' : 'player.play')
 
   if (!currentSong) {
-    // 窄窗口没有歌就不占地方；中、宽两档留一条安静的纸片，告诉人从哪开始
+    // 窄窗口没有歌就不占地方；中、宽两档留一条安静的胶囊，告诉人从哪开始
     if (wc === 'compact') return null
     return (
-      <div className="sheet pointer-events-auto flex h-[64px] items-center justify-center px-6">
-        <p className="text-[14px] text-ink-faint">{t('player.selectToStart')}</p>
+      <div className="glass pointer-events-auto flex h-[60px] items-center justify-center rounded-[22px] px-6">
+        <p className="text-[14px] text-ink-3">{t('player.selectToStart')}</p>
       </div>
     )
   }
 
-  const cover = (size: string) => (
-    <span className={cn('block flex-none overflow-hidden rounded-sm shadow-card', size)}>
+  const cover = (size: string, rounded = 'rounded-[10px]') => (
+    <span data-np-anchor="" className={cn('cover-frame block flex-none shadow-md', rounded, size)}>
       <ImageWithFallback
         src={coverUrl}
         alt={currentSong.album}
@@ -330,34 +408,44 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
   )
 
   const titles = (withAlbum: boolean) => (
-    <span
-      key={currentSong.id}
-      className="flex min-w-0 flex-col text-left leading-tight animate-page-turn motion-reduce:animate-none"
-    >
-      <span className="flex min-w-0 items-center gap-1.5 text-[14.5px] font-semibold text-ink">
-        <span className="truncate">{spaceCJK(currentSong.title)}</span>
-        <VipTag song={currentSong} />
-        {multiSource && <SourceBadge serverId={currentSong.serverId} />}
-      </span>
-      <span className="mt-0.5 truncate text-[13px] text-ink-faint">
-        {spaceCJK(currentSong.artist)}
-        {withAlbum && currentSong.album ? <span className="ml-2.5">{spaceCJK(currentSong.album)}</span> : null}
-      </span>
+    <span className="relative grid min-w-0 overflow-hidden">
+      <AnimatePresence initial={false} custom={direction} mode="popLayout">
+        <motion.span
+          key={songKey}
+          custom={direction}
+          variants={titleVariants}
+          initial={reduceMotion ? false : 'enter'}
+          animate="center"
+          exit={reduceMotion ? undefined : 'exit'}
+          transition={SPRING_SNAPPY}
+          className="col-start-1 row-start-1 flex min-w-0 flex-col text-left leading-tight"
+        >
+          <span className="flex min-w-0 items-center gap-1.5 text-[14.5px] font-semibold text-ink">
+            <span className="truncate">{spaceCJK(currentSong.title)}</span>
+            <VipTag song={currentSong} />
+            {multiSource && <SourceBadge serverId={currentSong.serverId} />}
+          </span>
+          <span className="mt-0.5 truncate text-[13px] text-ink-3">
+            {spaceCJK(currentSong.artist)}
+            {withAlbum && currentSong.album ? <span className="ml-2.5">{spaceCJK(currentSong.album)}</span> : null}
+          </span>
+        </motion.span>
+      </AnimatePresence>
     </span>
   )
 
   const playKey = (size: 'sm' | 'md') => (
     <button
-      onClick={() => { lightImpact(); togglePlay() }}
+      onClick={handleTogglePlay}
       className={cn(
         'play-key flex-none',
-        size === 'sm' ? 'h-10 w-10' : 'h-11 w-11 mx-1.5',
+        size === 'sm' ? 'h-10 w-10' : 'mx-1.5 h-11 w-11',
         isPlaying && streamBuffering && 'animate-buffering'
       )}
       aria-label={playLabel}
       aria-busy={isPlaying && streamBuffering}
     >
-      {isPlaying ? <Pause size={size === 'sm' ? 17 : 19} weight="fill" /> : <Play size={size === 'sm' ? 17 : 19} weight="fill" />}
+      <PlayPauseGlyph playing={isPlaying} size={size === 'sm' ? 17 : 19} />
     </button>
   )
 
@@ -365,11 +453,11 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
     <button
       onClick={handleToggleStar}
       disabled={toggleStar.isPending}
-      className={cn(iconBtn, currentSong.starred && 'text-sem-fav')}
+      className={cn(iconBtnBase, 'aria-pressed:text-ink')}
       aria-label={t(currentSong.starred ? 'player.unfavorite' : 'player.favorite')}
       aria-pressed={!!currentSong.starred}
     >
-      <Heart size={18} weight={currentSong.starred ? 'fill' : 'regular'} />
+      <HeartGlyph on={!!currentSong.starred} size={18} />
     </button>
   )
 
@@ -377,10 +465,13 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
   if (wc === 'compact') {
     return (
       <div
-        className="sheet pointer-events-auto relative flex h-[60px] items-center gap-2 rounded-pill pl-2 pr-2.5"
+        data-np-bar=""
+        className="glass pointer-events-auto relative flex h-[62px] items-center gap-2 overflow-hidden rounded-[22px] pl-2 pr-2.5"
         style={{ touchAction: 'pan-y' }}
         onPointerDown={swipe.onPointerDown}
+        onPointerMove={swipe.onPointerMove}
         onPointerUp={swipe.onPointerUp}
+        onPointerCancel={swipe.onPointerCancel}
         onClickCapture={swipe.onClickCapture}
       >
         <button
@@ -388,14 +479,18 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
           className="flex min-w-0 flex-1 items-center gap-3"
           aria-label={t('player.openNowPlaying')}
         >
-          {cover('h-11 w-11 rounded-pill')}
-          {titles(false)}
+          <motion.span style={{ x: coverDrag }} className="flex-none">
+            {cover('h-11 w-11')}
+          </motion.span>
+          <motion.span style={{ x: swipe.x }} className="min-w-0 flex-1">
+            {titles(false)}
+          </motion.span>
         </button>
         {playKey('sm')}
-        <button onClick={() => { lightImpact(); next() }} className={iconBtn} aria-label={t('player.next')}>
+        <button onClick={handleNext} className={iconBtn} aria-label={t('player.next')}>
           <SkipForward size={20} weight="fill" />
         </button>
-        <ProgressLine className="bottom-1 left-6 right-6 h-[2px]" />
+        <ProgressLine className="bottom-[5px] left-5 right-5" />
       </div>
     )
   }
@@ -403,7 +498,7 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
   /* ===== 中：一条 ===== */
   if (wc === 'regular') {
     return (
-      <div className="sheet pointer-events-auto relative grid h-[68px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-3">
+      <div data-np-bar="" className="glass pointer-events-auto relative grid h-[70px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-[24px] px-3">
         <button
           onClick={toggleFullscreen}
           className="flex min-w-0 items-center gap-3"
@@ -417,7 +512,7 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
             <SkipBack size={20} weight="fill" />
           </button>
           {playKey('md')}
-          <button onClick={() => next()} className={iconBtn} aria-label={t('player.next')}>
+          <button onClick={handleNext} className={iconBtn} aria-label={t('player.next')}>
             <SkipForward size={20} weight="fill" />
           </button>
         </div>
@@ -435,7 +530,7 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
             <Queue size={18} />
           </button>
         </div>
-        <ProgressLine className="bottom-1.5 left-5 right-5 h-[2px]" />
+        <ProgressLine className="bottom-[6px] left-6 right-6" />
       </div>
     )
   }
@@ -444,10 +539,11 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
   return (
     <div
       ref={barRef}
-      className="sheet pointer-events-auto grid h-[78px] grid-cols-[minmax(0,1.2fr)_minmax(300px,440px)_minmax(0,1fr)] items-center gap-5 px-3"
+      data-np-bar=""
+      className="glass pointer-events-auto grid h-[86px] grid-cols-[minmax(0,1.2fr)_minmax(300px,460px)_minmax(0,1fr)] items-center gap-5 rounded-[26px] px-3"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <button onClick={toggleFullscreen} className="flex-none transition-opacity hover:opacity-85" aria-label={t('player.openNowPlaying')}>
+        <button onClick={toggleFullscreen} className="press-pop flex-none" aria-label={t('player.openNowPlaying')}>
           {cover('h-[54px] w-[54px]')}
         </button>
         <button onClick={toggleFullscreen} className="min-w-0" aria-label={t('player.openNowPlaying')}>
@@ -456,12 +552,12 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
         {favorite}
       </div>
 
-      <div className="flex flex-col items-center gap-0.5">
+      <div className="flex flex-col items-center gap-1 pb-0.5">
         <div className="flex items-center">
           <Tooltip>
             <TooltipTrigger asChild>
               <button onClick={toggleShuffle} className={iconBtn} aria-label={t('player.shuffle')} aria-pressed={shuffle}>
-                <Shuffle size={17} />
+                <Shuffle size={17} weight={shuffle ? 'bold' : 'regular'} />
               </button>
             </TooltipTrigger>
             <TooltipContent>{t(shuffle ? 'player.shuffleOff' : 'player.shuffle')}</TooltipContent>
@@ -470,13 +566,13 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
             <SkipBack size={20} weight="fill" />
           </button>
           {playKey('md')}
-          <button onClick={() => next()} className={iconBtn} aria-label={t('player.next')}>
+          <button onClick={handleNext} className={iconBtn} aria-label={t('player.next')}>
             <SkipForward size={20} weight="fill" />
           </button>
           <Tooltip>
             <TooltipTrigger asChild>
               <button onClick={cycleRepeatMode} className={iconBtn} aria-label={repeatLabel} aria-pressed={repeatMode !== 'none'}>
-                {repeatMode === 'one' ? <RepeatOnce size={17} /> : <Repeat size={17} />}
+                {repeatMode === 'one' ? <RepeatOnce size={17} weight="bold" /> : <Repeat size={17} weight={repeatMode === 'all' ? 'bold' : 'regular'} />}
               </button>
             </TooltipTrigger>
             <TooltipContent>{repeatLabel}</TooltipContent>

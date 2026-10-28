@@ -1,9 +1,14 @@
-/* Hallmark · shape: app screen · genre: atmospheric · theme: Bloom (deal 3/3, seed personal-music-player-home-c863·faefcd3f·2026-10-27·r0) · redesign: full
- * nav: sidebar from 1024px, side rail 600 to 1023px, tab bar under 600px, chosen by window width · signature: the flat lime play key, lyrics laid on the working grid · states: loading, empty, error (kept from the app)
- * axes: light/grotesk-sans/warm · posture: committed · contrast: pass · v2.0.0 */
-/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: S, a sheet-and-shadow shell could front any player; the lime play key and the lyric grid carry the identity, and covers stay the only large colour fields */
+/* Hallmark · shape: app screen · genre: atmospheric · theme: custom · redesign: full · idea: "the song playing is the light in the room" · vibe: "a precise instrument lit by the record"
+ * paper: oklch(98.4% 0.004 255) · accent: oklch(89.5% 0.2 127) · display: Geologica · body: the platform face (SF Pro, Segoe UI Variable) with PingFang
+ * nav: window-width shell, floating glass sidebar from 1024px, rail 600 to 1023px, glass tab bar under 600px · signature: the room takes the colour of the song; the queue is a deck · states: loading, empty, error (kept from the app)
+ * axes: light/geometric-sans/chromatic-lime · posture: committed · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S5 R4 V5 · weakest: E, the motion is ambitious; every effect runs on transform or opacity and has a reduced-motion path */
+/* Hallmark · waive 29 · the wash behind the content is the playing cover's own hue, set per track · it shows what is playing at room scale, never a fixed decoration */
+/* Hallmark · waive 39b · each server type on the connect page is a choice with an icon, a name and a description · that raised surface tile is a card to pick, so the cover-tile height rules apply, not a button's */
+/* Hallmark · dismissed F7 · .act-primary, .act-secondary, .act-icon and .seg-option are buttons, the pill is the control shape */
+/* Hallmark · dismissed 41 · .seg-pill is the sliding indicator behind a segmented option, the option text keeps its own ink */
 
-/* 自托管字体注册（@import 必须位于文件最前，见 src/styles/fonts.css） */
+/* 自托管字体注册（@import 必须位于所有规则之前，见 src/styles/fonts.css） */
 @import './styles/fonts.css';
 
 @tailwind base;
@@ -11,188 +16,254 @@
 @tailwind utilities;
 
 /* ===================================================
-   v5 暖纸（Bloom）—— 唯一一套设计 token
+   v6 舞台光 —— 唯一一套设计 token
    ---------------------------------------------------
-   暖白纸面、抬起的纸片、一盏青柠；封面是唯一的大面积色块。
-   强调色分两层：--vivid 青柠只做填色（播放键、主按钮、进度），
-   --accent 叶绿是压暗一档、落在纸面上读得清的文字色（链接、当前项、焦点环）。
-   青柠当文字放在暖纸上只有约 1.3:1，所以两者不能共用一个 token。
-   明暗由 <html> 上的 data-theme（同时带 .dark 供 Tailwind 的 dark: 变体）决定。
+   正在播放的那首歌是房间里的光：外壳是一台安静、精密的仪器（冷瓷白 / 石墨夜），
+   当前封面的色相由 services/artLight 写进 --art-*，经下面的 --wash* 落到房间里。
+   光场的亮度按主题锁死、饱和度封顶，所以任何封面下文字的对比都不变。
+   青柠只给能按的、正在发生的（播放键、主按钮、进度、当前项）；
+   叶绿是浅色下读得清的文字强调，暗色下它就是青柠本身。
 
-   颜色一律写成 oklch 的三个通道（L C H），**不带 alpha**：
-   tailwind.config 用 `oklch(var(--x) / <alpha-value>)` 消费它们，
-   `bg-ink/40` 这类不透明度修饰符因此始终有效。
-   旧版 --hair 自带 alpha、写 `/70` 生成双斜杠无效声明的坑，从这里根除。
-
-   旧 token 名（paper / ink / hair / shadcn 语义名）全部保留并映射到暖纸，
-   没有逐个改写的组件也会跟着换色。
+   颜色一律是 oklch 的三个通道（L C H），**不带 alpha**：
+   tailwind.config 用 `oklch(var(--x) / <alpha-value>)` 消费，`bg-ink/40` 处处有效。
+   旧 token 名（paper / sheet / vivid / accent / shadcn 语义名）全部保留并映射到新值，
+   没有重写到的组件也跟着换装。
    =================================================== */
 :root {
   color-scheme: light;
 
-  /* ----- 纸与墨 ----- */
-  --paper: 97% 0.010 72;          /* 底色 */
-  --paper-deep: 94.6% 0.013 70;   /* 下沉一档：hover 底、分组底 */
-  --paper-3: 91.5% 0.016 66;      /* 再沉一档：选中底、轨道 */
-  --sheet: 98.7% 0.007 78;        /* 抬起来的纸片：卡片、面板、浮层 */
-  --ink: 21% 0.024 40;
-  --ink-soft: 33% 0.022 46;
-  --ink-faint: 47% 0.02 56;       /* 纸面上 5.7:1 */
-  --hair: 88% 0.014 64;           /* 实心线色（不再自带 alpha） */
-  --hair-soft: 92% 0.012 66;
-  --skeleton: 92.5% 0.014 66;
-  --input-edge: 62% 0.02 56;      /* 输入框描边：对纸面 3.2:1 */
+  /* ----- 地面与墨 ----- */
+  --ground: 98.4% 0.004 255;      /* 内容平面 */
+  --surface: 99.8% 0.002 255;     /* 抬起的面：卡片、浮层、对话框 */
+  --shell-surface: var(--surface); /* 外壳的面：引用在 :root 上解析，.stage 改 --surface 也不影响它 */
+  --surface-2: 96.4% 0.006 255;   /* 第二中性：侧栏、面板、分组底 */
+  --fill: 94.2% 0.007 255;        /* hover 底、次级按钮 */
+  --fill-2: 91.2% 0.009 255;      /* 按下、选中、进度轨 */
+  --hair: 89.5% 0.007 255;        /* 一个设备像素的线 */
+  --hair-soft: 92.5% 0.006 255;
+  --edge: 66% 0.012 262;          /* 输入框描边：对地面 3:1 */
+  --ink: 19% 0.016 262;           /* 17.6:1 */
+  --ink-2: 38% 0.016 262;         /* 9.6:1 */
+  --ink-3: 48% 0.014 262;         /* 6.2:1，说明与元信息；光最浓处仍 4.5:1 */
 
-  /* ----- 唯一的强调色：青柠（填色）+ 叶绿（文字） ----- */
-  --vivid: 87% 0.19 127;          /* 填色；上面的图标与文字用 --vivid-ink，8:1 以上 */
-  --vivid-deep: 82.5% 0.2 129;    /* 填色 hover */
-  --vivid-ink: 24% 0.05 135;
-  --accent: 50% 0.135 138;        /* 叶绿：纸面上 5.5:1 */
-  --accent-deep: 43% 0.125 140;
-  --accent-2: 90% 0.11 108;       /* 只给正在播放页左下那团光 */
-  --accent-ink: 98.5% 0.008 72;   /* 叶绿 / 危险色实底上的浅色字 */
-  --danger: 49% 0.17 358;         /* 玫瑰 358°，与绿色拉开 */
-  --ok: 50% 0.11 150;
-  --warn: 76% 0.12 75;
+  /* ----- 品牌：青柠（填色）+ 叶绿（文字） ----- */
+  --lime: 89.5% 0.2 127;
+  --lime-deep: 85.5% 0.21 129;    /* 填色 hover / 按下 */
+  --lime-ink: 27% 0.07 134;       /* 青柠上的字与图标：11:1 */
+  --leaf: 47% 0.155 142;          /* 文字强调：6.1:1；光最浓处仍 4.4:1 */
+  --leaf-deep: 42% 0.145 144;
+  --on-solid: 99% 0.003 255;      /* 叶绿 / 危险色实底上的浅色字 */
+  --danger: 53% 0.2 18;
+  --ok: 52% 0.13 150;
+  --warn: 74% 0.14 72;
 
-  /* ----- 受光边（只给纸片，不给按钮） ----- */
-  --hi: 99.6% 0.006 80;           /* 配 / 0.75 使用 */
-  --shade: 21% 0.024 40;          /* 投影墨，配不透明度使用 */
-  --shade-warm: 30% 0.06 40;
+  /* ----- 房间的光：services/artLight 按当前封面改写 --art-*；默认是「场灯」青柠 ----- */
+  --art-h: 127;
+  --art-c: 0.12;
+  --art-h2: 158;
+  --art-c2: 0.08;
+  --wash-l: 92%;
+  --wash-cap: 0.1;
+  --wash-l2: 86%;
+  --wash-cap2: 0.12;
+  --wash: var(--wash-l) min(var(--art-c), var(--wash-cap)) var(--art-h);
+  --wash-2: var(--wash-l) min(var(--art-c2), var(--wash-cap)) var(--art-h2);
+  --wash-strong: var(--wash-l2) min(var(--art-c), var(--wash-cap2)) var(--art-h);
+  /* 舞台（全屏播放器）：永远是灯暗下来的那一档，白字 12:1 以上 */
+  --stage: 27% min(var(--art-c), 0.09) var(--art-h);
+  --stage-2: 22% min(var(--art-c2), 0.08) var(--art-h2);
+  --stage-deep: 14% 0.02 var(--art-h);
+  --stage-ink: 97% 0.006 var(--art-h);
+
+  /* ----- 投影：带偏移与模糊，墨色 ----- */
+  --shade: 22% 0.02 262;
+  --shadow-sm: 0 1px 2px oklch(var(--shade) / 0.06), 0 1px 1px oklch(var(--shade) / 0.04);
+  --shadow-md: 0 2px 4px oklch(var(--shade) / 0.05), 0 12px 28px -12px oklch(var(--shade) / 0.2);
+  --shadow-lg: 0 4px 12px oklch(var(--shade) / 0.06), 0 28px 60px -20px oklch(var(--shade) / 0.3);
+  --shadow-cover: 0 2px 6px oklch(var(--shade) / 0.1), 0 20px 44px -18px oklch(var(--shade) / 0.38);
+  --ring-hair: inset 0 0 0 0.5px oklch(var(--ink) / 0.09);
+
+  /* ----- 玻璃：只给浮在滚动内容之上的东西（标签栏、迷你条、工具栏、弹出层） ----- */
+  --glass-alpha: 0.74;
+  --glass-tint: 0.3;
+  --glass-edge: 0.7;
+  --glass-blur: 26px;
+  --glass-saturate: 1.7;
 
   /* ----- 来源色板（多源徽标的小圆点） ----- */
-  --src-1: 50% 0.04 55;
-  --src-2: 48% 0.105 28;
-  --src-3: 70% 0.115 72;
-  --src-4: 65% 0.085 12;
-  --src-5: 55% 0.08 160;
+  --src-1: 52% 0.03 262;
+  --src-2: 55% 0.15 28;
+  --src-3: 62% 0.13 72;
+  --src-4: 55% 0.12 300;
+  --src-5: 55% 0.11 200;
 
-  /* ----- shadcn 语义名 → 暖纸 ----- */
-  --background: var(--paper);
-  --foreground: var(--ink);
-  --card: var(--sheet);
-  --card-foreground: var(--ink);
-  --popover: var(--sheet);
-  --popover-foreground: var(--ink);
-  --primary: var(--accent);
-  --primary-foreground: var(--accent-ink);
-  --secondary: var(--paper-3);
-  --secondary-foreground: var(--ink);
-  --muted: var(--paper-deep);
-  --muted-foreground: var(--ink-faint);
-  --accent-surface: var(--paper-3);
-  --accent-surface-foreground: var(--ink);
-  --destructive: var(--danger);
-  --destructive-foreground: var(--accent-ink);
-  --border: var(--hair);
-  --input: var(--input-edge);
-  --ring: var(--accent);
-  --surface: var(--sheet);
-  --surface-hover: var(--paper-deep);
-  --sem-playing: var(--accent);
-  --sem-fav: var(--accent);
-  --sem-connected: var(--ok);
-  --sem-error: var(--danger);
-  /* 旧糖果色名：仍有少量调用方，映射到语义色 */
-  --candy-ok: var(--ok);
-  --candy-ok-fill: var(--ok);
-  --candy-ok-soft: 93% 0.03 150;
-  --candy-warn-fill: var(--warn);
-  --candy-warn-soft: 94% 0.04 80;
-  --candy-danger: var(--danger);
-  --candy-danger-fill: var(--danger);
-  --candy-danger-soft: 94% 0.03 358;
-
-  /* ----- 字体：标题与正文同族，Young Serif 只出现在一个大数字上 ----- */
-  --cjk: 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
-  --font-sans: 'Schibsted Grotesk', var(--cjk);
-  --font-display: 'Schibsted Grotesk', var(--cjk);
-  --font-serif: var(--font-display);  /* 旧名：曲名 / 标题角色，暖纸里是同族粗体 */
-  --font-mono: var(--font-sans);      /* 旧名：数字，改由 tabular-nums 对齐 */
-  --font-figure: 'Young Serif', Georgia, 'Songti SC', serif;
-  --display-weight: 600;
-  --display-tracking: -0.02em;
+  /* ----- 字体：Geologica 只给标题、大数字和字标；界面走平台字 ----- */
+  --font-cjk: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC', 'Source Han Sans SC', sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', 'Helvetica Neue', var(--font-cjk);
+  --font-display: 'Geologica', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', var(--font-cjk);
 
   /* ----- 形状 ----- */
-  --radius: 12px;
-  --stroke: 1px;
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 18px;
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
   --r-pill: 999px;
+  --r-cover: clamp(4px, 6%, 18px); /* 封面圆角随尺寸走：缩略图 4px，大封面 18px */
   --focus-width: 2px;
+  --hairline: 1px;
+
+  /* ----- 动效：临界阻尼的弹簧采样成 linear()（界面状态不过冲；手势的回弹在 lib/motion 里按物理算） ----- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.55, 0, 0.75, 0.3);
+  --ease-press: linear(0, 0.0576, 0.1805, 0.3212, 0.4556, 0.5735, 0.6716, 0.7506, 0.8126, 0.8605, 0.8969, 0.9243, 0.9447, 0.9598, 0.9709, 0.979, 0.9849, 0.9892, 0.9923, 0.9945, 0.9961, 0.9972, 0.998, 0.9986, 1);
+  --ease-snappy: linear(0, 0.0575, 0.1802, 0.3207, 0.455, 0.5729, 0.6711, 0.7501, 0.8122, 0.8602, 0.8967, 0.9241, 0.9446, 0.9597, 0.9708, 0.979, 0.9849, 0.9892, 0.9923, 0.9945, 0.9961, 0.9972, 0.998, 0.9986, 1);
+  --ease-smooth: linear(0, 0.0348, 0.1168, 0.2211, 0.3319, 0.4394, 0.538, 0.6252, 0.7002, 0.7632, 0.8151, 0.8573, 0.8911, 0.9178, 0.9387, 0.9548, 0.9672, 0.9765, 0.9834, 0.9885, 0.9923, 0.9949, 0.9968, 0.9981, 1);
+  --dur-1: 90ms;
+  --dur-2: 160ms;
+  --dur-3: 240ms;
+  --dur-4: 360ms;
+  --dur-5: 520ms;
+  --dur-press: 460ms;
+
+  /* ----- 层级 ----- */
+  --z-raised: 10;
+  --z-sticky: 20;
+  --z-dock: 40;
+  --z-overlay: 50;
+  --z-modal: 60;
+  --z-toast: 80;
+  --z-tooltip: 90;
+
+  /* ======== 旧 token 名 → 新值（未重写的组件靠它们换装） ======== */
+  --paper: var(--ground);
+  --paper-deep: var(--fill);
+  --paper-3: var(--fill-2);
+  --sheet: var(--surface);
+  --ink-soft: var(--ink-2);
+  --ink-faint: var(--ink-3);
+  --skeleton: var(--fill);
+  --input-edge: var(--edge);
+  --vivid: var(--lime);
+  --vivid-deep: var(--lime-deep);
+  --vivid-ink: var(--lime-ink);
+  --accent: var(--leaf);
+  --accent-deep: var(--leaf-deep);
+  --accent-2: var(--wash);
+  --accent-ink: var(--on-solid);
+  --hi: 99.6% 0.003 255;
+  --shade-warm: var(--shade);
+
+  --background: var(--ground);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--leaf);
+  --primary-foreground: var(--on-solid);
+  --secondary: var(--fill);
+  --secondary-foreground: var(--ink);
+  --muted: var(--fill);
+  --muted-foreground: var(--ink-3);
+  --accent-surface: var(--fill);
+  --accent-surface-foreground: var(--ink);
+  --destructive: var(--danger);
+  --destructive-foreground: var(--on-solid);
+  --border: var(--hair);
+  --input: var(--edge);
+  --ring: var(--leaf);
+  --surface-hover: var(--fill);
+  --sem-playing: var(--leaf);
+  --sem-fav: var(--ink);
+  --sem-connected: var(--ok);
+  --sem-error: var(--danger);
+  --candy-ok: var(--ok);
+  --candy-ok-fill: var(--ok);
+  --candy-ok-soft: 94% 0.035 150;
+  --candy-warn-fill: var(--warn);
+  --candy-warn-soft: 95% 0.04 80;
+  --candy-danger: var(--danger);
+  --candy-danger-fill: var(--danger);
+  --candy-danger-soft: 95% 0.03 18;
+
+  --font-sans: var(--font-ui);
+  --font-serif: var(--font-display);
+  --font-mono: var(--font-ui);
+  --font-figure: var(--font-display);
+  --display-weight: 650;
+  --display-tracking: -0.025em;
+  --radius: var(--r-md);
+  --stroke: 1px;
   --press: 0px;
+  --shadow-card: var(--shadow-md);
+  --shadow-float: var(--shadow-lg);
+  --shadow-press: var(--shadow-sm);
+  --lit-edge: var(--ring-hair);
+  --ease: var(--ease-out);
+  --dur-micro: var(--dur-1);
+  --dur-short: var(--dur-3);
+  --dur-long: var(--dur-4);
+  --texture: none;
+  --texture-size: auto;
+  --grid-line: transparent;
+  --grid-line-soft: transparent;
+  --cover-bleed-opacity: 1;
+  --leading-cjk: 1.7;
 
-  /* ----- 纸片的光：上方受光，投影落在下方 ----- */
-  --shadow-card: 0 1px 2px oklch(var(--shade) / 0.06), 0 18px 36px -18px oklch(var(--shade) / 0.26);
-  --shadow-float: 0 2px 4px oklch(var(--shade) / 0.07), 0 36px 72px -32px oklch(var(--shade-warm) / 0.4);
-  /* 控件的影：扁平，只有一点贴地的软影，不画受光边 */
-  --shadow-press: 0 0 0 1px oklch(var(--shade) / 0.05), 0 2px 6px -2px oklch(var(--shade) / 0.16);
-  --lit-edge: inset 0 1px 0 oklch(var(--hi) / 0.75);
-
-  /* ----- 动效 ----- */
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --dur-micro: 120ms;
-  --dur-short: 220ms;
-  --dur-long: 420ms;
-
-  /* ----- 纸面颗粒（5%，只铺在底色上） ----- */
-  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.2 0 0 0 0 0.15 0 0 0 0.05 0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
-  --texture-size: 180px 180px;
-
-  /* ----- 格纸：歌词落在上面 ----- */
-  --grid-line: oklch(var(--shade) / 0.06);
-  --grid-line-soft: oklch(var(--shade) / 0.035);
-
-  --selection-bg: oklch(var(--vivid) / 0.45);
+  --selection-bg: oklch(var(--lime) / 0.5);
   --selection-fg: inherit;
-  /* 正在播放页不做封面取色晕染：暖纸只允许两团固定的暖光 */
-  --cover-bleed-opacity: 0;
-  --leading-cjk: 1.75;
 }
 
-/* 暗色：棕墨夜色；青柠在暗底上本身就够亮，文字色直接用它；纸片比底色亮，越抬越亮 */
+/* 暗色：石墨夜。面越抬越亮；青柠在暗底上本身就够亮，文字强调直接用它 */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --paper: 17% 0.015 45;
-  --paper-deep: 24% 0.018 45;
-  --paper-3: 28% 0.02 45;
-  --sheet: 21.5% 0.017 45;
-  --ink: 93% 0.012 72;
-  --ink-soft: 83% 0.014 70;
-  --ink-faint: 70% 0.02 60;
-  --hair: 31% 0.02 45;
-  --hair-soft: 26% 0.018 45;
-  --skeleton: 25% 0.018 45;
-  --input-edge: 50% 0.02 55;
-  --vivid: 86% 0.19 127;
-  --vivid-deep: 90% 0.17 125;  /* 暗色下 hover 往亮处走一档 */
-  --vivid-ink: 20% 0.04 135;
-  --accent: 86% 0.19 127;
-  --accent-deep: 90% 0.17 125;
-  --accent-2: 60% 0.12 130;
-  --accent-ink: 17% 0.015 45;
-  --danger: 70% 0.15 358;
-  --ok: 72% 0.12 150;
-  --warn: 80% 0.12 80;
-  --hi: 99% 0.006 80;
-  --shade: 5% 0.01 45;
-  --shade-warm: 5% 0.02 40;
+  --ground: 18.5% 0.009 262;
+  --surface: 23.2% 0.011 262;
+  --surface-2: 20.6% 0.01 262;
+  --fill: 27% 0.013 262;
+  --fill-2: 31% 0.015 262;
+  --hair: 29.5% 0.013 262;
+  --hair-soft: 25.5% 0.012 262;
+  --edge: 50% 0.014 262;
+  --ink: 96.6% 0.005 262;
+  --ink-2: 81% 0.011 262;
+  --ink-3: 70% 0.013 262;
+  --lime: 89.5% 0.2 127;
+  --lime-deep: 92.5% 0.18 125;
+  --lime-ink: 24% 0.06 134;
+  --leaf: 89.5% 0.2 127;
+  --leaf-deep: 92.5% 0.18 125;
+  --on-solid: 16% 0.009 262;
+  --danger: 70% 0.17 18;
+  --ok: 74% 0.13 150;
+  --warn: 80% 0.13 78;
+  --wash-l: 30%;
+  --wash-cap: 0.1;
+  --wash-l2: 25%;
+  --wash-cap2: 0.11;
+  --shade: 6% 0.01 262;
+  --shadow-sm: 0 1px 2px oklch(var(--shade) / 0.5), 0 1px 1px oklch(var(--shade) / 0.3);
+  --shadow-md: 0 2px 4px oklch(var(--shade) / 0.4), 0 12px 28px -12px oklch(var(--shade) / 0.7);
+  --shadow-lg: 0 4px 12px oklch(var(--shade) / 0.45), 0 28px 60px -20px oklch(var(--shade) / 0.85);
+  --shadow-cover: 0 2px 6px oklch(var(--shade) / 0.5), 0 20px 44px -18px oklch(var(--shade) / 0.9);
+  --ring-hair: inset 0 0 0 0.5px oklch(var(--ink) / 0.1);
+  --glass-alpha: 0.68;
+  --glass-tint: 0.32;
+  --glass-edge: 0.5;
+  --hi: 99% 0.004 262;
   --candy-ok-soft: 30% 0.05 150;
   --candy-warn-soft: 32% 0.05 80;
-  --candy-danger-soft: 30% 0.05 358;
-  --destructive-foreground: 17% 0.015 45;
-  --shadow-card: 0 1px 2px oklch(var(--shade) / 0.4), 0 18px 36px -18px oklch(var(--shade) / 0.75);
-  --shadow-float: 0 2px 4px oklch(var(--shade) / 0.5), 0 36px 72px -32px oklch(var(--shade-warm) / 0.85);
-  --shadow-press: 0 0 0 1px oklch(var(--hi) / 0.07), 0 2px 6px -2px oklch(var(--shade) / 0.6);
-  --lit-edge: inset 0 1px 0 oklch(var(--hi) / 0.08);
-  --texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.9 0 0 0 0 0.85 0 0 0 0.04 0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
-  --grid-line: oklch(var(--ink) / 0.06);
-  --grid-line-soft: oklch(var(--ink) / 0.03);
+  --candy-danger-soft: 30% 0.05 18;
+  --src-1: 70% 0.03 262;
+  --src-2: 72% 0.13 28;
+  --src-3: 78% 0.12 72;
+  --src-4: 72% 0.11 300;
+  --src-5: 72% 0.1 200;
 }
 
 /* ===================================================
-   基础
+   基础：浏览器自带的表面也属于这套设计
    =================================================== */
 * {
   border-color: oklch(var(--hair));
@@ -200,22 +271,21 @@
 
 html {
   overflow-x: clip;
-  scroll-behavior: smooth;
-  background-color: oklch(var(--paper));
+  background-color: oklch(var(--ground));
 }
 
 body {
-  background-color: oklch(var(--paper));
-  background-image: var(--texture);
-  background-size: var(--texture-size);
+  background-color: oklch(var(--ground));
   color: oklch(var(--ink));
-  font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 1.55;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  caret-color: oklch(var(--accent));
+  text-rendering: optimizeLegibility;
+  caret-color: oklch(var(--leaf));
   overflow: clip;
+  overflow-x: clip;
   height: 100vh;
   height: 100dvh;
 }
@@ -233,17 +303,32 @@ h1, h2, h3 {
   text-wrap: balance;
 }
 
+p {
+  text-wrap: pretty;
+}
+
 ::selection {
   background: var(--selection-bg);
   color: var(--selection-fg);
 }
 
+/* 焦点环：立即出现，不淡入 */
 :focus-visible {
-  outline: var(--focus-width) solid oklch(var(--accent));
+  outline: var(--focus-width) solid oklch(var(--leaf));
   outline-offset: 2px;
 }
 
-/* 滚动条：一条细的墨色软条，不描边 */
+a {
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+
+/* 滚动条：一条细的墨色软条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(var(--ink) / 0.18) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -254,17 +339,18 @@ h1, h2, h3 {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: oklch(var(--ink) / 0.14);
+  background: oklch(var(--ink) / 0.16);
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: var(--r-pill);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(var(--ink) / 0.26);
+  background: oklch(var(--ink) / 0.3);
   background-clip: content-box;
 }
 
+/* 减弱动态效果：位移与缩放退成瞬时，颜色与透明度的状态变化仍然发生 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -284,55 +370,80 @@ h1, h2, h3 {
     text-wrap: balance;
   }
 
-  /* 数字：同族的等宽数字，不再借等宽字体 */
   .font-num,
   .num {
     font-variant-numeric: tabular-nums;
   }
 
-  /* 唯一一处衬线：一个大数字 */
+  /* 大数字：Geologica 的等宽数字 */
   .font-figure {
-    font-family: var(--font-figure);
-    font-weight: 400;
+    font-family: var(--font-display);
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
   }
 
-  /* 浮层底面：抬起的纸片 */
+  /* 玻璃：只给浮在滚动内容之上的东西 */
+  /* 玻璃胶囊也在房间里：面上薄薄一层当前封面的光，上沿一道封面色的亮边 */
   .glass {
-    background: oklch(var(--sheet));
-    box-shadow: var(--shadow-float), var(--lit-edge);
+    background:
+      linear-gradient(oklch(var(--wash) / var(--glass-tint)), oklch(var(--wash) / var(--glass-tint))),
+      oklch(var(--surface) / var(--glass-alpha));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    box-shadow: var(--shadow-lg), var(--ring-hair), inset 0 1px 0 oklch(var(--wash-strong) / var(--glass-edge));
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background: oklch(var(--surface));
+    }
   }
 
   .shadow-float {
-    box-shadow: var(--shadow-float);
+    box-shadow: var(--shadow-lg);
   }
 
   .shadow-press {
-    box-shadow: var(--shadow-press);
+    box-shadow: var(--shadow-sm);
   }
 
   .shadow-card {
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-md);
   }
 
-  /* 抬起的纸片：卡片、面板 */
+  .shadow-cover {
+    box-shadow: var(--shadow-cover);
+  }
+
+  /* 抬起的面：卡片、面板 */
   .sheet {
-    background: oklch(var(--sheet));
+    background: oklch(var(--surface));
     border-radius: var(--r-lg);
-    box-shadow: var(--shadow-card), var(--lit-edge);
+    box-shadow: var(--shadow-sm), var(--ring-hair);
   }
 
-  /* 按压手感：扁平，不抬起；按下收一点 */
+  /* 一个设备像素的线：高分屏上是 0.5px */
+  .hairline-b {
+    box-shadow: inset 0 calc(-1 * var(--hairline)) 0 oklch(var(--hair));
+  }
+
+  .hairline-t {
+    box-shadow: inset 0 var(--hairline) 0 oklch(var(--hair));
+  }
+
+  /* 按压手感：按下立刻收，松手按弹簧回弹（带一点过冲） */
   .press-pop {
     transition:
-      transform var(--dur-short) var(--ease),
-      box-shadow var(--dur-short) var(--ease),
-      background-color var(--dur-short) var(--ease),
-      color var(--dur-short) var(--ease);
+      transform var(--dur-press) var(--ease-press),
+      background-color var(--dur-2) var(--ease-out),
+      color var(--dur-2) var(--ease-out);
   }
 
   .press-pop:active {
-    transform: scale(0.97);
+    transform: scale(0.96);
+    transition-duration: var(--dur-1), var(--dur-2), var(--dur-2);
+    transition-timing-function: var(--ease-out);
   }
 
   .line-clamp-1 {
@@ -370,15 +481,15 @@ h1, h2, h3 {
     display: inline-block;
     width: 3px;
     height: 14px;
-    background: oklch(var(--accent));
+    background: oklch(var(--leaf));
     border-radius: 2px;
     transform-origin: bottom;
-    animation: equalize 1.2s ease-in-out infinite;
+    animation: equalize 1.1s var(--ease-out) infinite;
   }
 
-  .playing-bar span:nth-child(1) { animation-delay: 0s; }
-  .playing-bar span:nth-child(2) { animation-delay: 0.2s; }
-  .playing-bar span:nth-child(3) { animation-delay: 0.4s; }
+  .playing-bar span:nth-child(1) { animation-delay: -0.2s; }
+  .playing-bar span:nth-child(2) { animation-delay: -0.55s; }
+  .playing-bar span:nth-child(3) { animation-delay: -0.85s; }
 
   @keyframes equalize {
     0%, 100% { transform: scaleY(0.3); }
@@ -391,10 +502,10 @@ h1, h2, h3 {
   }
 
   .animate-spin-vinyl {
-    animation: spin-vinyl 20s linear infinite;
+    animation: spin-vinyl 1.8s linear infinite;
   }
 
-  /* 缓冲：按下播放到真正出声之间，主键轻轻呼吸，表达「在等」 */
+  /* 缓冲：按下播放到真正出声之间，主键轻轻呼吸 */
   @keyframes buffer-breathe {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.55; }
@@ -404,6 +515,19 @@ h1, h2, h3 {
     animation: buffer-breathe 1.1s ease-in-out infinite;
   }
 
+  /* 骨架：一道很淡的光从左扫到右 */
+  .skeleton {
+    background:
+      linear-gradient(100deg, transparent 30%, oklch(var(--surface) / 0.55) 50%, transparent 70%) 0 0 / 220% 100% no-repeat,
+      oklch(var(--fill));
+    animation: shimmer 1.6s linear infinite;
+  }
+
+  @keyframes shimmer {
+    from { background-position: 120% 0, 0 0; }
+    to { background-position: -120% 0, 0 0; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .playing-bar span {
       animation: none;
@@ -411,35 +535,47 @@ h1, h2, h3 {
     }
     .animate-spin-vinyl,
     .animate-pulse,
-    .animate-buffering {
+    .animate-buffering,
+    .skeleton {
       animation: none;
     }
   }
 
-  /* 格纸：歌词与空态底下那张淡淡的工作纸，从中心往外淡出 */
+  /* v5 的格纸已退役：保留类名，不再画线 */
   .paper-grid {
-    background-image:
-      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--grid-line-soft) 1px, transparent 1px);
-    background-size: 48px 100%, 100% 24px;
+    background-image: none;
   }
 
-  /* 歌词上下渐隐：遮罩只看透明度，颜色取墨色 token 即可 */
+  /* 歌词上下渐隐：遮罩只看透明度 */
   .lyric-fade {
-    -webkit-mask-image: linear-gradient(180deg, transparent, oklch(var(--ink)) 20%, oklch(var(--ink)) 80%, transparent);
-    mask-image: linear-gradient(180deg, transparent, oklch(var(--ink)) 20%, oklch(var(--ink)) 80%, transparent);
+    -webkit-mask-image: linear-gradient(180deg, transparent, oklch(var(--ink)) 18%, oklch(var(--ink)) 82%, transparent);
+    mask-image: linear-gradient(180deg, transparent, oklch(var(--ink)) 18%, oklch(var(--ink)) 82%, transparent);
   }
 
-  /* 工具栏的滚动边缘：内容滚到底下时才铺上纸色 */
+  /* 全屏歌词：顶上只渐隐一小段（第一句要读得到），底下渐隐得长一些 */
+  .lyric-fade-top {
+    -webkit-mask-image: linear-gradient(180deg, transparent, oklch(var(--ink)) 6%, oklch(var(--ink)) 74%, transparent);
+    mask-image: linear-gradient(180deg, transparent, oklch(var(--ink)) 6%, oklch(var(--ink)) 74%, transparent);
+  }
+
+  /* 工具栏的滚动边缘：内容滚到底下时才铺上玻璃 */
   .scroll-edge {
-    transition: background-color var(--dur-short) var(--ease), box-shadow var(--dur-short) var(--ease);
+    transition: background-color var(--dur-3) var(--ease-out), box-shadow var(--dur-3) var(--ease-out);
   }
 
   [data-scrolled] > .scroll-edge,
   .scroll-edge[data-scrolled] {
-    /* 实心纸面：暖纸的材质是纸，不是毛玻璃 */
-    background: oklch(var(--paper));
-    box-shadow: 0 1px 0 oklch(var(--hair));
+    background: oklch(var(--ground) / var(--glass-alpha));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    box-shadow: inset 0 calc(-1 * var(--hairline)) 0 oklch(var(--hair));
+  }
+}
+
+/* 高分屏：线是一个设备像素 */
+@media (min-resolution: 2dppx) {
+  :root {
+    --hairline: 0.5px;
   }
 }
 
@@ -447,33 +583,41 @@ h1, h2, h3 {
    组件层：页面共用的挂钩类
    =================================================== */
 @layer components {
-  /* 分区标题：同族粗体，靠留白分区，不画上缘线 */
+  /* 房间的光：内容平面顶上那一片，随当前曲目换色（services/artLight 改 --art-*） */
+  .art-wash {
+    --wash: var(--wash-l) min(var(--art-c), var(--wash-cap)) var(--art-h);
+    --wash-2: var(--wash-l) min(var(--art-c2), var(--wash-cap)) var(--art-h2);
+    background:
+      radial-gradient(135% 100% at 10% -12%, oklch(var(--wash)), oklch(var(--wash) / 0.42) 34%, transparent 68%),
+      radial-gradient(105% 95% at 92% -18%, oklch(var(--wash-2) / 0.9), transparent 64%);
+  }
+
+  /* 分区标题：Geologica，靠留白分区 */
   .section-head {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     gap: 12px;
-    padding: 40px 0 16px;
+    padding: 36px 0 16px;
   }
 
   .section-head h2 {
     font-family: var(--font-display);
-    font-weight: var(--display-weight);
-    font-size: 23px;
+    font-weight: 650;
+    font-size: 22px;
     line-height: 1.15;
-    letter-spacing: var(--display-tracking);
+    letter-spacing: -0.02em;
   }
 
   .section-head .more {
     font-size: 14px;
-    font-weight: 500;
-    color: oklch(var(--accent));
-    transition: color var(--dur-micro) var(--ease);
+    font-weight: 600;
+    color: oklch(var(--leaf));
+    transition: color var(--dur-2) var(--ease-out);
   }
 
   .section-head .more:hover {
     text-decoration: underline;
-    text-underline-offset: 0.2em;
   }
 
   @media (max-width: 599px) {
@@ -485,33 +629,30 @@ h1, h2, h3 {
     }
   }
 
-  /* 旧版双语报头的拉丁小标签（「· FEATURED ALBUM」）：暖纸不用字距拉开的大写标签 */
   .section-head h2 small,
   .latin-tag {
     display: none;
   }
 
-  /* 标签：一张小纸片，不旋转、不描边 */
+  /* 小标签 */
   .sticker {
     display: inline-flex;
     align-items: center;
     gap: 8px;
     padding: 4px 12px;
     border-radius: var(--r-sm);
-    background: oklch(var(--sheet));
-    box-shadow: var(--shadow-press);
-    color: oklch(var(--ink-soft));
-    font-size: 13px;
-    font-weight: 500;
+    background: oklch(var(--fill));
+    color: oklch(var(--ink-2));
+    font-size: 12.5px;
+    font-weight: 600;
   }
 
   /*
-   * 页面动作三级。调用方 TSX 里仍有旧编辑风的下划线链接类（border-b / tracking），
-   * 用 :root 抬一档特异性压住，形状统一由这里给出。
+   * 页面动作三级（:root 抬一档特异性，压住调用方 TSX 里残留的旧类）
    *   act-primary   青柠实心胶囊：一屏只有一个
-   *   act-secondary 下沉一档的纸色胶囊
-   *   act-icon      44px 圆形，同上
-   * 全部扁平：不画受光边、不抬起，按下收一点。
+   *   act-secondary 中性胶囊
+   *   act-icon      44px 圆
+   * 扁平：没有渐变、受光边和凹槽；按下收一点，松手弹回来
    */
   :root .act-primary,
   :root .act-secondary,
@@ -522,24 +663,23 @@ h1, h2, h3 {
     font-weight: 600;
     text-decoration: none;
     transition:
-      transform var(--dur-short) var(--ease),
-      box-shadow var(--dur-short) var(--ease),
-      background-color var(--dur-short) var(--ease),
-      color var(--dur-short) var(--ease);
+      transform var(--dur-press) var(--ease-press),
+      background-color var(--dur-2) var(--ease-out),
+      color var(--dur-2) var(--ease-out);
   }
 
   :root .act-primary {
     min-height: 44px;
     padding: 0 24px;
-    background: oklch(var(--vivid));
-    color: oklch(var(--vivid-ink));
+    background: oklch(var(--lime));
+    color: oklch(var(--lime-ink));
     box-shadow: none;
   }
 
   :root .act-secondary {
     min-height: 44px;
     padding: 0 20px;
-    background: oklch(var(--paper-3));
+    background: oklch(var(--fill));
     color: oklch(var(--ink));
     box-shadow: none;
   }
@@ -547,19 +687,18 @@ h1, h2, h3 {
   :root .act-icon {
     min-width: 44px;
     min-height: 44px;
-    background: oklch(var(--paper-3));
-    color: oklch(var(--ink-soft));
+    background: oklch(var(--fill));
+    color: oklch(var(--ink-2));
     box-shadow: none;
   }
 
   @media (hover: hover) {
     :root .act-primary:hover {
-      background: oklch(var(--vivid-deep));
-      color: oklch(var(--vivid-ink));
+      background: oklch(var(--lime-deep));
     }
     :root .act-secondary:hover,
     :root .act-icon:hover {
-      background: oklch(var(--hair));
+      background: oklch(var(--fill-2));
       color: oklch(var(--ink));
     }
   }
@@ -568,42 +707,67 @@ h1, h2, h3 {
   :root .act-secondary:active,
   :root .act-icon:active {
     transform: scale(0.96);
+    transition-duration: var(--dur-1), var(--dur-2), var(--dur-2);
+    transition-timing-function: var(--ease-out);
   }
 
   :root .act-icon.is-on {
-    color: oklch(var(--accent));
+    color: oklch(var(--leaf));
   }
 
   :root .act-primary:disabled,
   :root .act-secondary:disabled,
   :root .act-icon:disabled {
-    opacity: 0.55;
-    background: oklch(var(--paper-3));
-    color: oklch(var(--ink-faint));
+    background: oklch(var(--fill));
+    color: oklch(var(--ink-3));
     box-shadow: none;
     cursor: not-allowed;
     transform: none;
+    opacity: 0.6;
   }
 
-  /* 封面砖：抬起的方片，hover 再抬一点 */
-  .cover-tile {
-    border-radius: var(--r-md);
+  /* 封面：圆角随尺寸走，一圈极细的内描边把它和任何底色分开 */
+  .cover-frame {
+    position: relative;
+    border-radius: var(--r-cover);
     overflow: hidden;
-    box-shadow: var(--shadow-card);
-    transition: transform var(--dur-short) var(--ease), box-shadow var(--dur-short) var(--ease);
+    isolation: isolate;
+    background: oklch(var(--fill));
+  }
+
+  .cover-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 0.5px oklch(var(--ink) / 0.1);
+    pointer-events: none;
+  }
+
+  /* 封面砖：网格里可按的封面，hover 只抬一点 */
+  .cover-tile {
+    border-radius: var(--r-cover);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--dur-4) var(--ease-smooth), box-shadow var(--dur-4) var(--ease-smooth);
   }
 
   @media (hover: hover) {
     .group:hover .cover-tile {
       transform: translateY(-3px);
-      box-shadow: var(--shadow-float);
+      box-shadow: var(--shadow-cover);
     }
   }
 
-  /* 大封面（专辑页 / 正在播放）：最重的一层投影，不做 hover */
+  .group:active .cover-tile {
+    transform: scale(0.98);
+    transition-duration: var(--dur-1);
+  }
+
+  /* 大封面（专辑页 / 正在播放）：最重的一层投影 */
   .cover-slab {
-    border-radius: var(--r-md);
-    box-shadow: var(--shadow-float);
+    border-radius: var(--r-cover);
+    box-shadow: var(--shadow-cover);
   }
 
   /* 来源徽标：色板实底的小圆点 */
@@ -612,7 +776,7 @@ h1, h2, h3 {
     width: 8px;
     height: 8px;
     border-radius: 999px;
-    background: var(--chip-bg, oklch(var(--accent)));
+    background: var(--chip-bg, oklch(var(--leaf)));
     flex-shrink: 0;
   }
 
@@ -622,74 +786,88 @@ h1, h2, h3 {
   .src-p4 { --chip-bg: oklch(var(--src-4)); }
   .src-p5 { --chip-bg: oklch(var(--src-5)); }
 
-  /* 分段控件当前项：凹槽里被托起的一块纸片 */
-  .seg-option.is-on {
-    background: oklch(var(--sheet));
-    color: oklch(var(--ink));
-    border-radius: var(--r-pill);
-    box-shadow: var(--shadow-press);
+  /* 分段控件里那块会滑的当前项（motion 的 layoutId）：亮色是抬起的白片，暗色抬一档墨色，轨道上始终看得出来 */
+  .seg-pill {
+    background: oklch(var(--surface));
+    box-shadow: var(--shadow-sm), var(--ring-hair);
   }
 
-  /* 页面级标签行：不画下缘线 */
+  :root[data-theme='dark'] .seg-pill {
+    background: oklch(var(--fill-2));
+  }
+
+  .stage .seg-pill {
+    background: oklch(var(--ink) / 0.16);
+    box-shadow: none;
+  }
+
+  /* 分段控件当前项：轨道里被托起的一块 */
+  .seg-option.is-on {
+    background: oklch(var(--surface));
+    color: oklch(var(--ink));
+    border-radius: var(--r-pill);
+    box-shadow: var(--shadow-sm), var(--ring-hair);
+  }
+
   .page-tabs {
     border-bottom: 0;
   }
 
-  /* 当前歌词行：墨色，其他行退成浅墨；不铺底、不描边 */
   .lyric-line.is-active {
     color: oklch(var(--ink));
   }
 
-  /* 歌曲行：hover 铺一层下沉底，不滑动 */
+  /* 歌曲行：hover 铺一层底，不滑动 */
   .song-row {
-    @apply flex items-center gap-4 px-3 py-2.5 cursor-pointer;
+    @apply flex items-center gap-4 px-3 py-2 cursor-pointer;
     border-radius: var(--r-sm);
-    transition: background-color var(--dur-micro) var(--ease);
+    transition: background-color var(--dur-1) var(--ease-out);
   }
 
   @media (hover: hover) {
     .song-row:hover {
-      background: oklch(var(--paper-deep));
+      background: oklch(var(--fill) / 0.8);
     }
   }
 
   .song-row.is-current {
-    background: oklch(var(--vivid) / 0.2);
+    background: oklch(var(--lime) / 0.22);
   }
 
-  /* 暗底上同样的透明度会发浑，收一档 */
   :root[data-theme='dark'] .song-row.is-current {
-    background: oklch(var(--vivid) / 0.11);
+    background: oklch(var(--lime) / 0.12);
   }
 
   .song-row.is-current .song-title {
-    color: oklch(var(--accent));
+    color: oklch(var(--leaf));
   }
 
   /*
-   * 播放键：签名部件。一枚实心青柠圆键，扁平，没有渐变、凹槽和受光边；
-   * 只在下方落一团同色的软影，让它从纸面上浮出来。
-   * 播放三角不要手动右移：Phosphor 的 Play 已经按三角形重心居中，再推就偏了。
+   * 播放键：签名部件。一枚实心青柠圆键，扁平；按下收、松手带弹性回来。
+   * 播放三角不要手动右移：Phosphor 的 Play 已经按三角形重心居中。
    */
   .play-key {
     position: relative;
     display: grid;
     place-items: center;
     border-radius: 999px;
-    color: oklch(var(--vivid-ink));
-    background: oklch(var(--vivid));
-    box-shadow: 0 8px 18px -10px oklch(var(--vivid) / 0.95);
-    transition: transform var(--dur-micro) var(--ease), background-color var(--dur-micro) var(--ease);
+    color: oklch(var(--lime-ink));
+    background: oklch(var(--lime));
+    transition:
+      transform var(--dur-press) var(--ease-press),
+      background-color var(--dur-2) var(--ease-out);
   }
 
   @media (hover: hover) {
     .play-key:hover {
-      background: oklch(var(--vivid-deep));
+      background: oklch(var(--lime-deep));
     }
   }
 
   .play-key:active {
-    transform: scale(0.94);
+    transform: scale(0.92);
+    transition-duration: var(--dur-1), var(--dur-2);
+    transition-timing-function: var(--ease-out);
   }
 
   .play-key:focus-visible {
@@ -704,7 +882,7 @@ p, h1, h2, h3, h4, dd, dt, li, blockquote {
   hanging-punctuation: first allow-end last;
 }
 
-:lang(zh), .font-serif, body {
+:lang(zh), body {
   text-spacing-trim: trim-start;
 }
 
@@ -721,8 +899,7 @@ p, h1, h2, h3, h4, dd, dt, li, blockquote {
   }
 }
 
-/* 整个应用是一块固定的框架，内容只在主区里滚：任何宽度都不让页面本身回弹
-   （iPad 原生壳此前走手机布局才有这条，现在按宽度分档后要无条件生效） */
+/* 整个应用是一块固定的框架，内容只在主区里滚：任何宽度都不让页面本身回弹 */
 html,
 body {
   overscroll-behavior: none;
@@ -730,3 +907,298 @@ body {
   inset: 0;
 }
 
+/* ===================================================
+   扩散转场：新状态从一个点向外扩开（lib/viewTransition.ts 驱动 clip-path）
+   =================================================== */
+:root[data-vt='reveal']::view-transition-old(root),
+:root[data-vt='reveal']::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+:root[data-vt='reveal']::view-transition-new(root) {
+  z-index: 1;
+}
+
+/* ===================================================
+   舞台：全屏播放器里永远是灯暗下来的那一档（与亮暗主题无关）。
+   在这一层重新声明中性 token 与旧别名——引用型 token 在 :root 上就解析掉了，
+   不在这里重写一遍，里面的组件拿到的还是外壳的亮色值。
+   =================================================== */
+.stage {
+  color-scheme: dark;
+  /* 舞台上的玻璃不再叠外壳的光（那是浅色的），只留上沿一道淡亮边 */
+  --glass-tint: 0;
+  --glass-edge: 0.22;
+  --ground: 21% 0.03 var(--art-h);
+  --surface: 28% 0.035 var(--art-h);
+  --surface-2: 25% 0.032 var(--art-h);
+  --fill: 33% 0.035 var(--art-h);
+  --fill-2: 39% 0.04 var(--art-h);
+  --hair: 42% 0.03 var(--art-h);
+  --hair-soft: 34% 0.03 var(--art-h);
+  --edge: 62% 0.03 var(--art-h);
+  --ink: 97% 0.006 var(--art-h);
+  --ink-2: 87% 0.012 var(--art-h);
+  --ink-3: 76% 0.016 var(--art-h);
+  --leaf: var(--lime);
+  --leaf-deep: var(--lime-deep);
+  --on-solid: 18% 0.02 var(--art-h);
+  --danger: 72% 0.16 18;
+  --shade: 6% 0.02 var(--art-h);
+  --glass-alpha: 0.46;
+  --ring-hair: inset 0 0 0 0.5px oklch(var(--ink) / 0.14);
+
+  --paper: var(--ground);
+  --paper-deep: var(--fill);
+  --paper-3: var(--fill-2);
+  --sheet: var(--surface);
+  --ink-soft: var(--ink-2);
+  --ink-faint: var(--ink-3);
+  --skeleton: var(--fill);
+  --accent: var(--leaf);
+  --primary: var(--leaf);
+  --primary-foreground: var(--on-solid);
+  --foreground: var(--ink);
+  --background: var(--ground);
+  --muted: var(--fill);
+  --muted-foreground: var(--ink-3);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --card: var(--surface);
+  --border: var(--hair);
+  --sem-playing: var(--leaf);
+  --sem-fav: var(--ink);
+  color: oklch(var(--ink));
+}
+
+/* 全屏播放器开合时的「外壳皮」：是播放条那层玻璃的颜色。
+   --shell-surface 在 :root 上就解析成外壳的 --surface，到了 .stage 里也不会被舞台的暗色改掉 */
+.np-skin {
+  background: oklch(var(--shell-surface));
+}
+
+/* 没有 WebGL 时的舞台：两团固定的光，颜色仍取当前封面 */
+.stage-fallback {
+  background:
+    radial-gradient(70% 60% at 20% 15%, oklch(46% min(var(--art-c), 0.14) var(--art-h) / 0.7), transparent 70%),
+    radial-gradient(60% 55% at 85% 30%, oklch(42% min(var(--art-c2), 0.13) var(--art-h2) / 0.6), transparent 70%),
+    oklch(17% 0.03 var(--art-h));
+}
+
+/* ===================================================
+   开屏（components/common/Splash.tsx）：开灯（柔光 + 两束追光）→ 两只跳上来、落地扬尘 → 跟着拍子蹦两下、
+   音符和星光、一起眨眼 → 字标升起 → 光圈收拢。全部只动 transform / opacity / mask；减弱动态效果时全局兜底压成瞬时
+   时间线（秒）：追光 0.05–0.95 ｜ 起跳 0.08、落地 0.71 ｜ 烟尘 0.69 ｜ 字标 0.74 ｜ 音符 0.80 起 ｜ 星光 0.95 起
+   ｜ 蹦两下 1.08–1.70 ｜ 眨眼 1.76 ｜ 收场 2.05
+   =================================================== */
+.splash-light {
+  background:
+    radial-gradient(40% 32% at 50% 44%, oklch(var(--lime) / 0.42), transparent 72%),
+    radial-gradient(52% 40% at 56% 52%, oklch(var(--leaf) / 0.16), transparent 70%);
+  animation: splash-bloom 1.6s var(--ease-out) both, splash-drift 6s ease-in-out 1.2s infinite alternate;
+}
+
+/* 追光：上角往下打的一束锥形光（锥形渐变 + 往下淡出的遮罩）。从贴着屏幕边竖直往下，扫到朝向舞台中央，停住后轻轻晃 */
+.splash-beam {
+  top: -8vh;
+  width: 90vmax;
+  height: 140vh;
+  background: conic-gradient(from 168deg at 50% 0%, transparent 0deg, oklch(var(--lime) / 0.34) 9deg, oklch(var(--lime) / 0.34) 15deg, transparent 24deg);
+  -webkit-mask-image: linear-gradient(to bottom, oklch(var(--ink)) 8%, transparent 82%);
+  mask-image: linear-gradient(to bottom, oklch(var(--ink)) 8%, transparent 82%);
+  transform-origin: 50% 0;
+}
+
+.splash-beam-l {
+  left: -45vmax;
+  transform: rotate(-32deg);
+  animation: splash-beam-l 0.9s 0.05s var(--ease-out) both, splash-sway-l 2.6s 0.95s ease-in-out infinite alternate;
+}
+
+.splash-beam-r {
+  right: -45vmax;
+  transform: rotate(32deg);
+  animation: splash-beam-r 0.9s 0.12s var(--ease-out) both, splash-sway-r 2.4s 1.02s ease-in-out infinite alternate;
+}
+
+/* 起跳和蹦两下分在两层上，各管各的；挤压都以脚底为原点 */
+.splash-hop {
+  transform-origin: 50% 100%;
+  animation: splash-hop 0.9s 0.08s both;
+}
+
+.splash-bop {
+  transform-origin: 50% 100%;
+  animation: splash-bop 0.62s 1.08s both;
+}
+
+/* 眨眼：闭眼帧（只有眼睛那几块）叠在合影上亮一下 */
+.splash-blink {
+  opacity: 0;
+  animation: splash-blink 0.16s 1.76s linear both;
+}
+
+.splash-puff {
+  position: absolute;
+  bottom: 3%;
+  width: 17%;
+  margin-left: -8.5%;
+  aspect-ratio: 1.6;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, oklch(var(--ink) / 0.24), transparent);
+  opacity: 0;
+  animation: splash-puff 0.6s calc(0.69s + var(--i) * 0.02s) var(--ease-out) both;
+}
+
+.splash-note {
+  position: absolute;
+  opacity: 0;
+  animation: splash-note 1.15s calc(0.8s + var(--i) * 0.13s) var(--ease-out) both;
+}
+
+.splash-spark {
+  position: absolute;
+  opacity: 0;
+  animation: splash-spark 0.62s calc(0.95s + var(--i) * 0.24s) var(--ease-out) both;
+}
+
+.splash-letter {
+  animation: splash-letter 0.62s calc(0.74s + var(--i) * 0.06s) var(--ease-out) both;
+}
+
+.splash-line {
+  transform-origin: 0 50%;
+  animation: splash-line 0.6s 1s var(--ease-out) both;
+}
+
+.splash-out {
+  -webkit-mask-image: radial-gradient(circle at 50% 46%, transparent var(--splash-hole), oklch(var(--ink)) calc(var(--splash-hole) + 14%));
+  mask-image: radial-gradient(circle at 50% 46%, transparent var(--splash-hole), oklch(var(--ink)) calc(var(--splash-hole) + 14%));
+  animation: splash-open 0.72s 0.14s var(--ease-out) both;
+}
+
+/* 收场：角色和字标先朝镜头冲出去、淡掉，随后中心开一个洞，App 从洞里扩散出来 */
+.splash-out .splash-stage {
+  animation: splash-recede 0.34s var(--ease-in) both;
+}
+
+.splash-out .splash-light {
+  animation: splash-flare 0.5s var(--ease-out) both;
+}
+
+.splash-out .splash-beam {
+  animation: splash-beam-out 0.3s var(--ease-in) both;
+}
+
+@keyframes splash-bloom {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes splash-drift {
+  from { transform: translate3d(-1.5%, 0, 0) scale(1); }
+  to { transform: translate3d(1.5%, -1%, 0) scale(1.04); }
+}
+
+@keyframes splash-beam-l {
+  from { opacity: 0; transform: rotate(0deg); }
+  to { opacity: 1; transform: rotate(-32deg); }
+}
+
+@keyframes splash-beam-r {
+  from { opacity: 0; transform: rotate(0deg); }
+  to { opacity: 1; transform: rotate(32deg); }
+}
+
+@keyframes splash-sway-l {
+  from { transform: rotate(-32deg); }
+  to { transform: rotate(-28deg); }
+}
+
+@keyframes splash-sway-r {
+  from { transform: rotate(32deg); }
+  to { transform: rotate(27deg); }
+}
+
+@keyframes splash-beam-out {
+  to { opacity: 0; }
+}
+
+/* 跳上来（角色动作，不是界面状态）：往上冲时拉长、到顶复原、往下掉时加速，落地压扁、回弹一下再站稳 */
+@keyframes splash-hop {
+  0% { opacity: 0; transform: translateY(70%) scale(0.94, 1.06); animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1); }
+  12% { opacity: 1; }
+  40% { transform: translateY(-9%) scale(0.96, 1.05); }
+  52% { transform: translateY(-12%) scale(1, 1); animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5); }
+  64% { transform: translateY(-2%) scale(0.98, 1.03); }
+  70% { transform: translateY(0) scale(1.08, 0.9); animation-timing-function: var(--ease-out); }
+  80% { transform: translateY(-2.5%) scale(0.97, 1.04); }
+  90% { transform: translateY(0) scale(1.02, 0.98); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* 跟着拍子蹦两下：小跳 → 落下挤一下 → 再一下（比第一下轻） */
+@keyframes splash-bop {
+  0%, 100% { transform: none; }
+  18% { transform: translateY(-3.5%) scale(0.98, 1.03); }
+  34% { transform: translateY(0) scale(1.04, 0.96); }
+  46% { transform: none; }
+  62% { transform: translateY(-2.5%) scale(0.985, 1.02); }
+  78% { transform: translateY(0) scale(1.03, 0.97); }
+  90% { transform: none; }
+}
+
+@keyframes splash-blink {
+  0%, 100% { opacity: 0; }
+  12%, 88% { opacity: 1; }
+}
+
+@keyframes splash-puff {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.3); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), -10px) scale(1.3); }
+}
+
+@keyframes splash-note {
+  0% { opacity: 0; transform: translate(0, 6px) rotate(calc(var(--r) * -0.6)) scale(0.5); }
+  22% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--r)) scale(1); }
+}
+
+@keyframes splash-spark {
+  0% { opacity: 0; transform: scale(0) rotate(-40deg); }
+  40% { opacity: 1; transform: scale(1.15) rotate(8deg); }
+  100% { opacity: 0; transform: scale(0.5) rotate(40deg); }
+}
+
+@keyframes splash-letter {
+  from { opacity: 0; transform: translateY(55%); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes splash-line {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@property --splash-hole {
+  syntax: '<length-percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+@keyframes splash-open {
+  from { --splash-hole: -14%; }
+  to { --splash-hole: 116%; }
+}
+
+@keyframes splash-recede {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.12); }
+}
+
+@keyframes splash-flare {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0.6; transform: scale(1.5); }
+}

@@ -11,8 +11,12 @@
  * 另外导出 CoverShelf（横向书架）与 CoverGrid（自适应网格），封面卡的两种摆法。
  */
 
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { rememberCoverOrigin } from '@/lib/sharedCover'
+import { useT } from '@/i18n'
 
 export function CoverCard({
   onClick,
@@ -49,19 +53,24 @@ export function CoverCard({
   centered?: boolean
   'aria-label'?: string
 }) {
-  const activate = onActivate ?? onClick
+  const tileRef = useRef<HTMLDivElement>(null)
+  // 点开前记下封面的位置：详情页的大封面从这里飞过去（lib/sharedCover）
+  const open = () => {
+    rememberCoverOrigin(tileRef.current)
+    onClick()
+  }
+  const activate = onActivate ?? open
   return (
     <div
       role="button"
       tabIndex={0}
       aria-label={ariaLabel}
       className={cn(
-        'group cursor-pointer min-w-0',
+        'group min-w-0 cursor-pointer rounded-md',
         centered && 'w-full text-center',
-        'rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper',
         className
       )}
-      onClick={onClick}
+      onClick={open}
       onKeyDown={e => {
         /* 内层控件（播放键、菜单项）自己的 Enter/Space 不归卡片管（A6）：
            冒泡上来直接跳转会吞掉它们的默认行为 */
@@ -72,12 +81,13 @@ export function CoverCard({
         }
       }}
     >
-      <div className="relative mb-3">
+      <div className="relative mb-2.5">
         <div
+          ref={tileRef}
           className={cn(
-            'aspect-square overflow-hidden bg-paper-deep',
+            'cover-frame aspect-square',
             round
-              ? 'rounded-full shadow-card transition-transform duration-300 ease-out motion-reduce:transition-none [@media(hover:hover)]:group-hover:scale-[1.03]'
+              ? 'rounded-full shadow-md transition-transform duration-4 ease-smooth [@media(hover:hover)]:group-hover:scale-[1.03] group-active:scale-[0.98]'
               : 'cover-tile',
             tileClassName
           )}
@@ -87,10 +97,10 @@ export function CoverCard({
         {overlay}
       </div>
       <div className={cn('min-w-0', !centered && 'px-0.5')}>
-        <p className="truncate text-[14.5px] font-semibold leading-snug text-ink transition-colors">
+        <p className="truncate text-[14.5px] font-semibold leading-snug text-ink">
           {title}
         </p>
-        {meta !== undefined && <p className="mt-0.5 truncate text-[13px] text-ink-faint">{meta}</p>}
+        {meta !== undefined && <p className="mt-0.5 truncate text-[13px] text-ink-3">{meta}</p>}
         {captionExtra}
       </div>
     </div>
@@ -103,15 +113,67 @@ export function CoverCard({
  * 上下留的 padding 是给 hover 抬起与投影的——overflow-x 会把纵向也裁掉。
  */
 export function CoverShelf({ children, className }: { children: ReactNode; className?: string }) {
+  const { t } = useT()
+  const railRef = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ start: true, end: true })
+
+  // 两端的翻页键只在还能翻的那一侧出现（有鼠标的设备；触屏直接滑，按卡片吸附）
+  useEffect(() => {
+    const rail = railRef.current
+    if (!rail) return
+    const sync = () => {
+      const max = rail.scrollWidth - rail.clientWidth
+      setEdges({ start: rail.scrollLeft <= 4, end: rail.scrollLeft >= max - 4 })
+    }
+    sync()
+    rail.addEventListener('scroll', sync, { passive: true })
+    const ro = new ResizeObserver(sync)
+    ro.observe(rail)
+    return () => {
+      rail.removeEventListener('scroll', sync)
+      ro.disconnect()
+    }
+  }, [])
+
+  const page = (dir: 1 | -1) => {
+    const rail = railRef.current
+    if (!rail) return
+    rail.scrollBy({ left: dir * rail.clientWidth * 0.8, behavior: 'smooth' })
+  }
+
+  const arrow = 'press-pop glass absolute top-[38%] z-raised hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-pill text-ink [@media(hover:hover)]:grid'
   return (
-    <div
-      className={cn(
-        'flex snap-x gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-5 pt-2 regular:-mx-6 regular:px-6 wide:-mx-8 wide:px-8',
-        '[&>*]:w-[148px] [&>*]:flex-none [&>*]:snap-start regular:[&>*]:w-[164px] wide:[&>*]:w-[176px]',
-        className
+    <div className="group/shelf relative">
+      <div
+        ref={railRef}
+        className={cn(
+          'flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain scrollbar-hide -mx-4 scroll-px-4 px-4 pb-5 pt-2 regular:-mx-6 regular:scroll-px-6 regular:px-6 wide:-mx-8 wide:scroll-px-8 wide:px-8',
+          '[&>*]:w-[148px] [&>*]:flex-none [&>*]:snap-start regular:[&>*]:w-[164px] wide:[&>*]:w-[180px]',
+          className
+        )}
+      >
+        {children}
+      </div>
+      {!edges.start && (
+        <button
+          type="button"
+          onClick={() => page(-1)}
+          aria-label={t('action.previousPage')}
+          className={cn(arrow, '-left-3 opacity-0 transition-opacity duration-3 group-hover/shelf:opacity-100 focus-visible:opacity-100')}
+        >
+          <CaretLeft size={18} weight="bold" />
+        </button>
       )}
-    >
-      {children}
+      {!edges.end && (
+        <button
+          type="button"
+          onClick={() => page(1)}
+          aria-label={t('action.nextPage')}
+          className={cn(arrow, '-right-3 opacity-0 transition-opacity duration-3 group-hover/shelf:opacity-100 focus-visible:opacity-100')}
+        >
+          <CaretRight size={18} weight="bold" />
+        </button>
+      )}
     </div>
   )
 }
@@ -121,7 +183,7 @@ export function CoverGrid({ children, className }: { children: ReactNode; classN
   return (
     <div
       className={cn(
-        'grid grid-cols-[repeat(auto-fill,minmax(min(100%,160px),1fr))] gap-x-4 gap-y-6',
+        'grid grid-cols-[repeat(auto-fill,minmax(min(100%,160px),1fr))] gap-x-5 gap-y-7',
         className
       )}
     >

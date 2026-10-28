@@ -1,34 +1,41 @@
 /**
- * 全屏播放器（v5 暖纸）：同一首歌，四种排法，按窗口形状与折叠姿态自动选择。
+ * 全屏播放器（v6 舞台光）：灯暗下来，舞台被这首歌点亮。
  *
+ * 同一首歌，四种排法，按窗口形状与折叠姿态自动选择：
  *   stack      窄窗口（iPhone、Duo 外屏）：封面 / 歌词 / 接下来 三选一，下面是进度与控制；下拉收起
  *   portrait   竖着的大窗口（Duo 展开竖握、iPad 竖屏、半屏分屏）：上面封面配控制，下面歌词或接下来
- *   landscape  横着的窗口（iPad 横屏、Duo 横握、桌面）：参考特斯拉 App 的平板布局——
- *              左列是你操作的东西（封面、进度、按键），右边一直摆着歌词，落在格纸上
- *   tabletop   Duo 半折悬停（useDevicePosture）：折痕以上是歌词，以下是封面带与控制（参考 QQ 音乐的 Duo 适配）
+ *   landscape  横着的窗口（iPad 横屏、Duo 横握、桌面）：左列是你操作的东西，右边一直摆着歌词
+ *   tabletop   Duo 半折悬停（useDevicePosture）：折痕以上是歌词，以下是牌堆与控制
  *
- * 签名部件：扁平的青柠播放键（.play-key）、歌词底下那张淡淡的格纸（.paper-grid）。
- * 不再做封面取色晕染：暖纸只留两团固定的暖光。
+ * 舞台：背景是 StageField（封面取色的光场，换歌时新颜色从封面向外漫开），永远是暗场、白字，
+ * 与外壳的亮暗主题无关（.stage 在这一层重新声明了中性 token）。
+ * 签名：队列是一叠牌（CoverDeck，甩封面切歌）。想要唱片感时用设置里的圆形封面（随播放转动），
+ * 不做拟物的 3D 黑胶——整套界面是扁平的，一张打了光、带反射的唱片和它不是一个世界。
+ * 开合：打开时舞台从底部播放条展开、封面从迷你条的位置飞过来；收起原路飞回（共享元素，FLIP）。
  *
  * 性能：细粒度 selector，不订阅 currentTime；进度条与歌词各自订阅。
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo, memo, useSyncExternalStore } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo, useSyncExternalStore } from 'react'
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react'
 import type { Song } from '@/api/types'
 import { useNavigate } from 'react-router-dom'
 import { detailPath } from '@/utils/detailPath'
 import {
-  Play, Pause, SkipBack, SkipForward, Heart,
+  SkipBack, SkipForward,
   Repeat, RepeatOnce, Shuffle, ArrowsDownUp,
   SpeakerHigh, SpeakerX, SpeakerLow,
   CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork, Moon,
   ListPlus, FileText,
 } from '@phosphor-icons/react'
+import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
 import { useWindowClass, needsTrafficLightInset } from '@/lib/platform'
+import { haptic } from '@/lib/haptics'
+import { EASE_OUT, SPRING_MORPH, SPRING_PRESS, SPRING_SMOOTH, SPRING_SNAPPY, prefersReducedMotion } from '@/lib/motion'
+import { markSkip } from '@/lib/skipDirection'
 import { useDevicePosture } from '@/hooks/useDevicePosture'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useLyricsQuery, useToggleStar } from '@/hooks/useServerQueries'
@@ -37,8 +44,10 @@ import { sourceSupportsFavorites } from '@/services/heartCapability'
 import { useCoverUrl } from '@/hooks/useCoverUrl'
 import { LyricDisplay } from './LyricDisplay'
 import { UpNextList } from './UpNextList'
+import { StageField } from './StageField'
+import { CoverDeck } from './CoverDeck'
+import { HeartGlyph, PlayPauseGlyph } from './glyphs'
 import { CoverImage } from '@/components/common/CoverImage'
-import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -52,7 +61,6 @@ import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
-import { findAdapterFor } from '@/api'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { ShareDialog } from '@/components/music/ShareDialog'
@@ -61,6 +69,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
+
 
 type Layout = 'stack' | 'portrait' | 'landscape' | 'tabletop'
 type PaneView = 'lyrics' | 'queue'
@@ -72,10 +81,17 @@ function subscribeOrientation(cb: () => void) {
   return () => mql.removeEventListener('change', cb)
 }
 
-/** 次要键：圆形，hover 铺一层下沉底，按下时收一点 */
-const softBtn =
-  'grid flex-none place-items-center rounded-pill text-ink-soft transition-[background-color,color,transform] duration-150 ' +
-  'hover:bg-paper-deep hover:text-ink active:scale-95 aria-pressed:text-primary disabled:opacity-50'
+/** 舞台上的次要键：白色图标，hover 铺一层白的薄底，按下收一点 */
+const softBtnBase =
+  'press-pop grid flex-none place-items-center rounded-pill text-ink-2 ' +
+  'hover:bg-ink/10 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40'
+/** 开关类按下是青柠；收藏按下只是亮白（叶绿 / 青柠只给播放、进度和「当前」） */
+const softBtn = `${softBtnBase} aria-pressed:text-leaf`
+
+/** 舞台上的圆形工具键（收起、更多、黑胶）：一枚半透明的玻璃小圆 */
+const chipBtn =
+  'press-pop grid h-11 w-11 flex-none place-items-center rounded-pill bg-ink/[0.1] text-ink ' +
+  'shadow-hair hover:bg-ink/[0.16] aria-pressed:bg-ink/[0.2]'
 
 /**
  * 进度行：独立订阅 currentTime / duration / buffered，播放中只有它重渲染。
@@ -190,21 +206,31 @@ const FSProgressBar = memo(function FSProgressBar() {
           current: formatDuration(Math.round(displayTime)),
           total: formatDuration(Math.round(safeDuration)),
         })}
-        className="group/track relative flex h-5 w-full cursor-pointer touch-none select-none items-center"
+        className="group/track relative flex h-6 w-full cursor-pointer touch-none select-none items-center"
       >
-        <div className="relative h-[5px] w-full overflow-hidden rounded-pill bg-paper-3">
+        {/* 按住时轨道加粗：手指底下的东西要看得见 */}
+        <div
+          className={cn(
+            'relative h-[6px] w-full overflow-hidden rounded-pill bg-ink/[0.18] transition-transform duration-3 ease-out group-hover/track:scale-y-[1.35]',
+            dragValue !== null && 'scale-y-[1.35]'
+          )}
+        >
           <div
-            className="absolute inset-0 origin-left bg-ink-faint/25 transition-transform duration-500"
+            className="absolute inset-0 origin-left bg-ink/[0.14] transition-transform duration-500"
             style={{ transform: `scaleX(${bufferRatio})` }}
           />
-          <div className="absolute inset-0 origin-left bg-vivid" style={{ transform: `scaleX(${playRatio})` }} />
+          <div className="absolute inset-0 origin-left rounded-pill bg-lime" style={{ transform: `scaleX(${playRatio})` }} />
         </div>
         <div
-          className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-sheet shadow-press transition-transform duration-150 [@media(hover:hover)]:scale-75 [@media(hover:hover)]:group-hover/track:scale-100"
+          className={cn(
+            'pointer-events-none absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-stage-ink shadow-md',
+            'transition-[scale] duration-3 ease-press [@media(hover:hover)]:scale-[0.6] [@media(hover:hover)]:group-hover/track:scale-100',
+            dragValue !== null && '[@media(hover:hover)]:scale-110'
+          )}
           style={{ left: `${playRatio * 100}%` }}
         />
       </div>
-      <div className="flex justify-between text-[12.5px] text-ink-faint">
+      <div className="flex justify-between text-[12.5px] font-medium text-ink-3">
         <span className="num">{formatDuration(displayTime)}</span>
         <span className="num">-{formatDuration(Math.max(0, safeDuration - displayTime))}</span>
       </div>
@@ -212,12 +238,26 @@ const FSProgressBar = memo(function FSProgressBar() {
   )
 })
 
-export function FullscreenPlayer() {
+/** 打开 / 收起的共享元素动画：读迷你条与播放条在屏幕上的位置 */
+function anchorRects() {
+  const bar = document.querySelector<HTMLElement>('[data-np-bar]')?.getBoundingClientRect()
+  const cover = document.querySelector<HTMLElement>('[data-np-anchor]')?.getBoundingClientRect()
+  const valid = (r?: DOMRect) => (r && r.width > 1 && r.height > 1 ? r : undefined)
+  return { bar: valid(bar), cover: valid(cover) }
+}
+
+function insetOf(r: DOMRect, radius: number) {
+  return `inset(${r.top}px ${Math.max(0, innerWidth - r.right)}px ${Math.max(0, innerHeight - r.bottom)}px ${r.left}px round ${radius}px)`
+}
+
+export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const navigate = useNavigate()
   const { t } = useT()
+  const reduceMotion = useReducedMotion()
 
   // 细粒度 selector：不订阅 currentTime / duration（由子组件处理）
   const currentSong = usePlayerStore(s => s.currentSong)
+  const isOpen = usePlayerStore(s => s.isFullscreen)
   const multiSource = useServerStore(s => s.connectedServerIds.length > 1)
   const isPlaying = usePlayerStore(s => s.isPlaying)
   const streamBuffering = usePlayerStore(s => s.streamBuffering)
@@ -258,7 +298,7 @@ export function FullscreenPlayer() {
   const layout: Layout = posture === 'tabletop' ? 'tabletop' : wc === 'compact' ? 'stack' : landscape ? 'landscape' : 'portrait'
 
   /**
-   * 封面 / 歌词 / 接下来 的选择要留住：浮层关闭 350ms 后就卸载，
+   * 封面 / 歌词 / 接下来 的选择要留住：浮层关闭后就卸载，
    * 偏爱看歌词的人不该每首歌都多点一次。持久化在 settings store。
    */
   const mobileView = useSettingsStore(s => s.playerMobileView)
@@ -268,7 +308,7 @@ export function FullscreenPlayer() {
   const coverShape = useSettingsStore(s => s.coverShape)
   const isCircle = coverShape === 'circle'
 
-  const { primary: coverUrl, fallback: coverFallback } = useCoverUrl(currentSong ?? undefined, { size: 640 })
+  const { primary: coverUrl } = useCoverUrl(currentSong ?? undefined, { size: 640 })
   const toggleStar = useToggleStar()
   const caps = useSourceCapabilities()
   const canFavoriteCurrent = sourceSupportsFavorites(caps, currentSong?.serverId)
@@ -286,12 +326,19 @@ export function FullscreenPlayer() {
   )
   const lyrics = lyricsQuery.data
 
-  /* 播放顺序（开着随机就按随机序）：悬停排法的封面带用 */
+  /* 播放顺序（开着随机就按随机序）：牌堆与悬停排法的封面带都用它 */
   const order = useMemo(() => {
     const identity = queue.map((_, i) => i)
     if (!shuffle || shuffledIndexes.length !== queue.length || new Set(shuffledIndexes).size !== queue.length) return identity
     return shuffledIndexes
   }, [queue, shuffle, shuffledIndexes])
+
+  /** 牌堆后面那两张：接下来的两首 */
+  const upcoming = useMemo(() => {
+    const pos = order.indexOf(queueIndex)
+    if (pos < 0) return []
+    return order.slice(pos + 1, pos + 3).map(i => queue[i]).filter(Boolean)
+  }, [order, queue, queueIndex])
 
   const cycleRepeatMode = () => {
     const modes: RepeatMode[] = ['none', 'all', 'one']
@@ -302,11 +349,26 @@ export function FullscreenPlayer() {
   const handlePrev = useCallback(() => {
     const state = usePlayerStore.getState()
     if (state.currentTime > 3) seekHowl(0)
-    else state.prev()
+    else {
+      markSkip(-1)
+      state.prev()
+    }
   }, [])
+
+  const handleNext = useCallback(() => {
+    haptic('light')
+    markSkip(1)
+    next()
+  }, [next])
+
+  const handleTogglePlay = useCallback(() => {
+    haptic('light')
+    togglePlay()
+  }, [togglePlay])
 
   const handleToggleStar = () => {
     if (!currentSong) return
+    if (!currentSong.starred) haptic('light')
     toggleStar.mutate(
       { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong },
       { onSuccess: () => updateCurrentSong({ starred: !currentSong.starred }) }
@@ -325,24 +387,104 @@ export function FullscreenPlayer() {
     navigate(detailPath('albums', currentSong.albumId, currentSong.serverId))
   }
 
-  /* 窄窗口：从顶栏或封面往下拖，整页跟手，过 120px 松手就收起 */
-  const [dragY, setDragY] = useState(0)
-  const dragStart = useRef<{ y: number; id: number } | null>(null)
+  // 点牌堆露出来的那两张：展开「接下来」
+  const openQueue = useCallback(() => {
+    haptic('selection')
+    setMobileView('queue')
+  }, [setMobileView])
+
+  /* ---------- 开合：舞台从播放条展开，封面从迷你条飞来；收起原路返回 ---------- */
+  const rootRef = useRef<HTMLDivElement>(null)
+  const skinRef = useRef<HTMLDivElement>(null)
+  const morphRef = useRef<HTMLDivElement>(null)
+  const deckTopRef = useRef<HTMLDivElement>(null)
+  const dragY = useMotionValue(0)
+  const closingRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const reveals = Array.from(root.querySelectorAll<HTMLElement>('[data-fs-reveal]'))
+    if (prefersReducedMotion()) {
+      animate(root, { opacity: [0, 1] }, { duration: 0.2 })
+      return
+    }
+    const { bar, cover } = anchorRects()
+    if (bar) {
+      animate(root, { clipPath: [insetOf(bar, 24), 'inset(0px 0px 0px 0px round 0px)'] }, { duration: 0.56, ease: EASE_OUT })
+      // 先是播放条那层玻璃的颜色，边长大边暗成舞台：读起来是「播放条自己展开」，不是换了一层
+      if (skinRef.current) animate(skinRef.current, { opacity: [1, 0] }, { duration: 0.36, ease: EASE_OUT })
+    } else {
+      animate(root, { opacity: [0, 1], scale: [0.98, 1] }, SPRING_SMOOTH)
+    }
+    const morph = morphRef.current
+    const target = morph?.getBoundingClientRect()
+    if (morph && cover && target && target.width > 1) {
+      const dx = cover.left + cover.width / 2 - (target.left + target.width / 2)
+      const dy = cover.top + cover.height / 2 - (target.top + target.height / 2)
+      animate(morph, { x: [dx, 0], y: [dy, 0], scale: [cover.width / target.width, 1] }, SPRING_MORPH)
+    }
+    reveals.forEach((el, i) => {
+      animate(el, { opacity: [0, 1], y: [18, 0] }, { ...SPRING_SMOOTH, delay: 0.1 + i * 0.035 })
+    })
+  }, [])
+
+  useEffect(() => {
+    if (isOpen || closingRef.current) return
+    closingRef.current = true
+    const root = rootRef.current
+    if (!root || prefersReducedMotion()) {
+      if (root) animate(root, { opacity: 0 }, { duration: 0.15 }).finished.then(() => onExited?.())
+      else onExited?.()
+      return
+    }
+    const reveals = Array.from(root.querySelectorAll<HTMLElement>('[data-fs-reveal]'))
+    reveals.forEach(el => animate(el, { opacity: 0 }, { duration: 0.12 }))
+    const { bar, cover } = anchorRects()
+    const jobs: Array<Promise<unknown>> = []
+    const morph = morphRef.current
+    const from = morph?.getBoundingClientRect()
+    if (morph && cover && from && from.width > 1) {
+      const dx = cover.left + cover.width / 2 - (from.left + from.width / 2)
+      const dy = cover.top + cover.height / 2 - (from.top + from.height / 2)
+      jobs.push(animate(morph, { x: dx, y: dy, scale: cover.width / from.width }, SPRING_MORPH).finished)
+    }
+    if (bar) {
+      jobs.push(animate(root, { clipPath: insetOf(bar, 24) }, { duration: 0.42, ease: EASE_OUT }).finished)
+      jobs.push(animate(dragY, 0, { duration: 0.42, ease: EASE_OUT }).finished)
+      if (skinRef.current) jobs.push(animate(skinRef.current, { opacity: 1 }, { duration: 0.28, delay: 0.14, ease: EASE_OUT }).finished)
+    } else {
+      jobs.push(animate(root, { opacity: 0, scale: 0.98 }, { duration: 0.22 }).finished)
+    }
+    Promise.all(jobs).then(() => onExited?.())
+  }, [isOpen, onExited, dragY])
+
+  /* 下拉收起：从顶栏或封面往下拖，整页跟手；过 120px 或甩得够快就收起，不够就弹回 */
+  const dragStart = useRef<{ y: number; t: number; id: number; axis: 'x' | 'y' | null } | null>(null)
   const onDragDown = (e: PointerEvent<HTMLElement>) => {
-    if (layout !== 'stack' || e.pointerType === 'mouse') return
-    dragStart.current = { y: e.clientY, id: e.pointerId }
+    if (e.pointerType === 'mouse' || (layout !== 'stack' && layout !== 'portrait')) return
+    dragStart.current = { y: e.clientY, t: performance.now(), id: e.pointerId, axis: null }
   }
   const onDragMove = (e: PointerEvent<HTMLElement>) => {
     const s = dragStart.current
     if (!s || s.id !== e.pointerId) return
-    setDragY(Math.max(0, e.clientY - s.y))
+    const dy = e.clientY - s.y
+    if (!s.axis && Math.abs(dy) > 8) s.axis = 'y'
+    if (s.axis !== 'y') return
+    dragY.set(dy > 0 ? dy : dy * 0.15)
   }
   const onDragEnd = (e: PointerEvent<HTMLElement>) => {
     const s = dragStart.current
     dragStart.current = null
     if (!s || s.id !== e.pointerId) return
-    if (e.clientY - s.y > 120) setFullscreen(false)
-    setDragY(0)
+    const dy = e.clientY - s.y
+    const v = (dy / Math.max(1, performance.now() - s.t)) * 1000
+    if (s.axis === 'y' && (dy > 120 || (dy > 30 && v > 900))) {
+      haptic('light')
+      setFullscreen(false)
+      return
+    }
+    animate(dragY, 0, SPRING_PRESS)
   }
   const dragHandlers = { onPointerDown: onDragDown, onPointerMove: onDragMove, onPointerUp: onDragEnd, onPointerCancel: onDragEnd }
 
@@ -360,24 +502,19 @@ export function FullscreenPlayer() {
 
   /* ---------- 共用的几块 ---------- */
 
-  const cover = (className: string, style?: CSSProperties) => (
-    <div
-      className={cn(
-        'cover-slab relative aspect-square flex-none overflow-hidden',
-        isCircle ? 'rounded-full animate-spin-vinyl' : 'rounded-lg',
-        className
-      )}
-      style={{ ...style, ...(isCircle ? { animationPlayState: isPlaying ? 'running' : 'paused' } : null) }}
-    >
-      <CoverImage
-        key={currentSong.id}
-        primary={coverUrl}
-        fallback={coverFallback}
-        alt={currentSong.album}
-        className="h-full w-full"
-        eager
-        songId={currentSong.id}
-        customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
+  /** 封面区：牌堆。外面那层是共享元素的落点（morphRef） */
+  const coverStage = (className: string, style?: CSSProperties) => (
+    <div ref={morphRef} className={cn('relative mx-auto flex-none origin-center', className)} style={style}>
+      <CoverDeck
+        current={currentSong}
+        upcoming={upcoming}
+        onNext={() => next()}
+        onPrev={handlePrev}
+        onOpenQueue={openQueue}
+        playing={isPlaying}
+        round={isCircle}
+        className="w-full"
+        topRef={deckTopRef}
       />
     </div>
   )
@@ -386,8 +523,8 @@ export function FullscreenPlayer() {
     <div className="flex flex-none items-center gap-1">
       <Tooltip>
         <TooltipTrigger asChild>
-          <button onClick={() => setPlaylistSong(currentSong)} aria-label={t('action.addToPlaylist')} className={cn(softBtn, 'h-10 w-10')}>
-            <ListPlus size={20} />
+          <button onClick={() => setPlaylistSong(currentSong)} aria-label={t('action.addToPlaylist')} className={cn(softBtn, 'h-11 w-11')}>
+            <ListPlus size={21} />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom">{t('action.addToPlaylist')}</TooltipContent>
@@ -398,31 +535,38 @@ export function FullscreenPlayer() {
           disabled={toggleStar.isPending}
           aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
           aria-pressed={!!currentSong.starred}
-          className={cn(softBtn, 'h-10 w-10', currentSong.starred && 'text-sem-fav')}
+          className={cn(softBtnBase, 'h-11 w-11 aria-pressed:text-ink')}
         >
-          <Heart size={21} weight={currentSong.starred ? 'fill' : 'regular'} />
+          <HeartGlyph on={!!currentSong.starred} size={22} />
         </button>
       )}
     </div>
   )
 
-  const titleBlock = (size: 'lg' | 'md', centered = false) => (
-    <div className={cn('flex items-start gap-3', centered && 'justify-center text-center')}>
+  const titleBlock = (size: 'xl' | 'lg' | 'md', centered = false) => (
+    <div className={cn('flex items-start gap-3', centered && 'justify-center text-center')} data-fs-reveal="">
       <div className="min-w-0 flex-1">
-        <p
+        <motion.p
           key={currentSong.id}
+          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={SPRING_SNAPPY}
           className={cn(
-            'line-clamp-2 font-display font-semibold tracking-[-0.02em] text-ink animate-page-turn motion-reduce:animate-none',
-            size === 'lg' ? 'text-[30px] leading-[1.12]' : 'text-[22px] leading-tight'
+            'line-clamp-2 font-display font-semibold text-ink',
+            size === 'xl'
+              ? 'text-[40px] leading-[1.06] tracking-[-0.03em]'
+              : size === 'lg'
+                ? 'text-[32px] leading-[1.1] tracking-[-0.025em]'
+                : 'text-[24px] leading-tight tracking-[-0.02em]'
           )}
         >
           {spaceCJK(currentSong.title)}
-        </p>
-        <p className={cn('mt-1.5 flex min-w-0 flex-wrap gap-x-3 text-[15px] text-ink-faint', centered && 'justify-center')}>
+        </motion.p>
+        <p className={cn('mt-2 flex min-w-0 flex-wrap gap-x-3 text-[16px] font-medium text-ink-2', centered && 'justify-center')}>
           {currentSong.artist && (
             <button
               onClick={handleNavigateArtist}
-              className={cn('truncate', currentSong.artistId ? 'hover:text-primary' : 'cursor-default')}
+              className={cn('truncate transition-colors duration-2', currentSong.artistId ? 'hover:text-ink' : 'cursor-default')}
             >
               {spaceCJK(currentSong.artist)}
             </button>
@@ -430,11 +574,12 @@ export function FullscreenPlayer() {
           {currentSong.album && (
             <button
               onClick={handleNavigateAlbum}
-              className={cn('truncate', currentSong.albumId ? 'hover:text-primary' : 'cursor-default')}
+              className={cn('truncate transition-colors duration-2', currentSong.albumId ? 'hover:text-ink' : 'cursor-default')}
             >
               {spaceCJK(currentSong.album)}
             </button>
           )}
+          {multiSource && <SourceBadge serverId={currentSong.serverId} withName className="self-center" />}
         </p>
       </div>
       {!centered && songActions}
@@ -442,7 +587,7 @@ export function FullscreenPlayer() {
   )
 
   const quality = (fileType || currentSong.bitRate) && (
-    <p className="flex justify-center gap-3 text-[12.5px] text-ink-faint">
+    <p className="flex justify-center gap-3 text-[12.5px] font-medium text-ink-3" data-fs-reveal="">
       {fileType && <span>{fileType}</span>}
       {currentSong.bitRate && <span className="num">{currentSong.bitRate} kbps</span>}
     </p>
@@ -453,8 +598,8 @@ export function FullscreenPlayer() {
       {showVolumePanel && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setShowVolumePanel(false)} />
-          <div className="glass absolute bottom-12 right-0 z-20 flex flex-col items-center gap-2 rounded-md px-4 py-5">
-            <span className="num text-xs text-ink-soft">{Math.round((muted ? 0 : volume) * 100)}%</span>
+          <div className="glass absolute bottom-14 right-0 z-20 flex flex-col items-center gap-2 rounded-[18px] px-4 py-5 animate-menu-in">
+            <span className="num text-xs font-medium text-ink-2">{Math.round((muted ? 0 : volume) * 100)}%</span>
             <Slider
               orientation="vertical"
               value={[muted ? 0 : volume]}
@@ -478,35 +623,35 @@ export function FullscreenPlayer() {
         aria-expanded={showVolumePanel}
         className={cn(softBtn, 'h-11 w-11')}
       >
-        <VolumeIcon size={20} />
+        <VolumeIcon size={21} />
       </button>
     </div>
   )
 
   const transport = (withVolume: boolean) => (
-    <div className="mx-auto flex w-full max-w-[440px] items-center justify-between gap-1">
+    <div className="mx-auto flex w-full max-w-[460px] items-center justify-between gap-1" data-fs-reveal="">
       <Tooltip>
         <TooltipTrigger asChild>
           <button onClick={toggleShuffle} className={cn(softBtn, 'h-11 w-11')} aria-label={t('player.shuffle')} aria-pressed={shuffle}>
-            {shuffle ? <Shuffle size={20} /> : <ArrowsDownUp size={20} />}
+            {shuffle ? <Shuffle size={21} weight="bold" /> : <ArrowsDownUp size={21} />}
           </button>
         </TooltipTrigger>
         <TooltipContent side="top">{shuffle ? t('player.shuffle') : t('player.inOrder')}</TooltipContent>
       </Tooltip>
-      <button onClick={handlePrev} className={cn(softBtn, 'h-14 w-14 text-ink')} aria-label={t('player.previous')}>
-        <SkipBack size={28} weight="fill" />
+      <button onClick={handlePrev} className={cn(softBtn, 'h-16 w-16 text-ink')} aria-label={t('player.previous')}>
+        <SkipBack size={32} weight="fill" />
       </button>
       {/* 签名部件：青柠播放键 */}
       <button
-        onClick={togglePlay}
-        className={cn('play-key mx-2 h-[72px] w-[72px]', isPlaying && streamBuffering && 'animate-buffering')}
+        onClick={handleTogglePlay}
+        className={cn('play-key mx-2 h-[78px] w-[78px] shadow-lg', isPlaying && streamBuffering && 'animate-buffering')}
         aria-label={playLabel}
         aria-busy={isPlaying && streamBuffering}
       >
-        {isPlaying ? <Pause size={30} weight="fill" /> : <Play size={30} weight="fill" />}
+        <PlayPauseGlyph playing={isPlaying} size={32} />
       </button>
-      <button onClick={() => next()} className={cn(softBtn, 'h-14 w-14 text-ink')} aria-label={t('player.next')}>
-        <SkipForward size={28} weight="fill" />
+      <button onClick={handleNext} className={cn(softBtn, 'h-16 w-16 text-ink')} aria-label={t('player.next')}>
+        <SkipForward size={32} weight="fill" />
       </button>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -516,7 +661,7 @@ export function FullscreenPlayer() {
             aria-label={t('player.repeatWithMode', { mode: repeatLabel })}
             aria-pressed={repeatMode !== 'none'}
           >
-            {repeatMode === 'one' ? <RepeatOnce size={20} /> : <Repeat size={20} />}
+            {repeatMode === 'one' ? <RepeatOnce size={21} weight="bold" /> : <Repeat size={21} weight={repeatMode === 'all' ? 'bold' : 'regular'} />}
           </button>
         </TooltipTrigger>
         <TooltipContent side="top">{repeatLabel}</TooltipContent>
@@ -526,14 +671,14 @@ export function FullscreenPlayer() {
   )
 
   const lyricsSheet = (className?: string) => (
-    <div className={cn('paper-grid relative flex min-h-0 flex-col overflow-hidden rounded-lg', className)}>
+    <div className={cn('relative flex min-h-0 flex-col overflow-hidden', className)}>
       {lyrics ? (
         <LyricDisplay lines={lyrics.lines} variant="fullscreen" className="min-h-0 flex-1" />
       ) : (
         <p
           className={cn(
-            'grid flex-1 place-items-center px-6 text-center text-[14px]',
-            lyricsQuery.isLoading ? 'animate-pulse text-ink-faint' : lyricsQuery.isError ? 'text-ink-soft' : 'text-ink-faint'
+            'grid flex-1 place-items-center px-6 text-center text-[15px] font-medium',
+            lyricsQuery.isLoading ? 'animate-pulse text-ink-3' : lyricsQuery.isError ? 'text-ink-2' : 'text-ink-3'
           )}
         >
           {lyricsQuery.isLoading ? t('lyrics.loading') : lyricsQuery.isError ? t('lyrics.loadFailed') : t('lyrics.none')}
@@ -542,11 +687,12 @@ export function FullscreenPlayer() {
     </div>
   )
 
-  const viewTabs = (views: Array<'cover' | PaneView>, centered = false) => (
+  /** 分段切换：当前项底下那块片在选项之间滑动 */
+  const viewTabs = (views: Array<'cover' | PaneView>, group: string, centered = false) => (
     <div
       role="tablist"
       aria-label={t('player.nowPlaying')}
-      className={cn('inline-flex flex-none gap-1 rounded-pill bg-paper-deep p-1', centered ? 'self-center' : 'self-start')}
+      className={cn('inline-flex flex-none gap-0.5 rounded-pill bg-ink/[0.1] p-1 shadow-hair', centered ? 'self-center' : 'self-start')}
     >
       {views.map(view => {
         const on = views.includes('cover') ? mobileView === view : paneView === view
@@ -555,9 +701,20 @@ export function FullscreenPlayer() {
             key={view}
             role="tab"
             aria-selected={on}
-            onClick={() => setMobileView(view)}
-            className={cn('seg-option h-9 px-4 text-[13.5px] font-medium text-ink-soft', on && 'is-on')}
+            onClick={() => { if (!on) haptic('selection'); setMobileView(view) }}
+            className={cn(
+              'relative isolate h-9 rounded-pill px-4 text-[13.5px] font-semibold transition-colors duration-2',
+              on ? 'text-ink' : 'text-ink-2 hover:text-ink'
+            )}
           >
+            {on && (
+              <motion.span
+                layoutId={`fs-tab-${group}`}
+                transition={SPRING_SNAPPY}
+                aria-hidden="true"
+                className="absolute inset-0 -z-10 rounded-pill bg-ink/[0.16]"
+              />
+            )}
             {view === 'cover' ? t('player.tabCover') : view === 'lyrics' ? t('player.tabLyrics') : t('shell.upNext')}
           </button>
         )
@@ -565,12 +722,14 @@ export function FullscreenPlayer() {
     </div>
   )
 
+  const queueList = (
+    <UpNextList count={40} className="min-h-0 flex-1 overflow-y-auto" onOpenQueue={() => { setFullscreen(false); setQueueOpen(true) }} />
+  )
+
   const pane = (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {viewTabs(['lyrics', 'queue'])}
-      {paneView === 'queue'
-        ? <UpNextList count={40} className="min-h-0 flex-1 overflow-y-auto" onOpenQueue={() => { setFullscreen(false); setQueueOpen(true) }} />
-        : lyricsSheet('flex-1')}
+    <div className="flex min-h-0 flex-1 flex-col gap-4" data-fs-reveal="">
+      {viewTabs(['lyrics', 'queue'], 'pane')}
+      {paneView === 'queue' ? queueList : lyricsSheet('flex-1')}
     </div>
   )
 
@@ -578,37 +737,38 @@ export function FullscreenPlayer() {
     <header
       className="relative z-10 flex flex-none items-center gap-2 px-4 pb-2 regular:px-6"
       style={{ paddingTop: needsTrafficLightInset ? 40 : 'calc(env(safe-area-inset-top) + 10px)' }}
+      data-fs-reveal=""
       {...dragHandlers}
     >
+      {/* 窄窗口上方一条抓手：告诉手指「往下拖就收起」 */}
+      {(layout === 'stack' || layout === 'portrait') && (
+        <span aria-hidden="true" className="absolute left-1/2 top-[calc(env(safe-area-inset-top)+4px)] h-[5px] w-9 -translate-x-1/2 rounded-pill bg-ink/30" />
+      )}
       <Tooltip>
         <TooltipTrigger asChild>
-          <button onClick={toggleFullscreen} aria-label={t('player.collapse')} className={cn(softBtn, 'h-11 w-11 bg-sheet shadow-press')}>
-            <CaretDown size={20} />
+          <button onClick={toggleFullscreen} aria-label={t('player.collapse')} className={chipBtn}>
+            <CaretDown size={20} weight="bold" />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom">{t('player.collapse')}</TooltipContent>
       </Tooltip>
 
       <div className="min-w-0 flex-1 text-center">
-        <p className="text-[12.5px] text-ink-faint">{t('player.nowPlaying')}</p>
-        {layout !== 'landscape' && (
-          <p className="mx-auto inline-flex max-w-md items-center gap-1.5 truncate text-[14px] font-semibold text-ink">
-            <span className="truncate">{currentSong.title}</span>
-            {multiSource && <SourceBadge serverId={currentSong.serverId} />}
-          </p>
-        )}
+        {/* 一列的排法：顶栏中间是封面 / 歌词 / 接下来的切换。
+            横屏不放居中的东西：右栏的分段标签已经是那一栏的中轴，顶栏再居中一行就有两条轴 */}
+        {layout === 'stack' || layout === 'portrait' ? viewTabs(['cover', 'lyrics', 'queue'], 'stack', true) : null}
       </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button aria-label={t('action.more')} className={cn(softBtn, 'h-11 w-11 bg-sheet shadow-press')}>
+          <button aria-label={t('action.more')} className={chipBtn}>
             <DotsThree size={22} weight="bold" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          <div className="mb-1 border-b border-hair-soft px-3 py-2.5">
+          <div className="mb-1 px-3 py-2.5 hairline-b">
             <p className="truncate text-sm font-semibold">{currentSong.title}</p>
-            <p className="mt-0.5 truncate text-xs text-ink-faint">{currentSong.artist}</p>
+            <p className="mt-0.5 truncate text-xs text-ink-3">{currentSong.artist}</p>
           </div>
           {currentSong.artistId && (
             <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2">
@@ -647,25 +807,25 @@ export function FullscreenPlayer() {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <div className="space-y-1.5 px-3 py-2">
-            <p className="mb-1.5 text-[12.5px] font-medium text-ink-faint">{t('player.songInfo')}</p>
+            <p className="mb-1.5 text-[12.5px] font-medium text-ink-3">{t('player.songInfo')}</p>
             {currentSong.duration > 0 && (
-              <div className="flex items-center gap-2 text-xs text-ink-soft">
+              <div className="flex items-center gap-2 text-xs text-ink-2">
                 <Clock size={12} className="flex-shrink-0" />
                 <span className="num">{formatDuration(currentSong.duration)}</span>
               </div>
             )}
             {currentSong.bitRate && (
-              <div className="flex items-center gap-2 text-xs text-ink-soft">
+              <div className="flex items-center gap-2 text-xs text-ink-2">
                 <MusicNote size={12} className="flex-shrink-0" />
                 <span className="num">{currentSong.bitRate} kbps</span>
-                {fileType && <span className="text-ink-faint">{fileType}</span>}
+                {fileType && <span className="text-ink-3">{fileType}</span>}
               </div>
             )}
             {currentSong.year && (
-              <div className="flex items-center gap-2 text-xs text-ink-soft">
+              <div className="flex items-center gap-2 text-xs text-ink-2">
                 <Info size={12} className="flex-shrink-0" />
                 <span className="num">{t('song.year', { year: currentSong.year })}</span>
-                {currentSong.genre && <span className="text-ink-faint">{currentSong.genre}</span>}
+                {currentSong.genre && <span className="text-ink-3">{currentSong.genre}</span>}
               </div>
             )}
           </div>
@@ -677,66 +837,56 @@ export function FullscreenPlayer() {
   /* ---------- 四种排法 ---------- */
 
   let body: ReactNode
-  if (layout === 'stack') {
+  if (layout === 'stack' || layout === 'portrait') {
+    /* 手机与 iPad 竖屏同一种排法：一列，封面 / 歌词 / 接下来三选一。
+       竖屏的 iPad 宽，封面不该缩成左上角一小张去给歌词让位——它就是这一屏的主角 */
+    const tall = layout === 'portrait'
     body = (
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-3 px-5" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
-        {viewTabs(['cover', 'lyrics', 'queue'], true)}
+      <div
+        className={cn('relative z-10 mx-auto flex min-h-0 w-full flex-1 flex-col', tall ? 'max-w-[640px] px-8' : 'px-6')}
+        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${tall ? 28 : 18}px)` }}
+      >
+        {/* 牌堆在剩下的空间里居中（78cqh：上面给后面两张露边留出 12%）；
+            歌名贴着进度条，不在牌堆和进度条之间悬一大块空 */}
         <div className="flex min-h-0 flex-1 flex-col [container-type:size]">
           {mobileView === 'cover' ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-6" {...dragHandlers}>
-              {cover('', { width: 'min(100%, 56cqh)' })}
-              <div className="w-full">{titleBlock('md')}</div>
+            <div className="flex flex-1 items-center justify-center" {...dragHandlers}>
+              {coverStage('', { width: 'min(100%, 78cqh)', marginTop: '6%' })}
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-4" data-fs-reveal="">
               <div className="flex items-center gap-3">
-                {cover('h-14 w-14 !rounded-md')}
+                <div className="cover-frame h-14 w-14 flex-none rounded-[10px] shadow-md">
+                  <CoverThumb song={currentSong} />
+                </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[16px] font-semibold text-ink">{spaceCJK(currentSong.title)}</p>
-                  <p className="truncate text-[13.5px] text-ink-faint">{spaceCJK(currentSong.artist)}</p>
+                  <p className="truncate text-[14px] font-medium text-ink-2">{spaceCJK(currentSong.artist)}</p>
                 </div>
                 {songActions}
               </div>
-              {mobileView === 'queue'
-                ? <UpNextList count={40} className="min-h-0 flex-1 overflow-y-auto" onOpenQueue={() => { setFullscreen(false); setQueueOpen(true) }} />
-                : lyricsSheet('flex-1')}
+              {mobileView === 'queue' ? queueList : lyricsSheet('flex-1')}
             </div>
           )}
         </div>
-        <div className="flex flex-none flex-col gap-3 pt-1">
+        {mobileView === 'cover' && <div className={cn('flex-none', tall ? 'pt-8' : 'pt-5')}>{titleBlock(tall ? 'lg' : 'md')}</div>}
+        <div className={cn('flex flex-none flex-col pt-6', tall ? 'gap-5' : 'gap-4')} data-fs-reveal="">
           <FSProgressBar />
+          {tall && quality}
           {transport(false)}
         </div>
-      </div>
-    )
-  } else if (layout === 'portrait') {
-    body = (
-      <div
-        className="relative z-10 mx-auto grid min-h-0 w-full max-w-[900px] flex-1 grid-rows-[auto_minmax(0,1fr)] gap-7 px-6 regular:px-8"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}
-      >
-        <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] items-center gap-7">
-          {cover('w-full')}
-          <div className="flex min-w-0 flex-col gap-5">
-            {titleBlock('md')}
-            <FSProgressBar />
-            {quality}
-            {transport(false)}
-          </div>
-        </div>
-        {pane}
       </div>
     )
   } else if (layout === 'landscape') {
     body = (
       <div
-        className="relative z-10 mx-auto grid min-h-0 w-full max-w-[1440px] flex-1 grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] gap-10 px-8 wide:gap-16 wide:px-14"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
+        className="relative z-10 mx-auto grid min-h-0 w-full max-w-[1480px] flex-1 grid-cols-[minmax(0,0.84fr)_minmax(0,1.16fr)] gap-12 px-10 wide:gap-20 wide:px-16"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)' }}
       >
-        <div className="flex min-h-0 flex-col justify-center gap-5 [container-type:size]">
-          {cover('mx-auto', { width: 'min(100%, calc(100cqh - 270px))' })}
-          {titleBlock('lg')}
-          <FSProgressBar />
+        <div className="flex min-h-0 flex-col justify-center gap-7 [container-type:size]">
+          {coverStage('', { width: 'min(100%, calc(100cqh - 300px))' })}
+          {titleBlock(wc === 'wide' ? 'xl' : 'lg')}
+          <div data-fs-reveal=""><FSProgressBar /></div>
           {transport(wc === 'wide')}
         </div>
         {pane}
@@ -761,25 +911,24 @@ export function FullscreenPlayer() {
               const s = carouselStart.current
               carouselStart.current = null
               if (!s || s.id !== e.pointerId || Math.abs(e.clientX - s.x) < 50) return
-              if (e.clientX < s.x) next(); else handlePrev()
+              if (e.clientX < s.x) handleNext(); else handlePrev()
             }}
           >
             {slots.map((qi, k) => {
               const song = qi !== undefined ? queue[qi] : undefined
               if (!song) return <span key={k} />
-              const url = song.coverArt ? findAdapterFor(song.serverId)?.getCoverUrl(song.coverArt, 320) ?? undefined : undefined
               return (
                 <button
                   key={`${song.id}-${qi}`}
                   onClick={() => qi !== undefined && qi !== queueIndex && jumpToIndex(qi)}
                   className={cn(
-                    'aspect-square w-full overflow-hidden rounded-md shadow-card transition-[transform,opacity] duration-300',
-                    k === 2 ? 'shadow-float' : 'scale-90 opacity-55 hover:opacity-80'
+                    'cover-frame aspect-square w-full shadow-md transition-[transform,opacity] duration-4 ease-smooth',
+                    k === 2 ? 'shadow-cover' : 'scale-90 opacity-55 hover:opacity-80'
                   )}
                   aria-label={song.title}
                   aria-current={k === 2 ? 'true' : undefined}
                 >
-                  <ImageWithFallback src={url} alt="" fallbackType="album" className="h-full w-full" />
+                  <CoverThumb song={song} size={320} />
                 </button>
               )
             })}
@@ -793,27 +942,21 @@ export function FullscreenPlayer() {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-paper text-ink"
-      style={dragY ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
+    <motion.div
+      ref={rootRef}
+      className="stage fixed inset-0 z-50 flex flex-col overflow-hidden"
+      style={{ y: dragY }}
     >
-      {/* 两团固定的光：右上青柠、左下嫩黄（只允许这两团，不随封面变） */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(42% 38% at 88% 6%, oklch(var(--vivid) / 0.16), transparent 70%),' +
-            ' radial-gradient(46% 42% at 6% 96%, oklch(var(--accent-2) / 0.14), transparent 72%)',
-        }}
-      />
+      <StageField originRef={deckTopRef} />
+      {/* 外壳皮：只在开合的那一下可见（见上面的开合动画），平时透明、不挡点击 */}
+      <div ref={skinRef} aria-hidden="true" className="np-skin pointer-events-none absolute inset-0 opacity-0" />
 
       {layout !== 'tabletop' && header}
       {body}
 
       {/* 睡眠定时的选择面板。播放条上那个是 DropdownMenu，嵌进另一个菜单会打架，所以这里用对话框 */}
       <Dialog open={sleepOpen} onOpenChange={setSleepOpen}>
-        <DialogContent className="sm:max-w-xs">
+        <DialogContent className="regular:max-w-xs">
           <DialogHeader>
             <DialogTitle>{t('player.sleepTimer')}</DialogTitle>
             <DialogDescription>{t('player.sleepFadeHint')}</DialogDescription>
@@ -823,21 +966,21 @@ export function FullscreenPlayer() {
               <button
                 key={minutes}
                 onClick={() => { setSleepTimer(minutes); setSleepOpen(false) }}
-                className="rounded-sm px-3 py-3 text-left text-[15px] transition-colors hover:bg-paper-deep"
+                className="rounded-sm px-3 py-3 text-left text-[15px] transition-colors duration-2 hover:bg-fill"
               >
                 {t('player.sleepAfterMinutes', { minutes })}
               </button>
             ))}
             <button
               onClick={() => { setSleepTimer(null, 'endOfTrack'); setSleepOpen(false) }}
-              className="rounded-sm px-3 py-3 text-left text-[15px] transition-colors hover:bg-paper-deep"
+              className="rounded-sm px-3 py-3 text-left text-[15px] transition-colors duration-2 hover:bg-fill"
             >
               {t('player.sleepEndOfTrack')}
             </button>
             {sleepTimerAt !== null && (
               <button
                 onClick={() => { setSleepTimer(null); setSleepOpen(false) }}
-                className="rounded-sm px-3 py-3 text-left text-[15px] font-semibold text-primary transition-colors hover:bg-paper-deep"
+                className="rounded-sm px-3 py-3 text-left text-[15px] font-semibold text-leaf transition-colors duration-2 hover:bg-fill"
               >
                 {t('player.sleepCancel')}
               </button>
@@ -857,6 +1000,12 @@ export function FullscreenPlayer() {
         onOpenChange={open => { if (!open) setPlaylistSong(null) }}
         songs={playlistSong ? [playlistSong] : []}
       />
-    </div>
+    </motion.div>
   )
+}
+
+/** 小封面（窄窗口的歌词 / 队列页头、悬停排法的封面带） */
+function CoverThumb({ song, size = 160 }: { song: Song; size?: number }) {
+  const { primary, fallback } = useCoverUrl(song, { size })
+  return <CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" eager songId={song.id} />
 }

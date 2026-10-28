@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: 'cn.baogutang.musicstreampro',
   appName: 'N1KO MUSIC',
   webDir: 'dist',
-  backgroundColor: '#f9f4ee',
+  backgroundColor: '#f8fafc',
   cleartext: true, // 允许明文 HTTP：用户自托管服务器常在局域网用 http://
   ios: {
     contentInset: 'never',

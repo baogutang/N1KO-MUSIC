@@ -60,12 +60,20 @@ interface ExpiredSource {
   pluginId?: string
 }
 
-/** 三条提示条同一副外形：下沉底的圆角条，一句话加一个文字出口；窄屏放不下时出口折到下一行 */
+/**
+ * 三条提示条同一副外形：浮在工具栏下面的玻璃胶囊——左一枚图标、中间一句话、右边一个动作。
+ * 警示靠图标的颜色说话（danger / warn），不画彩色侧边条。
+ */
 const BANNER_CLASS =
-  'mx-3 regular:mx-5 mt-1 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-paper-deep px-4 py-2.5 text-[13.5px] text-ink-soft'
-/** 文字按钮：强调色，不加下划线，hover 才出现 */
+  'glass mx-3 regular:mx-5 mt-1 mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[26px] py-2 pl-4 pr-2 text-[14px] leading-snug text-ink'
+/** 一句话：窄屏放不下动作键时，动作键折到下一行靠右（8px 内边距与 36px 键让它和 26px 圆角同心） */
+const TEXT_CLASS = 'min-w-[10rem] flex-1'
+/** 胶囊里的动作按钮：视觉 36px，用伪元素把命中区撑到 44px */
 const ACTION_CLASS =
-  'inline-flex min-h-9 items-center gap-1.5 rounded-sm px-1 font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline disabled:pointer-events-none disabled:text-ink-faint motion-reduce:transition-none'
+  "relative ml-auto flex-none before:absolute before:-inset-y-1 before:inset-x-0 before:content-['']"
+/** 「暂不」：窄屏只留 ×，放得下时再带上字（字与 aria-label 同一句） */
+const DISMISS_CLASS =
+  "relative w-9 flex-none px-0 before:absolute before:-inset-1 before:content-[''] regular:w-auto regular:px-3.5 regular:before:-inset-y-1 regular:before:inset-x-0"
 
 export function ConnectionBanner() {
   const { t } = useT()
@@ -258,15 +266,15 @@ export function ConnectionBanner() {
     const names = compromisedSources.map(s => s.name).join(t('common.listSeparator'))
     return (
       <div role="status" aria-live="polite" className={BANNER_CLASS}>
-        <Warning size={16} weight="fill" aria-hidden="true" className="flex-shrink-0 text-sem-error" />
-        <span className="min-w-[12rem] flex-1">
-          {t('sources.banner.compromised', { names })}
-          <span className="text-ink-faint">{t('sources.banner.compromisedHint')}</span>
+        <Warning size={18} weight="fill" aria-hidden="true" className="flex-none text-danger" />
+        <span className={TEXT_CLASS}>
+          <span className="font-medium">{t('sources.banner.compromised', { names })}</span>
+          <span className="text-ink-3">{t('sources.banner.compromisedHint')}</span>
         </span>
-        <button onClick={() => navigate('/settings')} className={ACTION_CLASS}>
-          <ArrowsClockwise size={14} aria-hidden="true" />
+        <Button size="sm" variant="secondary" onClick={() => navigate('/settings')} className={ACTION_CLASS}>
+          <ArrowsClockwise size={15} aria-hidden="true" />
           {t('sources.banner.reinstall')}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -277,28 +285,31 @@ export function ConnectionBanner() {
     const first = visibleExpired[0]
     return (
       <div role="status" aria-live="polite" className={BANNER_CLASS}>
-        <Key size={16} aria-hidden="true" className="flex-shrink-0 text-primary" />
-        <span className="min-w-[12rem] flex-1">
-          {t('empty.offline.sourceAuth', { names })}
+        <Key size={18} weight="fill" aria-hidden="true" className="flex-none text-candy-warn-fill" />
+        <span className={TEXT_CLASS}>
+          <span className="font-medium">{t('empty.offline.sourceAuth', { names })}</span>
           {/* 插件音源的失效原因是扫码凭据过期，不是「密码改了」——
               那句提示是给自建服务器写的，套到流媒体音源上是误导 */}
-          <span className="text-ink-faint">{t('empty.offline.sourceAuthHint')}</span>
+          <span className="text-ink-3">{t('empty.offline.sourceAuthHint')}</span>
         </span>
-        <button onClick={() => navigate(reloginPath(first.pluginId))} className={ACTION_CLASS}>
-          <Key size={14} aria-hidden="true" />
-          {t('sources.relogin')}
-        </button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => dismiss(first)}
-          aria-label={t('sources.banner.dismiss')}
-          title={t('sources.banner.dismiss')}
-          className="gap-1.5 font-medium text-ink-faint"
-        >
-          <X size={14} aria-hidden="true" />
-          {t('sources.banner.dismiss')}
-        </Button>
+        {/* 两个动作成一组：放不下时一起折到下一行靠右 */}
+        <div className="ml-auto flex flex-none items-center gap-1">
+          <Button size="sm" variant="secondary" onClick={() => navigate(reloginPath(first.pluginId))} className={ACTION_CLASS}>
+            <Key size={15} aria-hidden="true" />
+            {t('sources.relogin')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => dismiss(first)}
+            aria-label={t('sources.banner.dismiss')}
+            title={t('sources.banner.dismiss')}
+            className={DISMISS_CLASS}
+          >
+            <X size={15} aria-hidden="true" />
+            <span className="hidden regular:inline">{t('sources.banner.dismiss')}</span>
+          </Button>
+        </div>
       </div>
     )
   }
@@ -321,25 +332,27 @@ export function ConnectionBanner() {
     return (
       <div role="status" aria-live="polite" className={BANNER_CLASS}>
         {showAuth
-          ? <Key size={16} aria-hidden="true" className="flex-shrink-0 text-primary" />
-          : <WifiSlash size={16} aria-hidden="true" className="flex-shrink-0 text-primary" />}
-        <span className="min-w-[12rem] flex-1">
-          {message}
-          <span className="text-ink-faint">{hint}</span>
+          ? <Key size={18} weight="fill" aria-hidden="true" className="flex-none text-candy-warn-fill" />
+          : <WifiSlash size={18} weight="fill" aria-hidden="true" className="flex-none text-candy-warn-fill" />}
+        <span className={TEXT_CLASS}>
+          <span className="font-medium">{message}</span>
+          <span className="text-ink-3">{hint}</span>
         </span>
         {showAuth ? (
-          <button
+          <Button
+            size="sm"
+            variant="secondary"
             onClick={() => navigate(primaryPlugin ? reloginPath(primaryPlugin.pluginId) : '/login')}
             className={ACTION_CLASS}
           >
-            <Key size={14} aria-hidden="true" />
+            <Key size={15} aria-hidden="true" />
             {primaryPlugin ? t('sources.relogin') : t('sources.relogin')}
-          </button>
+          </Button>
         ) : (
-          <button onClick={retry} disabled={retrying} className={ACTION_CLASS}>
-            <ArrowsClockwise size={14} className={retrying ? 'animate-spin motion-reduce:animate-none' : undefined} aria-hidden="true" />
+          <Button size="sm" variant="secondary" onClick={retry} disabled={retrying} className={ACTION_CLASS}>
+            <ArrowsClockwise size={15} className={retrying ? 'animate-spin motion-reduce:animate-none' : undefined} aria-hidden="true" />
             {t('action.retry')}
-          </button>
+          </Button>
         )}
       </div>
     )

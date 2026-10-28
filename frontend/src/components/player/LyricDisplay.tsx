@@ -1,6 +1,8 @@
 /**
- * 歌词同步显示组件 — 杂志编辑风（docs/redesign/v2/DESIGN.md §4.3）
- * - 衬线歌词流：过去行 ink-faint / 当前行 ink 700 + 前导 accent 短红线 / 未来行 ink-soft
+ * 歌词同步显示组件（v6）
+ * - 全屏（舞台）：大字，当前行全亮、其余行退到四成；换行时当前行从 97% 轻轻放大到 100%
+ *   （只动 transform / opacity，字重不变，不重排）
+ * - 面板：外壳里的小字版本，墨色分层
  * - 自动滚动、高亮当前行；手动滚动后暂停自动滚动 3 秒，然后恢复
  * - 高亮色统一跟随 accent（DESIGN §1.3 单一强调色）：
  *   settingsStore 的 lyricsHighlightColor 自定义字段按重构约定忽略
@@ -129,7 +131,8 @@ export const LyricDisplay = memo(function LyricDisplay({
     const containerRect = container.getBoundingClientRect()
     const lineRect = activeLine.getBoundingClientRect()
     const lineCenter = (lineRect.top - containerRect.top) + lineRect.height / 2
-    const desiredCenter = containerRect.height / 2
+    // 全屏：当前行停在三分之一处（上面留两三行刚唱过的），面板里居中
+    const desiredCenter = containerRect.height * (variant === 'fullscreen' ? 0.32 : 0.5)
     const targetScrollTop = container.scrollTop + (lineCenter - desiredCenter)
 
     // 标记程序化滚动；即使滚动距离为 0 不触发 scroll 事件，计时器也会兜底清除标志
@@ -142,7 +145,7 @@ export const LyricDisplay = memo(function LyricDisplay({
         ? 'auto'
         : 'smooth',
     })
-  }, [currentIndex, isSynced, armProgrammaticSettle])
+  }, [currentIndex, isSynced, armProgrammaticSettle, variant])
 
   useEffect(() => {
     scrollToActive()
@@ -167,7 +170,7 @@ export const LyricDisplay = memo(function LyricDisplay({
   if (!hasLyrics) {
     return (
       <div className={cn('flex items-center justify-center h-full', className)}>
-        <p className="text-[15px] text-ink-faint">{t('lyrics.none')}</p>
+        <p className="text-[15px] text-ink-3">{t('lyrics.none')}</p>
       </div>
     )
   }
@@ -176,22 +179,25 @@ export const LyricDisplay = memo(function LyricDisplay({
     <div
       ref={containerRef}
       className={cn(
-        'overflow-y-auto scrollbar-hide py-12',
+        'overflow-y-auto scrollbar-hide',
         // 上下渐隐（lyric-fade，见 index.css）：全屏与面板都用，面板里那几行也不该被生硬切断
-        variant === 'fullscreen' ? 'h-full lyric-fade' : 'h-64 lyric-fade',
+        // 全屏：第一句从顶上开始（不在三分之一处悬着一大片空），底下留够当前行滚到锚点的余量
+        variant === 'fullscreen' ? 'h-full pb-[48vh] pt-[7vh] lyric-fade-top' : 'h-64 py-12 lyric-fade',
         className
       )}
       style={{ scrollBehavior: 'smooth' }}
     >
       <div className={cn(
-        'space-y-4 px-6',
-        variant === 'fullscreen' ? 'min-h-full flex flex-col justify-center' : ''
-      )}>
+        variant === 'fullscreen' ? 'flex flex-col gap-[0.55em] px-2' : 'space-y-3 px-4'
+      )}
+        style={variant === 'fullscreen' ? { fontSize: `${Math.min(44, Math.round(lyricsFontSize * 1.4))}px` } : undefined}
+      >
         {lines.map((line, index) => (
           <LyricRow
             key={index}
             text={displayTexts[index]}
-            fontSize={variant === 'fullscreen' ? lyricsFontSize : 14}
+            fontSize={variant === 'fullscreen' ? null : 14}
+            stage={variant === 'fullscreen'}
             isActive={isSynced && index === currentIndex}
             isPast={isSynced && index < currentIndex}
             isClickable={isSynced && line.time >= 0}
@@ -216,6 +222,7 @@ export const LyricDisplay = memo(function LyricDisplay({
 const LyricRow = memo(function LyricRow({
   text,
   fontSize,
+  stage,
   isActive,
   isPast,
   isClickable,
@@ -224,7 +231,9 @@ const LyricRow = memo(function LyricRow({
   line,
 }: {
   text: string
-  fontSize: number
+  /** null：跟随容器的字号（全屏按设置放大 1.4 倍） */
+  fontSize: number | null
+  stage: boolean
   isActive: boolean
   isPast: boolean
   isClickable: boolean
@@ -237,18 +246,20 @@ const LyricRow = memo(function LyricRow({
       ref={activeRef}
       onClick={() => onSelect(line)}
       className={cn(
-        'lyric-line font-display font-semibold leading-[1.35] tracking-[-0.01em] text-left',
-        'transition-[color,opacity] duration-300 ease-paper',
-        // 字重恒定、只换墨色：换行时不重排。唱过的最淡，当前行全墨，未唱的浅墨
+        'lyric-line text-left font-display text-ink',
+        stage
+          ? 'origin-left font-bold leading-[1.28] tracking-[-0.02em] transition-[opacity,transform] duration-5 ease-smooth'
+          : 'font-semibold leading-[1.4] transition-opacity duration-300 ease-out',
+        // 字重恒定、只换透明度与一点点缩放：换行时不重排。唱过的最淡，当前行全亮，未唱的在中间
         isActive
-          ? 'is-active text-ink'
+          ? 'is-active scale-100 opacity-100'
           : isPast
-            ? 'text-ink-faint/40'
-            : 'text-ink-faint/60',
+            ? cn(stage && 'scale-[0.97]', 'opacity-[0.36]')
+            : cn(stage && 'scale-[0.97]', 'opacity-[0.52]'),
         isClickable ? 'cursor-pointer select-none' : 'select-none',
-        isClickable && !isActive && 'hover:text-ink-soft',
+        isClickable && !isActive && 'hover:opacity-70',
       )}
-      style={{ fontSize: `${fontSize}px` }}
+      style={fontSize ? { fontSize: `${fontSize}px` } : undefined}
     >
       {/* 歌词是全站最大的一块中文文字面，CJK 与拉丁混排（歌名、Cover、feat.、
           英文副歌）在这里最显眼。设计契约要求两种文字之间加细空格，

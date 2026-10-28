@@ -5,7 +5,7 @@
  * 摆在那里只会让人以为自己漏配了什么。
  */
 
-import { Books, Check } from '@phosphor-icons/react'
+import { Books, CaretUpDown, Check } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
 import { useServerStore } from '@/store/serverStore'
@@ -40,28 +40,30 @@ export function LibraryScopeMenu({ className }: { className?: string }) {
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            // 侧栏底部空间窄：小号纸片胶囊；视觉 36px，用伪元素把命中区撑到 ≥44px
-            "relative inline-flex h-9 max-w-full items-center gap-1.5 rounded-pill bg-sheet px-3 text-[12.5px] font-medium text-ink-soft shadow-press before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-['']",
-            'transition-colors duration-150 hover:bg-paper-deep hover:text-ink motion-reduce:transition-none',
+            // 侧栏底部空间窄：小号触发键；视觉 36px，用伪元素把命中区撑到 ≥44px
+            "press-pop relative inline-flex h-9 max-w-full items-center gap-1.5 rounded-[12px] px-2.5 text-[13px] font-medium text-ink-2 hover:bg-ink/[0.05] hover:text-ink before:absolute before:-inset-y-1 before:inset-x-0 before:content-['']",
             className
           )}
           aria-label={t('library.scopeSwitch')}
         >
-          <Books size={14} aria-hidden="true" className="flex-shrink-0" />
-          <span className="truncate">{current?.name ?? t('library.scopeAll')}</span>
+          <Books size={15} aria-hidden="true" className="flex-none" />
+          <span className="min-w-0 truncate">{current?.name ?? t('library.scopeAll')}</span>
+          <CaretUpDown size={12} aria-hidden="true" className="flex-none text-ink-3" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-48 glass">
-        <DropdownMenuItem onClick={() => choose(undefined)} className="gap-2">
-          <span className="w-3.5">{!scope && <Check size={12} className="text-primary" />}</span>
+      <DropdownMenuContent align="start" side="top" className="w-56">
+        <DropdownMenuItem onClick={() => choose(undefined)}>
+          <span className="grid h-4 w-4 flex-none place-items-center">
+            {!scope && <Check size={14} weight="bold" className="text-leaf" />}
+          </span>
           {t('library.scopeAll')}
         </DropdownMenuItem>
         {folders.map(folder => (
-          <DropdownMenuItem key={folder.id} onClick={() => choose(folder.id)} className="gap-2">
-            <span className="w-3.5">
-              {scope === folder.id && <Check size={12} className="text-primary" />}
+          <DropdownMenuItem key={folder.id} onClick={() => choose(folder.id)}>
+            <span className="grid h-4 w-4 flex-none place-items-center">
+              {scope === folder.id && <Check size={14} weight="bold" className="text-leaf" />}
             </span>
-            {folder.name}
+            <span className="min-w-0 truncate">{folder.name}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

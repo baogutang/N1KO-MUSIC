@@ -1,7 +1,7 @@
 /**
  * 插件设置（PLAN 1.6 + 2.6）：已安装插件的管理与安装入口 + 播放优先级。
  * 版本 / 账号 / 状态 / 更新 / 重新登录 / 请求日志 / 卸载、目录安装、
- * URL 与粘贴安装、插件目录地址。视觉沿用 settings/primitives。
+ * URL 与粘贴安装、插件目录地址。视觉沿用 settings/primitives（v6：面板 + hairline 行）。
  *
  * 这一节管的是插件**代码**与播放顺序；音源本身（NAS 与插件同列、设主库、
  * 移除）在设置页的「音源」一节里。此前两处都能设主库——一个带确认对话框、
@@ -253,7 +253,7 @@ export function SourcesSettings() {
           <div className="flex flex-col items-end gap-1">
             {ordered.map((s, i) => (
               <span key={s.serverId} className="flex items-center gap-2">
-                <span className="num w-4 text-right text-[12px] text-ink-faint">{i + 1}</span>
+                <span className="num w-4 text-right text-[12px] text-ink-3">{i + 1}</span>
                 <SourceBadge serverId={s.serverId} withName />
                 <span className="flex items-center">
                   <Button
@@ -268,7 +268,7 @@ export function SourcesSettings() {
                     }}
                     disabled={i === 0}
                     aria-label={t('sources.settings.moveUp', { name: s.name })}
-                    className="hover:text-primary"
+                    className="hover:text-leaf h-11 w-11 [@media(hover:hover)]:h-9 [@media(hover:hover)]:w-9"
                   >
                     <ArrowUp size={14} />
                   </Button>
@@ -283,7 +283,7 @@ export function SourcesSettings() {
                     }}
                     disabled={i === ordered.length - 1}
                     aria-label={t('sources.settings.moveDown', { name: s.name })}
-                    className="hover:text-primary"
+                    className="hover:text-leaf h-11 w-11 [@media(hover:hover)]:h-9 [@media(hover:hover)]:w-9"
                   >
                     <ArrowDown size={14} />
                   </Button>
@@ -296,13 +296,13 @@ export function SourcesSettings() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setPlaybackPriority([])}
-                className="gap-1 text-[12px] text-ink-faint"
+                className="gap-1 text-[12px] text-ink-3 h-11 [@media(hover:hover)]:h-9"
               >
                 <ArrowsCounterClockwise size={12} />
                 {t('sources.settings.priorityAuto', { default: defaultPriorityOrder(sources).map(s => s.name).join(' → ') })}
               </Button>
             ) : (
-              <span className="text-[12px] text-ink-faint">{t('sources.settings.priorityAutoLabel')}</span>
+              <span className="text-[12px] text-ink-3">{t('sources.settings.priorityAutoLabel')}</span>
             )}
           </div>
         </Row>
@@ -320,7 +320,7 @@ export function SourcesSettings() {
         {/* 已安装插件 */}
         {plugins.length === 0 && (
           <div className={rowClass}>
-            <p className="text-[14px] text-ink-faint">{t('sources.settings.noneInstalled')}</p>
+            <p className="text-[14px] text-ink-3">{t('sources.settings.noneInstalled')}</p>
           </div>
         )}
         {plugins.map(plugin => {
@@ -333,11 +333,11 @@ export function SourcesSettings() {
             <div key={plugin.id} className={cn(rowClass, 'flex-col items-stretch gap-x-0')}>
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="truncate text-[15px] font-medium">
+                  <p className="truncate text-[15px] font-medium text-ink">
                     {plugin.name}
-                    <span className="num ml-2 text-[12px] font-normal text-ink-faint">v{plugin.version}</span>
+                    <span className="num ml-2 text-[12px] font-normal text-ink-3">v{plugin.version}</span>
                   </p>
-                  <div className="num mt-0.5 flex flex-wrap gap-x-3 text-[13px] text-ink-faint">
+                  <div className="num mt-0.5 flex flex-wrap gap-x-3 text-[13px] text-ink-3">
                     <span>{plugin.platform}</span>
                     <span className={accounts.length > 0 ? 'text-sem-connected' : undefined}>
                       {accounts.length > 0
@@ -380,7 +380,7 @@ export function SourcesSettings() {
 
               {/* 登录过期：音源行直接说 + 直达扫码步（阶段 2.3 收口） */}
               {accounts.some(a => authExpiredIds.has(a.id)) && (
-                <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-paper-deep px-3 py-2 text-[13px] leading-relaxed text-ink-soft">
+                <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-relaxed text-ink-2">
                   {t('sources.authExpired')}
                   <Button
                     type="button"
@@ -397,33 +397,34 @@ export function SourcesSettings() {
               {/* 沙箱越界（ready 之后自己导航走）：这个插件的账号已被停用。
                   横幅上说的是同一件事，用户点进设置来要能在这一行看到同样的说明。 */}
               {compromised && (
-                <p className="mt-2 rounded-md bg-paper-deep px-3 py-2 text-[13px] leading-relaxed text-sem-error">
+                <p className="mt-2 text-[13px] leading-relaxed text-danger">
                   {t('sources.settings.compromised')}
                 </p>
               )}
 
               {/* 自动更新扣下的更新（hosts 有新增）：明说有一个在等确认 */}
               {held && !confirming && (
-                <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">
+                <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
                   {t('sources.settings.updateHeld', { version: held.nextVersion })}
                 </p>
               )}
 
               {/* 出网范围变更确认：把新增的域名摆出来，确认后才落库（PROTOCOL §9） */}
               {confirming && (
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md bg-paper-deep px-3 py-2.5">
-                  <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-ink-soft">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-ink-2">
                     {/* 域名本来就是拉丁串，中英文都用逗号分隔，不必为顿号再开一个词条 */}
                     {t('sources.settings.hostsConfirm', { hosts: confirming.pending.addedHosts.join(', ') })}
                   </p>
                   <div className="flex flex-shrink-0 gap-2">
-                    <Button variant="outline" size="sm" disabled={updateBusy} onClick={() => setPendingUpdate(null)}>
+                    <Button variant="secondary" size="sm" disabled={updateBusy} onClick={() => setPendingUpdate(null)} className="h-11 [@media(hover:hover)]:h-9">
                       {t('action.cancel')}
                     </Button>
                     <Button
                       size="sm"
                       disabled={updateBusy}
                       onClick={() => void applyUpdate(confirming.pending, confirming.nextVersion)}
+                      className="h-11 [@media(hover:hover)]:h-9"
                     >
                       {t('sources.settings.confirmUpdate')}
                     </Button>
@@ -433,10 +434,10 @@ export function SourcesSettings() {
 
               {/* 卸载确认：两击式（删代码 + 凭据 + 私有存储，不可撤销） */}
               {pendingRemove === plugin.id && (
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md bg-paper-deep px-3 py-2.5">
-                  <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-ink-soft">{t('sources.settings.uninstallConfirm')}</p>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-ink-2">{t('sources.settings.uninstallConfirm')}</p>
                   <div className="flex flex-shrink-0 gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setPendingRemove(null)}>
+                    <Button variant="secondary" size="sm" onClick={() => setPendingRemove(null)} className="h-11 [@media(hover:hover)]:h-9">
                       {t('action.cancel')}
                     </Button>
                     <Button
@@ -453,6 +454,7 @@ export function SourcesSettings() {
                           }
                         })()
                       }}
+                      className="h-11 [@media(hover:hover)]:h-9"
                     >
                       {t('action.remove')}
                     </Button>
@@ -464,20 +466,20 @@ export function SourcesSettings() {
               {logsOpen && (
                 <div className="mt-3 space-y-2">
                   {accounts.length === 0 && (
-                    <p className="text-[13px] text-ink-faint">{t('sources.settings.logNoAccount')}</p>
+                    <p className="text-[13px] text-ink-3">{t('sources.settings.logNoAccount')}</p>
                   )}
                   {accounts.map(account => {
                     const host = getPluginHost(account.id)
                     const logs = [...(host?.requestLogs ?? [])].reverse().slice(0, 8)
                     return (
-                      <div key={account.id} className="rounded-md bg-paper-deep">
-                        <p className="px-3 pb-1 pt-2 text-[12px] font-medium text-ink-faint">
+                      <div key={account.id} className="rounded-md bg-fill">
+                        <p className="px-3 pb-1 pt-2 text-[12px] font-semibold text-ink-3">
                           {account.name}
                         </p>
                         {logs.length === 0 ? (
-                          <p className="px-3 pb-2 text-[13px] text-ink-faint">{t('sources.settings.logEmpty')}</p>
+                          <p className="px-3 pb-2 text-[13px] text-ink-3">{t('sources.settings.logEmpty')}</p>
                         ) : (
-                          <ul className="num px-3 pb-2 text-[12px] leading-relaxed text-ink-soft">
+                          <ul className="num px-3 pb-2 text-[12px] leading-relaxed text-ink-2">
                             {logs.map((entry, i) => (
                               <li key={i} className="flex min-w-0 gap-x-3">
                                 <span className="flex-shrink-0">{new Date(entry.time).toLocaleTimeString()}</span>
@@ -500,13 +502,14 @@ export function SourcesSettings() {
         {/* 添加插件：目录 / URL / 粘贴 */}
         <Row name={t('sources.settings.addTitle')} desc={t('sources.settings.addDesc')}>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={!catalogUrl || catalogBusy}
             onClick={() => {
               if (!openCatalog && catalogEntries === null) void loadCatalog()
               setOpenCatalog(v => !v)
             }}
+            className="h-11 [@media(hover:hover)]:h-9"
           >
             <DownloadSimple size={14} />
             {t('sources.settings.fromCatalog')}
@@ -515,9 +518,9 @@ export function SourcesSettings() {
         {openCatalog && (
           <div className={cn(rowClass, 'flex-col items-stretch gap-x-0 py-2')}>
             {catalogEntries === null ? (
-              <p className="py-1 text-[13px] text-ink-faint">{t('sources.settings.catalogLoading')}</p>
+              <p className="py-1 text-[13px] text-ink-3">{t('sources.settings.catalogLoading')}</p>
             ) : catalogEntries.filter(e => !plugins.some(p => p.id === e.id)).length === 0 ? (
-              <p className="py-1 text-[13px] text-ink-faint">{t('sources.settings.catalogAllInstalled')}</p>
+              <p className="py-1 text-[13px] text-ink-3">{t('sources.settings.catalogAllInstalled')}</p>
             ) : (
               <ul>
                 {catalogEntries
@@ -525,17 +528,18 @@ export function SourcesSettings() {
                   .map(entry => (
                     <li key={entry.id} className="flex items-center justify-between gap-3 py-2">
                       <span className="min-w-0">
-                        <span className="block truncate text-[14px]">{entry.name}</span>
-                        <span className="num flex flex-wrap gap-x-3 text-[12px] text-ink-faint">
+                        <span className="block truncate text-[14px] font-medium text-ink">{entry.name}</span>
+                        <span className="num flex flex-wrap gap-x-3 text-[12px] text-ink-3">
                           <span>{entry.id}</span>
                           <span>v{entry.version}</span>
                         </span>
                       </span>
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         disabled={catalogBusy}
                         onClick={() => void doInstallFromCatalog(entry.id)}
+                        className="h-11 [@media(hover:hover)]:h-9"
                       >
                         {t('sources.settings.install')}
                       </Button>
@@ -551,12 +555,12 @@ export function SourcesSettings() {
               value={urlInput}
               onChange={e => setUrlInput(e.target.value)}
               placeholder="https://example.com/plugin/manifest.json"
-              className={cn(fieldInputClass, 'w-[240px] max-w-full font-mono text-[12px]')}
+              className={cn(fieldInputClass, 'w-[240px] max-w-full')}
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
             />
-            <Button variant="outline" size="sm" disabled={urlBusy || !urlInput.trim()} onClick={() => void doInstallFromUrl()}>
+            <Button variant="secondary" size="sm" disabled={urlBusy || !urlInput.trim()} onClick={() => void doInstallFromUrl()} className="h-11 [@media(hover:hover)]:h-9">
               {t('sources.settings.install')}
             </Button>
           </div>
@@ -567,7 +571,7 @@ export function SourcesSettings() {
             variant="link"
             size="sm"
             onClick={() => setPasteOpen(v => !v)}
-            className="self-start"
+            className="self-start h-11 [@media(hover:hover)]:h-9"
           >
             {t('sources.settings.pasteToggle')}
           </Button>
@@ -590,7 +594,7 @@ export function SourcesSettings() {
                 className={pasteFieldClass}
               />
               <div className="text-right">
-                <Button size="sm" disabled={pasteBusy || !pasteManifest.trim() || !pasteCode.trim()} onClick={() => void doInstallPasted()}>
+                <Button size="sm" disabled={pasteBusy || !pasteManifest.trim() || !pasteCode.trim()} onClick={() => void doInstallPasted()} className="h-11 [@media(hover:hover)]:h-9">
                   {t('sources.settings.install')}
                 </Button>
               </div>
@@ -608,11 +612,10 @@ export function SourcesSettings() {
   )
 }
 
-/** 粘贴安装的多行输入：下沉底的圆角块，聚焦换纸片底加强调色描边 */
+/** 粘贴安装的多行输入：下沉底的圆角块，边是软描边，聚焦换回面板底（焦点环走全局 :focus-visible） */
 const pasteFieldClass =
-  'w-full rounded-md border border-transparent bg-paper-deep px-3 py-2 font-mono text-[12px] text-foreground ' +
-  'placeholder:text-ink-faint focus-visible:border-primary focus-visible:bg-sheet focus-visible:outline-none ' +
-  'focus-visible:ring-2 focus-visible:ring-primary/20'
+  'w-full rounded-sm border border-edge/60 bg-fill px-3 py-2 text-[16px] text-ink ' +
+  'placeholder:text-ink-3 hover:border-edge focus-visible:bg-surface regular:text-[13px]'
 
 /** 发行页：浏览器版里唯一有意义的下一步就是去拿一个带出网通道的壳 */
 const RELEASES_URL = 'https://github.com/baogutang/N1KO-MUSIC/releases/latest'
@@ -626,13 +629,13 @@ function NeedsAppNotice() {
   const { t } = useT()
   return (
     <div className={rowClass}>
-      <p className="text-[14px] leading-relaxed text-ink-soft">
+      <p className="text-[14px] leading-relaxed text-ink-2">
         {t('sources.needsApp')}{' '}
         <a
           href={RELEASES_URL}
           target="_blank"
           rel="noreferrer noopener"
-          className="rounded-sm text-primary underline-offset-4 hover:underline"
+          className="rounded-sm text-leaf underline-offset-4 hover:underline"
         >
           {t('sources.needsAppLink')}
         </a>
@@ -663,7 +666,7 @@ function IconAction({
       aria-label={title}
       onClick={onClick}
       disabled={disabled}
-      className={cn('h-11 w-11', destructive ? 'hover:text-destructive' : 'hover:text-primary')}
+      className={cn('h-11 w-11', destructive ? 'hover:text-danger' : 'hover:text-leaf')}
     >
       {children}
     </Button>
@@ -687,12 +690,12 @@ function CatalogUrlEditor({
         value={value}
         onChange={e => setValue(e.target.value)}
         placeholder="/__n1ko_plugins/catalog.json"
-        className={cn(fieldInputClass, 'w-[240px] max-w-full font-mono text-[12px]')}
+        className={cn(fieldInputClass, 'w-[240px] max-w-full')}
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
       />
-      <Button variant="outline" size="sm" disabled={value.trim() === initial} onClick={() => { onSave(value.trim()); toast({ title: t('sources.settings.catalogSaved') }) }}>
+      <Button variant="secondary" size="sm" disabled={value.trim() === initial} onClick={() => { onSave(value.trim()); toast({ title: t('sources.settings.catalogSaved') }) }} className="h-11 [@media(hover:hover)]:h-9">
         {t('action.save')}
       </Button>
     </div>

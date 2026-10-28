@@ -16,11 +16,14 @@
 
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { motion } from 'motion/react'
 import { ArrowsClockwise, Play, Shuffle } from '@phosphor-icons/react'
+import { CoverStack, SongCover } from '@/components/music/AlbumShelf'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { EmptyState } from '@/components/common/EmptyState'
 import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
+import { Button } from '@/components/ui/button'
 import {
   GroupStateRows,
   recommendationGroupsForMerge,
@@ -36,8 +39,10 @@ import {
 import { useRecommendationConstraints } from '@/services/recommendationFilters'
 import { formatDuration } from '@/utils/formatters'
 import { cn } from '@/lib/utils'
+import { SPRING_SNAPPY } from '@/lib/motion'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { useT } from '@/i18n'
+import type { Song } from '@/api/types'
 
 /** 这一页的上限。首页那条是 20，这里是它的展开版 */
 const MAX_SONGS = 60
@@ -108,58 +113,77 @@ export default function RecommendationsPage() {
 
   const totalDuration = songs.reduce((sum, song) => sum + song.duration, 0)
 
-  return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
-      <section aria-labelledby="rec-today">
-        <h1
-          id="rec-today"
-          className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]"
-        >
-          {t('section.dailyPicks')}
-        </h1>
-        <p className="mt-3 max-w-[52ch] text-[14px] leading-relaxed text-ink-faint">
-          {t('recommendations.lede')}
-        </p>
+  /** 牌堆：列表里前三首**封面不同**的歌（同一张专辑的歌叠在一起只是同一张脸） */
+  const deckSongs = useMemo(() => {
+    const seen = new Set<string>()
+    const picked: Song[] = []
+    for (const song of songs) {
+      const face = `${song.serverId}:${song.coverArt ?? song.albumId ?? song.id}`
+      if (seen.has(face)) continue
+      seen.add(face)
+      picked.push(song)
+      if (picked.length === 3) break
+    }
+    return picked
+  }, [songs])
 
-        <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-3">
-          {songs.length > 0 && (
-            <>
-              <button
-                className="act-primary inline-flex items-center gap-2 text-[14px]"
-                onClick={() => playAllInOrder(songs, 0)}
-              >
-                <Play size={14} weight="fill" />
-                {t('player.playAll')}
-              </button>
-              <button
-                className="act-secondary inline-flex items-center gap-2 text-[14px]"
-                onClick={() => playAllShuffled(songs, 0)}
-              >
-                <Shuffle size={15} />
-                {t('player.shuffle')}
-              </button>
-            </>
+  return (
+    <div className="pt-2 regular:pt-4">
+      <section aria-labelledby="rec-today">
+        {/* 这一条混合歌单的头：左边是三首歌的封面叠成的牌堆（点它从头播），右边是标题和动作 */}
+        <header className="flex flex-col gap-6 regular:flex-row regular:items-end regular:gap-10 wide:gap-12">
+          {deckSongs.length > 0 && (
+            <CoverStack
+              className="w-[min(52vw,200px)] flex-none regular:w-[168px] wide:w-[200px]"
+              aria-label={t('player.playAll')}
+              onClick={() => playAllInOrder(songs, 0)}
+              covers={deckSongs.map(song => (
+                <SongCover key={`${song.serverId}:${song.id}`} song={song} />
+              ))}
+            />
           )}
-          <button
-            className="act-secondary inline-flex items-center gap-2 text-[14px]"
-            onClick={handleNewBatch}
-            disabled={isFetching}
-          >
-            <ArrowsClockwise size={15} className={isFetching ? 'animate-spin motion-reduce:animate-none' : undefined} />
-            {t('action.newBatch')}
-          </button>
-          {songs.length > 0 && (
-            <span className="num flex flex-wrap gap-x-3 text-[14px] text-ink-faint">
-              <span>{t('song.trackCount', { count: songs.length })}</span>
-              <span>{formatDuration(totalDuration)}</span>
-            </span>
-          )}
-        </div>
+          <div className="min-w-0 flex-1">
+            <h1
+              id="rec-today"
+              className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]"
+            >
+              {t('section.dailyPicks')}
+            </h1>
+            <p className="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-ink-3">
+              {t('recommendations.lede')}
+            </p>
+            {songs.length > 0 && (
+              <div className="num mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[14px] font-medium text-ink-3">
+                <span>{t('song.trackCount', { count: songs.length })}</span>
+                <span>{formatDuration(totalDuration)}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              {songs.length > 0 && (
+                <>
+                  <Button onClick={() => playAllInOrder(songs, 0)}>
+                    <Play size={16} weight="fill" />
+                    {t('player.playAll')}
+                  </Button>
+                  <Button variant="secondary" onClick={() => playAllShuffled(songs, 0)}>
+                    <Shuffle size={17} weight="bold" />
+                    {t('player.shuffle')}
+                  </Button>
+                </>
+              )}
+              <Button variant="secondary" onClick={handleNewBatch} disabled={isFetching}>
+                <ArrowsClockwise size={17} weight="bold" className={isFetching ? 'animate-spin motion-reduce:animate-none' : undefined} />
+                {t('action.newBatch')}
+              </Button>
+            </div>
+          </div>
+        </header>
 
         {/* 来源筛选：只有真的跨了源才有意义，单源时这排 chip 只是噪声 */}
         {grouped.length > 1 && (
           <div
-            className="page-tabs mt-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-paper-deep p-1 scrollbar-hide"
+            className="mt-8 inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-ink/[0.06] p-1 scrollbar-hide"
             role="tablist"
             aria-label={t('recommendations.sourceFilter')}
           >
@@ -182,13 +206,13 @@ export default function RecommendationsPage() {
 
         <div className="mt-6">
           {songs.length > 0 ? (
-            <div className={isFetching ? 'opacity-60 transition-opacity duration-200' : undefined}>
+            <div className={isFetching ? 'opacity-60 transition-opacity duration-3' : undefined}>
               <SongList songs={songs} showCover showAlbum showIndex sourceBadge />
             </div>
           ) : isFetching ? (
             <SongRowsSkeleton rows={8} />
           ) : (
-            <EmptyState
+            <EmptyState mascot="maodou-listen"
               ruled
               title={t('empty.recommendations.title')}
               description={t('empty.recommendations.description')}
@@ -211,7 +235,10 @@ export default function RecommendationsPage() {
   )
 }
 
-/** 来源分段：徽标 + 名字，当前项是一块托起的纸片（与浏览页的分段同一套） */
+/**
+ * 来源分段：徽标 + 名字，当前项是轨道里被托起的一块（与其他页的分段同一套）。
+ * 托起的那块是一个共享布局元素：换来源时它沿着轨道滑过去，而不是原地换色。
+ */
 function SourceChip({ serverId, label, selected, onSelect }: {
   serverId?: string
   label: string
@@ -226,12 +253,21 @@ function SourceChip({ serverId, label, selected, onSelect }: {
       disabled={selected}
       onClick={onSelect}
       className={cn(
-        'seg-option inline-flex min-h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill px-4 text-[14px] font-medium transition-colors duration-150',
+        // 36px 的选项 + 轨道 4px 的内边距 = 44px 的命中区：伪元素把点按范围补满上下
+        "relative isolate inline-flex h-9 flex-none items-center gap-2 whitespace-nowrap rounded-pill px-4 text-[14px] font-semibold transition-colors duration-2 before:absolute before:inset-x-0 before:-inset-y-1 before:content-['']",
         selected
-          ? 'is-on cursor-default'
-          : 'text-ink-soft [@media(hover:hover)]:hover:text-ink'
+          ? 'cursor-default text-ink'
+          : 'text-ink-3 [@media(hover:hover)]:hover:text-ink-2'
       )}
     >
+      {selected && (
+        <motion.span
+          layoutId="rec-source-pill"
+          transition={SPRING_SNAPPY}
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 rounded-pill seg-pill"
+        />
+      )}
       {serverId && <SourceBadge serverId={serverId} />}
       <span>{label}</span>
     </button>

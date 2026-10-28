@@ -31,6 +31,44 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
 
+/**
+ * 歌单封面砖的内容：有封面用图，没有就是一块安静的占位。
+ * 本地混合歌单与服务器歌单走同一个，两种卡片的封面不再各长各的。
+ */
+function PlaylistTile({ src, name }: { src?: string; name: string }) {
+  if (src) {
+    return <img src={src} alt={name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+  }
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-fill-2 text-ink-3">
+      <MusicNote className="h-1/3 w-1/3" aria-hidden="true" />
+    </div>
+  )
+}
+
+/** 封面形骨架：方块 + 一行图注，位置和真实卡片一致，这一节加载完版面不跳 */
+function PlaylistSkeletons({ count }: { count: number }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={`skeleton-${i}`} aria-hidden="true">
+          <div className="skeleton cover-frame aspect-square" />
+          <div className="skeleton mt-2.5 h-3.5 w-3/4 rounded-pill" />
+        </div>
+      ))}
+    </>
+  )
+}
+
+/** 卡片图注里的小标：本地 / 智能歌单 */
+function CaptionTag({ children }: { children: string }) {
+  return (
+    <p className="mt-1.5">
+      <span className="rounded-pill bg-fill px-2.5 py-0.5 text-caption font-semibold text-ink-2">{children}</span>
+    </p>
+  )
+}
+
 export default function Playlists() {
   const { t } = useT()
   const navigate = useNavigate()
@@ -148,15 +186,15 @@ export default function Playlists() {
   }
 
   return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
-      {/* 页头：大标题 + 总数；右侧 导入（纸片胶囊）与 新建（强调色实心） */}
+    <div className="pt-2 regular:pt-4">
+      {/* 页头：大标题 + 总数；右侧 导入（中性胶囊）与 新建（青柠，这一屏唯一的主键） */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div>
-          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
+        <div className="min-w-0">
+          <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
             {t('nav.playlists')}
           </h1>
           {!isLoading && totalCount >= 0 && (
-            <p className="num mt-3 text-sm text-ink-faint">
+            <p className="num mt-3 text-[14px] font-medium text-ink-3">
               {t('playlist.count', { count: totalCount })}
             </p>
           )}
@@ -165,10 +203,10 @@ export default function Playlists() {
           {/* 导入拆两项：文件（M3U/XSPF）与跨源歌单（阶段 5） */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="act-secondary inline-flex items-center gap-2 text-sm">
-                <UploadSimple size={15} />
+              <Button variant="secondary">
+                <UploadSimple size={18} />
                 {t('action.import')}
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setShowImport(true)}>
@@ -181,13 +219,10 @@ export default function Playlists() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="act-primary inline-flex items-center gap-2 text-sm"
-          >
-            <Plus size={15} weight="bold" />
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus size={18} weight="bold" />
             {t('empty.playlists.action')}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -199,7 +234,7 @@ export default function Playlists() {
        */}
       <div className="mt-8">
       {allSourcesFailed && localPlaylists.length === 0 ? (
-        <EmptyState
+        <EmptyState mascot="maodou-surprised"
           title={t('sources.allFailed.title')}
           description={t('sources.allFailed.description')}
           action={{ label: t('action.retry'), onClick: () => void refetchAll() }}
@@ -215,7 +250,7 @@ export default function Playlists() {
         <>
           {/* 本地歌单存储打不开（无痕模式/配额/损坏）：明说，而不是分区无声消失 */}
           {localLoadError && (
-            <p role="alert" className="mb-6 rounded-md bg-destructive/10 px-4 py-3 text-[14px] leading-relaxed text-destructive">
+            <p role="alert" className="mb-6 rounded-md bg-danger/10 px-4 py-3 text-[14px] leading-relaxed text-danger">
               {t('sources.import.localStoreError')}
             </p>
           )}
@@ -225,10 +260,10 @@ export default function Playlists() {
             <section>
               <div className="section-head !pt-0">
                 <h2 className="flex items-center gap-2.5">
-                  <HardDrive className="w-4 h-4 text-ink-faint" />
+                  <HardDrive className="h-4 w-4 text-ink-3" aria-hidden="true" />
                   {t('sources.import.localSection')}
                 </h2>
-                <span className="num text-sm text-ink-faint">
+                <span className="num text-[14px] text-ink-3">
                   {t('playlist.count', { count: localPlaylists.length })}
                 </span>
               </div>
@@ -238,18 +273,10 @@ export default function Playlists() {
                     key={pl.id}
                     aria-label={pl.name}
                     onClick={() => setViewingLocal(pl.id)}
-                    tile={
-                      <div className="flex h-full w-full items-center justify-center">
-                        <MusicNote className="h-10 w-10 text-ink-faint" />
-                      </div>
-                    }
+                    tile={<PlaylistTile name={pl.name} />}
                     title={spaceCJK(pl.name)}
                     meta={<span className="num">{t('song.count', { count: pl.items.length })}</span>}
-                    captionExtra={
-                      <p className="mt-1.5">
-                        <span className="sticker px-2.5 py-0.5 text-xs">{t('playlist.localLabel')}</span>
-                      </p>
-                    }
+                    captionExtra={<CaptionTag>{t('playlist.localLabel')}</CaptionTag>}
                   />
                 ))}
               </CoverGrid>
@@ -263,7 +290,7 @@ export default function Playlists() {
                     <SourceBadge serverId={section.serverId} withName />
                   </h2>
                   {section.status === 'success' && (
-                    <span className="num text-sm text-ink-faint">
+                    <span className="num text-[14px] text-ink-3">
                       {t('playlist.count', { count: section.items.length })}
                     </span>
                   )}
@@ -277,12 +304,7 @@ export default function Playlists() {
               <CoverGrid>
                 {/* 分节内骨架（复核 F12）：这一节还在加载时摆几格占位，
                     不再让整页陪着转 */}
-                {section.status === 'loading' && Array.from({ length: 6 }).map((_, i) => (
-                  <div key={`skeleton-${i}`} aria-hidden="true">
-                    <div className="aspect-square rounded-md bg-skeleton animate-pulse" />
-                    <div className="mt-3 h-4 w-3/4 rounded-sm bg-skeleton animate-pulse" />
-                  </div>
-                ))}
+                {section.status === 'loading' && <PlaylistSkeletons count={6} />}
                 {section.items.map(pl => {
                   const href = `/playlists/${pl.id}?src=${encodeURIComponent(pl.serverId)}`
                   return (
@@ -291,17 +313,10 @@ export default function Playlists() {
                       aria-label={pl.name}
                       onClick={() => navigate(href)}
                       tile={
-                        pl.coverArt ? (
-                          <img
-                            src={findAdapterFor(pl.serverId)?.getCoverUrl(pl.coverArt, 300) ?? pl.coverArt}
-                            alt={pl.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center">
-                            <MusicNote className="h-10 w-10 text-ink-faint" />
-                          </div>
-                        )
+                        <PlaylistTile
+                          name={pl.name}
+                          src={pl.coverArt ? (findAdapterFor(pl.serverId)?.getCoverUrl(pl.coverArt, 300) ?? pl.coverArt) : undefined}
+                        />
                       }
                       overlay={
                         <>
@@ -339,15 +354,15 @@ export default function Playlists() {
                                   // 智能歌单由服务器按规则生成，删除/编辑在它上面是无效操作，
                                   // 与其让用户点了没反应，不如说明它是什么
                                   <div className="px-3 py-2 max-w-[13rem]">
-                                    <p className="font-display text-sm font-semibold">{t('playlist.smart')}</p>
-                                    <p className="mt-1 text-[13px] text-ink-faint">
+                                    <p className="text-[14px] font-semibold text-ink">{t('playlist.smart')}</p>
+                                    <p className="mt-1 text-[13px] text-ink-3">
                                       {t('playlist.smartHint')}
                                     </p>
                                   </div>
                                 ) : section.isPrimary ? (
                                   // 删除走主库适配器；外源歌单的删除/退订语义不同，不在此提供
                                   <DropdownMenuItem
-                                    className="text-destructive gap-2"
+                                    className="text-danger gap-2"
                                     onClick={() => setDeleteTarget({ id: pl.id, name: pl.name, serverId: pl.serverId })}
                                   >
                                     <Trash className="w-4 h-4" />
@@ -365,13 +380,7 @@ export default function Playlists() {
                           ? <span className="num">{t('song.count', { count: pl.songCount })}</span>
                           : undefined
                       }
-                      captionExtra={
-                        pl.readonly ? (
-                          <p className="mt-1.5">
-                            <span className="sticker px-2.5 py-0.5 text-xs">{t('playlist.smart')}</span>
-                          </p>
-                        ) : undefined
-                      }
+                      captionExtra={pl.readonly ? <CaptionTag>{t('playlist.smart')}</CaptionTag> : undefined}
                     />
                   )
                 })}
@@ -400,7 +409,7 @@ export default function Playlists() {
               autoFocus
             />
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowCreate(false)}>{t('action.cancel')}</Button>
+              <Button variant="secondary" onClick={() => setShowCreate(false)}>{t('action.cancel')}</Button>
               <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
                 {creating ? t('action.creating') : t('action.create')}
               </Button>
@@ -419,7 +428,7 @@ export default function Playlists() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>{t('action.cancel')}</Button>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>{t('action.cancel')}</Button>
             <Button
               variant="destructive"
               onClick={handleDelete}
@@ -464,24 +473,24 @@ function LocalPlaylistViewDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2.5">
-            <HardDrive className="w-4 h-4 text-ink-faint" />
-            {playlist.name}
-            <span className="num text-[13px] font-normal text-ink-faint">
+            <HardDrive className="h-4 w-4 flex-none text-ink-3" aria-hidden="true" />
+            <span className="min-w-0 truncate">{playlist.name}</span>
+            <span className="num flex-none text-[13px] font-normal text-ink-3">
               {t('song.trackCount', { count: songs.length })}
             </span>
           </DialogTitle>
           <DialogDescription>{t('playlist.localLabel')}</DialogDescription>
         </DialogHeader>
         {songs.length === 0 ? (
-          <p className="py-6 text-center text-[14px] text-ink-faint">{t('sources.import.localEmpty')}</p>
+          <p className="py-6 text-center text-[14px] text-ink-3">{t('sources.import.localEmpty')}</p>
         ) : (
-          <div className="flex flex-wrap items-center gap-2 pb-1">
-            <Button size="sm" onClick={() => playAllInOrder(songs, 0)}>
-              <Play size={14} weight="fill" />
+          <div className="flex flex-wrap items-center gap-3 pb-1">
+            <Button onClick={() => playAllInOrder(songs, 0)}>
+              <Play size={18} weight="fill" />
               {t('player.playAll')}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => playAllShuffled(songs, 0)}>
-              <Shuffle size={14} />
+            <Button variant="secondary" onClick={() => playAllShuffled(songs, 0)}>
+              <Shuffle size={18} />
               {t('player.shuffle')}
             </Button>
           </div>
@@ -494,10 +503,10 @@ function LocalPlaylistViewDialog({
         <div className="flex justify-end gap-3 pt-1">
           <Button
             variant="ghost"
-            className="text-destructive"
+            className="text-danger hover:text-danger"
             onClick={() => { void onDelete(playlist.id) }}
           >
-            <Trash className="w-4 h-4" />
+            <Trash size={18} />
             {t('playlist.delete')}
           </Button>
         </div>

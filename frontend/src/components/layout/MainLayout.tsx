@@ -43,6 +43,11 @@ import { useDeepLinks } from '@/hooks/useDeepLinks'
 import { useOfflineLibraryCache } from '@/hooks/useOfflineLibraryCache'
 import { useScrollMemory } from '@/hooks/useScrollMemory'
 import { useNativeAppIntegration } from '@/hooks/useNativeAppIntegration'
+import { useArtLight } from '@/hooks/useArtLight'
+import { useWheelInertia } from '@/hooks/useWheelInertia'
+import { usePlayerStore } from '@/store/playerStore'
+import { ArtWash } from '@/components/art/ArtWash'
+import { ScrollContainerContext } from './scrollContainer'
 import { useNativeMediaControls } from '@/services/nativeMediaControls'
 import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -71,6 +76,8 @@ export default function MainLayout() {
   // 原生壳集成：锁屏控制、状态栏、返回键……两者内部都先判断是否原生，网页上是空操作
   useNativeMediaControls()
   useNativeAppIntegration()
+  // 房间的光：当前封面的色相写进根元素的 --art-*
+  useArtLight()
 
   const { wc, sidebarVisible, panelVisible } = useShellLayout()
   const { sheetOpen, closeSheet } = useShellShortcuts(panelVisible)
@@ -81,6 +88,11 @@ export default function MainLayout() {
   const dockRef = useRef<HTMLDivElement>(null)
   const getMain = useCallback(() => mainRef.current, [])
   useScrollMemory(getMain)
+  // 鼠标滚轮一格一格地跳时补一段滑行（触控板、触屏不碰）
+  useWheelInertia(getMain)
+  // 没有歌的时候不留一整栏空面板：第一首歌开始放，面板才出现
+  const hasSong = usePlayerStore(s => !!s.currentSong)
+  const showPanel = panelVisible && hasSong
 
   /* 滚动边缘：内容滚到工具栏底下才铺纸色；大标题滚走才浮现栏目名 */
   const [scrolled, setScrolled] = useState(false)
@@ -128,19 +140,22 @@ export default function MainLayout() {
     return () => globalThis.clearTimeout(timer)
   }, [])
 
-  const leftColumn = sidebarVisible ? 'minmax(236px, 264px)' : wc === 'regular' ? '84px' : '0px'
-  const rightColumn = panelVisible ? 'minmax(300px, 340px)' : '0px'
+  const leftColumn = sidebarVisible ? 'minmax(244px, 272px)' : wc === 'regular' ? '96px' : '0px'
+  const rightColumn = showPanel ? 'minmax(312px, 356px)' : '0px'
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={850} skipDelayDuration={300}>
+      <ScrollContainerContext.Provider value={mainRef}>
       {/* 命令面板对所有宽度都可用（接键盘的 iPad 同样受益） */}
       <CommandPalette />
       <div
         ref={shellRef}
         data-window-class={wc}
-        className="relative grid h-full overflow-clip text-foreground"
+        className="relative isolate grid h-full overflow-clip text-ink"
         style={{ gridTemplateColumns: `${leftColumn} minmax(0, 1fr) ${rightColumn}`, gridTemplateRows: 'minmax(0, 1fr)' }}
       >
+        {/* 房间的光：铺在最底下，侧栏与面板是半透明的，光从它们底下透出来 */}
+        <ArtWash className="absolute inset-x-0 top-0 -z-10 h-[96vh]" />
         {sidebarVisible && <AppSidebar />}
         {wc === 'regular' && <AppRail />}
 
@@ -164,13 +179,16 @@ export default function MainLayout() {
                 paddingRight: 'max(16px, env(safe-area-inset-right))',
               } : undefined}
             >
-              <Outlet />
+              {/* 换页：新页面淡入（只动透明度——位移会打乱详情页「封面从卡片飞过来」的落点测量） */}
+              <div key={location.pathname} className="animate-route-in motion-reduce:animate-none">
+                <Outlet />
+              </div>
             </div>
           </main>
           <QueueDrawer />
         </div>
 
-        {panelVisible && <NowPlayingPanel />}
+        {showPanel && <NowPlayingPanel />}
 
         {/* 底部播放区：横跨内容列与面板列，浮在内容上方。
             绝对定位在网格区域里（网格项的包含块就是它的网格区域），不用 sticky：
@@ -184,12 +202,10 @@ export default function MainLayout() {
             paddingLeft: wc === 'compact' ? 'calc(env(safe-area-inset-left) + 8px)' : undefined,
           }}
         >
-          {/* 垫纸：从第一张纸片的半腰往下铺满底色。迷你条与标签栏之间的缝、
-              home 指示条那一段安全区，不再透出底下滚动的内容 */}
+          {/* 底部的一层渐隐：内容滚到玻璃胶囊底下时仍然看得见，但不抢字 */}
           <div
             aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 top-6 -z-10 bg-paper"
-            style={{ backgroundImage: 'var(--texture)', backgroundSize: 'var(--texture-size)' }}
+            className="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+32px)] bg-gradient-to-t from-ground via-ground/80 to-ground/0"
           />
           <PlayerBar wc={wc} />
           {wc === 'compact' && <TabBar />}
@@ -199,6 +215,7 @@ export default function MainLayout() {
         <Toaster />
         <ShortcutSheet open={sheetOpen} onClose={closeSheet} />
       </div>
+      </ScrollContainerContext.Provider>
     </TooltipProvider>
   )
 }

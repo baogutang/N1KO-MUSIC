@@ -2,18 +2,19 @@
  * 首页的多源区块（PLAN 2.3）：
  * - MergedDailyRail：「今天听什么」——把所有来源的推荐合成一条
  * - SourceCollections：每个音源的「我的歌单 / 收藏」入口行
- * - SourceTopListsRail：榜单（只对声明 topLists 的音源出现）
- * - SourceRecommendSheetsRail：推荐歌单合并网格（各源交错，卡片带音源标识）
+ * - SourceTopListsRail：榜单（只对声明 topLists 的音源出现），一排榜单封面
+ * - SourceRecommendSheetsRail：推荐歌单封面书架（各源交错，卡片带音源标识）
  *
  * 四块都是「有内容才渲染」：能力未声明、加载失败、空数据都不占版面。
  */
 
 import { useCallback, useMemo } from 'react'
 import { Heart, MusicNotes } from '@phosphor-icons/react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
-import { CoverCard, CoverShelf } from '@/components/common/CoverCard'
+import { CoverCard, CoverGrid, CoverShelf } from '@/components/common/CoverCard'
+import { Button } from '@/components/ui/button'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SourceGroupState, groupStateStatus } from '@/components/sources/SourceGroupState'
@@ -144,7 +145,6 @@ export function GroupStateRows({
  */
 export function MergedDailyRail() {
   const { t } = useT()
-  const navigate = useNavigate()
   const retry = useRetrySourceGroup()
   const { good: sourceGroups, loading, failed, auth } = splitGroups(useSourceRecommendSongs())
   // 主库（NAS 等）没有 recommendSongs 这个插件扩展，它的那一份来自本地画像。
@@ -168,9 +168,10 @@ export function MergedDailyRail() {
 
   return (
     <section aria-labelledby="home-dailymix">
-      <div className="section-head">
+      <div className="section-head flex-wrap">
         <h2 id="home-dailymix" className="flex-none">{t('sources.dailyMix')}</h2>
-        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
+        {/* 窄屏：标题一行、动作一行（三个链接放得下一行）；宽一点就并到标题右边 */}
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-1 regular:ml-auto regular:w-auto regular:justify-end">
           {sourceGroups.filter(g => g.data.length > 0).map(g => (
             <SourceBadge key={g.serverId} serverId={g.serverId} withName />
           ))}
@@ -187,9 +188,9 @@ export function MergedDailyRail() {
             {t('player.shuffle')}
           </button>
           {/* 展开版在推荐页：同一条，只是更多、可换一批、可按来源看 */}
-          <button className="more -my-3 py-3" onClick={() => navigate('/recommendations')}>
+          <Link className="more -my-3 py-3" to="/recommendations">
             {t('action.viewAll')}
-          </button>
+          </Link>
         </div>
       </div>
       <SongList songs={merged} showCover showAlbum showIndex sourceBadge />
@@ -223,25 +224,25 @@ export function SourceCollections() {
             <div key={g.serverId} className="sheet flex flex-col gap-4 p-4 regular:p-5">
               <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
                 <SourceBadge serverId={g.serverId} withName />
-                <span className="num text-[13px] text-ink-faint">
+                <span className="num text-[13px] text-ink-3">
                   {t('sources.playlistCount', { count: g.data?.length ?? 0 })}
                 </span>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  className={PILL_BUTTON}
+                <Button
+                  variant="secondary"
                   onClick={() => navigate(`/playlists?src=${encodeURIComponent(g.serverId)}`)}
                 >
                   <MusicNotes size={16} />
                   {t('nav.playlists')}
-                </button>
-                <button
-                  className={PILL_BUTTON}
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => navigate(`/favorites?src=${encodeURIComponent(g.serverId)}`)}
                 >
                   <Heart size={16} />
                   {t('nav.favorites')}
-                </button>
+                </Button>
               </div>
             </div>
           )
@@ -251,15 +252,11 @@ export function SourceCollections() {
   )
 }
 
-/** 纸片里的次级入口：下沉一档的胶囊，命中区 44px */
-const PILL_BUTTON =
-  'inline-flex min-h-[44px] items-center gap-1.5 rounded-pill bg-paper-deep px-4 text-[14px] font-medium text-ink transition-colors duration-200 [@media(hover:hover)]:hover:bg-paper-3'
-
 /**
- * 榜单：每个声明的源一组，榜单名做胶囊，点击进榜单详情。
+ * 榜单：每个声明的源，榜单做成封面卡，点击进榜单详情。
  *
- * 首页上**只给摘要**：每个源最多两组、每组最多六个。
- * 两个平台加起来有近百个榜，全列出来会把首页撑得很长。
+ * 首页上**只给摘要**：每个源最多两组、每组最多六个，摊成一排封面书架，
+ * 组名写在图注里。两个平台加起来有近百个榜，全列出来会把首页撑得很长。
  * 要全部就点「查看全部」去榜单列表页。
  */
 const HOME_TOPLIST_GROUPS = 2
@@ -267,7 +264,6 @@ const HOME_TOPLIST_ITEMS = 6
 
 export function SourceTopListsRail() {
   const { t } = useT()
-  const navigate = useNavigate()
   const retry = useRetrySourceGroup()
   const all = useSourceTopLists()
   const groups = all.filter(g => g.status === 'success' && g.data?.groups.length)
@@ -282,31 +278,35 @@ export function SourceTopListsRail() {
         <h2 id="home-toplists">{t('sources.topLists')}</h2>
         {/* 「查看全部」去榜单列表页（阶段 2.6）：此前跳到每日推荐页，
             一个榜单都没有；被截掉的榜在这里有去处 */}
-        <button className="more -my-3 py-3" onClick={() => navigate('/toplists')}>
+        <Link className="more -my-3 py-3" to="/toplists">
           {t('action.viewAll')}
-        </button>
+        </Link>
       </div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-4">
-        {groups.map(g =>
-          g.data!.groups.slice(0, HOME_TOPLIST_GROUPS).map(group => (
-            <TopListGroupCard
-              key={`${g.serverId}:${group.title}`}
-              serverId={g.serverId}
-              group={group}
-              limit={HOME_TOPLIST_ITEMS}
-              showSource
-            />
-          ))
-        )}
-      </div>
+      {groups.length > 0 && (
+        <CoverShelf>
+          {groups.flatMap(g =>
+            g.data!.groups.slice(0, HOME_TOPLIST_GROUPS).flatMap(group =>
+              group.items.slice(0, HOME_TOPLIST_ITEMS).map(item => (
+                <ChartCard
+                  key={`${g.serverId}:${group.title}:${item.id}`}
+                  serverId={g.serverId}
+                  item={item}
+                  meta={group.title}
+                  showSource
+                />
+              ))
+            )
+          )}
+        </CoverShelf>
+      )}
       <GroupStateRows failed={failed} loading={loading} auth={auth} showLoading={!groups.length} retry={retry} family="toplists" />
     </section>
   )
 }
 
 /**
- * 一组榜单：标题 + 数量，下面是榜单名的胶囊，点击进榜单详情。
- * 首页（摘要，带来源徽标）与榜单列表页（全部，来源已在分节标题里）共用。
+ * 一组榜单：组名 + 数量，下面是这一组的榜单封面，点击进榜单详情。
+ * 榜单列表页用（全部，来源已在分节标题里）；showSource 时每张封面角上带来源标识。
  */
 export function TopListGroupCard({
   serverId,
@@ -321,41 +321,80 @@ export function TopListGroupCard({
   showSource?: boolean
 }) {
   const { t } = useT()
-  const navigate = useNavigate()
   const items = limit ? group.items.slice(0, limit) : group.items
   return (
-    <div className="sheet p-4 regular:p-5">
-      <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-        {showSource && <SourceBadge serverId={serverId} />}
-        <span className="text-[16px] font-semibold">{group.title}</span>
-        <span className="num text-[13px] text-ink-faint">
+    <div>
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h3 className="min-w-0 font-display text-[19px] font-semibold tracking-[-0.015em] text-ink">{group.title}</h3>
+        <span className="num text-[13px] text-ink-3">
           {t('sources.sheetCount', { count: group.items.length })}
         </span>
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {items.map(item => (
-          <button
-            key={item.id}
-            onClick={() =>
-              navigate(`/toplists/${encodeURIComponent(serverId)}/${encodeURIComponent(item.id)}`)
-            }
-            className={PILL_BUTTON}
-          >
-            {item.name}
-          </button>
-        ))}
       </div>
+      <CoverGrid>
+        {items.map(item => (
+          <ChartCard key={item.id} serverId={serverId} item={item} showSource={showSource} />
+        ))}
+      </CoverGrid>
     </div>
   )
 }
 
-/** 推荐歌单：各源交错合并成一张网格，卡片角上带音源标识 */
+/** 歌单 / 榜单封面：插件给的 artwork 本身就是可用地址；有适配器的源按尺寸取 */
+function sheetCoverUrl(playlist: Playlist, size: number): string | undefined {
+  if (!playlist.coverArt) return undefined
+  return findAdapterFor(playlist.serverId)?.getCoverUrl(playlist.coverArt, size) ?? playlist.coverArt
+}
+
+/** 封面角上的来源标识：一枚浮在封面上的小胶囊 */
+function SourceCorner({ serverId }: { serverId: string }) {
+  return (
+    <span className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-surface px-2 py-1 shadow-sm">
+      <SourceBadge serverId={serverId} />
+    </span>
+  )
+}
+
+/** 榜单卡：封面 + 榜名（+ 图注）；点开进榜单详情 */
+function ChartCard({
+  serverId,
+  item,
+  meta,
+  showSource = false,
+}: {
+  serverId: string
+  item: Playlist
+  meta?: string
+  showSource?: boolean
+}) {
+  const navigate = useNavigate()
+  return (
+    <CoverCard
+      aria-label={item.name}
+      onClick={() =>
+        navigate(`/toplists/${encodeURIComponent(serverId)}/${encodeURIComponent(item.id)}`)
+      }
+      tile={
+        <ImageWithFallback
+          src={sheetCoverUrl(item, 300)}
+          alt={item.name}
+          fallbackType="album"
+          className="h-full w-full object-cover"
+        />
+      }
+      overlay={showSource ? <SourceCorner serverId={serverId} /> : undefined}
+      title={item.name}
+      meta={meta}
+    />
+  )
+}
+
+/** 推荐歌单：各源交错合并成一排封面书架，卡片角上带音源标识 */
 export function SourceRecommendSheetsRail() {
   const { t } = useT()
   const retry = useRetrySourceGroup()
   const { good: groups, loading, failed, auth } = splitGroups(useSourceRecommendSheets())
   const merged = useMemo(() => {
-    // 每源取前 6 张，轮转交错成一张网格；歌单不像歌曲那样跨源去重（同名不同源是两张真实的歌单）
+    // 每源取前 6 张，轮转交错成一排；歌单不像歌曲那样跨源去重（同名不同源是两张真实的歌单）
     const queues = groups.map(g => g.data.slice(0, 6).map(pl => ({ pl, serverId: g.serverId })))
     const out: Array<{ pl: Playlist; serverId: string }> = []
     let progressed = true
@@ -394,9 +433,6 @@ export function SourceRecommendSheetsRail() {
 function MiniSheetCard({ playlist, serverId }: { playlist: Playlist; serverId: string }) {
   const { t } = useT()
   const navigate = useNavigate()
-  const cover = playlist.coverArt
-    ? (findAdapterFor(playlist.serverId)?.getCoverUrl(playlist.coverArt, 300) ?? playlist.coverArt)
-    : undefined
   /* 外壳收敛到 CoverCard（阶段 7.4）；角上的音源标识是这层独有的浮层 */
   return (
     <CoverCard
@@ -404,17 +440,13 @@ function MiniSheetCard({ playlist, serverId }: { playlist: Playlist; serverId: s
       onClick={() => navigate(`/playlists/${playlist.id}?src=${encodeURIComponent(playlist.serverId)}`)}
       tile={
         <ImageWithFallback
-          src={cover}
+          src={sheetCoverUrl(playlist, 300)}
           alt={playlist.name}
           fallbackType="album"
-          className="w-full h-full object-cover"
+          className="h-full w-full object-cover"
         />
       }
-      overlay={
-        <span className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-sheet px-2 py-1 shadow-press">
-          <SourceBadge serverId={serverId} />
-        </span>
-      }
+      overlay={<SourceCorner serverId={serverId} />}
       title={playlist.name}
       {...(playlist.songCount !== undefined
         ? { meta: <span className="num">{t('song.trackCount', { count: playlist.songCount })}</span> }

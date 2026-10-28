@@ -27,6 +27,7 @@ export function ErrorState({
   return (
     <EmptyState
       ruled={ruled}
+      mascot="maodou-surprised"
       className={className}
       title={t('error.load.title')}
       description={t('error.load.description')}

@@ -25,6 +25,8 @@ export const STORAGE_KEYS = {
   musicbrainzCache: 'msp-musicbrainz-cache',
   scrollMemory: 'msp-scroll-memory',
   pluginDisclaimers: 'n1ko-plugin-disclaimers-confirmed',
+  /** v6：封面取色结果（房间的光），完全可重建 */
+  artLight: 'msp-art-light',
 } as const
 
 /**

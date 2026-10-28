@@ -8,7 +8,9 @@
 
 import { NavLink, useLocation } from 'react-router-dom'
 import { GearSix } from '@phosphor-icons/react'
+import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
+import { SPRING_SNAPPY } from '@/lib/motion'
 import { needsTrafficLightInset } from '@/lib/platform'
 import { prefetchRoute } from '@/routes/lazyRoutes'
 import { useT } from '@/i18n'
@@ -16,9 +18,21 @@ import { PRIMARY_NAV, isNavActive } from './navItems'
 
 const railItem = (active: boolean) =>
   cn(
-    'flex w-[64px] flex-col items-center gap-1 rounded-md py-2 text-[11.5px] font-medium transition-colors duration-150',
-    active ? 'bg-paper-3 text-primary' : 'text-ink-faint hover:bg-paper-deep hover:text-ink'
+    'press-pop relative isolate flex w-[68px] flex-col items-center gap-1 rounded-[16px] py-2.5 text-[11.5px] font-medium',
+    active ? 'text-ink' : 'text-ink-3 hover:bg-ink/[0.05] hover:text-ink'
   )
+
+/** 当前项的底：换页时从上一项滑过来 */
+function RailPill() {
+  return (
+    <motion.span
+      layoutId="rail-active"
+      transition={SPRING_SNAPPY}
+      aria-hidden="true"
+      className="absolute inset-0 -z-10 rounded-[16px] bg-ink/[0.075]"
+    />
+  )
+}
 
 export function AppRail() {
   const { t } = useT()
@@ -28,16 +42,16 @@ export function AppRail() {
   return (
     <nav
       aria-label={t('nav.main')}
-      className="sheet col-start-1 row-start-1 m-2 mr-0 flex min-h-0 w-[76px] flex-col items-center gap-1 py-3"
+      className="col-start-1 row-start-1 m-2.5 mr-0 flex min-h-0 w-[84px] flex-col items-center gap-1.5 rounded-[24px] bg-surface-2/75 py-4 shadow-hair"
       style={{
-        marginTop: 'calc(env(safe-area-inset-top) + 8px)',
-        marginBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
-        marginLeft: 'calc(env(safe-area-inset-left) + 8px)',
+        marginTop: 'calc(env(safe-area-inset-top) + 10px)',
+        marginBottom: 'calc(env(safe-area-inset-bottom) + 10px)',
+        marginLeft: 'calc(env(safe-area-inset-left) + 10px)',
       }}
     >
       <NavLink
         to="/"
-        className={cn('mb-2 font-display text-[15px] font-semibold tracking-[-0.02em] text-ink', needsTrafficLightInset && 'mt-6')}
+        className={cn('mb-3 font-display text-[17px] font-bold tracking-[-0.04em] text-ink', needsTrafficLightInset && 'mt-6')}
         aria-label={t('action.backHome')}
         data-tauri-drag-region
       >
@@ -55,7 +69,8 @@ export function AppRail() {
             className={railItem(active)}
             aria-current={active ? 'page' : undefined}
           >
-            <Icon size={22} weight={active ? 'fill' : 'regular'} />
+            {active && <RailPill />}
+            <Icon size={23} weight={active ? 'fill' : 'regular'} className={active ? 'text-leaf' : undefined} />
             <span>{t(item.labelKey)}</span>
           </NavLink>
         )
@@ -67,7 +82,8 @@ export function AppRail() {
         className={railItem(settingsActive)}
         aria-current={settingsActive ? 'page' : undefined}
       >
-        <GearSix size={22} weight={settingsActive ? 'fill' : 'regular'} />
+        {settingsActive && <RailPill />}
+        <GearSix size={23} weight={settingsActive ? 'fill' : 'regular'} className={settingsActive ? 'text-leaf' : undefined} />
         <span>{t('nav.settings')}</span>
       </NavLink>
     </nav>

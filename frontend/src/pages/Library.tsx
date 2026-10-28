@@ -12,12 +12,24 @@ import { Play, Shuffle } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useAlbumsInfinite, useArtists, useSongsInfinite } from '@/hooks/useServerQueries'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/common/EmptyState'
+import { ErrorState } from '@/components/common/ErrorState'
 import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
 import { SongList } from '@/components/music/SongList'
 import { useServerStore } from '@/store/serverStore'
 import { playAllInOrder, shuffleWholeLibrary } from '@/utils/playActions'
 import { useT } from '@/i18n'
+
+/**
+ * 分段控件的一格：看起来 36px，触点用 ::before 向上下各多出 4px（落在轨道的内边距里），凑足 44px。
+ * 当前格底下垫的那块片（surface + 轻投影）由调用方放在里面。
+ */
+const SEG_OPTION =
+  'press-pop relative isolate h-9 flex-none whitespace-nowrap rounded-pill px-4 text-[14px] font-semibold before:absolute before:inset-x-0 before:-inset-y-1'
+
+/** 当前格底下托起的那块片。暗色下 surface 与轨道（ink 6%）几乎同亮（对比 1.03:1），改用 fill-2 才托得起来 */
+const SEG_PILL = 'absolute inset-0 -z-10 rounded-pill bg-surface shadow-sm dark:bg-fill-2'
 
 export default function Library() {
   const { t } = useT()
@@ -98,10 +110,12 @@ export default function Library() {
 
   if (!canBrowse) {
     return (
-      <div className="pt-2 regular:pt-4 animate-fade-in">
-        <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">{t('nav.library')}</h1>
+      <div className="pt-2 regular:pt-4">
+        <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
+          {t('nav.library')}
+        </h1>
         <div className="mt-8">
-          <EmptyState
+          <EmptyState mascot="maodou-wave"
             ruled
             title={t('sources.noBrowseTitle')}
             description={t('sources.noBrowseDesc')}
@@ -112,69 +126,71 @@ export default function Library() {
     )
   }
 
+  const loaded = !songsLoading && songs.length > 0
+
   return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
-      {/* 页头：大标题 + 体量说明（各自独立的 span，不用中点串） */}
-      <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">{t('nav.library')}</h1>
-      {/* 加载中不显示 0 计数（阶段 2.1） */}
-      {!(songsLoading || albumsLoading) && !songsError && (
-        <p className="num mt-3 flex flex-wrap gap-x-3 text-sm text-ink-faint">
-          <span>{t('library.songsCount', { count: songCountText })}</span>
-          <span>{t('library.albumsCount', { count: albumCountText })}</span>
-          <span>{t('library.artistsCount', { count: (artists ?? []).length })}</span>
-        </p>
-      )}
-
-      {/* 分段控件：只有「歌曲」留在本页（is-on），其余三格是去处 */}
-      <div className="page-tabs mt-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-paper-deep p-1 scrollbar-hide">
-        {tabs.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => { if (tab.to) navigate(tab.to) }}
-            aria-current={tab.to ? undefined : 'page'}
-            className={cn(
-              'seg-option min-h-11 flex-none whitespace-nowrap rounded-pill px-5 text-[14px] font-medium transition-colors duration-150',
-              tab.to
-                ? 'text-ink-soft [@media(hover:hover)]:hover:text-ink'
-                : 'is-on'
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="pt-8">
-        {!songsLoading && songs.length > 0 && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-            <div className="flex flex-wrap items-baseline gap-x-3">
-              <h2 className="font-display text-[21px] font-semibold leading-tight">{t('library.allSongs')}</h2>
-              <span className="num text-sm text-ink-faint">{t('library.loaded', { count: songs.length })}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => playAllInOrder(songs, 0)}
-                className="act-primary inline-flex items-center gap-2 text-sm"
-              >
-                <Play size={14} weight="fill" />
-                {t('player.playAll')}
-              </button>
-              {/*
-                全库随机：向服务端要一批随机取样，而不是对已加载的这一页洗牌。
-                列表分页加载，首屏只有 100 首且是服务端固定排序的前 100 首，
-                对它洗牌听感上就是「随机播放还是按排序在放」。
-              */}
-              <button
-                onClick={handleShuffleAll}
-                disabled={shufflingAll}
-                className="act-secondary inline-flex items-center gap-2 text-sm"
-              >
-                <Shuffle size={15} className={shufflingAll ? 'animate-spin motion-reduce:animate-none' : undefined} />
-                {shufflingAll ? t('library.shuffling') : t('player.shuffleAll')}
-              </button>
-            </div>
+    <div className="pt-2 regular:pt-4">
+      {/* 页头：大标题 + 体量说明（各自独立的 span，不用中点串）；播放全部是这一屏唯一的青柠键 */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
+            {t('nav.library')}
+          </h1>
+          {/* 加载中不显示 0 计数（阶段 2.1） */}
+          {!(songsLoading || albumsLoading) && !songsError && (
+            <p className="num mt-3 flex flex-wrap gap-x-3 text-[14px] font-medium text-ink-3">
+              <span>{t('library.songsCount', { count: songCountText })}</span>
+              <span>{t('library.albumsCount', { count: albumCountText })}</span>
+              <span>{t('library.artistsCount', { count: (artists ?? []).length })}</span>
+            </p>
+          )}
+        </div>
+        {loaded && (
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-3">
+            <Button onClick={() => playAllInOrder(songs, 0)}>
+              <Play size={18} weight="fill" />
+              {t('player.playAll')}
+            </Button>
+            {/*
+              全库随机：向服务端要一批随机取样，而不是对已加载的这一页洗牌。
+              列表分页加载，首屏只有 100 首且是服务端固定排序的前 100 首，
+              对它洗牌听感上就是「随机播放还是按排序在放」。
+            */}
+            <Button variant="secondary" onClick={handleShuffleAll} disabled={shufflingAll}>
+              <Shuffle size={18} className={shufflingAll ? 'animate-spin motion-reduce:animate-none' : undefined} />
+              {shufflingAll ? t('library.shuffling') : t('player.shuffleAll')}
+            </Button>
           </div>
         )}
+      </header>
+
+      {/* 分段控件：只有「歌曲」留在本页（托起的那一格），其余三格是去处 */}
+      <div className="mt-6 inline-flex max-w-full overflow-x-auto rounded-pill bg-ink/[0.06] p-1 scrollbar-hide">
+        {tabs.map(tab => {
+          const here = !tab.to
+          return (
+            <button
+              key={tab.key}
+              onClick={() => { if (tab.to) navigate(tab.to) }}
+              aria-current={here ? 'page' : undefined}
+              className={cn(SEG_OPTION, here ? 'text-ink' : 'text-ink-3 hover:text-ink-2')}
+            >
+              {here && (
+                <span aria-hidden="true" className={SEG_PILL} />
+              )}
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <section>
+        <div className="section-head">
+          <h2>{t('library.allSongs')}</h2>
+          {loaded && (
+            <span className="num text-[14px] text-ink-3">{t('library.loaded', { count: songs.length })}</span>
+          )}
+        </div>
         {songsError && songs.length === 0 ? (
           /* 查询失败时若直接渲染空列表，「服务器出错」和「曲库是空的」
              长得一模一样，用户既得不到解释也没有重试入口。
@@ -182,12 +198,7 @@ export default function Library() {
              但只在**一条都没有**时才整页换成错误态：否则「加载更多」
              失败会把已经看到的几百首整个抹掉，代价远大于那条错误信息
              的价值。已有内容时保留列表，让底部的分页按钮自己表达失败。 */
-          <EmptyState
-            ruled
-            title={t('error.load.title')}
-            description={t('error.load.description')}
-            action={{ label: t('action.retry'), onClick: () => { void refetchSongs() } }}
-          />
+          <ErrorState retry={() => { void refetchSongs() }} />
         ) : songsLoading ? (
           <SongRowsSkeleton rows={10} />
         ) : (
@@ -196,17 +207,14 @@ export default function Library() {
             {isFetchingNextPage && <SongRowsSkeleton rows={3} />}
             {hasNextPage && !isFetchingNextPage && (
               <div className="mt-8 flex justify-center">
-                <button
-                  onClick={() => fetchNextPage()}
-                  className="act-secondary inline-flex items-center gap-2 text-sm"
-                >
+                <Button variant="secondary" onClick={() => fetchNextPage()}>
                   {t('library.loadMoreSongs')}
-                </button>
+                </Button>
               </div>
             )}
           </>
         )}
-      </div>
+      </section>
     </div>
   )
 }

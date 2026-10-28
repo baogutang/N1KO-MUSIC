@@ -1,5 +1,7 @@
 # N1KO MUSIC v5 · 暖纸（Bloom）设计契约
 
+> **已被 v6「舞台光」取代（v1.14.0 起）。** 现行的设计系统见仓库根目录的 [`DESIGN.md`](../../../DESIGN.md)；本文只作历史保留，不再维护。
+
 > 真源永远是 `frontend/src/index.css` 的 token 块与 `frontend/tailwind.config.ts`。这份文档说的是怎么用它们。
 > 2026-10-27 起，三张皮（奶油·软陶 / 糖果·波普 / 纸·墨·朱）收敛为这一套，只剩亮 / 暗两档。
 > 方向由 Hallmark 发牌（Bloom，deal 3/3）后经 demo（`docs/redesign/v5/demo.html`）由用户选定。

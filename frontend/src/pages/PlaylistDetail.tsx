@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { findAdapterFor } from '@/api'
+import { DetailHero } from '@/components/common/DetailHero'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SongList } from '@/components/music/SongList'
 import { formatDuration } from '@/utils/formatters'
@@ -45,8 +46,27 @@ export function canEditPlaylist(
   return !!caps[playlist.serverId]?.playlistWrite
 }
 
-/** 头部两栏：compact 封面在上；regular 左 260；wide 左 300 */
-const HEADER_GRID = 'grid grid-cols-1 items-end gap-6 regular:grid-cols-[260px_minmax(0,1fr)] regular:gap-8 wide:grid-cols-[300px_minmax(0,1fr)] wide:gap-10'
+/** 加载骨架：与 DetailHero 同一套网格，封面方块 + 文字条，下面是曲目行 */
+function PlaylistSkeleton() {
+  return (
+    <div className="pb-2 pt-2 regular:pt-4" aria-hidden="true">
+      <div className="grid grid-cols-1 items-end justify-items-center gap-6 regular:grid-cols-[220px_minmax(0,1fr)] regular:justify-items-start regular:gap-8 wide:grid-cols-[264px_minmax(0,1fr)] wide:gap-10">
+        <div className="skeleton cover-frame aspect-square w-[min(72vw,280px)] regular:w-full" />
+        <div className="flex w-full min-w-0 flex-col items-center gap-3 regular:items-start">
+          <div className="skeleton h-10 w-2/3 rounded-md regular:h-12" />
+          <div className="skeleton h-4 w-40 rounded-md" />
+          <div className="mt-2 flex gap-3">
+            <div className="skeleton h-11 w-32 rounded-pill" />
+            <div className="skeleton h-11 w-36 rounded-pill" />
+          </div>
+        </div>
+      </div>
+      <div className="mt-10">
+        <SongRowsSkeleton rows={6} />
+      </div>
+    </div>
+  )
+}
 
 export default function PlaylistDetail() {
   const { t } = useT()
@@ -91,104 +111,90 @@ export default function PlaylistDetail() {
   const totalDuration = playlist?.songs.reduce((sum: number, s) => sum + (s.duration ?? 0), 0) ?? 0
 
   if (isLoading) {
-    return (
-      <div className="pt-2 regular:pt-4 animate-fade-in" aria-hidden="true">
-        <div className={HEADER_GRID}>
-          <div className="aspect-square w-full max-w-[300px] rounded-md bg-skeleton animate-pulse regular:max-w-none" />
-          <div className="space-y-4">
-            <div className="h-10 w-2/3 rounded-sm bg-skeleton animate-pulse" />
-            <div className="h-3.5 w-40 rounded-sm bg-skeleton animate-pulse" />
-            <div className="flex gap-3 pt-3">
-              <div className="h-11 w-28 rounded-pill bg-skeleton animate-pulse" />
-              <div className="h-11 w-32 rounded-pill bg-skeleton animate-pulse" />
-            </div>
-          </div>
-        </div>
-        <div className="mt-10">
-          <SongRowsSkeleton rows={6} />
-        </div>
-      </div>
-    )
+    return <PlaylistSkeleton />
   }
 
   if (error || !playlist) {
     return (
-      <div className="pt-2 regular:pt-4 animate-fade-in">
+      <div className="pt-2 regular:pt-4">
         <ErrorState onBack={() => navigate(-1)} />
       </div>
     )
   }
 
+  /* 大图 480 保证封面在高分屏上清楚；取色只要小图，且与卡片同一张，缓存能直接命中 */
+  const coverAdapter = findAdapterFor(playlist.serverId)
+  const coverSrc = playlist.coverArt
+    ? (coverAdapter?.getCoverUrl(playlist.coverArt, 480) ?? playlist.coverArt)
+    : undefined
+  const paletteUrl = playlist.coverArt
+    ? (coverAdapter?.getCoverUrl(playlist.coverArt, 300) ?? playlist.coverArt)
+    : undefined
+
   return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
-      {/* 头部：wide / regular 两栏（左大封面，右歌单名 + 元信息 + 动作行），compact 封面在上 */}
-      <header className={HEADER_GRID}>
-        <div className="cover-slab flex aspect-square w-full max-w-[300px] items-center justify-center overflow-hidden bg-paper-deep regular:max-w-none">
-          {playlist.coverArt ? (
+    <div>
+      {/* 头部：DetailHero——歌单封面带着自己的光，说明在标题下面。
+          元信息里来源在前：混源之后「这是谁家的歌单」是理解本页一切行为的前提，
+          包括为什么这里没有「移除」 */}
+      <DetailHero
+        cover={
+          coverSrc ? (
             <img
-              src={findAdapterFor(playlist.serverId)?.getCoverUrl(playlist.coverArt, 480) ?? playlist.coverArt}
+              src={coverSrc}
               alt={playlist.name}
               className="h-full w-full object-cover"
             />
           ) : (
-            <MusicNote className="h-16 w-16 text-ink-faint" />
-          )}
-        </div>
-
-        <div className="min-w-0">
-          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em] text-balance">
-            {spaceCJK(playlist.name)}
-          </h1>
-          {playlist.comment && (
-            <p className="mt-3 max-w-[52ch] text-sm text-ink-soft line-clamp-2">{playlist.comment}</p>
-          )}
-          {/* 元信息：来源在前——混源之后「这是谁家的歌单」是理解本页一切行为的前提，
-              包括为什么这里没有「移除」 */}
-          <p className="num mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-faint">
+            <div className="grid h-full w-full place-items-center text-ink-3">
+              <MusicNote className="h-1/3 w-1/3" aria-hidden="true" />
+            </div>
+          )
+        }
+        coverUrl={paletteUrl}
+        title={spaceCJK(playlist.name)}
+        subtitle={
+          playlist.comment ? (
+            <p className="line-clamp-2 max-w-[52ch] text-[15px] font-normal text-ink-2">{playlist.comment}</p>
+          ) : undefined
+        }
+        meta={
+          <>
             <SourceBadge serverId={playlist.serverId} withName />
             <span>{t('song.count', { count: playlist.songs.length })}</span>
             {totalDuration > 0 && <span>{formatDuration(totalDuration)}</span>}
-          </p>
-
-          {/* 动作行：播放（强调色实心）/ 随机、导出（纸片胶囊） */}
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <button
-              onClick={handlePlayAll}
-              disabled={!playlist.songs.length}
-              className="act-primary inline-flex items-center gap-2 text-sm"
-            >
-              <Play size={15} weight="fill" />
+          </>
+        }
+        actions={
+          <>
+            {/* 动作行：播放（青柠，一屏唯一）/ 随机、导出（中性胶囊） */}
+            <Button type="button" onClick={handlePlayAll} disabled={!playlist.songs.length}>
+              <Play size={18} weight="fill" />
               {t('player.playAll')}
-            </button>
-            <button
-              onClick={handleShuffle}
-              disabled={!playlist.songs.length}
-              className="act-secondary inline-flex items-center gap-2 text-sm"
-            >
-              <Shuffle size={15} />
+            </Button>
+            <Button type="button" variant="secondary" onClick={handleShuffle} disabled={!playlist.songs.length}>
+              <Shuffle size={18} />
               {t('player.shuffle')}
-            </button>
+            </Button>
 
             <DropdownMenu>
-              <DropdownMenuTrigger
-                disabled={!playlist.songs.length}
-                className="act-secondary inline-flex items-center gap-2 text-sm"
-              >
-                <DownloadSimple size={15} />
-                {t('action.export')}
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="secondary" disabled={!playlist.songs.length}>
+                  <DownloadSimple size={18} />
+                  {t('action.export')}
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuItem onClick={() => handleExport('m3u')}>
-                  M3U8<span className="ml-2 text-[13px] text-ink-faint">{t('playlist.exportM3uHint')}</span>
+                  M3U8<span className="ml-2 text-[13px] text-ink-3">{t('playlist.exportM3uHint')}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleExport('xspf')}>
-                  XSPF<span className="ml-2 text-[13px] text-ink-faint">{t('playlist.exportXspfHint')}</span>
+                  XSPF<span className="ml-2 text-[13px] text-ink-3">{t('playlist.exportXspfHint')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {/* 曲目列表：不画分隔线，靠行距与 hover 底 */}
       <div className="mt-10">
@@ -197,7 +203,6 @@ export default function PlaylistDetail() {
           <SongList songs={playlist.songs} showAlbum onRemove={editable ? setPendingRemove : undefined} />
         ) : (
           <EmptyState
-            ruled
             title={t('empty.playlistDetail.title')}
             description={t('empty.playlistDetail.description')}
           />
@@ -215,7 +220,7 @@ export default function PlaylistDetail() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setPendingRemove(null)}>
+            <Button variant="secondary" onClick={() => setPendingRemove(null)}>
               {t('action.cancel')}
             </Button>
             <Button

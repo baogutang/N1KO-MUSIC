@@ -12,6 +12,8 @@
 
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { CoverImage } from '@/components/common/CoverImage'
+import { useCoverUrl } from '@/hooks/useCoverUrl'
 import { useHistoryScope } from '@/store/serverStore'
 import { readListeningEvents } from '@/services/listeningHistory'
 import { buildRediscovery, type RediscoveryEntry } from '@/services/rediscovery'
@@ -59,19 +61,21 @@ export function RediscoveryShelf() {
     <section aria-labelledby="home-rediscovery">
       <div className="section-head">
         <h2 id="home-rediscovery">{t('section.rediscovery')}</h2>
-        <span className="text-[13px] text-ink-faint">{t('stats.rediscoverySource')}</span>
+        <span className="min-w-0 text-right text-[13px] text-ink-3">{t('stats.rediscoverySource')}</span>
       </div>
 
       {/* 按实际可用宽度折列：窗口是宽档不等于内容区宽（右侧可能还开着面板） */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
         {columns.map(column => (
-          <div key={column.key} className="sheet min-w-0 p-4 regular:p-5">
-            <div className="mb-2 flex items-baseline justify-between gap-3">
-              <h3 className="text-[17px] font-semibold">{column.title}</h3>
+          <div key={column.key} className="sheet min-w-0 p-3 regular:p-4">
+            <div className="flex items-baseline justify-between gap-3 px-2 pb-1 pt-1">
+              <h3 className="min-w-0 truncate font-display text-[18px] font-semibold tracking-[-0.015em] text-ink">
+                {column.title}
+              </h3>
               {column.entries.length > 1 && (
                 <button
                   onClick={() => playAllInOrder(column.entries.map(entry => entry.song))}
-                  className="-my-3 flex-none py-3 text-[14px] font-medium text-primary hover:underline hover:underline-offset-4"
+                  className="-my-3 flex-none py-3 text-[14px] font-semibold text-leaf hover:underline"
                 >
                   {t('player.playAllShort')}
                 </button>
@@ -108,27 +112,46 @@ function RediscoveryRow({
   onPlay: () => void
   onOpenArtist: () => void
 }) {
+  const { primary, fallback } = useCoverUrl(entry.song, { size: 96 })
   return (
-    <li className="group relative min-h-[56px] rounded-sm px-2 py-2.5 transition-colors duration-200 [@media(hover:hover)]:hover:bg-paper-deep">
-      <button
-        onClick={onPlay}
-        className="block w-full truncate rounded-sm text-left text-[14.5px] font-semibold after:absolute after:inset-0 after:content-['']"
-      >
-        {spaceCJK(entry.song.title)}
-      </button>
-      <span className="mt-0.5 flex items-baseline gap-x-3 text-[13px] text-ink-faint">
+    <li className="group relative flex min-h-[56px] items-center gap-3 rounded-sm px-2 py-2 [@media(hover:hover)]:hover:bg-ink/[0.05]">
+      <span className="cover-frame h-11 w-11 flex-none">
+        <CoverImage
+          primary={primary}
+          fallback={fallback}
+          alt=""
+          className="h-full w-full"
+          songId={entry.song.id}
+          customCoverParams={{
+            type: 'song',
+            title: entry.song.title,
+            artist: entry.song.artist,
+            album: entry.song.album,
+            path: entry.song.path,
+          }}
+        />
+      </span>
+      <span className="min-w-0 flex-1">
         <button
-          type="button"
-          onClick={onOpenArtist}
-          className={cn(
-            'relative -my-2 min-w-0 truncate py-2',
-            entry.song.artistId && 'hover:text-primary hover:underline'
-          )}
+          onClick={onPlay}
+          className="block w-full truncate rounded-sm text-left text-[15px] font-semibold text-ink after:absolute after:inset-0 after:content-['']"
         >
-          {spaceCJK(entry.song.artist)}
+          {spaceCJK(entry.song.title)}
         </button>
-        {/* 说明句由真实数据拼成，不做任何修辞 */}
-        <span className="flex-none">{entry.note}</span>
+        <span className="mt-0.5 flex items-baseline gap-x-3 text-[13px] text-ink-3">
+          <button
+            type="button"
+            onClick={onOpenArtist}
+            className={cn(
+              'relative -my-2 min-w-0 truncate py-2',
+              entry.song.artistId && 'hover:text-leaf hover:underline'
+            )}
+          >
+            {spaceCJK(entry.song.artist)}
+          </button>
+          {/* 说明句由真实数据拼成，不做任何修辞 */}
+          <span className="flex-none">{entry.note}</span>
+        </span>
       </span>
     </li>
   )

@@ -1,31 +1,59 @@
 /**
- * 歌手列表页 —— 按字母分段的名单
- * 大标题 + 总数 + 纸片胶囊过滤框；歌手名一行一位，靠行距与 hover 底区分，不画分隔线；
- * 右侧贴边一条字母索引轨（IndexRail）。
+ * 歌手列表页 —— 按字母分段的圆头像墙
+ * 大标题 + 总数 + 过滤框；每个字母一段（吸顶的字母头 + 圆头像网格），
+ * 右侧贴边一条字母索引轨（IndexRail），一千位歌手也能一下跳到想要的字母。
  *
  * 多源（PLAN 2.4）：只列声明 libraryBrowse 的音源，多个可浏览源时
- * 页头出现源切换 chip（?src=）——与专辑页同一套语义。
+ * 页头出现源切换（?src=）——与专辑页同一套语义。
  */
 
 import { useCallback, useEffect, useDeferredValue, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass } from '@phosphor-icons/react'
+import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
+import { SPRING_SNAPPY } from '@/lib/motion'
 import { Input } from '@/components/ui/input'
 import { useArtists } from '@/hooks/useServerQueries'
 import { useBrowseSource } from '@/hooks/useSourceQueries'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { buildIndexBuckets, IndexRail } from '@/components/common/IndexRail'
-import { spaceCJK } from '@/utils/cjkTypography'
+import { ArtistCard } from '@/components/music/ArtistCard'
+import { CoverGrid } from '@/components/common/CoverCard'
 import { EmptyState } from '@/components/common/EmptyState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
-import { detailPath } from '@/utils/detailPath'
+
+/**
+ * 分段控件的一格：看起来 36px，触点用 ::before 向上下各多出 4px（落在轨道的内边距里），凑足 44px。
+ */
+const SEG_OPTION =
+  'press-pop relative isolate inline-flex h-9 flex-none items-center gap-2 whitespace-nowrap rounded-pill px-4 text-[14px] font-semibold before:absolute before:inset-x-0 before:-inset-y-1'
+
+/** 当前格底下托起的那块片。暗色下 surface 与轨道（ink 6%）几乎同亮（对比 1.03:1），改用 fill-2 才托得起来 */
+const SEG_PILL = 'absolute inset-0 -z-10 rounded-pill seg-pill'
+
+/** 歌手墙的列宽比专辑墙窄：圆头像不需要 160px，窄屏（右边还有索引轨）也能排两列 */
+const ARTIST_GRID = 'grid-cols-[repeat(auto-fill,minmax(min(100%,128px),1fr))] gap-x-4 gap-y-6'
+
+/** 圆头像形骨架：圆 + 居中的两行图注，位置和真实卡片一致 */
+function ArtistSkeletons({ count }: { count: number }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex flex-col items-center">
+          <div className="skeleton cover-frame aspect-square w-full rounded-full" />
+          <div className="skeleton mt-2.5 h-3.5 w-2/3 rounded-pill" />
+          <div className="skeleton mt-2 h-3 w-1/3 rounded-pill" />
+        </div>
+      ))}
+    </>
+  )
+}
 
 export default function ArtistsPage() {
   const { t } = useT()
-  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const srcParam = sourceParam(searchParams)
   const { available, current } = useBrowseSource(srcParam)
@@ -77,51 +105,61 @@ export default function ArtistsPage() {
 
   if (!current) {
     return (
-      <div className="pt-2 regular:pt-4 animate-fade-in">
-        <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">{t('nav.artists')}</h1>
+      <div className="pt-2 regular:pt-4">
+        <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
+          {t('nav.artists')}
+        </h1>
         <div className="mt-8">
-          <EmptyState ruled title={t('sources.noBrowseTitle')} description={t('sources.noBrowseDesc')} />
+          <EmptyState mascot="maodou-wave" ruled title={t('sources.noBrowseTitle')} description={t('sources.noBrowseDesc')} />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
-      <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">{t('nav.artists')}</h1>
+    <div className="pt-2 regular:pt-4">
+      <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
+        {t('nav.artists')}
+      </h1>
       {/* 出错时也不显示计数（复核 F12）：0 位是把故障说成空库 */}
       {!isLoading && !isError && (
-        <p className="num mt-3 text-sm text-ink-faint">
+        <p className="num mt-3 text-[14px] font-medium text-ink-3">
           {t('artist.total', { count: filtered.length })}
         </p>
       )}
       {available.length > 1 && (
-        <div className="mt-5 inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-paper-deep p-1 scrollbar-hide">
-          {available.map(s => (
-            <button
-              key={s.serverId}
-              /* 与专辑页同一处修正：点当前项不做任何事。清空 ?src= 会让
-                 useBrowseSource 回落到「主库或第一个可浏览源」，
-                 点亮着的 chip 反而把你换到别的库去。 */
-              disabled={s.serverId === current.serverId}
-              onClick={() => setSearchParams({ src: s.serverId }, { replace: true })}
-              className={cn(
-                'seg-option inline-flex min-h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill px-4 text-[14px] font-medium transition-colors duration-150',
-                s.serverId === current.serverId
-                  ? 'is-on disabled:cursor-default'
-                  : 'text-ink-soft [@media(hover:hover)]:hover:text-ink'
-              )}
-            >
-              <SourceBadge serverId={s.serverId} />
-              <span>{s.name}</span>
-            </button>
-          ))}
+        <div className="mt-6 inline-flex max-w-full overflow-x-auto rounded-pill bg-ink/[0.06] p-1 scrollbar-hide">
+          {available.map(s => {
+            const here = s.serverId === current.serverId
+            return (
+              <button
+                key={s.serverId}
+                /* 与专辑页同一处修正：点当前项不做任何事。清空 ?src= 会让
+                   useBrowseSource 回落到「主库或第一个可浏览源」，
+                   点亮着的选项反而把你换到别的库去。 */
+                disabled={here}
+                onClick={() => setSearchParams({ src: s.serverId }, { replace: true })}
+                className={cn(SEG_OPTION, here ? 'cursor-default text-ink' : 'text-ink-3 hover:text-ink-2')}
+              >
+                {here && (
+                  <motion.span
+                    layoutId="artists-source"
+                    transition={SPRING_SNAPPY}
+                    aria-hidden="true"
+                    className={SEG_PILL}
+                  />
+                )}
+                <SourceBadge serverId={s.serverId} />
+                <span>{s.name}</span>
+              </button>
+            )
+          })}
         </div>
       )}
 
-      {/* 过滤：纸片胶囊输入框 */}
+      {/* 过滤框 */}
       <div className="relative mt-6 max-w-sm">
-        <MagnifyingGlass size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" />
+        <MagnifyingGlass size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-3" />
         <Input
           placeholder={t('artist.filterPlaceholder')}
           aria-label={t('artist.filterPlaceholder')}
@@ -133,13 +171,10 @@ export default function ArtistsPage() {
 
       <div className="mt-8">
         {isLoading ? (
-          <div className="space-y-0.5" aria-hidden="true">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="flex min-h-12 items-center justify-between gap-4 px-3">
-                <div className="h-4 w-48 rounded-sm bg-skeleton animate-pulse" />
-                <div className="h-3 w-14 rounded-sm bg-skeleton animate-pulse" />
-              </div>
-            ))}
+          <div aria-hidden="true">
+            <CoverGrid className={ARTIST_GRID}>
+              <ArtistSkeletons count={12} />
+            </CoverGrid>
           </div>
         ) : isError ? (
           /* 加载失败 ≠ 空态（阶段 2.1）：空过滤框配「没有名字相符的歌手」
@@ -151,35 +186,24 @@ export default function ArtistsPage() {
           <div className="flex gap-3">
             <div className="min-w-0 flex-1">
               {buckets.map(bucket => (
-                <section key={bucket.letter} style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 600px' }}>
+                <section key={bucket.letter} className="mt-6 first:mt-0" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 600px' }}>
+                  {/* 字母头是一枚小玻璃片，吸在工具栏下面：歌手头像从它底下滑过，
+                      只有这一小块盖住内容（通栏的底会在光场上露出一条色带） */}
                   <h2
                     data-letter-head={bucket.letter}
                     ref={el => {
                       if (el) headingRefs.current.set(bucket.letter, el)
                       else headingRefs.current.delete(bucket.letter)
                     }}
-                    className="num sticky top-[60px] z-10 scroll-mt-[60px] bg-paper/95 px-3 pb-1 pt-4 text-[15px] font-semibold text-ink-faint backdrop-blur-sm"
+                    className="num sticky top-[calc(env(safe-area-inset-top)+60px)] z-raised mb-3 flex h-8 w-fit min-w-8 scroll-mt-[calc(env(safe-area-inset-top)+60px)] items-center justify-center rounded-pill bg-surface/80 px-3 font-display text-[15px] font-bold leading-none text-ink-2 shadow-sm backdrop-blur-xl"
                   >
                     {bucket.letter}
                   </h2>
-                  <div>
+                  <CoverGrid className={ARTIST_GRID}>
                     {bucket.items.map(artist => (
-                      <button
-                        key={artist.id}
-                        onClick={() => navigate(detailPath('artists', artist.id, artist.serverId))}
-                        className="flex min-h-12 w-full items-center justify-between gap-4 rounded-sm px-3 py-2 text-left transition-colors duration-150 [@media(hover:hover)]:hover:bg-paper-deep"
-                      >
-                        <span className="min-w-0 truncate font-display text-[17px] font-semibold text-ink">
-                          {spaceCJK(artist.name)}
-                        </span>
-                        {artist.albumCount != null && (
-                          <span className="num flex-shrink-0 text-[13px] text-ink-faint">
-                            {t('artist.albumCount', { count: artist.albumCount })}
-                          </span>
-                        )}
-                      </button>
+                      <ArtistCard key={artist.id} artist={artist} />
                     ))}
-                  </div>
+                  </CoverGrid>
                 </section>
               ))}
             </div>

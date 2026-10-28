@@ -10,7 +10,12 @@ import { useLocation, useParams } from 'react-router-dom'
 import { Play, Shuffle } from '@phosphor-icons/react'
 import { SongList } from '@/components/music/SongList'
 import { SourceBadge } from '@/components/sources/SourceBadge'
+import { DetailHero } from '@/components/common/DetailHero'
+import { ImageWithFallback } from '@/components/common/ImageWithFallback'
+import { Button } from '@/components/ui/button'
 import { useSourceTopLists, useTopListDetail } from '@/hooks/useSourceQueries'
+import { useCoverUrl } from '@/hooks/useCoverUrl'
+import { findAdapterFor } from '@/api'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { EmptyState } from '@/components/common/EmptyState'
 import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
@@ -32,57 +37,70 @@ export default function TopListDetail() {
    * 名字有两条来路：跳转方塞进路由 state（最直接），或者从榜单列表查询里按 id
    * 找回来。后者几乎总是缓存命中：首页那排榜单用的是同一条 query（同一个 key，
    * staleTime 10 分钟），从首页点进来时它就在缓存里。
+   * 找回来的整条榜单项也带着榜单自己的封面，页头的大封面用它。
    */
   const topLists = useSourceTopLists()
-  const listName = useMemo(() => {
-    const fromState = (location.state as { name?: string } | null)?.name
-    if (fromState) return fromState
+  const listItem = useMemo(() => {
     const group = topLists.find(g => g.serverId === sourceId)
     for (const section of group?.data?.groups ?? []) {
       const hit = section.items.find(item => item.id === listId)
-      if (hit) return hit.name
+      if (hit) return hit
     }
     return undefined
-  }, [location.state, topLists, sourceId, listId])
+  }, [topLists, sourceId, listId])
+  const fromState = (location.state as { name?: string } | null)?.name
+  const listName = fromState || listItem?.name
 
   /*
-   * 页头：大标题（长 CJK 名 truncate + min-w-0）+ 来源徽标 + 曲目数，
-   * 播放全部 / 随机播放在标题下。返回在外壳的工具栏里，页面不再放返回键。
+   * 页头的封面：优先是榜单自己的封面；没有（直接打开链接、榜单列表还没回来）
+   * 就用榜首那首歌的封面，榜首就是这个榜的脸。
+   */
+  const itemCover = listItem?.coverArt
+    ? (findAdapterFor(listItem.serverId)?.getCoverUrl(listItem.coverArt, 600) ?? listItem.coverArt)
+    : undefined
+  const { primary: topSongCover } = useCoverUrl(itemCover ? undefined : songs?.[0], { size: 600 })
+  const heroCover = itemCover ?? topSongCover
+  const title = listName ?? t('sources.topListDetail')
+
+  /*
+   * 页头：沉浸式头部（大封面 + 大标题 + 来源 + 曲目数），
+   * 播放全部（青柠）/ 随机播放在标题下。返回在外壳的工具栏里，页面不再放返回键。
    */
   const header = (
-    <header>
-      <h1 className="flex min-w-0 items-center gap-3 font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
-        <span className="truncate">{listName ?? t('sources.topListDetail')}</span>
-        <SourceBadge serverId={sourceId} className="flex-shrink-0" />
-      </h1>
-      {songs && songs.length > 0 && (
-        <>
-          <p className="num mt-3 text-sm text-ink-faint">
-            {t('song.trackCount', { count: songs.length })}
-          </p>
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button
-              className="act-primary inline-flex items-center gap-2 text-[14px]"
-              onClick={() => playAllInOrder(songs, 0)}
-            >
-              <Play size={14} weight="fill" />
+    <DetailHero
+      cover={
+        <ImageWithFallback
+          src={heroCover}
+          alt={title}
+          fallbackType="album"
+          className="h-full w-full object-cover"
+        />
+      }
+      coverUrl={heroCover}
+      title={title}
+      subtitle={<SourceBadge serverId={sourceId} withName />}
+      meta={
+        songs && songs.length > 0 ? <span>{t('song.trackCount', { count: songs.length })}</span> : undefined
+      }
+      actions={
+        songs && songs.length > 0 ? (
+          <>
+            <Button onClick={() => playAllInOrder(songs, 0)}>
+              <Play size={16} weight="fill" />
               {t('player.playAll')}
-            </button>
-            <button
-              className="act-secondary inline-flex items-center gap-2 text-[14px]"
-              onClick={() => playAllShuffled(songs, 0)}
-            >
-              <Shuffle size={15} />
+            </Button>
+            <Button variant="secondary" onClick={() => playAllShuffled(songs, 0)}>
+              <Shuffle size={17} weight="bold" />
               {t('player.shuffle')}
-            </button>
-          </div>
-        </>
-      )}
-    </header>
+            </Button>
+          </>
+        ) : undefined
+      }
+    />
   )
 
   return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
+    <div className="pt-2 regular:pt-4">
       {header}
       <div className="mt-8">
         {isLoading ? (
@@ -95,7 +113,7 @@ export default function TopListDetail() {
              裸异常同理：插件抛的是英文开发者串，摆在正式界面上帮不了任何人。 */
           <ErrorState retry={() => { void refetch() }} />
         ) : !songs?.length ? (
-          <EmptyState
+          <EmptyState mascot="nuomi-sleep"
             title={t('sources.topListEmptyTitle')}
             description={t('sources.topListEmptyDesc')}
           />
@@ -104,7 +122,7 @@ export default function TopListDetail() {
         )}
         {/* 原始异常只给开发态 */}
         {import.meta.env.DEV && isError && (
-          <p className="mt-3 truncate text-[12px] text-ink-faint">
+          <p className="mt-3 truncate text-[12px] text-ink-3">
             {error instanceof Error ? error.message : String(error)}
           </p>
         )}
@@ -112,4 +130,3 @@ export default function TopListDetail() {
     </div>
   )
 }
-

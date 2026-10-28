@@ -20,6 +20,7 @@ import { PluginCallError } from '@/plugins/host/PluginHost'
 import { safeResourceUrl } from '@/plugins/host/whitelist'
 import { describeError } from '@/services/errors'
 import { cn } from '@/lib/utils'
+import { SegmentedPill } from '@/components/settings/primitives'
 
 const POLL_INTERVAL_MS = 2000
 
@@ -239,48 +240,32 @@ export function QrLogin({
   return (
     <div className="flex flex-col items-center gap-4 pt-2">
       {/* 多链路扫码（QQ / 微信）：分段切换，切换即换码。
-          凹槽里托起一片纸（.seg-option.is-on） */}
-      {methods && methods.length > 1 && (
-        <div
-          role="tablist"
-          aria-label={t('sources.qr.methodSwitch')}
-          className="inline-flex gap-1 rounded-pill bg-paper-deep p-1"
-        >
-          {methods.map(method => {
-            const active = method.id === activeMethod
-            return (
-              <button
-                key={method.id}
-                role="tab"
-                aria-selected={active}
-                onClick={() => switchMethod(method.id)}
-                className={cn(
-                  'seg-option h-9 min-w-[5.5em] px-4 text-[13.5px] font-medium transition-colors duration-150',
-                  active ? 'is-on' : 'text-ink-soft hover:text-ink'
-                )}
-              >
-                {methodLabel(method, t)}
-              </button>
-            )
-          })}
-        </div>
+          轨道里一片被托起的面顺着弹簧滑到新选项（SegmentedPill） */}
+      {methods && methods.length > 1 && activeMethod !== undefined && (
+        <SegmentedPill
+          semantics="tabs"
+          label={t('sources.qr.methodSwitch')}
+          value={activeMethod}
+          onChange={switchMethod}
+          options={methods.map(method => ({ value: method.id, label: methodLabel(method, t) }))}
+        />
       )}
       <div className="relative">
-        {/* 二维码放在纸片白底的圆角块里：图自带留白，块只负责托起 */}
+        {/* 二维码放在圆角块里：图自带白底和留白（扫码要对比，任何主题下都一样），块只负责托起 */}
         <div
-          className={
-            'h-[232px] w-[232px] rounded-md bg-sheet p-3 shadow-card transition-opacity ' +
-            (phase === 'expired' ? 'opacity-25' : 'opacity-100')
-          }
+          className={cn(
+            'h-[232px] w-[232px] rounded-lg bg-surface p-3 shadow-md transition-opacity duration-3',
+            phase === 'expired' ? 'opacity-25' : 'opacity-100'
+          )}
         >
           <img src={qrImage} alt={t('sources.qr.alt')} className="h-full w-full rounded-sm object-contain" />
         </div>
         {(phase === 'expired' || phase === 'error') && (
           <button
             onClick={() => void startQr(activeMethod)}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md text-[14px] font-medium text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="press-pop absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-ink"
           >
-            <ArrowsClockwise size={24} className="text-primary" />
+            <ArrowsClockwise size={24} weight="bold" className="text-leaf" />
             {t('sources.qr.refresh')}
           </button>
         )}
@@ -290,10 +275,10 @@ export function QrLogin({
       <p
         role="status"
         aria-live="polite"
-        className={
-          'text-center text-[14px] leading-relaxed ' +
-          (phase === 'scanned' ? 'text-primary' : phase === 'error' ? 'text-destructive' : 'text-ink-soft')
-        }
+        className={cn(
+          'text-center text-[14px] leading-relaxed',
+          phase === 'scanned' ? 'font-semibold text-leaf' : phase === 'error' ? 'text-danger' : 'text-ink-2'
+        )}
       >
         {phaseText}
       </p>

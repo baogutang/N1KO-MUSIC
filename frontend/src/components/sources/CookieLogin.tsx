@@ -45,14 +45,14 @@ export function CookieLogin({
       <button
         onClick={() => setOpen(v => !v)}
         aria-expanded={open}
-        className="mx-auto flex min-h-11 items-center justify-center gap-1.5 rounded-pill px-4 text-[14px] text-ink-faint transition-colors duration-150 hover:bg-paper-deep hover:text-ink-soft"
+        className="press-pop mx-auto flex min-h-11 items-center justify-center gap-1.5 rounded-pill px-4 text-[14px] font-semibold text-ink-3 hover:bg-ink/[0.05] hover:text-ink-2"
       >
         {t('sources.cookie.toggle')}
-        {open ? <CaretUp size={13} /> : <CaretDown size={13} />}
+        {open ? <CaretUp size={13} weight="bold" /> : <CaretDown size={13} weight="bold" />}
       </button>
       {open && (
-        <div className="mt-2 space-y-3 rounded-md bg-paper-deep p-4">
-          <p className="text-[13px] text-ink-faint">{cookieHint || t('sources.cookie.hint')}</p>
+        <div className="mt-2 space-y-3 rounded-lg bg-surface-2 p-4">
+          <p className="text-[13px] leading-relaxed text-ink-3">{cookieHint || t('sources.cookie.hint')}</p>
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
@@ -61,10 +61,10 @@ export function CookieLogin({
             autoCapitalize="none"
             autoCorrect="off"
             placeholder={t('sources.cookie.placeholder')}
-            className="w-full rounded-md border border-input bg-sheet px-3.5 py-2.5 font-mono text-[16px] text-ink placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 regular:text-[13px]"
+            className="w-full rounded-sm border border-edge/60 bg-surface px-3.5 py-2.5 text-[16px] text-ink placeholder:text-ink-3 hover:border-edge regular:text-[14px]"
           />
           {error && (
-            <p className="rounded-sm bg-destructive/10 px-3 py-2 text-[13px] text-destructive">{error}</p>
+            <p className="rounded-sm bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>
           )}
           <div className="text-center">
             <Button onClick={submit} disabled={busy || !text.trim()}>

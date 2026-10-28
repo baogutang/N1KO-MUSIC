@@ -13,7 +13,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ErrorState } from '@/components/common/ErrorState'
 import { useQueryClient } from '@tanstack/react-query'
-import { HardDrive, Plus } from '@phosphor-icons/react'
+import { HardDrive, Info, Plus } from '@phosphor-icons/react'
+import { findAdapterFor } from '@/api'
+import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { useCreatePlaylist, useAddToPlaylist } from '@/hooks/useServerQueries'
 import {
   useSourceCapabilities,
@@ -27,8 +29,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/use-toast'
+import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import type { Playlist, Song, SourceCapabilities } from '@/api/types'
+
+/** 列表行：与「接下来」同一个样子——封面 + 名字 + 数量，hover 铺一层墨色淡底，不画线 */
+const ROW_CLASS =
+  'press-pop group flex min-h-12 w-full items-center gap-3 rounded-[12px] px-3 py-2 text-left hover:bg-ink/[0.06] disabled:cursor-not-allowed disabled:text-ink-3 disabled:hover:bg-transparent'
+const THUMB_CLASS = 'cover-frame h-10 w-10 flex-none rounded-[9px] shadow-sm group-disabled:opacity-50'
+const SECTION_LABEL = 'px-3 pb-1 pt-3 text-[13px] font-semibold text-ink-3'
 
 interface AddToPlaylistDialogProps {
   open: boolean
@@ -215,18 +224,20 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
 
   const localSection = localPlaylists.length > 0 && (
     <>
-      <p className="px-3 pt-3 pb-1 text-[13px] font-medium text-ink-faint">
+      <p className={SECTION_LABEL}>
         {t('sources.import.localSection')}
       </p>
       {localPlaylists.map(pl => (
         <button
           key={pl.id}
           onClick={() => handleAddLocal(pl.id, pl.name)}
-          className="flex min-h-11 w-full items-center gap-3 rounded-sm px-3 py-2 text-left transition-colors duration-150 hover:bg-paper-deep"
+          className={ROW_CLASS}
         >
-          <HardDrive className="w-4 h-4 text-ink-faint flex-shrink-0" />
-          <span className="flex-1 truncate text-[15px] font-medium">{pl.name}</span>
-          <span className="num flex-shrink-0 text-[13px] text-ink-faint">
+          <span className={cn(THUMB_CLASS, 'grid place-items-center bg-ink/[0.06] text-ink-2')}>
+            <HardDrive size={18} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{pl.name}</span>
+          <span className="num flex-none text-[13px] text-ink-3">
             {t('playlist.songCount', { count: pl.items.length })}
           </span>
         </button>
@@ -238,42 +249,49 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
     <>
       {plan.sections.map(section => (
         <div key={section.serverId}>
-          <p className="flex items-center gap-2 px-3 pt-3 pb-1 text-[13px] font-medium text-ink-faint">
+          <p className={cn(SECTION_LABEL, 'flex items-center gap-2')}>
             <SourceBadge serverId={section.serverId} withName />
           </p>
           {section.status === 'loading' ? (
-            // loading：bg-skeleton 圆角条闪烁（不用 spinner）
+            // loading：骨架行（封面块 + 名字条），不用 spinner
             Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex min-h-11 items-center gap-3 px-3 py-2">
-                <span className="h-3.5 flex-1 rounded-sm bg-skeleton animate-pulse" style={{ animationDelay: `${i * 0.1}s` }} />
+              <div key={i} className="flex min-h-12 items-center gap-3 px-3 py-2">
+                <span className="skeleton h-10 w-10 flex-none rounded-[9px]" style={{ animationDelay: `${i * 0.1}s` }} />
+                <span className="skeleton h-3.5 flex-1 rounded-sm" style={{ animationDelay: `${i * 0.1}s` }} />
               </div>
             ))
           ) : section.status === 'error' ? (
             <ErrorState ruled={false} className="py-8" retry={() => { void refetchSections() }} />
           ) : section.playlists.length ? (
-            section.playlists.map(pl => (
-              <button
-                key={pl.id}
-                onClick={() => handleAdd(section.serverId, pl.id, pl.name)}
-                disabled={addToPlaylist.isPending || plan.crossSource}
-                className="flex min-h-11 w-full items-center gap-3 rounded-sm px-3 py-2 text-left transition-colors duration-150 hover:bg-paper-deep disabled:cursor-not-allowed disabled:text-ink-faint disabled:hover:bg-transparent"
-              >
-                <span className="flex-1 truncate text-[15px] font-medium">{pl.name}</span>
-                {pl.songCount !== undefined && (
-                  <span className="num flex-shrink-0 text-[13px] text-ink-faint">
-                    {t('playlist.songCount', { count: pl.songCount })}
+            section.playlists.map(pl => {
+              const cover = pl.coverArt ? findAdapterFor(pl.serverId)?.getCoverUrl(pl.coverArt, 80) ?? undefined : undefined
+              return (
+                <button
+                  key={pl.id}
+                  onClick={() => handleAdd(section.serverId, pl.id, pl.name)}
+                  disabled={addToPlaylist.isPending || plan.crossSource}
+                  className={ROW_CLASS}
+                >
+                  <span className={THUMB_CLASS}>
+                    <ImageWithFallback src={cover} alt="" fallbackType="album" className="h-full w-full" />
                   </span>
-                )}
-              </button>
-            ))
+                  <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{pl.name}</span>
+                  {pl.songCount !== undefined && (
+                    <span className="num flex-none text-[13px] text-ink-3">
+                      {t('playlist.songCount', { count: pl.songCount })}
+                    </span>
+                  )}
+                </button>
+              )
+            })
           ) : (
-            <p className="px-3 py-4 text-sm text-ink-faint">{t('playlist.noneYet')}</p>
+            <p className="px-3 py-4 text-[14px] text-ink-3">{t('playlist.noneYet')}</p>
           )}
         </div>
       ))}
       {/* 这个源根本不能写歌单：说清楚，而不是留一片空白让人以为还在加载 */}
       {!plan.crossSource && plan.singleSourceId !== null && plan.defaultCreate.kind === 'local' && (
-        <p className="px-3 py-4 text-[13.5px] leading-relaxed text-ink-faint">
+        <p className="px-3 py-4 text-[13.5px] leading-relaxed text-ink-3">
           {t('playlist.sourceNoWrite')}
         </p>
       )}
@@ -289,8 +307,9 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
 
         {/* 跨源的理由必须看得见：藏在 title 里等于没说（触屏根本读不到） */}
         {plan.crossSource && (
-          <p className="rounded-md bg-paper-deep px-4 py-3 text-[13.5px] leading-relaxed text-ink-soft">
-            {t('playlist.localOnlyHint', { count: plan.sourceIds.length })}
+          <p className="flex items-start gap-2.5 rounded-md bg-fill px-4 py-3 text-[13.5px] leading-relaxed text-ink-2">
+            <Info size={17} weight="fill" aria-hidden="true" className="mt-0.5 flex-none text-ink-3" />
+            <span>{t('playlist.localOnlyHint', { count: plan.sourceIds.length })}</span>
           </p>
         )}
 
@@ -300,11 +319,12 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
           {plan.crossSource ? <>{localSection}{serverSections}</> : <>{serverSections}{localSection}</>}
         </div>
 
-        {/* 新建：本地（跨源安全）与该源的服务端歌单两个出口 */}
-        <div className="flex gap-2 pt-1">
+        {/* 新建：本地（跨源安全）与该源的服务端歌单两个出口；默认落点是那枚青柠键 */}
+        <div className="flex items-center gap-2 pt-1">
           <Input
             placeholder={t('playlist.namePlaceholder')}
             value={newName}
+            className="min-w-0 flex-1"
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => {
               // isComposing / keyCode 229：中日韩输入法组词期间按 Enter 是确认候选词，不应触发创建
@@ -316,13 +336,13 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
           <Button
             onClick={() => void handleCreateLocal()}
             disabled={creating || !newName.trim()}
-            variant={serverCreateId ? 'outline' : 'default'}
+            variant={serverCreateId ? 'secondary' : 'default'}
             size="icon"
             aria-label={t('playlist.createLocal')}
             title={t('playlist.createLocal')}
-            className="flex-shrink-0"
+            className="h-11 w-11 flex-none"
           >
-            <HardDrive className="w-4 h-4" />
+            <HardDrive size={18} />
           </Button>
           {serverCreateId && (
             <Button
@@ -332,9 +352,9 @@ function AddToPlaylistDialogBody({ open, onOpenChange, songs }: AddToPlaylistDia
               size="icon"
               aria-label={t('playlist.createAndAdd')}
               title={t('playlist.createAndAdd')}
-              className="flex-shrink-0"
+              className="h-11 w-11 flex-none"
             >
-              <Plus className="w-4 h-4" />
+              <Plus size={18} weight="bold" />
             </Button>
           )}
         </div>

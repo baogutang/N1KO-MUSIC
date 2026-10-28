@@ -8,7 +8,9 @@
 
 import { useMemo, useState } from 'react'
 import type { DragEvent } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { cn } from '@/lib/utils'
+import { SPRING_SMOOTH } from '@/lib/motion'
 import { usePlayerStore } from '@/store/playerStore'
 import { findAdapterFor } from '@/api'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
@@ -26,6 +28,7 @@ export function UpNextList({ count, className, onOpenQueue }: { count: number; c
   const jumpToIndex = usePlayerStore(s => s.jumpToIndex)
   const addToQueue = usePlayerStore(s => s.addToQueue)
   const [dropActive, setDropActive] = useState(false)
+  const reduce = useReducedMotion()
 
   const upNext = useMemo(() => {
     const identity = queue.map((_, i) => i)
@@ -58,43 +61,53 @@ export function UpNextList({ count, className, onOpenQueue }: { count: number; c
       onDragLeave={() => setDropActive(false)}
       onDrop={onDrop}
       className={cn(
-        'flex flex-col rounded-md transition-colors',
-        dropActive && 'bg-primary/10 outline outline-2 outline-offset-2 outline-primary/60',
+        'flex flex-col rounded-md transition-colors duration-2',
+        dropActive && 'bg-lime/20 outline outline-2 outline-offset-2 outline-leaf/60',
         className
       )}
       aria-label={t('shell.upNext')}
     >
       <div className="flex items-baseline justify-between pb-1.5">
-        <h3 className="text-[14px] font-semibold text-ink">{t('shell.upNext')}</h3>
+        <h3 className="font-display text-[15px] font-semibold text-ink">{t('shell.upNext')}</h3>
         {onOpenQueue && (
-          <button onClick={onOpenQueue} className="rounded-sm text-[13px] font-medium text-primary hover:underline">
+          <button onClick={onOpenQueue} className="rounded-xs text-[13px] font-semibold text-leaf hover:underline">
             {t('player.queue')}
           </button>
         )}
       </div>
       {upNext.length === 0 ? (
-        <p className="rounded-md bg-paper-deep px-3 py-3 text-[13px] text-ink-faint">{t('shell.upNextEmpty')}</p>
+        <p className="rounded-md bg-ink/[0.05] px-3 py-3 text-[13px] text-ink-3">{t('shell.upNextEmpty')}</p>
       ) : (
         <ol className="flex flex-col">
-          {upNext.map(({ index, song }) => {
+          <AnimatePresence initial={!reduce}>
+          {upNext.map(({ index, song }, position) => {
             const cover = song.coverArt ? findAdapterFor(song.serverId)?.getCoverUrl(song.coverArt, 80) ?? undefined : undefined
+            // 列表一出现就像从牌堆里一张张发出来；切歌时其余行原地往上挪（layout），不会消失再出现
             return (
-              <li key={`${song.id}-${index}`}>
+              <motion.li
+                key={`${song.id}-${index}`}
+                layout={reduce ? false : 'position'}
+                initial={reduce ? false : { opacity: 0, x: -14 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reduce ? undefined : { opacity: 0, scale: 0.96 }}
+                transition={{ ...SPRING_SMOOTH, delay: reduce ? 0 : Math.min(position, 10) * 0.025 }}
+              >
                 <button
                   onClick={() => jumpToIndex(index)}
-                  className="flex w-full items-center gap-3 rounded-sm px-1.5 py-1.5 text-left transition-colors hover:bg-paper-deep"
+                  className="press-pop flex w-full items-center gap-3 rounded-[12px] px-2 py-2 text-left hover:bg-ink/[0.06]"
                 >
-                  <span className="h-10 w-10 flex-none overflow-hidden rounded-[8px] bg-paper-3">
+                  <span className="cover-frame h-11 w-11 flex-none rounded-[9px] shadow-sm">
                     <ImageWithFallback src={cover} alt="" fallbackType="album" className="h-full w-full" />
                   </span>
                   <span className="flex min-w-0 flex-col leading-tight">
-                    <span className="truncate text-[14px] font-medium text-ink">{spaceCJK(song.title)}</span>
-                    <span className="mt-0.5 truncate text-[12.5px] text-ink-faint">{spaceCJK(song.artist)}</span>
+                    <span className="truncate text-[14.5px] font-semibold text-ink">{spaceCJK(song.title)}</span>
+                    <span className="mt-0.5 truncate text-[13px] text-ink-3">{spaceCJK(song.artist)}</span>
                   </span>
                 </button>
-              </li>
+              </motion.li>
             )
           })}
+          </AnimatePresence>
         </ol>
       )}
     </section>

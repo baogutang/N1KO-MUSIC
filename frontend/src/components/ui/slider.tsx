@@ -29,14 +29,15 @@ const Slider = React.forwardRef<
       )}
       {...props}
     >
+      {/* 轨道是墨色的 12%，已走过的一段是叶绿（暗色下就是青柠）：在任何底上都读得出位置 */}
       <SliderPrimitive.Track
         className={cn(
-          'relative grow overflow-hidden rounded-full bg-paper-3',
-          vertical ? 'h-full w-[4px]' : 'h-[4px] w-full'
+          'relative grow overflow-hidden rounded-full bg-ink/[0.12]',
+          vertical ? 'h-full w-[5px]' : 'h-[5px] w-full'
         )}
       >
         <SliderPrimitive.Range
-          className={cn('absolute bg-vivid', vertical ? 'w-full' : 'h-full')}
+          className={cn('absolute rounded-full bg-leaf', vertical ? 'w-full' : 'h-full')}
         />
       </SliderPrimitive.Track>
       {/*
@@ -52,7 +53,7 @@ const Slider = React.forwardRef<
       <SliderPrimitive.Thumb
         aria-label={ariaLabel}
         aria-valuetext={ariaValueText}
-        className="block h-4 w-4 rounded-full bg-sheet shadow-press transition-transform duration-150 [@media(hover:hover)]:scale-75 [@media(hover:hover)]:group-hover:scale-100 focus-visible:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:pointer-events-none disabled:opacity-50" />
+        className="block h-4 w-4 rounded-full bg-surface shadow-md ring-[0.5px] ring-ink/10 transition-transform duration-press ease-press [@media(hover:hover)]:scale-75 [@media(hover:hover)]:group-hover:scale-100 active:scale-110 focus-visible:scale-100 disabled:pointer-events-none disabled:opacity-50" />
     </SliderPrimitive.Root>
   )
 })

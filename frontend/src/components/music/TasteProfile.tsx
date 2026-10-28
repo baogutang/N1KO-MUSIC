@@ -14,6 +14,7 @@
 
 import { useMemo } from 'react'
 import { Prohibit, ArrowCounterClockwise } from '@phosphor-icons/react'
+import { EmptyState } from '@/components/common/EmptyState'
 import { useHistoryScope } from '@/store/serverStore'
 import { useTasteStore } from '@/store/tasteStore'
 import { readListeningEvents } from '@/services/listeningHistory'
@@ -90,13 +91,14 @@ export function TasteProfile() {
       </div>
 
       {!hasProfile ? (
-        <div className="py-12 text-center">
-          <p className="text-[15px] font-medium text-ink-soft">{t('empty.taste.title')}</p>
-          <p className="mt-2 text-[13px] text-ink-faint">{t('empty.taste.description')}</p>
-        </div>
+        <EmptyState mascot="maodou-listen"
+          title={t('empty.taste.title')}
+          description={t('empty.taste.description')}
+          className="py-12"
+        />
       ) : (
         <>
-          <p className="mb-6 max-w-[46em] text-[14px] leading-[1.8] text-ink-soft">
+          <p className="mb-6 max-w-[46em] text-[15px] leading-[1.8] text-ink-2">
             {spaceCJK(t('stats.tasteIntro'))}
           </p>
 
@@ -132,7 +134,7 @@ function ProfileColumn({
   if (!rows.length) return null
   return (
     <div className="sheet min-w-0 p-4 regular:p-5">
-      <h3 className="mb-2 text-[17px] font-semibold">{title}</h3>
+      <h3 className="mb-2 font-display text-[18px] font-semibold tracking-[-0.015em] text-ink">{title}</h3>
       <ul>
         {rows.map(row => {
           const isMuted = muted.includes(row.key)
@@ -140,13 +142,13 @@ function ProfileColumn({
             <li key={row.key} className="group py-2.5">
               <div className="flex items-center justify-between gap-3">
                 <span className={cn(
-                  'min-w-0 truncate text-[14px]',
-                  isMuted ? 'text-ink-faint line-through' : 'text-ink'
+                  'min-w-0 truncate text-[15px]',
+                  isMuted ? 'text-ink-3 line-through' : 'text-ink'
                 )}>
                   {spaceCJK(row.label)}
                 </span>
                 <span className="flex flex-none items-center gap-1">
-                  <span className="num text-[13px] text-ink-faint">
+                  <span className="num text-[13px] text-ink-3">
                     {row.weight.toFixed(2)}
                   </span>
                   {onToggle && (
@@ -157,10 +159,10 @@ function ProfileColumn({
                         : t('stats.mute', { name: row.label })}
                       aria-pressed={isMuted}
                       className={cn(
-                        '-my-3 -mr-3 grid h-11 w-11 place-items-center rounded-pill transition-[opacity,color] duration-200',
+                        '-my-3 -mr-3 grid h-11 w-11 place-items-center rounded-pill transition-[opacity,color] duration-2',
                         isMuted
-                          ? 'text-primary'
-                          : 'text-ink-faint hover:text-primary focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100'
+                          ? 'text-leaf'
+                          : 'text-ink-3 hover:text-leaf focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100'
                       )}
                     >
                       <Prohibit size={16} />
@@ -168,11 +170,11 @@ function ProfileColumn({
                   )}
                 </span>
               </div>
-              {/* 权重条：一条纸槽里的一段强调色，不引入图表也不引入新色 */}
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-pill bg-paper-3">
+              {/* 权重条：一条浅轨里的一段强调色，不引入图表也不引入新色。填充用 scaleX，不动宽度 */}
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-pill bg-ink/[0.12]">
                 <div
-                  className={cn('h-full rounded-pill', isMuted ? 'bg-ink-faint/30' : 'bg-vivid')}
-                  style={{ width: `${Math.max(2, Math.min(100, row.weight * 100))}%` }}
+                  className={cn('h-full origin-left rounded-pill', isMuted ? 'bg-ink-3/30' : 'bg-leaf')}
+                  style={{ transform: `scaleX(${Math.max(0.02, Math.min(1, row.weight))})` }}
                 />
               </div>
             </li>

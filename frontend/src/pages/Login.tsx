@@ -1,7 +1,7 @@
 /**
  * 服务器登录页 —— 暖纸版式（v5），首次打开 App 的第一屏
- * 居中一张 sheet（regular / wide 下约 520px）：品牌字 N1KO + 标题；
- * 服务器类型是 2×2 纸片格（选中 bg-paper-3 + 强调色图标），
+ * v6：顶上铺品牌的青柠光，糯米和毛豆挥手欢迎，下面是字标；宽屏左右两栏（欢迎 | 表单）。
+ * 表单直接落在地面上（不再套一张纸片），服务器类型是 2×2 的抬起面（选中描一圈叶绿 + 强调色图标），
  * 已存服务器与流媒体音源是纸片行；错误直接陈述。
  * 这一页不在主外壳里：自己处理 safe-area，并且整页自己滚动
  * NAS：Subsonic/Navidrome/Jellyfin/Emby；流媒体音源：已安装插件（PLAN 1.6）——
@@ -18,6 +18,8 @@ import {
 } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { ArtWash } from '@/components/art/ArtWash'
+import { Mascot } from '@/components/common/Mascot'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useServerStore, getServerTypeLabel } from '@/store/serverStore'
@@ -45,15 +47,15 @@ const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string; ic
 ]
 
 /** 表单字段上方的小标签：正常句式大小写，不拉字距 */
-const FIELD_LABEL_CLS = 'mb-1.5 block text-[13px] font-medium text-ink-soft'
+const FIELD_LABEL_CLS = 'mb-1.5 block text-[13px] font-medium text-ink-2'
 /** 小分组标题（已保存 / 自建服务器 / 流媒体音源） */
 const GROUP_HEAD_CLS = 'mb-3 text-[15px] font-semibold text-ink'
 /** 纸片行：已保存的音源、流媒体音源共用的一档 */
 const ROW_CLS =
-  'flex min-h-[60px] w-full items-center gap-3 rounded-md bg-paper-deep px-4 py-3 text-left transition-colors duration-150 hover:bg-paper-3'
+  'press-pop flex min-h-[60px] w-full items-center gap-3 rounded-md bg-surface px-4 py-3 text-left shadow-sm hover:bg-fill'
 /** 步骤页头：返回 + 当前对象名 */
 const BACK_BTN_CLS =
-  '-ml-3 inline-flex min-h-11 items-center gap-1.5 rounded-pill px-3 text-[14px] text-ink-soft transition-colors duration-150 hover:bg-paper-deep hover:text-ink'
+  'press-pop -ml-3 inline-flex min-h-11 items-center gap-1.5 rounded-pill px-3 text-[14px] font-medium text-ink-2 hover:bg-ink/[0.06] hover:text-ink'
 
 /** 发行页：浏览器版里唯一有意义的下一步就是去拿一个带出网通道的壳。
  *  音源设置里有同一份文案，但那边不共用常量——登录页的首屏包没有理由
@@ -437,18 +439,22 @@ export default function LoginPage() {
         paddingRight: 'max(16px, env(safe-area-inset-right))',
       }}
     >
-      <div className="mx-auto my-auto w-full max-w-[520px] animate-fade-in">
-        <header className="mb-6 text-center">
-          <p className="font-display text-[44px] font-semibold leading-none tracking-[-0.03em] text-ink">
+      {/* 场灯：还没有歌在放，房间是品牌的青柠光 */}
+      <ArtWash className="fixed inset-x-0 top-0 -z-10 h-[72vh]" />
+      <div className="mx-auto my-auto grid w-full max-w-[1080px] items-center gap-8 wide:grid-cols-[minmax(0,1fr)_minmax(0,520px)] wide:gap-16">
+        {/* 欢迎：糯米和毛豆挥手（装饰，对读屏隐藏），下面是字标 */}
+        <header className="flex flex-col items-center text-center">
+          <Mascot name="duo-wave" size={260} priority className="w-[min(64vw,260px)] wide:w-[min(38vw,460px)]" />
+          <p className="mt-2 font-display text-[44px] font-bold leading-none tracking-[-0.045em] text-ink wide:text-[64px]">
             N1KO
           </p>
         </header>
 
-        <main className="sheet p-6 regular:p-8">
-          <h1 className="font-display text-[26px] font-semibold leading-tight tracking-[-0.01em]">
+        <main className="mx-auto w-full max-w-[520px]">
+          <h1 className="font-display text-[28px] font-bold leading-tight tracking-[-0.025em] text-ink">
             {t('login.title')}
           </h1>
-          <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">
+          <p className="mt-2 text-[15px] leading-relaxed text-ink-2">
             {step === 'type'
               ? t('login.subtitleChooseType')
               : step === 'credentials'
@@ -467,7 +473,7 @@ export default function LoginPage() {
             发生了什么（三个阶段的报告里都记着「已记未修」，这里一并解决）。
           */}
           {error && (
-            <p role="alert" className="mt-5 rounded-md bg-destructive/10 px-4 py-3 text-[14px] leading-relaxed text-destructive">
+            <p role="alert" className="mt-5 rounded-md bg-danger/10 px-4 py-3 text-[14px] leading-relaxed text-danger">
               {error}
             </p>
           )}
@@ -505,8 +511,8 @@ export default function LoginPage() {
                 </div>
 
                 {isLoading ? (
-                  <p className="flex items-center justify-center gap-2 py-10 text-[14px] text-ink-soft">
-                    <CircleNotch size={16} className="animate-spin text-primary motion-reduce:animate-none" />
+                  <p className="flex items-center justify-center gap-2 py-10 text-[14px] text-ink-2">
+                    <CircleNotch size={16} className="animate-spin text-leaf motion-reduce:animate-none" />
                     {t('login.connecting')}
                   </p>
                 ) : (
@@ -519,7 +525,7 @@ export default function LoginPage() {
                       />
                     )}
                     {pluginManifest.auth.kind === 'none' && (
-                      <p className="py-6 text-center text-[14px] text-ink-soft">
+                      <p className="py-6 text-center text-[14px] text-ink-2">
                         {t('sources.authNone')}
                       </p>
                     )}
@@ -569,7 +575,7 @@ export default function LoginPage() {
                               <span className="block truncate text-[16px] font-semibold text-ink">
                                 {server.name}
                               </span>
-                              <span className="flex gap-x-3 text-[13px] text-ink-faint">
+                              <span className="flex gap-x-3 text-[13px] text-ink-3">
                                 <span className="flex-none">
                                   {server.type === 'plugin'
                                     ? plugins.find(p => p.id === server.pluginId)?.name ?? getServerTypeLabel(server.type)
@@ -584,7 +590,7 @@ export default function LoginPage() {
                                 </span>
                               </span>
                             </span>
-                            <span className="num hidden max-w-[150px] truncate text-[12px] text-ink-faint regular:block">
+                            <span className="num hidden max-w-[150px] truncate text-[12px] text-ink-3 regular:block">
                               {server.url}
                             </span>
                           </button>
@@ -597,7 +603,7 @@ export default function LoginPage() {
                             }}
                             aria-label={t('login.removeSavedServer')}
                             title={t('login.removeSavedServer')}
-                            className="absolute right-1.5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-pill text-ink-faint transition-colors duration-150 hover:bg-paper-3 hover:text-destructive"
+                            className="absolute right-1.5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-pill text-ink-3 transition-colors duration-150 hover:bg-ink/[0.06] hover:text-danger"
                           >
                             <X size={15} />
                           </button>
@@ -607,7 +613,7 @@ export default function LoginPage() {
                   </section>
                 )}
 
-                {/* 服务器类型：2×2 纸片格（当前项 bg-paper-3 + 强调色图标） */}
+                {/* 服务器类型：2×2 的抬起面（当前项描一圈叶绿 + 强调色图标） */}
                 <section aria-labelledby="login-types">
                   <h2 id="login-types" className={GROUP_HEAD_CLS}>{t('login.typeHeading')}</h2>
                   <div className="grid grid-cols-2 gap-3">
@@ -620,17 +626,17 @@ export default function LoginPage() {
                           aria-pressed={active}
                           className={cn(
                             'press-pop flex min-h-[104px] flex-col items-start gap-2 rounded-md p-4 text-left',
-                            active ? 'bg-paper-3' : 'bg-paper-deep hover:bg-paper-3'
+                            active ? 'bg-ink/[0.08] ring-2 ring-leaf/60' : 'bg-surface shadow-sm hover:bg-fill'
                           )}
                         >
                           <TypeIcon
                             size={26}
                             weight={active ? 'fill' : 'regular'}
-                            className={active ? 'text-primary' : 'text-ink-faint'}
+                            className={active ? 'text-leaf' : 'text-ink-3'}
                           />
                           <span className="block">
                             <span className="block text-[16px] font-semibold text-ink">{label}</span>
-                            <span className="block text-[13px] leading-snug text-ink-faint">{t(descKey)}</span>
+                            <span className="block text-[13px] leading-snug text-ink-3">{t(descKey)}</span>
                           </span>
                         </button>
                       )
@@ -648,13 +654,13 @@ export default function LoginPage() {
                     这里换成一句「需要哪个版本」加下载链接。
                   */}
                   {!pluginSourcesSupported ? (
-                    <p className="rounded-md bg-paper-deep px-4 py-3.5 text-[14px] leading-relaxed text-ink-soft">
+                    <p className="rounded-md bg-ink/[0.04] px-4 py-3.5 text-[14px] leading-relaxed text-ink-2">
                       {t('sources.needsApp')}{' '}
                       <a
                         href={RELEASES_URL}
                         target="_blank"
                         rel="noreferrer noopener"
-                        className="font-medium text-primary underline decoration-primary/40 underline-offset-[5px] hover:decoration-primary"
+                        className="font-medium text-leaf underline decoration-leaf/40 underline-offset-[5px] hover:decoration-leaf"
                       >
                         {t('sources.needsAppLink')}
                       </a>
@@ -672,7 +678,7 @@ export default function LoginPage() {
                           ) : (
                             <span
                               aria-hidden
-                              className="h-7 w-7 flex-shrink-0 rounded-sm bg-paper-3"
+                              className="h-7 w-7 flex-shrink-0 rounded-sm bg-fill-2"
                               style={plugin.color ? { background: plugin.color } : undefined}
                             />
                           )}
@@ -684,7 +690,7 @@ export default function LoginPage() {
                                 （'netease' / 'qqmusic' 这种），它对用户没有意义，
                                 暴露的只是实现细节。名字在上一行已经有了，这一行
                                 换成「它是什么 + 哪一版」。 */}
-                            <span className="num flex gap-x-3 text-[13px] text-ink-faint">
+                            <span className="num flex gap-x-3 text-[13px] text-ink-3">
                               <span>{t('sources.typeLabel')}</span>
                               <span>v{plugin.version}</span>
                             </span>
@@ -693,16 +699,16 @@ export default function LoginPage() {
                       ))}
                       <button
                         onClick={() => setAddDialogOpen(true)}
-                        className="flex min-h-[60px] w-full items-center gap-3 rounded-md px-4 py-3 text-left transition-colors duration-150 hover:bg-paper-deep"
+                        className="press-pop flex min-h-[60px] w-full items-center gap-3 rounded-md px-4 py-3 text-left hover:bg-ink/[0.05]"
                       >
                         <span className="grid h-7 w-7 flex-shrink-0 place-items-center">
-                          <Plus size={20} className="text-primary" />
+                          <Plus size={20} className="text-leaf" />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-[16px] font-medium text-ink">
                             {t('sources.addPlugin')}
                           </span>
-                          <span className="block text-[13px] text-ink-faint">{t('sources.addPluginDesc')}</span>
+                          <span className="block text-[13px] text-ink-3">{t('sources.addPluginDesc')}</span>
                         </span>
                       </button>
                     </div>
@@ -805,7 +811,7 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(v => !v)}
-                      className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-pill text-ink-faint transition-colors duration-150 hover:bg-paper-deep hover:text-ink"
+                      className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-pill text-ink-3 transition-colors duration-150 hover:bg-ink/[0.06] hover:text-ink"
                       aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
                     >
                       {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}

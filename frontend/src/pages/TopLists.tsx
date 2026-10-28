@@ -1,10 +1,12 @@
 /**
  * 榜单列表页（阶段 2.6）：/toplists
  *
- * 首页的榜单卡只给摘要（每源两组、每组六个），截掉的榜从此有了去处。
+ * 首页的榜单只摆一排摘要（每源两组、每组六个），截掉的榜从此有了去处。
+ * 这里按音源分节、每节按组摊开，每个榜是一张封面卡。
  * 数据复用 useSourceTopLists（与首页同一条 query，缓存共享）。
  */
 
+import { EmptyState } from '@/components/common/EmptyState'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { SourceGroupState, groupStateStatus } from '@/components/sources/SourceGroupState'
 import { TopListGroupCard } from '@/components/sources/SourceShelves'
@@ -22,25 +24,24 @@ export default function TopListsPage() {
   }
 
   return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
-      <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
+    <div className="pt-2 regular:pt-4">
+      <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
         {t('sources.topLists')}
       </h1>
 
       {groups.length === 0 && (
-        <p className="mt-16 text-center text-[15px] text-ink-faint">
-          {t('sources.topListsNone')}
-        </p>
+        <EmptyState mascot="nuomi-sleep" className="mt-8" title={t('sources.topListsNone')} />
       )}
 
       {groups.map(g => (
         <section key={g.serverId} aria-labelledby={`toplists-${g.serverId}`}>
           <div className="section-head">
-            <h2 id={`toplists-${g.serverId}`} className="flex items-center gap-2.5">
-              <SourceBadge serverId={g.serverId} withName />
+            <h2 id={`toplists-${g.serverId}`} className="flex min-w-0 items-center gap-2.5">
+              <SourceBadge serverId={g.serverId} />
+              <span className="truncate">{g.name}</span>
             </h2>
             {g.status === 'success' && (
-              <span className="num text-[13px] text-ink-faint">
+              <span className="num flex-none text-[13px] text-ink-3">
                 {t('sources.sheetCount', { count: g.data?.groups.reduce((n, grp) => n + grp.items.length, 0) ?? 0 })}
               </span>
             )}
@@ -56,7 +57,7 @@ export default function TopListsPage() {
               />
             </div>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-4">
+            <div className="flex flex-col gap-10">
               {g.data!.groups.map(group => (
                 <TopListGroupCard key={group.title} serverId={g.serverId} group={group} />
               ))}

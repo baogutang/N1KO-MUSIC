@@ -39,3 +39,16 @@ frontend/public/plugin-sandbox.js
 
 # 本地助手记忆，不入库
 .workbuddy/
+
+# v6 吉祥物的 Codex 原图（入库的是 reference/*.webp）
+docs/redesign/v6/mascots/*.png
+
+# impeccable 的方向抽签与种子：工具自己的草稿，不进仓库（方向契约在 .impeccable/surfaces/）
+.impeccable/questions/
+# 吉祥物抠图脚本的本地虚拟环境（见 docs/redesign/v6/mascots/README.md）
+docs/redesign/v6/mascots/.venv/
+docs/redesign/v6/mascots/3d/
+
+# 吉祥物目录里的本地中间文件：参考图在 reference/，顶层的 webp 是 3D / 抠图过程里的临时导出
+docs/redesign/v6/mascots/*.webp
+docs/redesign/v6/mascots/__pycache__/

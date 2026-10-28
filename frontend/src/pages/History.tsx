@@ -24,7 +24,7 @@ import {
 import { EmptyState } from '@/components/common/EmptyState'
 import { useT } from '@/i18n'
 
-/** 格式化时刻为 HH:mm（mono 展示用） */
+/** 格式化时刻为 HH:mm（等宽数字展示用） */
 function formatTimeOfDay(timestamp: number): string {
   const d = new Date(timestamp)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -132,15 +132,15 @@ export default function History() {
   }
 
   return (
-    <div className="pt-2 regular:pt-4 animate-fade-in">
-      {/* 页头：大标题 + 条数（各自独立的 span）+ 清空 */}
+    <div className="pt-2 regular:pt-4">
+      {/* 页头：大标题 + 条数（各自独立的 span）+ 清空（中性胶囊，破坏性动作不抢眼） */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div>
-          <h1 className="font-display text-[34px] regular:text-[40px] font-semibold leading-[1.05] tracking-[-0.02em]">
+        <div className="min-w-0">
+          <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
             {t('nav.history')}
           </h1>
           {history.length > 0 && (
-            <p className="num mt-3 flex flex-wrap gap-x-3 text-sm text-ink-faint">
+            <p className="num mt-3 flex flex-wrap gap-x-3 text-[14px] font-medium text-ink-3">
               <span>{t('history.recordCount', { count: history.length })}</span>
               {visible.length < history.length && (
                 <span>{t('history.shownCount', { count: visible.length })}</span>
@@ -149,35 +149,30 @@ export default function History() {
           )}
         </div>
         {history.length > 0 && (
-          <button
-            onClick={() => setConfirmClear(true)}
-            className="inline-flex min-h-[44px] flex-shrink-0 items-center gap-2 rounded-pill px-3 text-[14px] font-medium text-ink-soft transition-colors hover:text-destructive"
-          >
-            <Trash size={16} />
+          <Button variant="secondary" className="flex-shrink-0" onClick={() => setConfirmClear(true)}>
+            <Trash size={18} />
             {t('history.clear')}
-          </button>
+          </Button>
         )}
       </header>
 
       {history.length === 0 ? (
-        <EmptyState
+        <EmptyState mascot="maodou-listen"
           title={t('empty.history.title')}
           description={t('empty.history.description')}
         />
       ) : (
         <div>
           {Object.entries(grouped).map(([dateKey, entries]) => (
-            <section key={dateKey} className="mt-8">
-              {/* 组标题：小号次要字 + 组内条数 */}
-              <div className="flex items-baseline gap-3 px-3">
-                <h2 className="text-[13px] font-medium text-ink-faint">
-                  {formatDateLabel(dateKey)}
-                </h2>
-                <span className="num text-[13px] text-ink-faint">{entries.length}</span>
+            <section key={dateKey}>
+              {/* 组标题：日期 + 组内条数 */}
+              <div className="section-head">
+                <h2>{formatDateLabel(dateKey)}</h2>
+                <span className="num text-[14px] text-ink-3">{entries.length}</span>
               </div>
 
               {/* 曲目行：序号 + 小封面 + 曲名/歌手 + 时长 + 播放时间；行间靠留白与 hover 底 */}
-              <div className="mt-1">
+              <div>
                 {entries.map((entry, idx) => {
                   const globalIndex = globalIndexMap.get(entry) ?? 0
                   return (
@@ -197,18 +192,18 @@ export default function History() {
                     >
                       {/* 序号：hover 浮现播放键（窄屏不占位） */}
                       <span className="relative hidden w-8 flex-shrink-0 items-center justify-center regular:flex">
-                        <span className="num text-[13px] text-ink-faint transition-opacity duration-200 [@media(hover:hover)]:group-hover:opacity-0">
+                        <span className="num text-[13px] text-ink-3 transition-opacity duration-2 [@media(hover:hover)]:group-hover:opacity-0">
                           {String(idx + 1).padStart(2, '0')}
                         </span>
-                        <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 [@media(hover:hover)]:group-hover:opacity-100">
-                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sheet text-ink shadow-press">
+                        <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-2 [@media(hover:hover)]:group-hover:opacity-100">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-pill bg-lime text-lime-ink">
                             <Play className="h-3 w-3" weight="fill" />
                           </span>
                         </span>
                       </span>
 
                       {/* 小封面 */}
-                      <span className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-sm bg-paper-deep">
+                      <span className="cover-frame h-11 w-11 flex-shrink-0 rounded-[9px]">
                         <ImageWithFallback
                           src={entry.song.coverArt ? (findAdapterFor(entry.song.serverId)?.getCoverUrl(entry.song.coverArt, 64) ?? undefined) : undefined}
                           alt={entry.song.title}
@@ -221,22 +216,22 @@ export default function History() {
 
                       {/* 曲名 + 歌手 / 专辑（各自独立的 span） */}
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-1 text-[15px] font-semibold leading-snug">
+                        <p className="truncate text-[15px] font-semibold leading-snug text-ink">
                           {entry.song.title}
                         </p>
-                        <p className="mt-0.5 flex min-w-0 gap-x-3 text-[13px] text-ink-soft">
+                        <p className="mt-0.5 flex min-w-0 gap-x-3 text-[13px] text-ink-2">
                           <span className="truncate">{entry.song.artist}</span>
-                          {entry.song.album && <span className="hidden truncate text-ink-faint regular:inline">{entry.song.album}</span>}
+                          {entry.song.album && <span className="hidden truncate text-ink-3 regular:inline">{entry.song.album}</span>}
                         </p>
                       </div>
 
                       {/* 时长（窄屏不占位） */}
-                      <span className="num hidden w-12 flex-shrink-0 text-right text-[13px] text-ink-faint regular:block">
+                      <span className="num hidden w-12 flex-shrink-0 text-right text-[13px] text-ink-3 regular:block">
                         {entry.song.duration ? formatDuration(entry.song.duration) : ''}
                       </span>
 
                       {/* 播放时间 HH:mm；只标注跳过，正常收听不加视觉噪音 */}
-                      <span className="w-12 flex-shrink-0 text-right text-[13px] text-ink-faint">
+                      <span className="w-12 flex-shrink-0 text-right text-[13px] text-ink-3">
                         <span className="num block">{formatTimeOfDay(entry.endedAt)}</span>
                         {entry.outcome === 'skipped' && <span className="block text-[12px]">{t('history.skipped')}</span>}
                       </span>
@@ -249,13 +244,13 @@ export default function History() {
 
           {visible.length < history.length && (
             <div className="mt-10 flex justify-center">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setVisibleCount(count => count + PAGE_SIZE)}
-                className="act-secondary inline-flex items-center gap-2 text-[14px]"
               >
                 {t('history.loadMore')}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -267,8 +262,8 @@ export default function History() {
             <DialogTitle>{t('history.clearConfirmTitle')}</DialogTitle>
             <DialogDescription>{t('history.clearConfirmDescription')}</DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setConfirmClear(false)}>{t('action.cancel')}</Button>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setConfirmClear(false)}>{t('action.cancel')}</Button>
             <Button variant="destructive" onClick={handleClear}>{t('action.clear')}</Button>
           </div>
         </DialogContent>

@@ -2,7 +2,7 @@
  * 五星评分。
  *
  * Song.userRating 早就映射并只读展示了，此前唯一缺的是写回。
- * 五颗小星，当前分值以内填强调色，点同一星再点一次即清零——这是评分控件的通用预期，
+ * 五颗小星，当前分值以内填叶绿（实心星），点同一星再点一次即清零——这是评分控件的通用预期，
  * 否则用户永远没法取消一个误点。
  */
 
@@ -57,15 +57,15 @@ export function StarRating({
           onMouseEnter={() => setHover(n)}
           onClick={e => { e.stopPropagation(); apply(n) }}
           className={cn(
-            'p-1 transition-colors duration-150 active:scale-90 [@media(pointer:coarse)]:p-2.5',
-            n <= shown ? 'text-primary' : 'text-ink-faint hover:text-ink-soft'
+            'press-pop p-1 [@media(pointer:coarse)]:p-2.5',
+            n <= shown ? 'text-leaf' : 'text-ink-3 hover:text-ink-2'
           )}
         >
           <Star size={size} weight={n <= shown ? 'fill' : 'regular'} />
         </button>
       ))}
       {current > 0 && (
-        <span className="num ml-1.5 text-xs text-ink-faint">{current}/5</span>
+        <span className="num ml-1.5 text-[12px] text-ink-3">{current}/5</span>
       )}
     </div>
   )

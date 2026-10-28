@@ -3,12 +3,12 @@
  *
  * registerType 是 autoUpdate，但新的 Service Worker 要等所有标签页关闭才会接管——
  * 常驻标签页里的用户可能几周都停在旧版本上，而且完全不知情。
- * 这里显式提示并提供「立即更新」，与离线提示条共用同一副外形（挂在吸顶工具栏下面）。
+ * 这里显式提示并提供「立即更新」，与离线提示条共用同一副外形（挂在吸顶工具栏下面的玻璃胶囊）。
  */
 
 import { useEffect, useState } from 'react'
 import { isTauriShell } from '@/lib/platform'
-import { ArrowsClockwise, X } from '@phosphor-icons/react'
+import { ArrowCircleUp, ArrowsClockwise, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/i18n'
 
@@ -50,28 +50,35 @@ export function UpdatePrompt() {
     <div
       role="status"
       aria-live="polite"
-      className="mx-3 regular:mx-5 mt-1 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-paper-deep px-4 py-2.5 text-[13.5px] text-ink-soft"
+      className="glass mx-3 regular:mx-5 mt-1 mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[26px] py-2 pl-4 pr-2 text-[14px] leading-snug text-ink"
     >
-      <span className="min-w-[12rem] flex-1">
-        {t('update.available')}
-        <span className="text-ink-faint">{t('update.hint')}</span>
+      <ArrowCircleUp size={18} weight="fill" aria-hidden="true" className="flex-none text-leaf" />
+      <span className="min-w-[10rem] flex-1">
+        <span className="font-medium">{t('update.available')}</span>
+        <span className="text-ink-3">{t('update.hint')}</span>
       </span>
-      <button
-        onClick={() => { setUpdating(true); void updateFn?.(true) }}
-        disabled={updating || !updateFn}
-        className="inline-flex min-h-9 items-center gap-1.5 rounded-sm px-1 font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline disabled:pointer-events-none disabled:text-ink-faint motion-reduce:transition-none"
-      >
-        <ArrowsClockwise size={14} className={updating ? 'animate-spin motion-reduce:animate-none' : undefined} aria-hidden="true" />
-        {t('update.now')}
-      </button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onClick={() => setNeedRefresh(false)}
-        aria-label={t('update.later')}
-      >
-        <X size={14} />
-      </Button>
+      {/* 两个动作成一组：放不下时一起折到下一行靠右。视觉 36px，用伪元素把命中区撑到 44px */}
+      <div className="ml-auto flex flex-none items-center gap-1">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => { setUpdating(true); void updateFn?.(true) }}
+          disabled={updating || !updateFn}
+          className="relative flex-none before:absolute before:-inset-y-1 before:inset-x-0 before:content-['']"
+        >
+          <ArrowsClockwise size={15} className={updating ? 'animate-spin motion-reduce:animate-none' : undefined} aria-hidden="true" />
+          {t('update.now')}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setNeedRefresh(false)}
+          aria-label={t('update.later')}
+          className="relative flex-none before:absolute before:-inset-1 before:content-['']"
+        >
+          <X size={15} />
+        </Button>
+      </div>
     </div>
   )
 }

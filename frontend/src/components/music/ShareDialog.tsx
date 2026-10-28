@@ -64,9 +64,9 @@ interface ShareRecord {
   visitCount?: number
 }
 
-/** 行内图标键：36px 圆形，触屏拉到 44px；hover 铺一层更深的纸底 */
+/** 行内图标键：36px 圆形，触屏拉到 44px；hover 铺一层墨色淡底 */
 const ICON_BTN =
-  'grid h-9 w-9 flex-none place-items-center rounded-pill text-ink-faint transition-colors duration-150 hover:bg-paper-3 hover:text-primary [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11'
+  'press-pop grid h-9 w-9 flex-none place-items-center rounded-pill text-ink-3 hover:bg-ink/[0.08] hover:text-ink [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11'
 
 const EXPIRY_OPTIONS = [
   { days: 1, labelKey: 'share.expiry1Day' },
@@ -168,7 +168,7 @@ export function ShareDialog({
             {target ? (
               <>
                 {t('share.description')}
-                <span className="mt-1 block font-medium text-foreground">
+                <span className="mt-1 block truncate font-medium text-ink">
                   {t('share.targetLabel', { label: target.label })}
                 </span>
               </>
@@ -178,18 +178,18 @@ export function ShareDialog({
 
         {created ? (
           <div className="space-y-3 pt-1">
-            <div className="flex items-center gap-2 rounded-md bg-paper-deep py-1.5 pl-3.5 pr-1.5">
-              <LinkSimple size={15} className="flex-none text-ink-faint" aria-hidden="true" />
-              <span className="num min-w-0 flex-1 truncate text-[13.5px]">{created.url}</span>
+            <div className="flex items-center gap-2 rounded-md bg-fill py-1.5 pl-3.5 pr-1.5">
+              <LinkSimple size={16} className="flex-none text-ink-3" aria-hidden="true" />
+              <span className="num min-w-0 flex-1 truncate text-[14px] text-ink">{created.url}</span>
               <button
                 onClick={() => copy(created.url)}
                 className={ICON_BTN}
                 aria-label={t('share.copyLink')}
               >
-                {copied ? <Check size={15} className="text-primary" /> : <Copy size={15} />}
+                {copied ? <Check size={16} weight="bold" className="text-leaf" /> : <Copy size={16} />}
               </button>
             </div>
-            <p className="text-[13px] text-ink-faint">
+            <p className="text-[13px] text-ink-3">
               {created.expiresAt
                 ? t('share.expiresOn', {
                     date: new Date(created.expiresAt).toLocaleDateString(locale),
@@ -198,9 +198,9 @@ export function ShareDialog({
             </p>
           </div>
         ) : (
-          <div className="space-y-4 pt-1">
+          <div className="space-y-5 pt-1">
             <div>
-              <label htmlFor="share-desc" className="mb-1.5 block text-[13px] font-medium text-ink-soft">
+              <label htmlFor="share-desc" className="mb-2 block text-[15px] font-medium text-ink">
                 {t('share.note')}
               </label>
               <Input
@@ -212,7 +212,7 @@ export function ShareDialog({
               />
             </div>
             <div>
-              <p className="mb-1.5 text-[13px] font-medium text-ink-soft">{t('share.expiry')}</p>
+              <p className="mb-2 text-[15px] font-medium text-ink">{t('share.expiry')}</p>
               <div role="radiogroup" aria-label={t('share.expiry')} className="flex flex-wrap gap-2">
                 {EXPIRY_OPTIONS.map(opt => (
                   <button
@@ -222,10 +222,10 @@ export function ShareDialog({
                     aria-checked={expiryDays === opt.days}
                     onClick={() => setExpiryDays(opt.days)}
                     className={cn(
-                      'min-h-11 rounded-pill px-4 text-[13.5px] font-medium transition-colors duration-150',
+                      'press-pop min-h-11 rounded-pill px-4 text-[14px] font-semibold',
                       expiryDays === opt.days
-                        ? 'bg-vivid text-vivid-foreground'
-                        : 'bg-paper-deep text-ink-soft hover:bg-paper-3 hover:text-ink'
+                        ? 'bg-ink text-ground'
+                        : 'bg-fill text-ink-2 hover:bg-fill-2 hover:text-ink'
                     )}
                   >
                     {t(opt.labelKey)}
@@ -237,7 +237,8 @@ export function ShareDialog({
         )}
 
         <div className="flex justify-end gap-2 pt-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {/* 创建前：取消是次要键，创建是这个对话框唯一的青柠键；创建后只剩「完成」，它就是主键 */}
+          <Button variant={created ? 'default' : 'secondary'} onClick={() => onOpenChange(false)}>
             {created ? t('action.done') : t('action.cancel')}
           </Button>
           {!created && (
@@ -249,21 +250,21 @@ export function ShareDialog({
 
         {existing.length > 0 && (
           <div className="mt-2">
-            <p className="mb-1 flex items-baseline gap-3 text-[13px] font-medium text-ink-faint">
+            <p className="mb-1.5 flex items-baseline gap-3 text-[13px] font-semibold text-ink-3">
               <span>{t('share.existingTitle')}</span>
               <span className="num font-normal">{existing.length}</span>
             </p>
-            <ul className="max-h-44 overflow-y-auto">
+            <ul className="-mx-2 max-h-44 overflow-y-auto">
               {existing.map(share => (
                 <li
                   key={share.id}
-                  className="flex items-center gap-1 rounded-sm py-0.5 pl-2 text-[13px] hover:bg-paper-deep"
+                  className="flex items-center gap-1 rounded-[12px] py-0.5 pl-3 text-[14px] hover:bg-ink/[0.05]"
                 >
-                  <span className="min-w-0 flex-1 truncate text-ink-soft">
+                  <span className="min-w-0 flex-1 truncate text-ink-2">
                     {share.description || share.url}
                   </span>
                   {share.visitCount != null && (
-                    <span className="num flex-none text-[13px] text-ink-faint">
+                    <span className="num flex-none text-[13px] text-ink-3">
                       {t('share.visits', { count: share.visitCount })}
                     </span>
                   )}
@@ -272,14 +273,14 @@ export function ShareDialog({
                     className={ICON_BTN}
                     aria-label={t('share.copyOne')}
                   >
-                    <Copy size={15} />
+                    <Copy size={16} />
                   </button>
                   <button
                     onClick={() => revoke(share.id)}
-                    className={cn(ICON_BTN, 'hover:text-destructive')}
+                    className={cn(ICON_BTN, 'hover:text-danger')}
                     aria-label={t('share.revokeOne')}
                   >
-                    <Trash size={15} />
+                    <Trash size={16} />
                   </button>
                 </li>
               ))}

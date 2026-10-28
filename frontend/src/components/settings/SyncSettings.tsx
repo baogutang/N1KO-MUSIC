@@ -6,7 +6,7 @@
  * 不填地址、不登录时，应用行为与从前完全一致。
  */
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { ArrowsClockwise, CloudCheck, CloudSlash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,6 +42,7 @@ export function SyncSettings() {
     setEnabled, setBaseUrl, testConnection, signIn, signUp, signOut,
   } = useSyncStore()
 
+  const fieldId = useId()
   const [draftUrl, setDraftUrl] = useState(baseUrl)
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
@@ -110,8 +111,8 @@ export function SyncSettings() {
           >
             <span
               className={cn(
-                'inline-flex items-center gap-1.5 text-[14px]',
-                status === 'connected' ? 'text-sem-connected' : 'text-ink-faint'
+                'inline-flex items-center gap-1.5 text-[14px] font-medium',
+                status === 'connected' ? 'text-sem-connected' : 'text-ink-3'
               )}
             >
               {status === 'connected'
@@ -122,7 +123,7 @@ export function SyncSettings() {
           </Row>
 
           <div className={cn(rowClass, 'flex-wrap gap-y-2')}>
-            <p className="w-20 flex-shrink-0 text-[15px] font-medium">{t('sync.serverUrl')}</p>
+            <p className="w-20 flex-shrink-0 text-[15px] font-medium text-ink">{t('sync.serverUrl')}</p>
             <Input
               type="url"
               value={draftUrl}
@@ -131,11 +132,11 @@ export function SyncSettings() {
               placeholder="http://192.168.1.10:3001"
               className={cn(fieldInputClass, 'min-w-0 flex-1 basis-48')}
             />
-            <Button variant="outline" size="sm" onClick={handleTest} disabled={busy} className="flex-shrink-0 gap-1.5">
+            <Button variant="secondary" size="sm" onClick={handleTest} disabled={busy} className="flex-shrink-0 gap-1.5 h-11 [@media(hover:hover)]:h-9">
               {busy ? <ArrowsClockwise className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : null}
               {t('sync.test')}
             </Button>
-            <p className="basis-full text-[13px] leading-snug text-ink-faint regular:pl-24">
+            <p className="basis-full text-[13px] leading-snug text-ink-3 regular:pl-24">
               {t('sync.serverUrlHint')}
             </p>
           </div>
@@ -143,17 +144,17 @@ export function SyncSettings() {
           {signedIn ? (
             <>
               <Row name={t('sync.manual')} desc={t('sync.manualDesc')}>
-                <Button variant="outline" size="sm" onClick={handlePull} disabled={pulling} className="gap-1.5">
+                <Button variant="secondary" size="sm" onClick={handlePull} disabled={pulling} className="gap-1.5 h-11 [@media(hover:hover)]:h-9">
                   {pulling ? <ArrowsClockwise className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : null}
                   {pulling ? t('sync.syncing') : t('sync.syncNow')}
                 </Button>
               </Row>
               <Row name={t('sync.signOut')} desc={t('sync.signOutDesc')}>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() => { signOut(); toast({ title: t('sync.signedOut') }) }}
-                  className="gap-1.5 text-destructive"
+                  className="gap-1.5 text-danger h-11 [@media(hover:hover)]:h-9"
                 >
                   {t('sync.signOutAction')}
                 </Button>
@@ -165,8 +166,9 @@ export function SyncSettings() {
               <div className={cn(rowClass, 'flex-col items-stretch gap-x-0')}>
                 <div className="grid grid-cols-1 gap-4 regular:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-ink-faint">{t('login.username')}</label>
+                    <label htmlFor={`${fieldId}-account`} className="mb-1.5 block text-[13px] font-medium text-ink-2">{t('login.username')}</label>
                     <Input
+                      id={`${fieldId}-account`}
                       type="text"
                       value={account}
                       autoComplete="username"
@@ -175,8 +177,9 @@ export function SyncSettings() {
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-ink-faint">{t('login.password')}</label>
+                    <label htmlFor={`${fieldId}-password`} className="mb-1.5 block text-[13px] font-medium text-ink-2">{t('login.password')}</label>
                     <Input
+                      id={`${fieldId}-password`}
                       type="password"
                       value={password}
                       autoComplete="current-password"
@@ -195,7 +198,7 @@ export function SyncSettings() {
                     {t('login.signIn')}
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => void handleAuth('up')}
                     disabled={busy || !account.trim() || password.length < 8}
                     className="gap-1.5"
@@ -203,14 +206,14 @@ export function SyncSettings() {
                     {t('login.signUp')}
                   </Button>
                 </div>
-                <p className="mt-3 text-[13px] text-ink-faint">{t('sync.passwordHint')}</p>
+                <p className="mt-3 text-[13px] text-ink-3">{t('sync.passwordHint')}</p>
               </div>
             </>
           )}
 
           {lastError && (
             <div className={rowClass}>
-              <p className="text-[13px] text-sem-error">{lastError}</p>
+              <p className="text-[13px] text-danger">{lastError}</p>
             </div>
           )}
         </>

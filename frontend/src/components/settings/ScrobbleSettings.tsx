@@ -105,11 +105,13 @@ export function ScrobbleSettings() {
       {token ? (
         <div className={cn(rowClass, 'justify-between')}>
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[15px] font-medium">
-              <CheckCircle size={16} weight="fill" className="text-sem-connected" />
-              {userName ? t('scrobble.connectedAs', { name: userName }) : t('scrobble.connected')}
+            <p className="flex items-center gap-1.5 text-[15px] font-medium text-ink">
+              <CheckCircle size={16} weight="fill" className="flex-shrink-0 text-sem-connected" />
+              <span className="min-w-0 truncate">
+                {userName ? t('scrobble.connectedAs', { name: userName }) : t('scrobble.connected')}
+              </span>
             </p>
-            <p className="num mt-0.5 text-[13px] text-ink-faint">
+            <p className="num mt-0.5 text-[13px] text-ink-3">
               {lastSuccessAt
                 ? t('scrobble.tokenNoteWithTime', {
                     tail: token.slice(-4),
@@ -120,10 +122,10 @@ export function ScrobbleSettings() {
           </div>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={reset}
-            className="flex-shrink-0 text-destructive"
+            className="flex-shrink-0 text-danger h-11 [@media(hover:hover)]:h-9"
           >
             {t('scrobble.disconnect')}
           </Button>
@@ -148,12 +150,12 @@ export function ScrobbleSettings() {
       {(pending.length > 0 || lastError) && (
         <div className={cn(rowClass, 'flex-col items-start gap-1')}>
           {pending.length > 0 && (
-            <p className="num text-[13px] text-ink-faint">
+            <p className="num text-[13px] text-ink-3">
               {t('scrobble.pending', { count: pending.length })}
             </p>
           )}
           {lastError && (
-            <p className="flex items-start gap-1.5 text-[13px] text-sem-error">
+            <p className="flex items-start gap-1.5 text-[13px] text-danger">
               <WarningCircle size={14} className="mt-px flex-shrink-0" />
               <span className="min-w-0 break-all">{t('scrobble.lastFailure', { message: lastError })}</span>
             </p>
