@@ -90,7 +90,7 @@ components:
 
 ### 中性（外壳）
 - **ground** `--ground`：内容平面。暗色 `18.5% 0.009 262`。
-- **surface** `--surface`：抬起的面（卡片、浮层、对话框）。暗色 `23.2% 0.011 262`。`--shell-surface` 引用它，在 `:root` 上解析，`.stage` 改 `--surface` 也不影响它（`.np-skin` 用）。
+- **surface** `--surface`：抬起的面（卡片、浮层、对话框）。暗色 `23.2% 0.011 262`。
 - **surface-2** `--surface-2`：第二中性，承托侧栏、面板、分组底（实际用 `bg-surface-2/75`）。暗色 `20.6% 0.01 262`。
 - **fill / fill-2**：hover 底、次级按钮 / 按下、选中、进度轨。暗色 `27% 0.013 262` / `31% 0.015 262`。
 - **hair**（`--hair-soft` 为 `92.5% 0.006 255`）：一个设备像素的线。暗色 `29.5% 0.013 262`。
@@ -160,7 +160,7 @@ components:
 - `stack`（compact）：封面 / 歌词 / 接下来三选一，下面是进度与控制，下拉收起。
 - `portrait`（竖着的大窗口）：上封面配控制，下歌词或接下来。
 - `landscape`：左列是操作的东西，右边一直摆着歌词。
-- `tabletop`（Duo 半折，`useDevicePosture`）：折痕以上歌词，以下牌堆与控制。
+- `tabletop`（Duo 半折，`useDevicePosture`）：折痕以上歌词，以下封面带与控制。
 
 ## Elevation & Depth
 
@@ -234,13 +234,15 @@ components:
 只出现在**没有内容可看**的时刻：欢迎、空列表、没有结果、出错、开屏。从不压在工作内容或可操作元素上。它是装饰：`alt=""`、`aria-hidden`，话都在旁边的文字里；不想要就传 `mascot={false}`。默认 128px。动效很轻：待机 `animate-breathe`（3.2s），有眨眼帧的（`duo-wave`、`maodou-wave`）每 4.8s 叠一张闭眼图只亮约 120ms（`animate-mascot-blink`，`steps(1, end)`），hover 歪头 −3°；减弱动态效果时全部停在静帧。
 
 ### 不做拟物的 3D（v1.14.0 的决定）
-v6 一度在全屏播放器里放过一张可切换的 three.js 悬浮黑胶（打光、反射、纹路高光）。用户看过成品后的判断是「太过拟物，和整套扁平的界面不是一个世界」，于是整块删掉，`three` 依赖一并移除。想要唱片感时用设置里的**圆形封面**（`coverShape: 'circle'`）：一张扁平的圆形封面随播放转动（`animate-spin-vinyl`，暂停即停），不打光、不做反射。往后任何「3D」都要先过这一条：材质感只属于吉祥物，界面本身保持扁平。
+v6 一度在全屏播放器里放过一张可切换的 three.js 悬浮黑胶（打光、反射、纹路高光）。用户看过成品后的判断是「太过拟物，和整套扁平的界面不是一个世界」，于是整块删掉，`three` 依赖一并移除。想要唱片感时用设置里的**圆形封面**（`coverShape: 'circle'`）：一张扁平的圆形封面随播放慢慢转（`animate-spin-vinyl`，24 秒一圈——真唱片的 1.8 秒一圈放在界面上像在快进；暂停即停），不打光、不做反射。往后任何「3D」都要先过这一条：材质感只属于吉祥物，界面本身保持扁平。
 
 ### 舞台光场（`player/StageField.tsx`）
 全屏背景：四盏柔光（取自封面最多 4 个色块，光的亮度限在 0.36–0.5，增益 0.74 / 0.58 / 0.48 / 0.4）在暗场里慢慢游走。画布只有显示尺寸的 1/4，30fps（扩散期间满帧），页面隐藏就停。**换歌时新颜色从封面所在位置向外漫开**：新旧两组光源都在着色器里，用半径 0→铺满的圆做分界，持续 1500ms，缓动为 `1 − (1 − k)³`。减弱动态效果只在换歌时画一帧静止的光。没有 WebGL 退回 `.stage-fallback`。
 
-### 牌堆 `CoverDeck`
-队列是一叠牌：顶上是正在放的这首，后面两张是接下来的歌，姿态为 `y 0% / −6.5% / −12%`，`scale 1 / 0.92 / 0.84`，`brightness 1 / 0.7 / 0.5`（后面的牌是实的、只暗一档，不用半透明）。左甩下一首、右甩上一首；甩够的阈值是位移 > 宽度的 26% 或速度 > 700；越过阈值触发 `haptic('light')`；没甩够弹回去。甩的时候第二张联动往前凑（最多 +4.5% 缩放、3% 位移）。点露出来的两张展开完整的「接下来」。牌按歌曲 key 复用 DOM，切歌时下一首是从第二张的位置弹到顶上。
+### 当前封面（`CurrentCover`）与卡片浏览（`CoverBrowser`）
+正在播放页的封面区只放正在放的这一张：左甩下一首、右甩上一首（位移 > 宽度的 26% 或速度 > 700；越过阈值 `haptic('light')`；没甩够弹回去，每张封面的拖动位移各管各的）。切歌时，下一首是旧封面往左飞走、新封面在原位从 0.9 长出来；上一首是上一张从左边飞回来、旧的在原位缩回去。封面里的图片不接指针（`[&_img]:pointer-events-none`）：不然鼠标按住图片一拖就触发浏览器原生的「拖拽图片」，整次甩动被取消（v1.15.0 以前桌面上用鼠标甩不动就是这个原因）；iPad 上长按也不再弹「存储图像」。**后面不再叠接下来的两张**（v1.15.0，用户：「不是要所有的封面排在后边儿」）——正在播放页只回答「现在放的是什么」；叠牌拿掉以后，窄屏上封面最多 88cqh（原来给后面两张露边留出的位置还给封面）。
+
+挑下一首去**卡片浏览**：控制区下面一排入口（接下来 / 歌单 / 专辑 / 歌手 / 收藏 / 全部歌曲）打开它：一颗颗分开的胶囊（`bg-ink/[0.08]`）、只有字，故意不长成顶上「封面 / 歌词 / 接下来」那种连在一条槽里的分段标签——那是切换这一页的视图，这是去另一页。两种尺寸：宽窗口（iPad 横竖屏）紧凑（`h-9 px-2.5`，间距 6px），中英文六颗都放得下；窄窗口（手机）贴着屏幕两边出血、大一号（`h-10 px-4`、14px 字），反正放不下就明明白白地滑——最后一颗露出半截，而不是差几像素被切掉一条边。横排还滑得动的那一侧边缘渐隐 28px（`useEdgeFade`）。进来后顶上同一排带图标的分段标签随时切换（窄屏放不下时同样渐隐，当前那一栏总滑进视野），每一栏记住自己滑到哪儿。大封面横着排：原生横向滚动 + `snap-x snap-mandatory`（惯性和回弹是系统的），中间那张最大，两边按离中线的距离逐帧缩小（每差一张 −14%，最多两张）、压一层 `bg-stage-deep` 蒙版（50%）——直接写 `transform` / `opacity`，不经 React 渲染；只渲染可见的几张（歌手、全部歌曲动辄上千条），全部歌曲滑到离末尾 8 张时要下一页。中间那张的边长 = min(高 × 0.86, 宽 × 0.62, 560)，缝是边长的 10%；窄于 600 的窗口是宽 × 0.66、缝 6%（两边那张缩小一档以后还要露出 30px 上下，看得出能往两边滑），横排最高 `66vw + 64px`，和下面的标题一起在页面里居中。点中间那张 = 播放，点两边的 = 把它滑到中间；←→ / Home / End 键盘可用，焦点环画在中间那张卡上（`group-focus-visible`），不画在贴着屏幕两边的整条横排上。下面是标题、副标题、「n / 总数」和青柠「播放」胶囊；队列里正在放的那张带「正在播放」角标，播放键置灰。播放后回到正在播放。数据：接下来 = 播放顺序里从当前起；歌单 = 各音源 `useSourcePlaylists`；专辑 = 最近播放（新库退回最新入库）；歌手 = `useArtists`（圆形头像，播放取歌手全部歌曲，没有就热门）；收藏 = 各音源收藏的歌；全部歌曲 = `useSongsInfinite`。卡片是扁平的：不做 3D 旋转、倒影。卡片浏览开着时下面那层正在播放 `inert`、淡出到 0 并退到 `scale(0.97)`；Esc 先关卡片浏览（`browserEscape`），再按一次才收起播放器。
 
 ### 开屏（`common/Splash.tsx`）
 约 2 秒（`setTimeout 2050`），一场小演出，时间线写在 `index.css` 的开屏一节：**开灯**（青柠与叶绿两团柔光开出来，`splash-bloom` 1.6s，之后缓慢漂移；两束追光 `.splash-beam` 从上角竖直往下、扫到朝向舞台中央 ±32°，0.9s，停住后 ±4° 轻晃——锥形渐变 + 往下淡出的遮罩）→ **登场**（`duo-wave` 从下面跳上来：`splash-hop` 0.9s，往上冲时拉长、到顶复原、往下加速，0.71s 落地压扁 `scale(1.08, 0.9)` 再回弹；落地同时脚下四团烟尘 `splash-puff` 往两边散开）→ **演出**（落地后跟着拍子再蹦两下 `splash-bop`；毛豆耳机里飘出五个 Phosphor 音符，各走各的路线；糯米耳朵和爪子边闪三下 `Sparkle` 星光；1.76s 叠上闭眼帧 `duo-wave-blink`，两只一起眨一下眼）→ **字标**（N 1 K O 落地后逐字升起，每字错开 0.06s；底下一道 3px 青柠线从左划到右）→ **收场**（角色与字标先朝镜头冲出去、`scale 1.12` 淡掉，0.34s；追光淡出；随后以中心为原点用 `mask-image` 径向渐变开一个洞，`--splash-hole` 从 −14% 到 116%，0.72s，App 从洞里扩散出来）。音符和星光用叶绿（浅色底上青柠看不见；深色主题里叶绿就是亮青柠）。开发时 `?splash-t=毫秒`（可加 `&splash-theme=dark`）把开屏定格在那一刻，逐帧检查编排。
@@ -268,8 +270,8 @@ v6 一度在全屏播放器里放过一张可切换的 three.js 悬浮黑胶（�
 - **press-pop**：按下 90ms 收到 `scale(0.96)`，松手 460ms 按弹簧回来（`.play-key` 为 0.92，`.cover-tile` 按下 0.98）。
 - **layoutId 滑块**：导航当前项、`.seg-pill`，`SPRING_SNAPPY`。
 - **卡片 → 详情的共享封面**：`rememberCoverOrigin` / `takeCoverOrigin`（`lib/sharedCover`）；`DetailHero` 挂载时先摆到卡片位置，再以 `SPRING_MORPH` 弹回，落地前垫卡片已加载的小图。
-- **迷你条 → 舞台（FLIP）**：封面带 `data-np-anchor`，播放条带 `data-np-bar`。打开时 `.stage` 根用 `clipPath` 从播放条的 inset（圆角 24）展开到全屏（0.56s，`EASE_OUT`），封面以 `SPRING_MORPH` 飞来，其余元素 `data-fs-reveal` 依次上浮 18px（延迟 `0.1 + i × 0.035`s，`SPRING_SMOOTH`）；`.np-skin` 是播放条那层玻璃的颜色，叠在舞台上从不透明淡到 0（0.36s），读起来是「播放条自己展开」；收起原路飞回（clip 0.42s，皮肤 0.28s 延迟 0.14s 回来）。无播放条锚点时退成 `opacity` + `scale 0.98 → 1`。
-- **牌堆甩动**：见 `CoverDeck`；按钮切歌与自动播完走同一套，方向读 `lib/skipDirection`（上一首 / 右甩为 −1，其余 +1，记号 2 秒内有效）。
+- **迷你条 → 舞台（FLIP）**：封面带 `data-np-anchor`，播放条带 `data-np-bar`。**只动 opacity / transform，整串 `transform` 交给 WAAPI（motion 把弹簧转成 `linear()`）跑在合成器上**：背景（光场那一层）0.28s 淡入（`EASE_OUT`）；封面以 `SPRING_MORPH` 从迷你条飞来，飞行全程是实的（`CoverImage` 对本次会话加载过的地址不再淡入，打开前还会预先下载并解码当前这首的大封面）；其余元素 `data-fs-reveal` 依次上浮 18px（延迟 `0.12 + i × 0.035`s，`SPRING_SMOOTH`）；开场落定（最多 900ms）才点亮光场的 WebGL，期间是同色的 `.stage-fallback`，画好第一帧后淡入盖上。收起原路飞回，落到迷你条那一下淡掉，背景 0.3s 淡出。全屏播放器的代码在有歌时趁空闲预先拉下来，第一次点开不等下载、不闪 Suspense 的暗场。（v1.14 以前用 `clip-path` 从播放条撑开：WebKit 不合成 clip-path 动画，每帧整屏重绘，iPad 上一顿一顿，已弃用。）
+- **封面甩动**：见 `CurrentCover`；按钮切歌与自动播完走同一套，方向读 `lib/skipDirection`（上一首 / 右甩为 −1，其余 +1，记号 2 秒内有效）。
 - **吸附书架**：`snap-x snap-mandatory`；抽屉吸附到档位给 `haptic('selection')`。
 - **惯性滚轮（`useWheelInertia`）**：只接管「一格一格跳」的离散鼠标滚轮（`deltaMode` 为行，或 `wheelDeltaY` 是 120 的整数倍）；每帧追 20% 的距离；触控板与 Magic Mouse 不接管（系统自带惯性）；落在嵌套滚动元素、按着 Ctrl / Shift、`pointer: fine` 不满足、减弱动态效果时一律交还浏览器；按下指针或键盘即停。
 - **扩散转场（View Transitions）**：`lib/viewTransition.ts` 的 `radialReveal`，用于从开关处切亮暗：以点击点为圆心 `clip-path: circle(0 → r)`，620ms，`cubic-bezier(0.16, 1, 0.3, 1)`；`html[data-vt='reveal']` 关掉默认的交叉淡化。不支持或减弱动态效果时直接切换。
@@ -277,7 +279,7 @@ v6 一度在全屏播放器里放过一张可切换的 three.js 悬浮黑胶（�
 - **光场扩散**：见上，1500ms。
 - **心跳**：`heart-pop`（0.6 → 1.28 → 1，0.5s）与 `heart-ring`（0.6s）**只在状态变化时**播放，初次渲染时不播。
 - **曲目信息落定**：`page-turn`（`translateY(6px)` → 0，0.36s）。路由切换 `route-in` 0.28s 纯淡入。
-- **触感（`lib/haptics.ts`）**：仅原生壳，网页与桌面壳空操作；只给「确认发生了」的瞬间——播放 / 暂停、切歌、收藏、甩牌越阈值、抽屉吸档。
+- **触感（`lib/haptics.ts`）**：仅原生壳，网页与桌面壳空操作；只给「确认发生了」的瞬间——播放 / 暂停、切歌、收藏、甩封面越阈值、抽屉吸档。
 
 ### 减弱动态效果
 全局兜底把所有 `animation-duration` / `transition-duration` 压到 `0.01ms`；空间位移退成淡入淡出，但确认类反馈（颜色、透明度的状态变化）保留。均衡器停在 `scaleY(0.6)`，骨架、缓冲、圆形封面自转、吉祥物呼吸与眨眼关掉；全屏开合退成 0.2s / 0.15s 的淡入淡出；惯性滚轮、扩散转场、光场游走都不运行。
@@ -323,7 +325,7 @@ v6 一度在全屏播放器里放过一张可切换的 three.js 悬浮黑胶（�
 | 封面取色 → `--art-*` | `frontend/src/services/artLight.ts`、`frontend/src/store/artLightStore` |
 | 房间的光（壳底、详情头） | `frontend/src/components/art/ArtWash.tsx` |
 | 舞台光场（WebGL，径向扩散） | `frontend/src/components/player/StageField.tsx` |
-| 牌堆 | `frontend/src/components/player/CoverDeck.tsx` |
+| 当前封面 / 卡片浏览 | `frontend/src/components/player/CurrentCover.tsx`、`frontend/src/components/player/CoverBrowser.tsx` |
 | 全屏播放器（四种排法、FLIP 开合） | `frontend/src/components/player/FullscreenPlayer.tsx`（外壳 `FullscreenPlayerOverlay.tsx`） |
 | 播放条 | `frontend/src/components/layout/PlayerBar.tsx` |
 | 壳（三列 grid、侧栏、导航条、标签栏、面板） | `frontend/src/components/layout/{MainLayout,AppSidebar,AppRail,TabBar,NowPlayingPanel}.tsx` |

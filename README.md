@@ -47,7 +47,7 @@ N1KO MUSIC wants to be a player you leave open all day. v6 rebuilt the interface
 |---|---|
 | **The room takes the colour of the song** | The shell is a quiet porcelain white (graphite at night), and the cover of the current track washes it in its own colour. Only the hue is taken; lightness is fixed per theme, so text stays just as readable whatever the cover. When the track changes, the new colour spreads outward from the cover. |
 | **The lights go down** | The full-screen player is always a dark stage: the background is a light field sampled from the cover, four soft lights drifting slowly; lyrics are set large and the current line is fully lit. Opening it unfolds the stage from the player bar while the cover flies over from the mini player; closing it reverses the trip. |
-| **The queue is a deck** | The next two covers peek out behind the one that is playing. Flick left for the next track, right for the previous one; the card behind leans forward as you flick. Tap the peeking cards to open the full Up Next list. |
+| **Pick by cover** | Under the controls sit Up Next, Playlists, Albums, Artists, Favourites and All tracks. Each opens a row of large covers: swipe through them and tap the one in the middle to play it. The cover that is playing still flicks: left for the next track, right for the previous one. |
 | **It moves like a thing** | Every press answers immediately and settles back without wobble; drags follow the finger, keep their velocity and can be interrupted at any time. Mouse wheels get an inertial glide (trackpads and touch already have one, so they are left alone), shelves snap card by card, and switching light and dark spreads out from the toggle. With Reduce Motion on, movement turns into plain fades. |
 | **Window-shaped, not device-shaped** | A narrow window gets a floating tab bar, a medium one a navigation rail, a wide one an iPadOS-style sidebar plus a Now Playing panel. |
 | **Nuomi and Maodou** | A white bunny in overalls and a green frog in headphones. They only appear when there is nothing else to look at: the splash, the welcome screen, an empty list, an error, with one pose per state. |
@@ -67,20 +67,26 @@ the source renders, the prompts behind them and the local cut-out script are in 
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/v6/player.png" alt="Now Playing in landscape: a light field sampled from the cover, the queue as a deck, large lyrics" /></td>
+<td width="50%"><img src="docs/screenshots/v6/player.png" alt="Now Playing in landscape: a light field sampled from the cover, the cover and controls, large lyrics" /></td>
+<td width="50%"><img src="docs/screenshots/v6/browse.png" alt="Browsing albums by cover: one large cover in the middle, its neighbours smaller on either side, a Play button underneath" /></td>
+</tr>
+<tr>
+<td><b>Now Playing</b>: in a landscape window the cover and controls sit on the left with the ways to browse underneath; lyrics stay on the right, tap any line to jump to it.</td>
+<td><b>Pick by cover</b>: Up Next, playlists, albums, artists, favourites and all tracks, each as a row of large covers. Swipe through, tap the one in the middle to play it.</td>
+</tr>
+<tr>
 <td width="50%"><img src="docs/screenshots/v6/home-dark.png" alt="Home in dark mode" /></td>
-</tr>
-<tr>
-<td><b>Now Playing</b>: in a landscape window the deck and controls sit on the left, lyrics stay on the right; tap any line to jump to it.</td>
-<td><b>Dark</b>: graphite at night, with the room lit by the current cover. Follows the system setting.</td>
-</tr>
-<tr>
 <td width="50%"><img src="docs/screenshots/v6/album.png" alt="An album page on iPad in landscape: a large cover, the tracks and a margin note" /></td>
-<td width="50%"><img src="docs/screenshots/v6/login.png" alt="The connect page: Nuomi and Maodou waving hello" /></td>
 </tr>
 <tr>
+<td><b>Dark</b>: graphite at night, with the room lit by the current cover. Follows the system setting.</td>
 <td><b>Album page</b>: tap a card and its cover flies into place; scroll and the header folds away. Tracks, liner notes and your own margin note live on one page.</td>
-<td><b>Connect</b>: self-hosted servers and streaming sources both start here.</td>
+</tr>
+<tr>
+<td colspan="2" align="center"><img src="docs/screenshots/v6/login.png" alt="The connect page: Nuomi and Maodou waving hello" width="50%" /></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><b>Connect</b>: self-hosted servers and streaming sources both start here.</td>
 </tr>
 </table>
 
