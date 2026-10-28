@@ -985,6 +985,44 @@ body {
   color: oklch(var(--ink));
 }
 
+/* 卡片叠（横屏正在播放）：每张卡往左下方投一道影子，落在被它压住的那张上——叠在一起的层次靠这个 */
+.card-stack-shadow {
+  box-shadow:
+    -22px 0 44px -18px oklch(var(--stage-deep) / 0.85),
+    0 28px 60px -28px oklch(var(--stage-deep) / 0.9);
+}
+
+/* 卡片叠焦点那张的播放键：只在焦点上出现，换焦点时淡入（不经 React，paint 里切的 data-focus） */
+.card-stack .card-play {
+  opacity: 0;
+  scale: 0.8;
+  transition:
+    opacity var(--dur-2) var(--ease-out),
+    scale var(--dur-3) var(--ease-snappy);
+}
+
+.card-stack [data-focus] .card-play {
+  opacity: 1;
+  scale: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-stack .card-play {
+    transition: opacity var(--dur-2) linear;
+    scale: 1;
+  }
+}
+
+/* 卡片叠拿到键盘焦点：环画在中间那张卡上，不画在贴着屏幕两边的整条叠上 */
+.card-stack:focus-visible {
+  outline: none;
+}
+
+.card-stack:focus-visible [data-focus] > .cover-frame {
+  outline: var(--focus-width) solid oklch(var(--leaf));
+  outline-offset: 4px;
+}
+
 /* 没有 WebGL 时的舞台：两团固定的光，颜色仍取当前封面 */
 .stage-fallback {
   background:

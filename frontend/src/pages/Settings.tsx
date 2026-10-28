@@ -23,6 +23,7 @@ import {
   QUALITY_LABEL_KEYS,
   type AudioQuality,
   type CoverShape,
+  type CardMode,
 } from '@/store/settingsStore'
 import { createAdapter, getAdapter, hasAdapter } from '@/api'
 import { useLibraryScan } from '@/hooks/useServerQueries'
@@ -299,7 +300,7 @@ export default function Settings() {
   const setVolume = usePlayerStore(s => s.setVolume)
   const {
     apiPreferServer, apiAuthToken,
-    coverRemoteTemplate, coverLoadAlbum, coverLoadArtist, coverShape,
+    coverRemoteTemplate, coverLoadAlbum, coverLoadArtist, coverShape, playerCardMode,
     lyricsRemoteTemplate, lyricsConfirmTemplate, lyricsUseRemote, lyricsPreferRemote, lyricsFontSize,
     songDetailTemplate, songDetailPathReplace,
     translateTargetLang, translateType,
@@ -308,7 +309,7 @@ export default function Settings() {
     playbackRate, smoothTransitions, preloadNext, autoContinueQueue,
     notificationActions, seekStepSeconds, resumeAfterInterruption, musicBrainzEnabled,
     setApiPreferServer, setApiAuthToken,
-    setCoverRemoteTemplate, setCoverLoadAlbum, setCoverLoadArtist, setCoverShape,
+    setCoverRemoteTemplate, setCoverLoadAlbum, setCoverLoadArtist, setCoverShape, setPlayerCardMode,
     setLyricsRemoteTemplate, setLyricsConfirmTemplate, setLyricsUseRemote, setLyricsPreferRemote, setLyricsFontSize,
     setSongDetailTemplate, setSongDetailPathReplace,
     setTranslateTargetLang, setTranslateType,
@@ -560,6 +561,18 @@ export default function Settings() {
               options={[
                 { value: 'square', label: t('settings.coverShape.square') },
                 { value: 'circle', label: t('settings.coverShape.circle') },
+              ]}
+            />
+          </Row>
+          <Row name={t('settings.cardMode.name')} desc={t('settings.cardMode.desc')}>
+            <Segmented
+              label={t('settings.cardMode.name')}
+              value={playerCardMode}
+              onChange={(v) => setPlayerCardMode(v as CardMode)}
+              options={[
+                { value: 'auto', label: t('settings.cardMode.auto') },
+                { value: 'always', label: t('settings.cardMode.always') },
+                { value: 'off', label: t('settings.cardMode.off') },
               ]}
             />
           </Row>

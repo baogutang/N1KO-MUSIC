@@ -15,6 +15,8 @@ export type CoverSource = 'server_first' | 'remote_first' | 'remote_only' | 'ser
 
 /** 播放详情页封面样式 */
 export type CoverShape = 'square' | 'circle'
+/** 横屏卡片模式：auto = iPad / 手机横过来时；always = 电脑上的横屏窗口也用；off = 不用 */
+export type CardMode = 'auto' | 'always' | 'off'
 
 /** 音频质量 */
 export type AudioQuality = 'lossless' | 'high' | 'medium' | 'low'
@@ -63,6 +65,9 @@ interface SettingsState {
   coverLoadArtist: boolean
   /** 播放详情页封面样式：方形或圆形旋转 */
   coverShape: CoverShape
+  /** 横屏时正在播放换成一叠大封面（CardStage） */
+  playerCardMode: CardMode
+  setPlayerCardMode: (mode: CardMode) => void
 
   // --- 歌词设置 ---
   /** 自定义歌词 API 模板，如 https://api.example.com/lyrics?artist={artist}&title={title} */
@@ -185,6 +190,7 @@ export const useSettingsStore = create<SettingsState>()(
       coverLoadAlbum: true,
       coverLoadArtist: true,
       coverShape: 'square',
+      playerCardMode: 'auto',
       lyricsRemoteTemplate: '',
       lyricsConfirmTemplate: '',
       lyricsUseRemote: false,
@@ -229,6 +235,7 @@ export const useSettingsStore = create<SettingsState>()(
       setCoverLoadAlbum: (v) => set({ coverLoadAlbum: v }),
       setCoverLoadArtist: (v) => set({ coverLoadArtist: v }),
       setCoverShape: (s) => set({ coverShape: s }),
+      setPlayerCardMode: (mode) => set({ playerCardMode: mode }),
       setLyricsRemoteTemplate: (t) => set({ lyricsRemoteTemplate: t }),
       setLyricsConfirmTemplate: (t) => set({ lyricsConfirmTemplate: t }),
       setLyricsUseRemote: (v) => set({ lyricsUseRemote: v }),

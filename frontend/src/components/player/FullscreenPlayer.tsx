@@ -5,12 +5,13 @@
  *   stack      窄窗口（iPhone、Duo 外屏）：封面 / 歌词 / 接下来 三选一，下面是进度与控制；下拉收起
  *   portrait   竖着的大窗口（Duo 展开竖握、iPad 竖屏、半屏分屏）：上面封面配控制，下面歌词或接下来
  *   landscape  横着的窗口（iPad 横屏、Duo 横握、桌面）：左列是你操作的东西，右边一直摆着歌词
+ *   cards      iPad / 手机横过来时（设置「横屏卡片模式」）：一叠大封面左右甩着挑歌，底下一条正在播放（CardStage）
  *   tabletop   Duo 半折悬停（useDevicePosture）：折痕以上是歌词，以下是封面带与控制
  *
  * 舞台：背景是 StageField（封面取色的光场，换歌时新颜色从封面向外漫开），永远是暗场、白字，
  * 与外壳的亮暗主题无关（.stage 在这一层重新声明了中性 token）。
- * 封面区只放正在放的这一张（甩封面切歌）。挑下一首是另一件事：控制区下面那排入口
- * （接下来 / 歌单 / 专辑 / 歌手 / 收藏 / 全部歌曲）打开卡片浏览（CoverBrowser），大封面横着滑、点中间那张就播。
+ * 封面区只放正在放的这一张（甩封面切歌）。挑下一首是另一件事：横过来就是卡片叠（接下来 / 推荐 / 专辑 / 歌单 / 收藏），
+ * 竖着的正在播放不挂任何「去挑歌」的按钮。
  * 想要唱片感时用设置里的圆形封面（随播放慢慢转），不做拟物的 3D 黑胶。
  * 开合：打开时舞台淡入、封面从迷你条的位置飞过来，其余内容错开升起；收起原路飞回（共享元素，FLIP）。
  * 只动 opacity / transform；光场的 WebGL 等开场落定再点亮，不和动画抢主线程。
@@ -30,11 +31,11 @@ import {
   CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork, Moon,
   ListPlus, FileText,
 } from '@phosphor-icons/react'
-import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
+import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
-import { useWindowClass, needsTrafficLightInset } from '@/lib/platform'
+import { useWindowClass, needsTrafficLightInset, isNativePlatform } from '@/lib/platform'
 import { haptic } from '@/lib/haptics'
 import { EASE_OUT, SPRING_MORPH, SPRING_PRESS, SPRING_SMOOTH, SPRING_SNAPPY, prefersReducedMotion } from '@/lib/motion'
 import { markSkip } from '@/lib/skipDirection'
@@ -49,8 +50,7 @@ import { LyricDisplay } from './LyricDisplay'
 import { UpNextList } from './UpNextList'
 import { StageField } from './StageField'
 import { CurrentCover } from './CurrentCover'
-import { BrowseEntries, CoverBrowser, type BrowseTab } from './CoverBrowser'
-import { browserEscape } from './browserEscape'
+import { CardStage, CardTabs, type CardTab } from './CardStage'
 import { HeartGlyph, PlayPauseGlyph } from './glyphs'
 import { CoverImage } from '@/components/common/CoverImage'
 import { Slider } from '@/components/ui/slider'
@@ -76,14 +76,23 @@ import {
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 
 
-type Layout = 'stack' | 'portrait' | 'landscape' | 'tabletop'
+type Layout = 'stack' | 'portrait' | 'landscape' | 'cards' | 'tabletop'
 type PaneView = 'lyrics' | 'queue'
 
 const LANDSCAPE_QUERY = '(orientation: landscape)'
-function subscribeOrientation(cb: () => void) {
-  const mql = window.matchMedia(LANDSCAPE_QUERY)
-  mql.addEventListener('change', cb)
-  return () => mql.removeEventListener('change', cb)
+/** 卡片叠要的高度：再矮（手机横过来）就塞不下一叠大封面和底下的控制 */
+const CARDS_TALL_QUERY = '(min-height: 560px)'
+/** 主要靠手指操作的设备：原生壳，或者主指针是粗的（平板 / 手机浏览器） */
+const TOUCH_QUERY = '(pointer: coarse)'
+function useMedia(query: string) {
+  return useSyncExternalStore(
+    cb => {
+      const mql = window.matchMedia(query)
+      mql.addEventListener('change', cb)
+      return () => mql.removeEventListener('change', cb)
+    },
+    () => window.matchMedia(query).matches
+  )
 }
 
 /** 舞台上的次要键：白色图标，hover 铺一层白的薄底，按下收一点 */
@@ -295,8 +304,18 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   /* 排法：先看折叠姿态，再看窗口档位与横竖 */
   const wc = useWindowClass()
   const posture = useDevicePosture()
-  const landscape = useSyncExternalStore(subscribeOrientation, () => window.matchMedia(LANDSCAPE_QUERY).matches)
-  const layout: Layout = posture === 'tabletop' ? 'tabletop' : wc === 'compact' ? 'stack' : landscape ? 'landscape' : 'portrait'
+  const landscape = useMedia(LANDSCAPE_QUERY)
+  const tallEnough = useMedia(CARDS_TALL_QUERY)
+  const coarse = useMedia(TOUCH_QUERY)
+  const cardMode = useSettingsStore(s => s.playerCardMode)
+  // 横过来就是挑歌的姿势：iPad / 手机横屏自动换成卡片叠；设置里可以关掉，或者让电脑上的横屏窗口也用
+  const cards = landscape && tallEnough && (cardMode === 'always' || (cardMode === 'auto' && (isNativePlatform || coarse)))
+  const layout: Layout = posture === 'tabletop' ? 'tabletop'
+    : wc === 'compact' ? 'stack'
+      : landscape ? (cards ? 'cards' : 'landscape')
+        : 'portrait'
+  /** 卡片叠在看哪一栏；每次打开从「接下来」（正在放的那张）开始 */
+  const [cardTab, setCardTab] = useState<CardTab>('queue')
 
   /**
    * 封面 / 歌词 / 接下来 的选择要留住：浮层关闭后就卸载，
@@ -395,10 +414,6 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const closingRef = useRef(false)
   /** 开场落定：之后才点亮光场的 WebGL（建上下文、编译着色器都在主线程上，别撞在动画里） */
   const [settled, setSettled] = useState(false)
-  /** 卡片浏览开在哪一栏；null = 没开 */
-  const [browse, setBrowse] = useState<BrowseTab | null>(null)
-  const closeBrowser = useCallback(() => setBrowse(null), [])
-  const openBrowser = useCallback((tab: BrowseTab) => { haptic('selection'); setBrowse(tab) }, [])
 
   useLayoutEffect(() => {
     const root = rootRef.current
@@ -450,8 +465,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     const jobs: Array<Promise<unknown>> = []
     const morph = morphRef.current
     const from = morph?.getBoundingClientRect()
-    // 正在卡片浏览里直接收起：封面那一层已经淡出了，不飞
-    if (morph && cover && from && from.width > 1 && !browse) {
+    if (morph && cover && from && from.width > 1) {
       const dx = cover.left + cover.width / 2 - (from.left + from.width / 2)
       const dy = cover.top + cover.height / 2 - (from.top + from.height / 2)
       jobs.push(animate(morph, { transform: `translate(${dx}px, ${dy}px) scale(${cover.width / from.width})` }, SPRING_MORPH).finished)
@@ -462,22 +476,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     }
     jobs.push(animate(bg, { opacity: 0 }, { duration: 0.3, delay: 0.06, ease: EASE_OUT }).finished)
     Promise.all(jobs).then(() => onExited?.())
-  }, [isOpen, onExited, browse])
-
-  /* 卡片浏览开着的时候，下面那层正在播放不能再被点到、Tab 到 */
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    if (browse) el.setAttribute('inert', '')
-    else el.removeAttribute('inert')
-  }, [browse])
-
-  /* Esc 先关卡片浏览，再按一次才收起整个播放器（外层 Dialog 在 onEscapeKeyDown 里问这里） */
-  useEffect(() => {
-    if (!browse) return
-    browserEscape.current = () => { setBrowse(null); return true }
-    return () => { browserEscape.current = null }
-  }, [browse])
+  }, [isOpen, onExited])
 
   /* 下拉收起：从顶栏或封面往下拖，整页跟手；过 120px 或甩得够快就收起，不够就弹回 */
   const dragStart = useRef<{ y: number; t: number; id: number; axis: 'x' | 'y' | null } | null>(null)
@@ -745,13 +744,6 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     <UpNextList count={40} className="min-h-0 flex-1 overflow-y-auto" onOpenQueue={() => { setFullscreen(false); setQueueOpen(true) }} />
   )
 
-  /** 控制区下面那排入口：打开卡片浏览的某一栏（手机上贴着屏幕两边横着滑，见 BrowseEntries） */
-  const browseEntries = (size: 'compact' | 'regular') => (
-    <div className="flex-none" data-fs-reveal="">
-      <BrowseEntries onOpen={openBrowser} size={size} />
-    </div>
-  )
-
   const pane = (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-fs-reveal="">
       {viewTabs(['lyrics', 'queue'], 'pane')}
@@ -783,6 +775,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         {/* 一列的排法：顶栏中间是封面 / 歌词 / 接下来的切换。
             横屏不放居中的东西：右栏的分段标签已经是那一栏的中轴，顶栏再居中一行就有两条轴 */}
         {layout === 'stack' || layout === 'portrait' ? viewTabs(['cover', 'lyrics', 'queue'], 'stack', true) : null}
+        {layout === 'cards' && <CardTabs value={cardTab} onChange={setCardTab} />}
       </div>
 
       <DropdownMenu>
@@ -901,7 +894,40 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
           {tall && quality}
           {transport(false)}
         </div>
-        <div className={cn('flex-none', tall ? 'pt-6' : 'pt-4')}>{browseEntries(tall ? 'regular' : 'compact')}</div>
+      </div>
+    )
+  } else if (layout === 'cards') {
+    /* 卡片叠：中间一叠大封面挑歌，底下一条「正在播放」——它说的永远是正在放的那首，和焦点那张分开 */
+    body = (
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
+        <div className="flex min-h-0 flex-1 flex-col" data-fs-reveal="">
+          <CardStage tab={cardTab} />
+        </div>
+        <div
+          className="mx-auto grid w-full max-w-[1320px] flex-none grid-cols-[minmax(0,1fr)_minmax(0,460px)_minmax(0,1fr)] items-center gap-8 px-10 pt-5"
+          data-fs-reveal=""
+        >
+          <button
+            type="button"
+            onClick={() => { haptic('selection'); setCardTab('queue') }}
+            className="flex min-w-0 items-center gap-3 rounded-[14px] text-left"
+          >
+            {/* 读屏念出来的是「正在播放」+ 歌名 + 歌手：这一屏里只有这里说正在放什么 */}
+            <span className="sr-only">{t('player.nowPlaying')}</span>
+            <span className="cover-frame h-14 w-14 flex-none rounded-[10px] shadow-md">
+              <CoverThumb song={currentSong} />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[16px] font-semibold text-ink">{spaceCJK(currentSong.title)}</span>
+              <span className="block truncate text-[14px] font-medium text-ink-2">{spaceCJK(currentSong.artist)}</span>
+            </span>
+          </button>
+          <div className="flex flex-col gap-1">
+            {transport(false)}
+            <FSProgressBar />
+          </div>
+          <div className="flex justify-end">{songActions}</div>
+        </div>
       </div>
     )
   } else if (layout === 'landscape') {
@@ -911,12 +937,11 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)' }}
       >
         <div className="flex min-h-0 flex-col justify-center gap-7 [container-type:size]">
-          {/* 300px 给标题、进度、控制；再 64px 给下面那排入口 */}
-          {coverStage('', { width: 'min(100%, calc(100cqh - 364px))' })}
+          {/* 300px 给标题、进度、控制 */}
+          {coverStage('', { width: 'min(100%, calc(100cqh - 300px))' })}
           {titleBlock(wc === 'wide' ? 'xl' : 'lg')}
           <div data-fs-reveal=""><FSProgressBar /></div>
           {transport(wc === 'wide')}
-          {browseEntries('regular')}
         </div>
         {pane}
       </div>
@@ -981,33 +1006,18 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         <StageField originRef={coverBoxRef} active={settled} />
       </div>
 
-      {/* 正在播放这一层：卡片浏览打开时退后一点、淡出 */}
+      {/* 正在播放这一层；转屏换排法时淡进来（打开那一下由开场动画管） */}
       <motion.div
+        key={layout}
         ref={contentRef}
         className="relative flex min-h-0 flex-1 flex-col"
-        initial={false}
-        animate={browse ? { opacity: 0, transform: 'scale(0.97)' } : { opacity: 1, transform: 'scale(1)' }}
-        transition={SPRING_SMOOTH}
-        aria-hidden={browse ? true : undefined}
+        initial={settled && !reduceMotion ? { opacity: 0 } : false}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.24, ease: EASE_OUT }}
       >
         {layout !== 'tabletop' && header}
         {body}
       </motion.div>
-
-      <AnimatePresence>
-        {browse && (
-          <motion.div
-            key="cover-browser"
-            className="absolute inset-0 z-20"
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, transform: 'translateY(28px)' }}
-            animate={{ opacity: 1, transform: 'translateY(0px)' }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, transform: 'translateY(20px)' }}
-            transition={SPRING_SMOOTH}
-          >
-            <CoverBrowser tab={browse} onTab={setBrowse} onClose={closeBrowser} />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* 睡眠定时的选择面板。播放条上那个是 DropdownMenu，嵌进另一个菜单会打架，所以这里用对话框 */}
       <Dialog open={sleepOpen} onOpenChange={setSleepOpen}>

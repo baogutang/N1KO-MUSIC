@@ -15,7 +15,6 @@ import { Suspense, lazy, useState, useEffect, useRef, useCallback } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { usePlayerStore } from '@/store/playerStore'
 import { useCoverUrl } from '@/hooks/useCoverUrl'
-import { browserEscape } from '@/components/player/browserEscape'
 import { markCoverLoaded } from '@/components/common/CoverImage'
 import { useT } from '@/i18n'
 
@@ -129,8 +128,6 @@ export function FullscreenPlayerOverlay() {
           style={{ pointerEvents: isFullscreen ? 'auto' : 'none' }}
           /* 全屏铺满视口，不存在「浮层外部」——别让边缘点击误关 */
           onInteractOutside={e => e.preventDefault()}
-          /* 卡片浏览开着：Esc 先关它，不连带收起整个播放器 */
-          onEscapeKeyDown={e => { if (browserEscape.current?.()) e.preventDefault() }}
           /* 打开时焦点落在浮层本身，而不是第一个按钮：Radix 默认聚焦「收起」键，
              iPad 接着键盘或触控板时它的提示气泡会随每次打开弹出来。
              焦点仍在浮层里，Tab 照常进入按钮，Esc 照常收起 */

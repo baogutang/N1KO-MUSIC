@@ -15,7 +15,8 @@ import { prefersReducedMotion } from '@/lib/motion'
 
 type LegacyWheel = WheelEvent & { wheelDeltaY?: number }
 
-function isDiscreteWheel(e: LegacyWheel): boolean {
+/** 一格一格的鼠标滚轮（卡片叠也用它：一格走一张） */
+export function isDiscreteWheel(e: LegacyWheel): boolean {
   if (e.deltaMode === 1) return true
   const legacy = e.wheelDeltaY
   return typeof legacy === 'number' && legacy !== 0 && Math.abs(legacy) % 120 === 0 && Math.abs(e.deltaX) < 1
