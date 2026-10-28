@@ -14,11 +14,24 @@
 import { Suspense, lazy, useState, useEffect, useRef, useCallback } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { usePlayerStore } from '@/store/playerStore'
+import { useCoverUrl } from '@/hooks/useCoverUrl'
+import { browserEscape } from '@/components/player/browserEscape'
+import { markCoverLoaded } from '@/components/common/CoverImage'
 import { useT } from '@/i18n'
 
-const FullscreenPlayer = lazy(() =>
-  import('@/components/player/FullscreenPlayer').then(mod => ({ default: mod.FullscreenPlayer }))
-)
+/**
+ * 全屏播放器的代码：有歌在放时趁空闲先拉下来。第一次点开就不用等下载，
+ * 也不会先闪一帧 Suspense 的暗场再挂载（React.lazy 哪怕模块已在缓存里也要挂起一拍）——
+ * 拉好以后直接渲染组件本身，lazy 只在还没拉好时兜底。
+ */
+type PlayerModule = typeof import('@/components/player/FullscreenPlayer')
+let playerModule: PlayerModule | null = null
+let playerLoading: Promise<PlayerModule> | null = null
+function loadPlayer(): Promise<PlayerModule> {
+  return (playerLoading ??= import('@/components/player/FullscreenPlayer').then(mod => (playerModule = mod)))
+}
+
+const FullscreenPlayer = lazy(() => loadPlayer().then(mod => ({ default: mod.FullscreenPlayer })))
 
 const CarMode = lazy(() =>
   import('@/components/player/CarMode').then(mod => ({ default: mod.CarMode }))
@@ -33,6 +46,33 @@ export function FullscreenPlayerOverlay() {
 
   const contentRef = useRef<HTMLDivElement>(null)
   const [shouldMount, setShouldMount] = useState(isFullscreen)
+  const [loaded, setLoaded] = useState<PlayerModule | null>(() => playerModule)
+  const renderPathRef = useRef<'direct' | 'lazy' | null>(null)
+
+  // 有歌了就趁空闲把全屏播放器拉下来（WKWebView 没有 requestIdleCallback，退回延时）
+  const currentSong = usePlayerStore(s => s.currentSong)
+  const hasSong = !!currentSong
+  useEffect(() => {
+    if (!hasSong || loaded) return
+    const run = () => { void loadPlayer().then(setLoaded, () => {}) }
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(run, { timeout: 3000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const id = window.setTimeout(run, 1200)
+    return () => window.clearTimeout(id)
+  }, [hasSong, loaded])
+
+  // 大封面提前下载并解码：打开时它从迷你条飞过去，不该是一块空白、落地才冒出图来
+  const { primary: coverUrl } = useCoverUrl(currentSong ?? undefined, { size: 640 })
+  useEffect(() => {
+    if (!coverUrl) return
+    const img = new Image()
+    img.decoding = 'async'
+    img.src = coverUrl
+    // 解码完记下来：播放器里那张大封面挂上时直接是实的，不再从透明淡入
+    img.decode?.().then(() => markCoverLoaded(coverUrl), () => {})
+  }, [coverUrl])
 
   useEffect(() => {
     if (isFullscreen) setShouldMount(true)
@@ -56,7 +96,13 @@ export function FullscreenPlayerOverlay() {
     )
   }
 
-  if (!shouldMount) return null
+  if (!shouldMount) {
+    renderPathRef.current = null
+    return null
+  }
+  // 这一次打开走哪条路，在挂上那一刻定下来：开着的时候预加载才完成，也不能从 lazy 换成直接渲染（会整个重挂）
+  if (renderPathRef.current === null) renderPathRef.current = loaded ? 'direct' : 'lazy'
+  const Direct = renderPathRef.current === 'direct' ? loaded?.FullscreenPlayer : undefined
 
   return (
     <DialogPrimitive.Root
@@ -83,6 +129,8 @@ export function FullscreenPlayerOverlay() {
           style={{ pointerEvents: isFullscreen ? 'auto' : 'none' }}
           /* 全屏铺满视口，不存在「浮层外部」——别让边缘点击误关 */
           onInteractOutside={e => e.preventDefault()}
+          /* 卡片浏览开着：Esc 先关它，不连带收起整个播放器 */
+          onEscapeKeyDown={e => { if (browserEscape.current?.()) e.preventDefault() }}
           /* 打开时焦点落在浮层本身，而不是第一个按钮：Radix 默认聚焦「收起」键，
              iPad 接着键盘或触控板时它的提示气泡会随每次打开弹出来。
              焦点仍在浮层里，Tab 照常进入按钮，Esc 照常收起 */
@@ -92,9 +140,13 @@ export function FullscreenPlayerOverlay() {
           }}
         >
           <DialogPrimitive.Title className="sr-only">{t('player.nowPlaying')}</DialogPrimitive.Title>
-          <Suspense fallback={<div className="stage absolute inset-0 bg-stage-deep" />}>
-            <FullscreenPlayer onExited={handleExited} />
-          </Suspense>
+          {Direct ? (
+            <Direct onExited={handleExited} />
+          ) : (
+            <Suspense fallback={<div className="stage absolute inset-0 bg-stage-deep" />}>
+              <FullscreenPlayer onExited={handleExited} />
+            </Suspense>
+          )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

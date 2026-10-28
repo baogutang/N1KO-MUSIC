@@ -102,10 +102,16 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
   return sh
 }
 
-export function StageField({ className, originRef }: { className?: string; originRef?: RefObject<HTMLElement> }) {
+/**
+ * @param active 为 false 时只铺 CSS 渐变（.stage-fallback，同样取当前封面的色相），不建 WebGL。
+ *   全屏播放器打开的那半秒里传 false：建上下文、编译着色器、上传第一帧都在主线程上，
+ *   正好撞在开场动画里，iPad 上就是掉帧。动画落定再打开，画好第一帧后淡入盖上去。
+ */
+export function StageField({ className, originRef, active = true }: { className?: string; originRef?: RefObject<HTMLElement>; active?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const palette = useArtLightStore(s => s.palette)
   const [failed, setFailed] = useState(false)
+  const [painted, setPainted] = useState(false)
   const stateRef = useRef<{
     gl: WebGLRenderingContext
     uniforms: Record<string, WebGLUniformLocation | null>
@@ -119,7 +125,7 @@ export function StageField({ className, originRef }: { className?: string; origi
   /* 初始化：一次。拿不到 WebGL 就退回 CSS */
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!active || !canvas) return
     const gl = canvas.getContext('webgl', { antialias: false, alpha: false, premultipliedAlpha: false, powerPreference: 'low-power' })
     if (!gl) {
       setFailed(true)
@@ -213,6 +219,8 @@ export function StageField({ className, originRef }: { className?: string; origi
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
     resize()
+    // 第一帧画好了才把画布淡入，盖住底下的 CSS 渐变（不会先闪一块黑）
+    setPainted(true)
 
     const onLost = (e: Event) => {
       e.preventDefault()
@@ -231,7 +239,7 @@ export function StageField({ className, originRef }: { className?: string; origi
       stateRef.current = null
       gl.getExtension('WEBGL_lose_context')?.loseContext()
     }
-  }, [])
+  }, [active])
 
   /* 换歌：旧颜色留在外面，新颜色从封面的位置向外漫开 */
   useEffect(() => {
@@ -260,10 +268,13 @@ export function StageField({ className, originRef }: { className?: string; origi
 
   return (
     <div aria-hidden="true" className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)}>
-      {failed ? (
-        <div className="stage-fallback absolute inset-0" />
-      ) : (
-        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      {/* 底下一直铺着 CSS 渐变：WebGL 还没开（开场动画期间）或拿不到时就是它 */}
+      <div className="stage-fallback absolute inset-0" />
+      {!failed && (
+        <canvas
+          ref={canvasRef}
+          className={cn('absolute inset-0 h-full w-full transition-opacity duration-5 ease-out motion-reduce:transition-none', active && painted ? 'opacity-100' : 'opacity-0')}
+        />
       )}
       {/* 顶上、底部各压暗一档：分段标签、控制区的白字始终站得住 */}
       <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-stage-deep/45 to-stage-deep/0" />

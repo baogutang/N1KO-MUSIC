@@ -35,7 +35,6 @@
   /* ----- 地面与墨 ----- */
   --ground: 98.4% 0.004 255;      /* 内容平面 */
   --surface: 99.8% 0.002 255;     /* 抬起的面：卡片、浮层、对话框 */
-  --shell-surface: var(--surface); /* 外壳的面：引用在 :root 上解析，.stage 改 --surface 也不影响它 */
   --surface-2: 96.4% 0.006 255;   /* 第二中性：侧栏、面板、分组底 */
   --fill: 94.2% 0.007 255;        /* hover 底、次级按钮 */
   --fill-2: 91.2% 0.009 255;      /* 按下、选中、进度轨 */
@@ -501,8 +500,10 @@ a {
     to { transform: rotate(360deg); }
   }
 
+  /* 圆形封面随播放转：24 秒一圈。真唱片 33⅓ 转是 1.8 秒一圈，放在界面上像在快进；
+     它只是告诉你「正在放」，慢到几乎察觉不到才对（用户在 iPad 上：转得也太快了） */
   .animate-spin-vinyl {
-    animation: spin-vinyl 1.8s linear infinite;
+    animation: spin-vinyl 24s linear infinite;
   }
 
   /* 缓冲：按下播放到真正出声之间，主键轻轻呼吸 */
@@ -970,12 +971,6 @@ body {
   --sem-playing: var(--leaf);
   --sem-fav: var(--ink);
   color: oklch(var(--ink));
-}
-
-/* 全屏播放器开合时的「外壳皮」：是播放条那层玻璃的颜色。
-   --shell-surface 在 :root 上就解析成外壳的 --surface，到了 .stage 里也不会被舞台的暗色改掉 */
-.np-skin {
-  background: oklch(var(--shell-surface));
 }
 
 /* 没有 WebGL 时的舞台：两团固定的光，颜色仍取当前封面 */

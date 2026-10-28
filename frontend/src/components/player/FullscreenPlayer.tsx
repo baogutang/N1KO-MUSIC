@@ -5,13 +5,15 @@
  *   stack      窄窗口（iPhone、Duo 外屏）：封面 / 歌词 / 接下来 三选一，下面是进度与控制；下拉收起
  *   portrait   竖着的大窗口（Duo 展开竖握、iPad 竖屏、半屏分屏）：上面封面配控制，下面歌词或接下来
  *   landscape  横着的窗口（iPad 横屏、Duo 横握、桌面）：左列是你操作的东西，右边一直摆着歌词
- *   tabletop   Duo 半折悬停（useDevicePosture）：折痕以上是歌词，以下是牌堆与控制
+ *   tabletop   Duo 半折悬停（useDevicePosture）：折痕以上是歌词，以下是封面带与控制
  *
  * 舞台：背景是 StageField（封面取色的光场，换歌时新颜色从封面向外漫开），永远是暗场、白字，
  * 与外壳的亮暗主题无关（.stage 在这一层重新声明了中性 token）。
- * 签名：队列是一叠牌（CoverDeck，甩封面切歌）。想要唱片感时用设置里的圆形封面（随播放转动），
- * 不做拟物的 3D 黑胶——整套界面是扁平的，一张打了光、带反射的唱片和它不是一个世界。
- * 开合：打开时舞台从底部播放条展开、封面从迷你条的位置飞过来；收起原路飞回（共享元素，FLIP）。
+ * 封面区只放正在放的这一张（甩封面切歌）。挑下一首是另一件事：控制区下面那排入口
+ * （接下来 / 歌单 / 专辑 / 歌手 / 收藏 / 全部歌曲）打开卡片浏览（CoverBrowser），大封面横着滑、点中间那张就播。
+ * 想要唱片感时用设置里的圆形封面（随播放慢慢转），不做拟物的 3D 黑胶。
+ * 开合：打开时舞台淡入、封面从迷你条的位置飞过来，其余内容错开升起；收起原路飞回（共享元素，FLIP）。
+ * 只动 opacity / transform；光场的 WebGL 等开场落定再点亮，不和动画抢主线程。
  *
  * 性能：细粒度 selector，不订阅 currentTime；进度条与歌词各自订阅。
  */
@@ -28,7 +30,7 @@ import {
   CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork, Moon,
   ListPlus, FileText,
 } from '@phosphor-icons/react'
-import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
+import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
@@ -45,7 +47,9 @@ import { useCoverUrl } from '@/hooks/useCoverUrl'
 import { LyricDisplay } from './LyricDisplay'
 import { UpNextList } from './UpNextList'
 import { StageField } from './StageField'
-import { CoverDeck } from './CoverDeck'
+import { CurrentCover } from './CurrentCover'
+import { BrowseEntries, CoverBrowser, type BrowseTab } from './CoverBrowser'
+import { browserEscape } from './browserEscape'
 import { HeartGlyph, PlayPauseGlyph } from './glyphs'
 import { CoverImage } from '@/components/common/CoverImage'
 import { Slider } from '@/components/ui/slider'
@@ -246,10 +250,6 @@ function anchorRects() {
   return { bar: valid(bar), cover: valid(cover) }
 }
 
-function insetOf(r: DOMRect, radius: number) {
-  return `inset(${r.top}px ${Math.max(0, innerWidth - r.right)}px ${Math.max(0, innerHeight - r.bottom)}px ${r.left}px round ${radius}px)`
-}
-
 export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const navigate = useNavigate()
   const { t } = useT()
@@ -326,19 +326,12 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   )
   const lyrics = lyricsQuery.data
 
-  /* 播放顺序（开着随机就按随机序）：牌堆与悬停排法的封面带都用它 */
+  /* 播放顺序（开着随机就按随机序）：悬停排法的封面带用它 */
   const order = useMemo(() => {
     const identity = queue.map((_, i) => i)
     if (!shuffle || shuffledIndexes.length !== queue.length || new Set(shuffledIndexes).size !== queue.length) return identity
     return shuffledIndexes
   }, [queue, shuffle, shuffledIndexes])
-
-  /** 牌堆后面那两张：接下来的两首 */
-  const upcoming = useMemo(() => {
-    const pos = order.indexOf(queueIndex)
-    if (pos < 0) return []
-    return order.slice(pos + 1, pos + 3).map(i => queue[i]).filter(Boolean)
-  }, [order, queue, queueIndex])
 
   const cycleRepeatMode = () => {
     const modes: RepeatMode[] = ['none', 'all', 'one']
@@ -387,77 +380,102 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     navigate(detailPath('albums', currentSong.albumId, currentSong.serverId))
   }
 
-  // 点牌堆露出来的那两张：展开「接下来」
-  const openQueue = useCallback(() => {
-    haptic('selection')
-    setMobileView('queue')
-  }, [setMobileView])
-
-  /* ---------- 开合：舞台从播放条展开，封面从迷你条飞来；收起原路返回 ---------- */
+  /* ---------- 开合：舞台淡入，封面从迷你条飞来，其余内容错开升起；收起原路返回 ----------
+     只动 opacity / transform，全走合成器。以前舞台用 clip-path 从播放条撑开：WebKit 不合成 clip-path 动画，
+     每一帧都把整屏（光场 + 歌词 + 封面）重绘一遍，iPad 上一顿一顿的。
+     背景（光场那一层）和内容分开淡：封面在飞行全程都是实的，不会半路才显形。 */
   const rootRef = useRef<HTMLDivElement>(null)
-  const skinRef = useRef<HTMLDivElement>(null)
+  const bgRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const morphRef = useRef<HTMLDivElement>(null)
-  const deckTopRef = useRef<HTMLDivElement>(null)
+  const coverBoxRef = useRef<HTMLDivElement>(null)
   const dragY = useMotionValue(0)
   const closingRef = useRef(false)
+  /** 开场落定：之后才点亮光场的 WebGL（建上下文、编译着色器都在主线程上，别撞在动画里） */
+  const [settled, setSettled] = useState(false)
+  /** 卡片浏览开在哪一栏；null = 没开 */
+  const [browse, setBrowse] = useState<BrowseTab | null>(null)
+  const closeBrowser = useCallback(() => setBrowse(null), [])
+  const openBrowser = useCallback((tab: BrowseTab) => { haptic('selection'); setBrowse(tab) }, [])
 
   useLayoutEffect(() => {
     const root = rootRef.current
-    if (!root) return
+    const bg = bgRef.current
+    if (!root || !bg) return
+    let alive = true
+    const settle = () => { if (alive) setSettled(true) }
     const reveals = Array.from(root.querySelectorAll<HTMLElement>('[data-fs-reveal]'))
     if (prefersReducedMotion()) {
-      animate(root, { opacity: [0, 1] }, { duration: 0.2 })
-      return
+      animate(root, { opacity: [0, 1] }, { duration: 0.2 }).finished.then(settle)
+      return () => { alive = false }
     }
-    const { bar, cover } = anchorRects()
-    if (bar) {
-      animate(root, { clipPath: [insetOf(bar, 24), 'inset(0px 0px 0px 0px round 0px)'] }, { duration: 0.56, ease: EASE_OUT })
-      // 先是播放条那层玻璃的颜色，边长大边暗成舞台：读起来是「播放条自己展开」，不是换了一层
-      if (skinRef.current) animate(skinRef.current, { opacity: [1, 0] }, { duration: 0.36, ease: EASE_OUT })
-    } else {
-      animate(root, { opacity: [0, 1], scale: [0.98, 1] }, SPRING_SMOOTH)
-    }
+    const jobs: Array<Promise<unknown>> = [animate(bg, { opacity: [0, 1] }, { duration: 0.28, ease: EASE_OUT }).finished]
+    const { cover } = anchorRects()
     const morph = morphRef.current
     const target = morph?.getBoundingClientRect()
     if (morph && cover && target && target.width > 1) {
       const dx = cover.left + cover.width / 2 - (target.left + target.width / 2)
       const dy = cover.top + cover.height / 2 - (target.top + target.height / 2)
-      animate(morph, { x: [dx, 0], y: [dy, 0], scale: [cover.width / target.width, 1] }, SPRING_MORPH)
+      // 整串 transform 交给浏览器（WAAPI + linear() 弹簧）跑在合成器上：x / y / scale 分开写的话
+      // motion 每帧在主线程上拼 transform，播放器刚挂上、主线程正忙的那几帧就会掉
+      jobs.push(animate(morph, { transform: [`translate(${dx}px, ${dy}px) scale(${cover.width / target.width})`, 'translate(0px, 0px) scale(1)'] }, SPRING_MORPH).finished)
+    } else if (morph) {
+      jobs.push(animate(morph, { opacity: [0, 1], transform: ['scale(0.94)', 'scale(1)'] }, SPRING_SMOOTH).finished)
     }
+    // 文字和控制等背景先暗下来一点再升起：白字不会先压在浅色的页面上
     reveals.forEach((el, i) => {
-      animate(el, { opacity: [0, 1], y: [18, 0] }, { ...SPRING_SMOOTH, delay: 0.1 + i * 0.035 })
+      animate(el, { opacity: [0, 1], transform: ['translateY(18px)', 'translateY(0px)'] }, { ...SPRING_SMOOTH, delay: 0.12 + i * 0.035 })
     })
+    // 弹簧收尾很长：最多等 900ms 就点亮光场
+    const timer = setTimeout(settle, 900)
+    Promise.all(jobs).then(settle)
+    return () => { alive = false; clearTimeout(timer) }
   }, [])
 
   useEffect(() => {
     if (isOpen || closingRef.current) return
     closingRef.current = true
     const root = rootRef.current
-    if (!root || prefersReducedMotion()) {
+    const bg = bgRef.current
+    if (!root || !bg || prefersReducedMotion()) {
       if (root) animate(root, { opacity: 0 }, { duration: 0.15 }).finished.then(() => onExited?.())
       else onExited?.()
       return
     }
     const reveals = Array.from(root.querySelectorAll<HTMLElement>('[data-fs-reveal]'))
     reveals.forEach(el => animate(el, { opacity: 0 }, { duration: 0.12 }))
-    const { bar, cover } = anchorRects()
+    const { cover } = anchorRects()
     const jobs: Array<Promise<unknown>> = []
     const morph = morphRef.current
     const from = morph?.getBoundingClientRect()
-    if (morph && cover && from && from.width > 1) {
+    // 正在卡片浏览里直接收起：封面那一层已经淡出了，不飞
+    if (morph && cover && from && from.width > 1 && !browse) {
       const dx = cover.left + cover.width / 2 - (from.left + from.width / 2)
       const dy = cover.top + cover.height / 2 - (from.top + from.height / 2)
-      jobs.push(animate(morph, { x: dx, y: dy, scale: cover.width / from.width }, SPRING_MORPH).finished)
+      jobs.push(animate(morph, { transform: `translate(${dx}px, ${dy}px) scale(${cover.width / from.width})` }, SPRING_MORPH).finished)
+      // 落到迷你条上那一下淡掉，由迷你条自己的封面接住
+      jobs.push(animate(morph, { opacity: 0 }, { duration: 0.14, delay: 0.28 }).finished)
+    } else if (contentRef.current) {
+      jobs.push(animate(contentRef.current, { opacity: 0 }, { duration: 0.16 }).finished)
     }
-    if (bar) {
-      jobs.push(animate(root, { clipPath: insetOf(bar, 24) }, { duration: 0.42, ease: EASE_OUT }).finished)
-      jobs.push(animate(dragY, 0, { duration: 0.42, ease: EASE_OUT }).finished)
-      if (skinRef.current) jobs.push(animate(skinRef.current, { opacity: 1 }, { duration: 0.28, delay: 0.14, ease: EASE_OUT }).finished)
-    } else {
-      jobs.push(animate(root, { opacity: 0, scale: 0.98 }, { duration: 0.22 }).finished)
-    }
+    jobs.push(animate(bg, { opacity: 0 }, { duration: 0.3, delay: 0.06, ease: EASE_OUT }).finished)
     Promise.all(jobs).then(() => onExited?.())
-  }, [isOpen, onExited, dragY])
+  }, [isOpen, onExited, browse])
+
+  /* 卡片浏览开着的时候，下面那层正在播放不能再被点到、Tab 到 */
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    if (browse) el.setAttribute('inert', '')
+    else el.removeAttribute('inert')
+  }, [browse])
+
+  /* Esc 先关卡片浏览，再按一次才收起整个播放器（外层 Dialog 在 onEscapeKeyDown 里问这里） */
+  useEffect(() => {
+    if (!browse) return
+    browserEscape.current = () => { setBrowse(null); return true }
+    return () => { browserEscape.current = null }
+  }, [browse])
 
   /* 下拉收起：从顶栏或封面往下拖，整页跟手；过 120px 或甩得够快就收起，不够就弹回 */
   const dragStart = useRef<{ y: number; t: number; id: number; axis: 'x' | 'y' | null } | null>(null)
@@ -502,19 +520,18 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
 
   /* ---------- 共用的几块 ---------- */
 
-  /** 封面区：牌堆。外面那层是共享元素的落点（morphRef） */
+  /** 封面区：只有正在放的这一张（甩封面切歌）。外面那层是共享元素的落点（morphRef）。
+   *  后面不再叠接下来的两张：挑下一首去卡片浏览 */
   const coverStage = (className: string, style?: CSSProperties) => (
     <div ref={morphRef} className={cn('relative mx-auto flex-none origin-center', className)} style={style}>
-      <CoverDeck
+      <CurrentCover
         current={currentSong}
-        upcoming={upcoming}
         onNext={() => next()}
         onPrev={handlePrev}
-        onOpenQueue={openQueue}
         playing={isPlaying}
         round={isCircle}
         className="w-full"
-        topRef={deckTopRef}
+        boxRef={coverBoxRef}
       />
     </div>
   )
@@ -726,6 +743,13 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     <UpNextList count={40} className="min-h-0 flex-1 overflow-y-auto" onOpenQueue={() => { setFullscreen(false); setQueueOpen(true) }} />
   )
 
+  /** 控制区下面那排入口：打开卡片浏览的某一栏（手机上贴着屏幕两边横着滑，见 BrowseEntries） */
+  const browseEntries = (size: 'compact' | 'regular') => (
+    <div className="flex-none" data-fs-reveal="">
+      <BrowseEntries onOpen={openBrowser} size={size} />
+    </div>
+  )
+
   const pane = (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-fs-reveal="">
       {viewTabs(['lyrics', 'queue'], 'pane')}
@@ -846,12 +870,12 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         className={cn('relative z-10 mx-auto flex min-h-0 w-full flex-1 flex-col', tall ? 'max-w-[640px] px-8' : 'px-6')}
         style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${tall ? 28 : 18}px)` }}
       >
-        {/* 牌堆在剩下的空间里居中（78cqh：上面给后面两张露边留出 12%）；
-            歌名贴着进度条，不在牌堆和进度条之间悬一大块空 */}
+        {/* 封面在剩下的空间里居中（最多 88cqh，上下留一口气）；
+            歌名贴着进度条，不在封面和进度条之间悬一大块空 */}
         <div className="flex min-h-0 flex-1 flex-col [container-type:size]">
           {mobileView === 'cover' ? (
             <div className="flex flex-1 items-center justify-center" {...dragHandlers}>
-              {coverStage('', { width: 'min(100%, 78cqh)', marginTop: '6%' })}
+              {coverStage('', { width: 'min(100%, 88cqh)' })}
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col gap-4" data-fs-reveal="">
@@ -875,6 +899,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
           {tall && quality}
           {transport(false)}
         </div>
+        <div className={cn('flex-none', tall ? 'pt-6' : 'pt-4')}>{browseEntries(tall ? 'regular' : 'compact')}</div>
       </div>
     )
   } else if (layout === 'landscape') {
@@ -884,10 +909,12 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)' }}
       >
         <div className="flex min-h-0 flex-col justify-center gap-7 [container-type:size]">
-          {coverStage('', { width: 'min(100%, calc(100cqh - 300px))' })}
+          {/* 300px 给标题、进度、控制；再 64px 给下面那排入口 */}
+          {coverStage('', { width: 'min(100%, calc(100cqh - 364px))' })}
           {titleBlock(wc === 'wide' ? 'xl' : 'lg')}
           <div data-fs-reveal=""><FSProgressBar /></div>
           {transport(wc === 'wide')}
+          {browseEntries('regular')}
         </div>
         {pane}
       </div>
@@ -947,12 +974,38 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
       className="stage fixed inset-0 z-50 flex flex-col overflow-hidden"
       style={{ y: dragY }}
     >
-      <StageField originRef={deckTopRef} />
-      {/* 外壳皮：只在开合的那一下可见（见上面的开合动画），平时透明、不挡点击 */}
-      <div ref={skinRef} aria-hidden="true" className="np-skin pointer-events-none absolute inset-0 opacity-0" />
+      {/* 背景单独一层：开合时只有它淡入淡出，封面和文字各走各的 */}
+      <div ref={bgRef} className="pointer-events-none absolute inset-0">
+        <StageField originRef={coverBoxRef} active={settled} />
+      </div>
 
-      {layout !== 'tabletop' && header}
-      {body}
+      {/* 正在播放这一层：卡片浏览打开时退后一点、淡出 */}
+      <motion.div
+        ref={contentRef}
+        className="relative flex min-h-0 flex-1 flex-col"
+        initial={false}
+        animate={browse ? { opacity: 0, transform: 'scale(0.97)' } : { opacity: 1, transform: 'scale(1)' }}
+        transition={SPRING_SMOOTH}
+        aria-hidden={browse ? true : undefined}
+      >
+        {layout !== 'tabletop' && header}
+        {body}
+      </motion.div>
+
+      <AnimatePresence>
+        {browse && (
+          <motion.div
+            key="cover-browser"
+            className="absolute inset-0 z-20"
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, transform: 'translateY(28px)' }}
+            animate={{ opacity: 1, transform: 'translateY(0px)' }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, transform: 'translateY(20px)' }}
+            transition={SPRING_SMOOTH}
+          >
+            <CoverBrowser tab={browse} onTab={setBrowse} onClose={closeBrowser} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 睡眠定时的选择面板。播放条上那个是 DropdownMenu，嵌进另一个菜单会打架，所以这里用对话框 */}
       <Dialog open={sleepOpen} onOpenChange={setSleepOpen}>

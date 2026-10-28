@@ -4,6 +4,8 @@
  * - 配置了自定义封面 API 时，与服务器封面并发请求
  * - 与设置「封面来源」(coverSource) 一致
  * - 所有来源都失败时显示占位（下沉一档的底 + 居中的浅墨图标）；图片到了淡入，不是一下子跳出来
+ * - 这一次会话里已经加载过的地址不再淡入，直接是实的：全屏播放器打开时大封面正在从迷你条飞过去，
+ *   每次新挂载都从透明淡入 500ms 的话，飞行的前半段封面是虚的；回到看过的页面也不该再闪一遍
  */
 
 import { useState, useEffect, useRef } from 'react'
@@ -34,6 +36,15 @@ interface CoverImageProps {
   eager?: boolean
   /** 歌曲 id；传入后会优先使用用户在详情页手动钉住的本地封面 */
   songId?: string
+}
+
+/** 这次会话里已经加载成功的封面地址（浏览器缓存里有、解码过）：再出现时直接显示，不放占位、不淡入。
+ *  只留最近 600 个，Set 按插入顺序，满了丢最早的 */
+const loadedSrcs = new Set<string>()
+export function markCoverLoaded(src: string) {
+  loadedSrcs.delete(src)
+  loadedSrcs.add(src)
+  if (loadedSrcs.size > 600) loadedSrcs.delete(loadedSrcs.values().next().value as string)
 }
 
 /** 占位：下沉一档的底 + 居中的浅墨图标，圆角继承父级（由消费方控制） */
@@ -73,8 +84,9 @@ export function CoverImage({
   const [isLoaded, setIsLoaded] = useState(false)
   const coverRemoteTemplate = useSettingsStore(s => s.coverRemoteTemplate)
   const coverSource = useSettingsStore(s => s.coverSource)
-  // eager 模式下 streamBuffering 不阻塞加载，只有 lazy 模式才延迟
-  const streamBuffering = usePlayerStore(s => s.streamBuffering)
+  // eager 模式下 streamBuffering 不阻塞加载，只有 lazy 模式才延迟；已经加载出来的封面不订阅它
+  // （切歌时它翻一次，一屏几十张封面跟着重渲染，正好撞在切歌动画上）
+  const streamBuffering = usePlayerStore(s => !eager && !isLoaded && s.streamBuffering)
 
   // IntersectionObserver: 只在元素接近可视区域时才开始加载封面
   useEffect(() => {
@@ -163,7 +175,8 @@ export function CoverImage({
   // onImageResolved 延迟到图片实际加载完成后调用，避免与封面请求竞争连接。
   if (eager) {
     const src = displaySrc
-    const showPlaceholder = !src || !isLoaded
+    const known = !!src && loadedSrcs.has(src)
+    const showPlaceholder = !src || (!isLoaded && !known)
     return (
       <div ref={containerRef} className={cn('relative', className)}>
         {showPlaceholder && (
@@ -174,8 +187,9 @@ export function CoverImage({
           <img
             src={src}
             alt={alt}
-            className={cn('w-full h-full object-cover transition-opacity duration-500 ease-out', !isLoaded && 'opacity-0')}
+            className={cn('w-full h-full object-cover', !known && 'transition-opacity duration-500 ease-out', !isLoaded && !known && 'opacity-0')}
             onLoad={() => {
+              markCoverLoaded(src)
               setIsLoaded(true)
               onImageResolved?.(src)
             }}
@@ -203,17 +217,18 @@ export function CoverImage({
     )
   }
 
+  const known = loadedSrcs.has(displaySrc)
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      {!isLoaded && (
+      {!isLoaded && !known && (
         // loading 骨架：纸面占位闪烁（不用 spinner，DESIGN §4.5）
         <CoverPlaceholder className="absolute inset-0 animate-pulse motion-reduce:animate-none" artist={type === 'artist'} />
       )}
       <img
-        src={(streamBuffering && !isLoaded) ? undefined : displaySrc}
+        src={(streamBuffering && !isLoaded && !known) ? undefined : displaySrc}
         alt={alt}
-        className={cn('w-full h-full object-cover transition-opacity duration-500 ease-out', !isLoaded && 'opacity-0')}
-        onLoad={() => setIsLoaded(true)}
+        className={cn('w-full h-full object-cover', !known && 'transition-opacity duration-500 ease-out', !isLoaded && !known && 'opacity-0')}
+        onLoad={() => { markCoverLoaded(displaySrc); setIsLoaded(true) }}
         onError={() => displaySrc && handleImgError(displaySrc)}
         loading="lazy"
         decoding="async"
