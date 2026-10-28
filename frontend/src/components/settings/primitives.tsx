@@ -51,7 +51,8 @@ export function Row({
         <p className="text-[15px] font-medium leading-snug text-ink">{name}</p>
         {desc && <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{desc}</p>}
       </div>
-      {children && <div className="ml-auto flex flex-shrink-0 items-center">{children}</div>}
+      {/* max-w-full：控件组（如滑块 + 数值 + 五档分段）比一行还宽时，在自己里面折行，不把整页撑出横向滚动 */}
+      {children && <div className="ml-auto flex max-w-full flex-shrink-0 items-center">{children}</div>}
     </div>
   )
 }

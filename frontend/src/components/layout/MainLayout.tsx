@@ -163,7 +163,8 @@ export default function MainLayout() {
           <main
             ref={mainRef}
             onScroll={syncScroll}
-            className="absolute inset-0 overflow-y-auto overscroll-contain"
+            // 只纵向滚：哪一块意外撑宽了，也不让整页在触屏上跟着左右晃（横向书架有自己的滚动容器）
+            className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain"
             style={{ paddingBottom: 'calc(var(--dock-h, 96px) + 24px)' }}
           >
             <AppToolbar scrolled={scrolled} titled={titled}>
