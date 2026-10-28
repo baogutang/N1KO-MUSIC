@@ -24,7 +24,7 @@ ToastViewport.displayName = ToastPrimitives.Viewport.displayName
 
 const toastVariants = cva(
   // 玻璃胶囊；左右甩掉（Radix 的 swipe 变量），入场从下方弹上来
-  'glass group pointer-events-auto relative flex w-full items-center gap-3 overflow-hidden rounded-[20px] py-3 pl-4 pr-10 text-ink transition-[opacity,transform] duration-3 ease-out data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-toast-in data-[state=closed]:animate-toast-out',
+  'glass group pointer-events-auto relative flex w-full items-center gap-3 overflow-hidden rounded-[20px] py-3 pl-4 pr-10 text-ink transition-[opacity,transform] duration-3 ease-out data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[swipe=move]:animate-none data-[state=open]:animate-toast-in data-[state=closed]:animate-toast-out',
   {
     variants: {
       variant: {

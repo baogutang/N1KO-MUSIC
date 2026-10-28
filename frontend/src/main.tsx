@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { MotionConfig } from 'motion/react'
 import App from './App'
 import { Splash } from './components/common/Splash'
 import './index.css'
@@ -97,10 +98,13 @@ installWindowDrag()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
-    <Bootstrap>
-      <App />
-    </Bootstrap>
-    {/* 开屏盖在最上面，和启动守卫并排：不论落在登录页还是主界面，它都第一时间出现 */}
-    <Splash />
+    {/* 系统开了「减弱动态效果」：layoutId 滑块、弹簧位移一律瞬时，只留透明度（motion 的 user 档） */}
+    <MotionConfig reducedMotion="user">
+      <Bootstrap>
+        <App />
+      </Bootstrap>
+      {/* 开屏盖在最上面，和启动守卫并排：不论落在登录页还是主界面，它都第一时间出现 */}
+      <Splash />
+    </MotionConfig>
   </QueryClientProvider>,
 )

@@ -225,7 +225,8 @@ export class JellyfinAdapter implements MusicServerAdapter {
       id: String(item.Id),
       name: String(item.Name || ''),
       coverArt: String(item.Id),
-      artistImageUrl: `${this.baseUrl}/Items/${item.Id}/Images/Primary`,
+      // 走 getCoverUrl：带尺寸和令牌。不带 maxWidth 的话一张 140px 的圆头像要下载、解码原图
+      artistImageUrl: this.getCoverUrl(String(item.Id), 600),
       starred: item.UserData
         ? !!(item.UserData as Record<string, unknown>).IsFavorite
         : false,

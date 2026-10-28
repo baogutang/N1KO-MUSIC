@@ -433,14 +433,15 @@ a {
 
   /* 按压手感：按下立刻收，松手按弹簧回弹（带一点过冲） */
   .press-pop {
+    /* 按压只动独立的 scale 属性：transform 留给调用方（比如 -translate-y-1/2 居中），按下时不会丢掉居中跳一下 */
     transition:
-      transform var(--dur-press) var(--ease-press),
+      scale var(--dur-press) var(--ease-press),
       background-color var(--dur-2) var(--ease-out),
       color var(--dur-2) var(--ease-out);
   }
 
   .press-pop:active {
-    transform: scale(0.96);
+    scale: 0.96;
     transition-duration: var(--dur-1), var(--dur-2), var(--dur-2);
     transition-timing-function: var(--ease-out);
   }
@@ -517,16 +518,25 @@ a {
   }
 
   /* 骨架：一道很淡的光从左扫到右 */
+  /* 闪光是一层伪元素在平移（只动 transform，走合成器）；以前动的是 background-position，每块骨架每帧都要重绘 */
   .skeleton {
-    background:
-      linear-gradient(100deg, transparent 30%, oklch(var(--surface) / 0.55) 50%, transparent 70%) 0 0 / 220% 100% no-repeat,
-      oklch(var(--fill));
+    position: relative;
+    overflow: hidden;
+    background: oklch(var(--fill));
+  }
+
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, oklch(var(--surface) / 0.55) 50%, transparent 70%);
+    transform: translateX(-100%);
     animation: shimmer 1.6s linear infinite;
   }
 
   @keyframes shimmer {
-    from { background-position: 120% 0, 0 0; }
-    to { background-position: -120% 0, 0 0; }
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -537,8 +547,9 @@ a {
     .animate-spin-vinyl,
     .animate-pulse,
     .animate-buffering,
-    .skeleton {
+    .skeleton::after {
       animation: none;
+      display: none;
     }
   }
 
@@ -663,8 +674,9 @@ a {
     letter-spacing: 0;
     font-weight: 600;
     text-decoration: none;
+    /* 按压只动独立的 scale 属性：transform 留给调用方（比如 -translate-y-1/2 居中），按下时不会丢掉居中跳一下 */
     transition:
-      transform var(--dur-press) var(--ease-press),
+      scale var(--dur-press) var(--ease-press),
       background-color var(--dur-2) var(--ease-out),
       color var(--dur-2) var(--ease-out);
   }
@@ -707,7 +719,7 @@ a {
   :root .act-primary:active,
   :root .act-secondary:active,
   :root .act-icon:active {
-    transform: scale(0.96);
+    scale: 0.96;
     transition-duration: var(--dur-1), var(--dur-2), var(--dur-2);
     transition-timing-function: var(--ease-out);
   }
@@ -855,7 +867,7 @@ a {
     color: oklch(var(--lime-ink));
     background: oklch(var(--lime));
     transition:
-      transform var(--dur-press) var(--ease-press),
+      scale var(--dur-press) var(--ease-press),
       background-color var(--dur-2) var(--ease-out);
   }
 
@@ -866,7 +878,7 @@ a {
   }
 
   .play-key:active {
-    transform: scale(0.92);
+    scale: 0.92;
     transition-duration: var(--dur-1), var(--dur-2);
     transition-timing-function: var(--ease-out);
   }

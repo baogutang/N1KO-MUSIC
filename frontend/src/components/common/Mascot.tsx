@@ -44,10 +44,11 @@ export function Mascot({
     <span
       aria-hidden="true"
       // 默认宽度走 CSS 变量：调用方传 w-* 类就能覆盖（twMerge 让后来的赢），不会被内联样式压住
-      className={cn('group/mascot relative inline-block w-[var(--mascot-w)] select-none', className)}
+      // 歪头在外层：里层的呼吸动画占着 transform，写在同一层上 hover 的旋转永远被动画盖掉
+      className={cn('group/mascot relative inline-block w-[var(--mascot-w)] origin-bottom select-none transition-transform duration-5 ease-press motion-reduce:transition-none [@media(hover:hover)]:hover:-rotate-3', className)}
       style={{ '--mascot-w': `${size}px` } as CSSProperties}
     >
-      <span className="block origin-bottom animate-breathe transition-transform duration-5 ease-press motion-reduce:animate-none [@media(hover:hover)]:group-hover/mascot:-rotate-3">
+      <span className="block origin-bottom animate-breathe motion-reduce:animate-none">
         <img
           src={`/mascots/${name}.webp`}
           alt=""

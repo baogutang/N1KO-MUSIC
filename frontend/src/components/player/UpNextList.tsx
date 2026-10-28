@@ -86,7 +86,8 @@ export function UpNextList({ count, className, onOpenQueue }: { count: number; c
             return (
               <motion.li
                 key={`${song.id}-${index}`}
-                layout={reduce ? false : 'position'}
+                // 只有看得见的前 8 行做位置动画：舞台里一次 40 行，每次切歌全量 FLIP 测量太重
+                layout={reduce || position >= 8 ? false : 'position'}
                 initial={reduce ? false : { opacity: 0, x: -14 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={reduce ? undefined : { opacity: 0, scale: 0.96 }}

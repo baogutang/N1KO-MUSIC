@@ -68,7 +68,7 @@ export function AlbumCoverCard({ album, details = [] }: { album: Album; details?
             void playAlbum(album)
           }}
           aria-label={t('album.playLabel', { name: album.name })}
-          className="press-pop glass absolute bottom-2.5 right-2.5 grid h-11 w-11 place-items-center rounded-pill text-ink focus-visible:opacity-100 [@media(hover:hover)]:h-9 [@media(hover:hover)]:w-9 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:hover:bg-lime [@media(hover:hover)]:hover:text-lime-ink [@media(hover:hover)]:group-hover:opacity-100"
+          className="press-pop absolute bottom-2.5 right-2.5 bg-surface/90 shadow-md grid h-11 w-11 place-items-center rounded-pill text-ink focus-visible:opacity-100 [@media(hover:hover)]:h-9 [@media(hover:hover)]:w-9 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:hover:bg-lime [@media(hover:hover)]:hover:text-lime-ink [@media(hover:hover)]:group-hover:opacity-100"
         >
           <Play size={16} weight="fill" />
         </button>

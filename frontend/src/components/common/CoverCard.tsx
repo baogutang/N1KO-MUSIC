@@ -121,15 +121,22 @@ export function CoverShelf({ children, className }: { children: ReactNode; class
   useEffect(() => {
     const rail = railRef.current
     if (!rail) return
-    const sync = () => {
+    let raf = 0
+    const measure = () => {
+      raf = 0
       const max = rail.scrollWidth - rail.clientWidth
-      setEdges({ start: rail.scrollLeft <= 4, end: rail.scrollLeft >= max - 4 })
+      const start = rail.scrollLeft <= 4
+      const end = rail.scrollLeft >= max - 4
+      setEdges(prev => (prev.start === start && prev.end === end ? prev : { start, end }))
     }
-    sync()
+    // 每帧最多量一次；两端状态没变就不 setState（以前每个 scroll 事件都新建对象，整排书架跟着重渲染）
+    const sync = () => { if (!raf) raf = requestAnimationFrame(measure) }
+    measure()
     rail.addEventListener('scroll', sync, { passive: true })
     const ro = new ResizeObserver(sync)
     ro.observe(rail)
     return () => {
+      cancelAnimationFrame(raf)
       rail.removeEventListener('scroll', sync)
       ro.disconnect()
     }

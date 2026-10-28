@@ -47,7 +47,7 @@ export const CoverActionButton = forwardRef<
     ref={ref}
     type="button"
     className={cn(
-      'press-pop glass grid place-items-center rounded-pill text-ink',
+      'press-pop grid place-items-center rounded-pill bg-surface/90 text-ink shadow-md',
       small
         ? 'h-11 w-11 [@media(hover:hover)]:h-8 [@media(hover:hover)]:w-8'
         : 'h-11 w-11 [@media(hover:hover)]:h-9 [@media(hover:hover)]:w-9',
