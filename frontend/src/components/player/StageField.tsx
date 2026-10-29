@@ -165,7 +165,7 @@ export function StageField({ className, originRef, active = true }: { className?
     const reduce = prefersReducedMotion()
     const start = performance.now()
     let frame = 0
-    let last = 0
+    let timer = 0
     let running = true
 
     const state = {
@@ -197,14 +197,19 @@ export function StageField({ className, originRef, active = true }: { className?
     }
     state.draw = () => draw(performance.now())
 
-    const loop = (now: number) => {
+    // 30fps：慢慢游走的光不需要更多帧；扩散中按满帧画，边缘才顺。
+    // 平时隔 30ms 才要下一帧，而不是每帧都要、再跳过不画：一直挂着 requestAnimationFrame，
+    // WebKit 就每一帧都做一次渲染更新，ProMotion 屏也被拴在最高刷新率上（App 开着 120Hz 时就是 120 次 / 秒）
+    const schedule = () => {
       if (!running) return
-      frame = requestAnimationFrame(loop)
-      if (document.hidden) return
-      // 30fps：慢慢游走的光不需要更多帧；扩散中按满帧画，边缘才顺
-      if (state.revealFrom < 0 && now - last < 32) return
-      last = now
-      draw(now)
+      if (state.revealFrom >= 0) frame = requestAnimationFrame(loop)
+      else timer = window.setTimeout(() => { frame = requestAnimationFrame(loop) }, 30)
+    }
+    const loop = (now: number) => {
+      frame = 0
+      if (!running) return
+      if (!document.hidden) draw(now)
+      schedule()
     }
 
     const resize = () => {
@@ -229,11 +234,12 @@ export function StageField({ className, originRef, active = true }: { className?
     }
     canvas.addEventListener('webglcontextlost', onLost)
     stateRef.current = state
-    if (!reduce) frame = requestAnimationFrame(loop)
+    if (!reduce) schedule()
 
     return () => {
       running = false
       cancelAnimationFrame(frame)
+      clearTimeout(timer)
       ro.disconnect()
       canvas.removeEventListener('webglcontextlost', onLost)
       stateRef.current = null

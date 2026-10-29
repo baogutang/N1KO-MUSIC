@@ -1,9 +1,13 @@
 import UIKit
+import WebKit
 import Capacitor
 
 /**
- * 换掉 storyboard 里的 CAPBridgeViewController，只多做一件事：
- * 窗口尺寸或前后台切换之后，让 WKWebView 把自己的几何重新同步一遍。
+ * 换掉 storyboard 里的 CAPBridgeViewController，多做两件事。
+ *
+ * 一、网页按屏幕的刷新率出帧（见 unlockHighRefreshRendering）。
+ *
+ * 二、窗口尺寸或前后台切换之后，让 WKWebView 把自己的几何重新同步一遍。
  *
  * iPadOS 上把 App 划回后台（三指 / 上滑回主屏幕）时，系统会把场景缩小再放回原尺寸。
  * WebKit 在这一来一回里留下了过时的「可见区域」：排版已经按满屏重排，
@@ -16,6 +20,43 @@ import Capacitor
 class AppViewController: CAPBridgeViewController {
 
     private var wentToBackground = false
+
+    override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
+        let configuration = super.webViewConfiguration(for: instanceConfiguration)
+        let unlocked = Self.unlockHighRefreshRendering(configuration.preferences)
+        print("[N1KO] page rendering updates follow the display: \(unlocked)")
+        return configuration
+    }
+
+    /**
+     * WKWebView 默认把网页的渲染更新压在每秒 60 次左右（WebKit 内部的 PreferPageRenderingUpdatesNear60FPSEnabled；
+     * Safari 能在「功能标志」里关，嵌在 App 里的 WKWebView 没有公开开关，WebKit bug 294338 至今没给）。
+     * iPad Pro、iPhone Pro 的屏是 120Hz：原生滚动、系统动画都是 120 帧，网页里一帧一帧算的东西——
+     * 横屏卡片叠的拖动和吸附、各处的弹簧——却只有 60 帧，手指一动就比系统慢半拍、一顿一顿的。
+     * 这里通过 WebKit 的私有接口（和 Safari 的功能标志同一条路）把这一项关掉，渲染更新跟着屏幕走。
+     * 不是 120Hz 的屏、低电量模式，系统自己会降下来；找不到这一项（系统改了）就什么也不做，退回 60 帧。
+     * 返回是否改成功了。
+     */
+    private static func unlockHighRefreshRendering(_ preferences: WKPreferences) -> Bool {
+        let featuresSelector = NSSelectorFromString("_features")
+        let setSelector = NSSelectorFromString("_setEnabled:forFeature:")
+        let getSelector = NSSelectorFromString("_isEnabledForFeature:")
+        let keySelector = NSSelectorFromString("key")
+        let preferencesClass: AnyObject = WKPreferences.self
+        guard preferencesClass.responds(to: featuresSelector),
+              preferences.responds(to: setSelector),
+              let features = preferencesClass.perform(featuresSelector)?.takeUnretainedValue() as? [NSObject] else { return false }
+        for feature in features where feature.responds(to: keySelector) {
+            guard (feature.perform(keySelector)?.takeUnretainedValue() as? String) == "PreferPageRenderingUpdatesNear60FPSEnabled" else { continue }
+            // BOOL 参数不能走 perform(_:with:with:)（那会把一个对象指针当成 BOOL 传过去），按 C 函数调
+            typealias Setter = @convention(c) (AnyObject, Selector, Bool, AnyObject) -> Void
+            unsafeBitCast(preferences.method(for: setSelector), to: Setter.self)(preferences, setSelector, false, feature)
+            guard preferences.responds(to: getSelector) else { return true }
+            typealias Getter = @convention(c) (AnyObject, Selector, AnyObject) -> Bool
+            return !unsafeBitCast(preferences.method(for: getSelector), to: Getter.self)(preferences, getSelector, feature)
+        }
+        return false
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
