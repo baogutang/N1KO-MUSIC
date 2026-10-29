@@ -271,9 +271,11 @@ sign it with your own Apple ID while installing:
    re-signed (AltStore / SideStore can refresh it over Wi-Fi). A free account
    can keep three sideloaded apps at a time.
 
-**Android.** Installs directly. The APK is debug-signed with a key that changes
-between versions, so uninstall the old version before installing a new one
-(that clears its sign-in and settings).
+**Android.** Installs directly. From 1.16.1 on, every version is signed with the
+same key, so a new version installs over the old one. If you installed an earlier
+APK (debug-signed with a different key each time), uninstall it once first. The
+signing certificate's SHA-256 is
+`2A:D8:4F:85:D9:DD:85:02:95:6D:3A:EE:84:FA:6F:ED:77:0A:F6:09:3C:18:21:CB:1C:E6:4B:9B:77:2A:C2:2C`.
 
 > Release-signed mobile builds (Play keystore / Apple Developer) are not set up
 > yet — the workflow slots them in without structural changes. On macOS, if you

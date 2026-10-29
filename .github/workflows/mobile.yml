@@ -40,8 +40,9 @@ jobs:
         working-directory: backend
       - run: npm run test:plugins
 
-  # Android：debug APK（无需签名配置，可直接安装自测）
-  android-debug:
+  # Android：Release APK，用仓库 Secrets 里那把固定的密钥签名（每个版本同一把，用户能直接覆盖升级）。
+  # 没有这几个 Secrets（比如 fork 里跑）就退回 debug APK——调试密钥是 runner 现生成的，每次都不一样
+  android:
     needs: preflight
     runs-on: ubuntu-22.04
     steps:
@@ -68,18 +69,37 @@ jobs:
         with:
           distribution: temurin
           java-version: '21' # Capacitor 8 Android 要求 JDK 21（sourceCompatibility VERSION_21）
-      - name: Build debug APK
+      - name: Build APK
         working-directory: frontend/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          ./gradlew assembleDebug --no-daemon
-          mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/N1KO.MUSIC_$(node -p "require('../package.json').version")_android.apk"
+          OUT="app/build/outputs/N1KO.MUSIC_$(node -p "require('../package.json').version")_android.apk"
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            ./gradlew assembleDebug --no-daemon
+            mv app/build/outputs/apk/debug/app-debug.apk "$OUT"
+            exit 0
+          fi
+          ./gradlew assembleRelease --no-daemon
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          KS="$RUNNER_TEMP/release.p12"
+          printf %s "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KS"
+          "$BT/zipalign" -f -p 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --out "$OUT" "$RUNNER_TEMP/aligned.apk"
+          rm -f "$KS"
+          # 证书指纹打在日志里（公开信息）：应当是 2A:D8:4F:85…2A:C2:2C，见 README「下载」
+          "$BT/apksigner" verify --print-certs "$OUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: N1KO-MUSIC-android-debug
-          path: frontend/android/app/build/outputs/apk/debug/N1KO.MUSIC_*_android.apk
+          name: N1KO-MUSIC-android
+          path: frontend/android/app/build/outputs/N1KO.MUSIC_*_android.apk
 
   # iOS：① 模拟器 Debug build（验证可编译）② 未签名的 Release 设备包（.ipa，侧载时用自己的 Apple ID 重签）
-  ios-debug:
+  ios:
     needs: preflight
     runs-on: macos-latest
     steps:
@@ -128,7 +148,7 @@ jobs:
   # 挂到 Release：标签触发时自动挂；手动运行填了 tag 时补挂到那个版本。
   # Release 工作流（tauri-action）同时在建这个版本的草稿：这边打得快的话先等它建好，不自己建（免得一个标签两个草稿）
   publish:
-    needs: [android-debug, ios-debug]
+    needs: [android, ios]
     if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
     runs-on: ubuntu-22.04
     permissions:
