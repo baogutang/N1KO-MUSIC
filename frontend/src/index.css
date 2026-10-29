@@ -985,17 +985,25 @@ body {
   color: oklch(var(--ink));
 }
 
-/* 卡片叠（横屏正在播放）：每张卡往左下方投一道影子，落在被它压住的那张上——叠在一起的层次靠这个 */
+/* 卡片叠（横屏正在播放）：每张卡往右下方投一道影子，落在被它压住的那张上——叠在一起的层次靠这个 */
 .card-stack-shadow {
   box-shadow:
-    -22px 0 44px -18px oklch(var(--stage-deep) / 0.85),
+    22px 0 44px -18px oklch(var(--stage-deep) / 0.85),
     0 28px 60px -28px oklch(var(--stage-deep) / 0.9);
 }
 
-/* 卡片叠焦点那张的播放键：只在焦点上出现，换焦点时淡入（不经 React，paint 里切的 data-focus） */
+/* 压暗蒙版每帧改透明度：给它自己一层，合成器直接调透明度。
+   不单独成层的话，它和封面、影子画在同一层里，WebKit 每一帧都得把每张卡连图带影子重画一遍 */
+.card-stack .card-veil {
+  will-change: opacity;
+}
+
+/* 卡片叠焦点那张的播放键：只在焦点上出现，换焦点时淡入（不经 React，paint 里切的 data-focus）。
+   常驻一层：过渡开始、结束时不用把整张卡重画一遍 */
 .card-stack .card-play {
   opacity: 0;
   scale: 0.8;
+  will-change: opacity, scale;
   transition:
     opacity var(--dur-2) var(--ease-out),
     scale var(--dur-3) var(--ease-snappy);
