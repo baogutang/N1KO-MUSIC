@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: '给已经发出去的版本补挂安装包：填标签（如 v1.16.1），按那个标签的代码打包并挂到它的 Release；留空只打包'
+        required: false
+        default: ''
 
 concurrency:
   group: mobile-${{ github.ref }}
@@ -17,6 +22,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
@@ -39,6 +46,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
@@ -61,18 +70,22 @@ jobs:
           java-version: '21' # Capacitor 8 Android 要求 JDK 21（sourceCompatibility VERSION_21）
       - name: Build debug APK
         working-directory: frontend/android
-        run: ./gradlew assembleDebug --no-daemon
+        run: |
+          ./gradlew assembleDebug --no-daemon
+          mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/N1KO.MUSIC_$(node -p "require('../package.json').version")_android.apk"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: N1KO-MUSIC-android-debug
-          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          path: frontend/android/app/build/outputs/apk/debug/N1KO.MUSIC_*_android.apk
 
-  # iOS：① 模拟器 Debug build（验证可编译）② 未签名设备包（sideload 自签后可用）
+  # iOS：① 模拟器 Debug build（验证可编译）② 未签名的 Release 设备包（.ipa，侧载时用自己的 Apple ID 重签）
   ios-debug:
     needs: preflight
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
@@ -100,13 +113,45 @@ jobs:
         working-directory: frontend/ios/App
         run: |
           xcodebuild -workspace App.xcworkspace -scheme App \
-            -configuration Debug -destination generic/platform=iOS \
+            -configuration Release -destination generic/platform=iOS \
             -derivedDataPath build-device \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           mkdir -p Payload
-          cp -r build-device/Build/Products/Debug-iphoneos/App.app Payload/
-          zip -qr N1KO-MUSIC-ios-unsigned.zip Payload
+          cp -r build-device/Build/Products/Release-iphoneos/App.app Payload/
+          # .ipa 就是一个装着 Payload/ 的 zip；Sideloadly / AltStore 认 .ipa 后缀
+          zip -qry "N1KO.MUSIC_$(node -p "require('../../package.json').version")_ios_unsigned.ipa" Payload
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: N1KO-MUSIC-ios-unsigned
-          path: frontend/ios/App/N1KO-MUSIC-ios-unsigned.zip
+          path: frontend/ios/App/N1KO.MUSIC_*_ios_unsigned.ipa
+
+  # 挂到 Release：标签触发时自动挂；手动运行填了 tag 时补挂到那个版本。
+  # Release 工作流（tauri-action）同时在建这个版本的草稿：这边打得快的话先等它建好，不自己建（免得一个标签两个草稿）
+  publish:
+    needs: [android-debug, ios-debug]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Wait for the release
+        run: |
+          for i in $(seq 1 90); do
+            if gh release view "$TAG" >/dev/null 2>&1; then exit 0; fi
+            echo "等 $TAG 的 Release 建好（$i/90）"
+            sleep 30
+          done
+          echo "::error::45 分钟内没等到 $TAG 的 Release（Release 工作流失败了？）"
+          exit 1
+      - name: Upload mobile packages
+        run: |
+          ls -la dist
+          gh release upload "$TAG" dist/*.ipa dist/*.apk --clobber
