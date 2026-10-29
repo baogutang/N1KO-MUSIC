@@ -257,15 +257,23 @@ Grab the installer for your platform from
 | macOS (Intel) | `N1KO.MUSIC_x.x.x_x64.dmg` |
 | Windows | `N1KO.MUSIC_x.x.x_x64-setup.exe` / `.msi` |
 | Linux | `.AppImage` / `.deb` |
+| iPhone / iPad | `N1KO.MUSIC_x.x.x_ios_unsigned.ipa` (unsigned, sideload it — see below) |
+| Android | `N1KO.MUSIC_x.x.x_android.apk` (allow installs from unknown sources) |
 
-**Mobile** — built by the
-[Mobile workflow](https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml),
-download from the latest run's Artifacts:
+**iPhone and iPad.** Apple doesn't let an unsigned app install directly, so you
+sign it with your own Apple ID while installing:
 
-| Platform | Package | Notes |
-|------|--------|------|
-| Android | `N1KO-MUSIC-android-debug` → `app-debug.apk` | Debug build, installs directly (allow unknown sources) |
-| iOS / iPadOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | Unsigned; sideload with AltStore / Sideloadly |
+1. Download the `.ipa` above and install it with [Sideloadly](https://sideloadly.io)
+   (Mac or Windows, over a cable) or [AltStore](https://altstore.io) / SideStore.
+2. On the device, turn on **Settings → Privacy & Security → Developer Mode**
+   and restart when asked.
+3. A free Apple ID signature lasts 7 days, then the app won't open until it's
+   re-signed (AltStore / SideStore can refresh it over Wi-Fi). A free account
+   can keep three sideloaded apps at a time.
+
+**Android.** Installs directly. The APK is debug-signed with a key that changes
+between versions, so uninstall the old version before installing a new one
+(that clears its sign-in and settings).
 
 > Release-signed mobile builds (Play keystore / Apple Developer) are not set up
 > yet — the workflow slots them in without structural changes. On macOS, if you

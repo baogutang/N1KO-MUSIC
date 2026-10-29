@@ -234,14 +234,19 @@ iPad 外接键盘时整套快捷键都在，按住 ⌘ 就能看到。
 | macOS（Intel） | `N1KO.MUSIC_x.x.x_x64.dmg` |
 | Windows | `N1KO.MUSIC_x.x.x_x64-setup.exe` / `.msi` |
 | Linux | `.AppImage` / `.deb` |
+| iPhone / iPad | `N1KO.MUSIC_x.x.x_ios_unsigned.ipa`（未签名，要侧载，见下） |
+| Android | `N1KO.MUSIC_x.x.x_android.apk`（需允许安装未知来源应用） |
 
-**移动端**——由 [Mobile 工作流](https://github.com/baogutang/N1KO-MUSIC/actions/workflows/mobile.yml)
-构建，在最近一次运行的 Artifacts 里下载：
+**iPhone、iPad。** 苹果不允许没签名的 App 直接安装，装的时候用你自己的 Apple ID 签一下：
 
-| 平台 | 包 | 说明 |
-|------|--------|------|
-| Android | `N1KO-MUSIC-android-debug` → `app-debug.apk` | Debug 包，可直接安装（需允许未知来源） |
-| iOS / iPadOS | `N1KO-MUSIC-ios-unsigned` → `.zip` | 未签名，用 AltStore / Sideloadly 侧载 |
+1. 下载上面的 `.ipa`，用 [Sideloadly](https://sideloadly.io)（Mac 或 Windows，数据线连上设备）
+   或 [AltStore](https://altstore.io) / SideStore 装进去。
+2. 在设备上打开 **设置 › 隐私与安全性 › 开发者模式**，按提示重启。
+3. 免费 Apple ID 签的包 7 天后就打不开了，要重新签（AltStore / SideStore 能在同一 Wi-Fi 下自动续签）；
+   一个免费账号同时最多装 3 个侧载的 App。
+
+**安卓。** 直接安装。现在的安装包是调试签名，每个版本的签名不一样，
+装新版之前要先卸载旧版（登录和设置会跟着清掉）。
 
 > 正式签名的移动端构建（Play keystore / Apple 开发者证书）还没配，工作流留好了位置，
 > 补上时不需要改结构。macOS 首次打开若提示「无法验证开发者」，到
