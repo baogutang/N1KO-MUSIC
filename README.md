@@ -68,7 +68,7 @@ the source renders, the prompts behind them and the local cut-out script are in 
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/v6/player.png" alt="Now Playing in landscape: a light field sampled from the cover, the cover and controls, large lyrics" /></td>
-<td width="50%"><img src="docs/screenshots/v6/cards.png" alt="Cards in landscape on iPad: album covers fanned to the left, the playing album in front, a mini player underneath" /></td>
+<td width="50%"><img src="docs/screenshots/v6/cards.png" alt="Cards in landscape on iPad: the playing track in front, For You stacked up to the right, the previous card peeking in on the left, a mini player underneath" /></td>
 </tr>
 <tr>
 <td><b>Now Playing</b>: in a landscape window the cover and controls sit on the left, lyrics stay on the right; tap any line to jump to it.</td>

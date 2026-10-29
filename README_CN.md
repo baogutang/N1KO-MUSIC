@@ -67,7 +67,7 @@ N1KO MUSIC 想做的是一个你愿意一直开着的播放器。v6 把界面从
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/v6/player.png" alt="横屏的正在播放：封面取色的光场、封面和控制、大字歌词" /></td>
-<td width="50%"><img src="docs/screenshots/v6/cards.png" alt="iPad 横屏的卡片叠：专辑封面往左叠成一摞，正在放的那张在最前面，下面是迷你播放条" /></td>
+<td width="50%"><img src="docs/screenshots/v6/cards.png" alt="iPad 横屏的卡片叠：正在放的那首在最前面，推荐的歌往右叠成一摞，左边露出前一张，下面是迷你播放条" /></td>
 </tr>
 <tr>
 <td><b>正在播放</b>：横着的窗口左边是封面和控制，右边一直摆着歌词，点任意一行跳过去。</td>

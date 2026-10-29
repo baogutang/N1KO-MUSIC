@@ -221,7 +221,7 @@
     },
     browse: {
       src: 'assets/cards.webp', w: 1376, h: 1032, room: 'player', orient: 'landscape',
-      alt: ['iPad 横屏的卡片叠：专辑封面往左叠成一摞，正在放的那张在最前面', 'Cards in landscape on iPad: album covers fanned to the left, the playing album in front'],
+      alt: ['iPad 横屏的卡片叠：正在放的那首在最前面，推荐的歌往右叠成一摞，左边露出前一张', 'Cards in landscape on iPad: the playing track in front, For You stacked up to the right, the previous card peeking in on the left'],
     },
     phone: {
       src: 'assets/phone-player.webp', w: 1179, h: 2556, room: 'phone', orient: 'portrait',
