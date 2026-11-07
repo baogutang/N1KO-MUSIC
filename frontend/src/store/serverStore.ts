@@ -498,6 +498,7 @@ export function getServerTypeLabel(type: ServerType): string {
     navidrome: 'Navidrome',
     jellyfin: 'Jellyfin',
     emby: 'Emby',
+    webdav: 'WebDAV',
   }
   return labels[type] ?? type
 }
