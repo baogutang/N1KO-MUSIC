@@ -52,6 +52,13 @@ final class WebDavAuth {
         password = pass == null ? "" : pass;
     }
 
+    static java.util.Map<String, String> playbackHeaders() {
+        java.util.Map<String, String> headers = new java.util.HashMap<>();
+        headers.put("Authorization", basic());
+        headers.put("User-Agent", "N1KO-MUSIC");
+        return headers;
+    }
+
     static boolean allows(String target) {
         String base = baseUrl;
         if (base.isEmpty() || target == null) return false;

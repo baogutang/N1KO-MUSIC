@@ -98,8 +98,11 @@ final class WebDavProxy {
                 }
             }
             out.flush();
-        } catch (IOException ignored) {
-            // 拖动进度时播放器会主动断开，不必当失败
+        } catch (Exception e) {
+            // 拖动进度时播放器会主动断开，不必当失败。解码出错记一条，方便看是哪首歌。
+            if (!(e instanceof IOException)) {
+                android.util.Log.e("WebDavProxy", "play failed", e);
+            }
         } finally {
             if (upstream != null) upstream.close();
             try {

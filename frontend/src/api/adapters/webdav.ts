@@ -37,7 +37,7 @@ import {
   type WebDavLibrary,
 } from './webdavLibrary'
 import { Capacitor } from '@capacitor/core'
-import { WebDavNative, webDavNativeAvailable } from './webdavNative'
+import { WebDavNative, webDavNativeAvailable, NATIVE_FLAC_PREFIX } from './webdavNative'
 
 const PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:">
@@ -162,6 +162,10 @@ export class WebDavAdapter implements MusicServerAdapter {
   async resolveStreamUrl(songId: string): Promise<{ url: string; mimeType?: string }> {
     await this.ensureNative()
     if (Capacitor.isNativePlatform()) {
+      const path = songId.split(/[?#]/, 1)[0] ?? songId
+      if (Capacitor.getPlatform() === 'android' && path.toLowerCase().endsWith('.flac')) {
+        return { url: NATIVE_FLAC_PREFIX + songId, mimeType: 'audio/flac' }
+      }
       const streamed = await WebDavNative.streamUrl({ target: songId })
       return { url: streamed.url }
     }

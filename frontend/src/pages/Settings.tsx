@@ -772,7 +772,7 @@ export default function Settings() {
             label={t('settings.api.url')}
             value={lyricsRemoteTemplate}
             onChange={setLyricsRemoteTemplate}
-            placeholder="https://lrcapi.example.com/api?title={title}&artist={artist}"
+            placeholder="https://api.lrc.cx/lyrics"
           />
 
           <SubHead title={t('settings.api.lyricsConfirm')} />
@@ -788,7 +788,7 @@ export default function Settings() {
             label={t('settings.api.url')}
             value={coverRemoteTemplate}
             onChange={setCoverRemoteTemplate}
-            placeholder="https://api.example.com/cover?artist={artist}&album={album}"
+            placeholder="https://api.lrc.cx/cover"
           />
           <Row name={t('settings.api.loadAlbumCover')}>
             <Toggle label={t('settings.api.loadAlbumCover')} checked={coverLoadAlbum} onChange={setCoverLoadAlbum} />

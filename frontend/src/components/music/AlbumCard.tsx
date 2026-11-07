@@ -15,6 +15,7 @@ import { CoverCard } from '@/components/common/CoverCard'
 import { usePlayerStore } from '@/store/playerStore'
 import type { Album, Song } from '@/api/types'
 import { useQueryClient } from '@tanstack/react-query'
+import { detailPath } from '@/utils/detailPath'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
 
@@ -78,8 +79,9 @@ export function AlbumCard({ album, className }: AlbumCardProps) {
     void playAlbum(album)
   }
 
-  // 详情按专辑来源解析（多源下主库路由会打错适配器）；缓存键同样带来源
-  const detailHref = `/albums/${album.id}?src=${encodeURIComponent(album.serverId)}`
+  // 详情按专辑来源解析。WebDAV 的专辑 id 是带斜杠的目录地址，必须编码，
+  // 否则路由对不上，兜底会把人送回首页。
+  const detailHref = detailPath('albums', album.id, album.serverId)
 
   /* 外壳与封面砖样式收敛到 CoverCard（阶段 7.4），播放键与图注是本卡的语义 */
   return (

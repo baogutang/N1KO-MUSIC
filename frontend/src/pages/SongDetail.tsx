@@ -27,7 +27,7 @@ import { EmptyState } from '@/components/common/EmptyState'
 import { DetailHero } from '@/components/common/DetailHero'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/use-toast'
-import { useSettingsStore, buildRemoteCoverUrl } from '@/store/settingsStore'
+import { useSettingsStore, coverUrlFromTemplate } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/lyricCacheStore'
 import { artistKey, normalizeText, titleKey } from '@/utils/songIdentity'
@@ -37,6 +37,7 @@ import { useCoverCacheStore } from '@/store/coverCacheStore'
 import { usePinnedCover } from '@/hooks/useCoverUrl'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import { useLyricsQuery } from '@/hooks/useServerQueries'
+import { fetchExternalText } from '@/services/externalFetch'
 import { useServerStore } from '@/store/serverStore'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { findAdapterFor, getAdapterFor, hasAdapterFor } from '@/api'
@@ -284,10 +285,10 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
       const headers: Record<string, string> = {}
       if (apiAuthToken) headers['Authorization'] = apiAuthToken
 
-      const res = await fetch(url.toString(), { headers })
+      const res = await fetchExternalText(url.toString(), headers)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
-      const text = await res.text()
+      const text = res.text
       const results = parseLyricsFromResponse(text)
 
       if (results.length === 0) {
@@ -523,7 +524,7 @@ function CoverPickerDialog({ open, onClose, song, pinnedUrl, onSave, onClear }: 
 
   const trimmedDirect = directUrl.trim()
   const templateUrl = coverRemoteTemplate
-    ? buildRemoteCoverUrl(coverRemoteTemplate, { title, artist, album, id: song.id })
+    ? coverUrlFromTemplate(coverRemoteTemplate, { title, artist, album, id: song.id })
     : ''
   // 直接粘贴的地址优先于模板拼接
   const resolvedUrl = trimmedDirect || templateUrl

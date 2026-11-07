@@ -6,6 +6,7 @@
  */
 
 import { useEffect } from 'react'
+import { fetchExternalImage, fetchExternalText } from '@/services/externalFetch'
 import {
   useQuery,
   useMutation,
@@ -234,10 +235,10 @@ export function useLyricsQuery(
       if (!remoteUrl) return null
       const headers: Record<string, string> = {}
       if (apiAuthToken) headers['Authorization'] = apiAuthToken
-      const res = await fetch(remoteUrl, { headers })
+      const res = await fetchExternalText(remoteUrl, headers)
       if (!res.ok) return null
-      const contentType = res.headers.get('content-type') ?? ''
-      const text = await res.text()
+      const contentType = res.contentType
+      const text = res.text
       // content-type 为 application/json 时解析为列表格式
       if (contentType.includes('application/json')) {
         try {
@@ -376,12 +377,7 @@ export function useCustomCoverUrl(params: CustomCoverParams | null) {
       if (!remoteUrl) return null
       const headers: Record<string, string> = {}
       if (apiAuthToken) headers['Authorization'] = apiAuthToken
-      const res = await fetch(remoteUrl, { headers })
-      if (!res.ok) return null
-      const blob = await res.blob()
-      if (!blob.size) return null
-      // ObjectURL 零开销、无 5MB 限制，生命周期与页面一致
-      return URL.createObjectURL(blob)
+      return fetchExternalImage(remoteUrl, headers)
     },
     enabled: enabled && !!remoteUrl,
     staleTime: Infinity,

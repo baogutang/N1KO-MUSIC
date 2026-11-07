@@ -9,6 +9,7 @@ import { createPersistStorage } from '@/store/persistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 import { PREAMP_MAX_DB, PREAMP_MIN_DB, type ReplayGainMode } from '@/utils/replayGain'
 import { t } from '@/i18n'
+import { LRCAPI_COVER_URL, LRCAPI_LYRICS_URL } from '@/services/customApi'
 
 /** 封面图来源优先级 */
 export type CoverSource = 'server_first' | 'remote_first' | 'remote_only' | 'server_only'
@@ -185,15 +186,15 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       apiPreferServer: true,
       apiAuthToken: '',
-      coverRemoteTemplate: '',
+      coverRemoteTemplate: LRCAPI_COVER_URL,
       coverSource: 'server_first',
       coverLoadAlbum: true,
       coverLoadArtist: true,
       coverShape: 'square',
       playerCardMode: 'auto',
-      lyricsRemoteTemplate: '',
+      lyricsRemoteTemplate: LRCAPI_LYRICS_URL,
       lyricsConfirmTemplate: '',
-      lyricsUseRemote: false,
+      lyricsUseRemote: true,
       lyricsPreferRemote: false,
       lyricsHighlightColor: '#2ec27e',
       lyricsFontSize: 20,
@@ -265,7 +266,7 @@ export const useSettingsStore = create<SettingsState>()(
       name: STORAGE_KEYS.settingsStore,
       // 体积小、纯用户主动变更，同步写入避免丢配置
       storage: createPersistStorage({ debounceMs: 0 }),
-      version: 2,
+      version: 3,
       // v0 -> v1：会员体系移除。旧版免费用户被强制锁定在 low（非主动选择），
       // 迁移为无损默认；之后用户在设置里的选择正常持久化
       migrate: (persisted, version) => {
@@ -289,6 +290,15 @@ export const useSettingsStore = create<SettingsState>()(
           if (state.resumeAfterInterruption === undefined) state.resumeAfterInterruption = true
           if (state.musicBrainzEnabled === undefined) state.musicBrainzEnabled = false
         }
+        // v2 -> v3：没配过歌词/封面接口的，用 LrcApi 公开地址自动补。
+        // 已经填过自己的地址则不动。
+        if (version < 3) {
+          if (!state.coverRemoteTemplate) state.coverRemoteTemplate = LRCAPI_COVER_URL
+          if (!state.lyricsRemoteTemplate) {
+            state.lyricsRemoteTemplate = LRCAPI_LYRICS_URL
+            state.lyricsUseRemote = true
+          }
+        }
         return state
       },
     }
@@ -296,4 +306,4 @@ export const useSettingsStore = create<SettingsState>()(
 )
 
 /* 模板填空的唯一实现在 services/customApi（阶段 4.3：全局替换修正多次占位符漏换） */
-export { buildRemoteCoverUrl, buildRemoteLyricsUrl } from '@/services/customApi'
+export { buildRemoteCoverUrl, buildRemoteLyricsUrl, coverUrlFromTemplate } from '@/services/customApi'

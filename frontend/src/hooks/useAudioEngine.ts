@@ -40,6 +40,8 @@ import { computeReplayGainScalar } from '@/utils/replayGain'
 import { isMeteredConnection, onConnectionChange } from '@/lib/network'
 import { clearPauseReason, notePauseReason, readPauseContext, recordPause } from '@/lib/playbackTrail'
 import { t } from '@/i18n'
+import { isNativeFlacUrl } from '@/api/adapters/webdavNative'
+import { createEngineAudio } from '@/audio/hybridAudio'
 import {
   createListeningEventId,
   deriveListeningOutcome,
@@ -89,8 +91,8 @@ function abortPendingImageLoads() {
   }
 }
 
-/** 模块级 Audio 实例 — 预创建，整个应用生命周期内复用 */
-const audioEl: HTMLAudioElement = new Audio()
+/** 模块级 Audio 实例 — 预创建，整个应用生命周期内复用。安卓上的 FLAC 会转到系统解码器。 */
+const audioEl: HTMLAudioElement = createEngineAudio()
 audioEl.preload = 'auto'
 /**
  * 第二个 Audio 实例，只用来把下一首的流预热进 HTTP 缓存。
@@ -707,6 +709,7 @@ export function useAudioEngine() {
           const laterState = usePlayerStore.getState()
           const laterNext = peekNextSong(laterState)
           if (!laterNext || playbackKey(laterState.playVersion, songServerId(laterNext), laterNext.id) !== nextKey) return
+          if (isNativeFlacUrl(resolved.url)) return
           preloadEl.src = resolved.url
           preloadEl.load()
         })

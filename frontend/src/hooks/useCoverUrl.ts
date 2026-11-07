@@ -5,7 +5,7 @@
  */
 
 import { useMemo } from 'react'
-import { useSettingsStore, buildRemoteCoverUrl, type CoverSource } from '@/store/settingsStore'
+import { useSettingsStore, coverUrlFromTemplate, type CoverSource } from '@/store/settingsStore'
 import { findAdapterFor } from '@/api'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
 
@@ -99,7 +99,7 @@ export function useCoverUrl(
 
     // 远程 API 封面（每次实时请求，不带鉴权）
     const remoteUrl = coverRemoteTemplate
-      ? buildRemoteCoverUrl(coverRemoteTemplate, target)
+      ? coverUrlFromTemplate(coverRemoteTemplate, target)
       : undefined
 
     let primary: string | undefined
