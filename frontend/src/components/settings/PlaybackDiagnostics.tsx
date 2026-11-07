@@ -36,7 +36,7 @@ function clock(at: number) {
 
 /** 复制出去的报告：一行一条，只有原因和数字 */
 function reportText(records: PauseRecord[]) {
-  const head = `N1KO MUSIC v${pkg.version} · ${nativeOS} · ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`
+  const head = `X-MUSIC v${pkg.version} · ${nativeOS} · ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`
   const lines = records.map(r => {
     const c = r.ctx
     return [

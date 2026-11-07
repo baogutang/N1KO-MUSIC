@@ -101,7 +101,7 @@
   "issue.next": "Next issue",
   "sync.title": "Sync across devices",
   "sync.enable": "Enable sync",
-  "sync.enableDesc": "Mirror your listening history to your own N1KO backend, so a new device doesn't start from zero",
+  "sync.enableDesc": "Mirror your listening history to your own X-MUSIC backend, so a new device doesn't start from zero",
   "sync.toggleLabel": "Enable cross-device sync",
   "sync.connection": "Connection",
   "sync.accountLine": "Signed in as {name}, last synced {time}",

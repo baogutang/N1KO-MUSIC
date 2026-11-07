@@ -52,8 +52,8 @@ export function buildListen(song: Song, startedAtMs: number): ListenPayload | nu
   if (!artist || !track) return null
 
   const additional: Record<string, unknown> = {
-    media_player: 'N1KO MUSIC',
-    submission_client: 'N1KO MUSIC',
+    media_player: 'X-MUSIC',
+    submission_client: 'X-MUSIC',
   }
   if (song.duration && song.duration > 0) additional.duration_ms = Math.round(song.duration * 1000)
   if (song.track) additional.tracknumber = song.track

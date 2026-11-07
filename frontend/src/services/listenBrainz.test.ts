@@ -50,7 +50,7 @@ describe('buildListen', () => {
     const info = buildListen(song(), Date.now())!.track_metadata.additional_info!
     expect(info.duration_ms).toBe(480_000)
     expect(info.tracknumber).toBe(3)
-    expect(info.media_player).toBe('N1KO MUSIC')
+    expect(info.media_player).toBe('X-MUSIC')
   })
 
   it('有 MBID 就带上，让服务端精确匹配录音', () => {

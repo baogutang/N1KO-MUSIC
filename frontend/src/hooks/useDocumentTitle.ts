@@ -1,7 +1,7 @@
 /**
  * 页面标题。
  *
- * 标题一直是固定的「N1KO MUSIC」：开了几个标签页就分不清哪个是哪个，
+ * 标题一直是固定的「X-MUSIC」：开了几个标签页就分不清哪个是哪个，
  * 浏览历史里也是一排一模一样的条目。读屏在切换页面时念的同样是这一句，
  * 于是「我到哪儿了」这个问题没有答案。
  *
@@ -14,7 +14,7 @@ import { useLocation } from 'react-router-dom'
 import { usePlayerStore } from '@/store/playerStore'
 import { useT } from '@/i18n'
 
-const APP_NAME = 'N1KO MUSIC'
+const APP_NAME = 'X-MUSIC'
 
 /** 路由前缀 → i18n 键。取最长匹配，所以 /albums/:id 会落到 album.detail 而非 albums。 */
 const ROUTE_TITLES: Array<[string, string]> = [

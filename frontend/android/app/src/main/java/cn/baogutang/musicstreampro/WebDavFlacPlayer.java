@@ -75,7 +75,7 @@ final class WebDavFlacPlayer {
                 exo.setVolume(volume);
                 exo.setPlaybackParameters(new PlaybackParameters(rate));
                 DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
-                    .setUserAgent("N1KO-MUSIC")
+                    .setUserAgent("X-MUSIC")
                     .setDefaultRequestProperties(WebDavAuth.playbackHeaders())
                     .setConnectTimeoutMs(15_000)
                     .setReadTimeoutMs(30_000)

@@ -4,7 +4,7 @@
  *   开灯  场灯的青柠与叶绿两团柔光从中心开出来；两束追光从左右上方扫进来，停在角色身上轻轻晃
  *   登场  糯米和毛豆从下面跳上来：起跳拉长、到顶、落地压扁再回弹，脚下扬起几团小烟尘
  *   演出  落地后跟着拍子蹦两下；毛豆耳机里飘出音符，糯米耳朵边闪两下小星光；最后两只一起眨一下眼
- *   字标  N1KO 一个字母一个字母地升起，底下一道青柠的线从左划到右
+ *   字标  X-MUSIC 一个字母一个字母地升起，底下一道青柠的线从左划到右
  *   收场  角色和字标朝镜头冲出去淡掉，中心随即开出一个洞，底下早已渲染好的 App 从洞里扩散出来
  *
  * 它不挡启动：App 在它底下照常挂载、加载；开屏只是盖在上面的一层，时间到了自己收走。
@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import { prefersReducedMotion } from '@/lib/motion'
 
 const SEEN_KEY = 'n1ko-splash-seen'
-const WORD = ['N', '1', 'K', 'O']
+const WORD = ['X', '-', 'M', 'U', 'S', 'I', 'C']
 
 /**
  * 开发用：?splash-t=毫秒 把开屏定格在那一刻（逐帧检查编排），加 &splash-theme=dark 看深色；正式包里没有这段。
@@ -146,7 +146,7 @@ export function Splash() {
           ))}
         </div>
 
-        <div className="mt-4 flex font-display text-[64px] font-bold leading-none tracking-[-0.045em] text-ink regular:text-[80px]">
+        <div className="mt-4 flex font-display text-[40px] font-bold leading-none tracking-[-0.045em] text-ink regular:text-[52px]">
           {WORD.map((ch, i) => (
             <span key={i} className="splash-letter inline-block" style={{ '--i': i } as CSSProperties}>
               {ch}

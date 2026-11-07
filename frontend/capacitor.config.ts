@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'cn.baogutang.musicstreampro',
-  appName: 'N1KO MUSIC',
+  appName: 'X-MUSIC',
   webDir: 'dist',
   backgroundColor: '#f8fafc',
   cleartext: true, // 允许明文 HTTP：用户自托管服务器常在局域网用 http://

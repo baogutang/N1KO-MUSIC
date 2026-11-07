@@ -193,7 +193,7 @@ export function AppSidebar() {
         data-tauri-drag-region
       >
         <NavLink to="/" className="font-display text-[22px] font-bold tracking-[-0.04em] text-ink" aria-label={t('action.backHome')}>
-          N1KO
+          X-MUSIC
         </NavLink>
         <button
           onClick={toggleSidebar}

@@ -101,7 +101,7 @@
   "issue.next": "下一期",
   "sync.title": "跨设备同步",
   "sync.enable": "启用同步",
-  "sync.enableDesc": "把收听历史镜像到自建的 N1KO 后端，换设备后推荐画像不用从零开始",
+  "sync.enableDesc": "把收听历史镜像到自建的 X-MUSIC 后端，换设备后推荐画像不用从零开始",
   "sync.toggleLabel": "启用跨设备同步",
   "sync.connection": "连接状态",
   "sync.accountLine": "账号 {name}，上次同步 {time}",

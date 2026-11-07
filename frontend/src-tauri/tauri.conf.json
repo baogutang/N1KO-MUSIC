@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "N1KO MUSIC",
+  "productName": "X-MUSIC",
   "version": "1.16.1",
   "identifier": "cn.baogutang.musicstreampro",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "N1KO MUSIC",
+        "title": "X-MUSIC",
         "width": 1280,
         "height": 800,
         "minWidth": 400,

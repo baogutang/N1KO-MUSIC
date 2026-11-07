@@ -1,9 +1,9 @@
 {
   "name": "n1ko-music",
-  "productName": "N1KO MUSIC",
+  "productName": "X-MUSIC",
   "private": true,
   "version": "1.16.1",
-  "description": "N1KO MUSIC - The best NAS music player",
+  "description": "X-MUSIC - The best NAS music player",
   "author": "N1KO",
   "scripts": {
     "dev": "cd frontend && npm run dev",

@@ -929,7 +929,7 @@ export default function Settings() {
               rel="noopener noreferrer"
               className="rounded-sm text-[15px] text-leaf underline-offset-4 hover:underline"
             >
-              N1KO-MUSIC
+              X-MUSIC
             </a>
           </Row>
         </Section>

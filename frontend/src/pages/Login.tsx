@@ -448,7 +448,7 @@ export default function LoginPage() {
         <header className="flex flex-col items-center text-center">
           <Mascot name="duo-wave" size={260} priority className="w-[min(64vw,260px)] wide:w-[min(38vw,460px)]" />
           <p className="mt-2 font-display text-[44px] font-bold leading-none tracking-[-0.045em] text-ink wide:text-[64px]">
-            N1KO
+            X-MUSIC
           </p>
         </header>
 

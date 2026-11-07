@@ -366,8 +366,8 @@ export default defineConfig(({ mode }) => ({
             registerType: 'prompt',
             includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
             manifest: {
-              name: 'N1KO MUSIC',
-              short_name: 'N1KO',
+              name: 'X-MUSIC',
+              short_name: 'X-MUSIC',
               description: 'Modern music streaming client for Navidrome/Subsonic/Jellyfin/Emby',
               theme_color: '#f8fafc',
               background_color: '#f8fafc',

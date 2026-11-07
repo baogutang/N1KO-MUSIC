@@ -51,11 +51,11 @@ export function AppRail() {
     >
       <NavLink
         to="/"
-        className={cn('mb-3 font-display text-[17px] font-bold tracking-[-0.04em] text-ink', needsTrafficLightInset && 'mt-6')}
+        className={cn('mb-3 whitespace-nowrap font-display text-[12px] font-bold tracking-[-0.04em] text-ink', needsTrafficLightInset && 'mt-6')}
         aria-label={t('action.backHome')}
         data-tauri-drag-region
       >
-        N1KO
+        X-MUSIC
       </NavLink>
       {PRIMARY_NAV.map(item => {
         const active = isNavActive(item, pathname)

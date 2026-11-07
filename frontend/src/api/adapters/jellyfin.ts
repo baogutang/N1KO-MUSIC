@@ -46,7 +46,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
       baseURL: this.baseUrl,
       timeout: 30000,
       headers: {
-        'X-Emby-Authorization': `MediaBrowser Client="N1KO-MUSIC", Device="Web", DeviceId="msp-web", Version="1.0.0", Token="${config.token}"`,
+        'X-Emby-Authorization': `MediaBrowser Client="X-MUSIC", Device="Web", DeviceId="msp-web", Version="1.0.0", Token="${config.token}"`,
         'Content-Type': 'application/json',
       },
     })
@@ -61,7 +61,7 @@ export class JellyfinAdapter implements MusicServerAdapter {
         {
           headers: {
             'X-Emby-Authorization':
-              'MediaBrowser Client="N1KO-MUSIC", Device="Web", DeviceId="msp-web", Version="1.0.0"',
+              'MediaBrowser Client="X-MUSIC", Device="Web", DeviceId="msp-web", Version="1.0.0"',
             'Content-Type': 'application/json',
           },
           timeout: 10000,

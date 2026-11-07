@@ -33,7 +33,7 @@ import type {
 } from '../types'
 
 /** Subsonic 协议要求的客户端标识 */
-const CLIENT_NAME = 'N1KO-MUSIC'
+const CLIENT_NAME = 'X-MUSIC'
 
 /**
  * 每次认证生成一个新的随机 salt。

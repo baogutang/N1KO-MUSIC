@@ -55,7 +55,7 @@ final class WebDavAuth {
     static java.util.Map<String, String> playbackHeaders() {
         java.util.Map<String, String> headers = new java.util.HashMap<>();
         headers.put("Authorization", basic());
-        headers.put("User-Agent", "N1KO-MUSIC");
+        headers.put("User-Agent", "X-MUSIC");
         return headers;
     }
 
@@ -73,7 +73,7 @@ final class WebDavAuth {
             .method("PROPFIND", RequestBody.create(PROPFIND_BODY, XML))
             .header("Depth", depth == null || depth.isEmpty() ? "1" : depth)
             .header("Authorization", basic())
-            .header("User-Agent", "N1KO-MUSIC")
+            .header("User-Agent", "X-MUSIC")
             .build();
         return execute(request);
     }
@@ -83,7 +83,7 @@ final class WebDavAuth {
         Request request = new Request.Builder()
             .url(url)
             .header("Authorization", basic())
-            .header("User-Agent", "N1KO-MUSIC")
+            .header("User-Agent", "X-MUSIC")
             .build();
         return execute(request);
     }
@@ -102,7 +102,7 @@ final class WebDavAuth {
         Request.Builder builder = new Request.Builder()
             .url(url)
             .header("Authorization", basic())
-            .header("User-Agent", "N1KO-MUSIC");
+            .header("User-Agent", "X-MUSIC");
         if (range != null && !range.isEmpty()) builder.header("Range", range);
         return STREAM.newCall(builder.build()).execute();
     }
@@ -121,7 +121,7 @@ final class WebDavAuth {
         conn.setInstanceFollowRedirects(true);
         conn.setRequestMethod(method);
         conn.setRequestProperty("Authorization", basic());
-        conn.setRequestProperty("User-Agent", "N1KO-MUSIC");
+        conn.setRequestProperty("User-Agent", "X-MUSIC");
         return conn;
     }
 
