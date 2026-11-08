@@ -7,6 +7,7 @@
 
 import axios, { type AxiosInstance } from 'axios'
 import { parseLrc } from '@/utils/lrc'
+import { lanMediaUrl } from '@/lib/lanMedia'
 import { httpStatus, pluginErrorCode } from '@/services/errors'
 import md5 from 'md5'
 import type {
@@ -354,7 +355,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       name: String(a.name || ''),
       albumCount: a.albumCount ? Number(a.albumCount) : undefined,
       coverArt: a.coverArt ? String(a.coverArt) : undefined,
-      artistImageUrl: a.artistImageUrl ? String(a.artistImageUrl) : undefined,
+      artistImageUrl: a.artistImageUrl ? lanMediaUrl(String(a.artistImageUrl)) : undefined,
       starred: !!a.starred,
       serverId: this.serverId,
     }
@@ -473,7 +474,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
 
     const params = new URLSearchParams(streamParams)
-    return `${this.baseUrl}/rest/stream?${params.toString()}`
+    return lanMediaUrl(`${this.baseUrl}/rest/stream?${params.toString()}`)
   }
 
   /**
@@ -517,7 +518,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
         Object.entries(authParams).map(([k, v]) => [k, String(v)])
       ),
     })
-    return `${this.baseUrl}/rest/getCoverArt?${params.toString()}`
+    return lanMediaUrl(`${this.baseUrl}/rest/getCoverArt?${params.toString()}`)
   }
 
   async getLyrics(songId: string, title?: string, artist?: string): Promise<Lyrics | null> {

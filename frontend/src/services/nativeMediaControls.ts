@@ -11,7 +11,8 @@ import { CapacitorMusicControls } from 'capacitor-music-controls-plugin'
 import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { findAdapterFor } from '@/api'
-import { isNativePlatform } from '@/lib/platform'
+import { isNativePlatform, nativeOS } from '@/lib/platform'
+import { originalMediaUrl } from '@/lib/lanMedia'
 import { notePauseReason } from '@/lib/playbackTrail'
 
 /** 上一首：播放超过 3 秒重播当前歌曲（与 PlayerBar 行为一致） */
@@ -54,9 +55,10 @@ export function useNativeMediaControls() {
       creating = true
       creatingFor = keyOf(currentSong)
       // 256 封面：插件会把 bitmap 两次塞进 MediaSession metadata，
-      // 512 位图接近 Binder 事务上限（TransactionTooLargeException 闪退）
+      // 512 位图接近 Binder 事务上限（TransactionTooLargeException 闪退）。
+      // 封面由原生去取、不经过 WebView：局域网 IP 的代取地址（lib/lanMedia）要换回服务器原地址
       const cover = currentSong.coverArt
-        ? (findAdapterFor(currentSong.serverId)?.getCoverUrl(currentSong.coverArt, 256) ?? '')
+        ? originalMediaUrl(findAdapterFor(currentSong.serverId)?.getCoverUrl(currentSong.coverArt, 256) ?? '')
         : ''
       CapacitorMusicControls.create({
         track: currentSong.title,
@@ -119,9 +121,21 @@ export function useNativeMediaControls() {
 
     // 锁屏/通知事件 → 播放器动作
     const listeners: Promise<{ remove: () => void }>[] = []
+    const handlers = new Map<string, (info: { position?: number }) => void>()
     const on = (event: string, cb: (info: { position?: number }) => void) => {
+      handlers.set(event, cb)
       listeners.push(CapacitorMusicControls.addListener(event, cb))
     }
+    /*
+     * 插件在安卓上不走 addListener：通知栏按钮、锁屏、耳机键、电视遥控器的播放 / 暂停键，
+     * 全都以 controlsNotification 抛到 document 上，动作名在 event.message（插件 README 的 ANDROID 一节）。
+     * 以前没接这一路，安卓上这些键按了都没反应。按动作名分给上面同一组处理函数
+     */
+    const onAndroidNotification = (e: Event) => {
+      const { message, position } = e as Event & { message?: string; position?: number }
+      if (message) handlers.get(message)?.({ position })
+    }
+    if (nativeOS === 'android') document.addEventListener('controlsNotification', onAndroidNotification)
     on('music-controls-play', () => {
       const s = usePlayerStore.getState()
       if (!s.isPlaying) s.togglePlay()
@@ -190,6 +204,7 @@ export function useNativeMediaControls() {
     return () => {
       unsubscribe()
       listeners.forEach(p => p.then(h => h.remove()).catch(() => {}))
+      document.removeEventListener('controlsNotification', onAndroidNotification)
       destroyControls()
     }
   }, [])

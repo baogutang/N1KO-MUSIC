@@ -26,6 +26,7 @@ import type {
   SourceCapabilities,
 } from '../types'
 import { parseLrc } from '@/utils/lrc'
+import { lanMediaUrl } from '@/lib/lanMedia'
 
 export class JellyfinAdapter implements MusicServerAdapter {
   readonly type: ServerType = 'jellyfin'
@@ -365,11 +366,11 @@ export class JellyfinAdapter implements MusicServerAdapter {
         : 'opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg'
     // maxBitrate 单位为 kbps，Jellyfin MaxStreamingBitrate 单位为 bps
     const bitrateParam = maxBitrate > 0 ? `&MaxStreamingBitrate=${maxBitrate * 1000}` : ''
-    return `${this.baseUrl}/Audio/${songId}/universal?UserId=${this.userId}&api_key=${this.token}&Container=${container}&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac${bitrateParam}`
+    return lanMediaUrl(`${this.baseUrl}/Audio/${songId}/universal?UserId=${this.userId}&api_key=${this.token}&Container=${container}&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac${bitrateParam}`)
   }
 
   getCoverUrl(id: string, size = 300): string {
-    return `${this.baseUrl}/Items/${id}/Images/Primary?maxWidth=${size}&quality=96&api_key=${this.token}`
+    return lanMediaUrl(`${this.baseUrl}/Items/${id}/Images/Primary?maxWidth=${size}&quality=96&api_key=${this.token}`)
   }
 
   async getLyrics(songId: string): Promise<Lyrics | null> {
