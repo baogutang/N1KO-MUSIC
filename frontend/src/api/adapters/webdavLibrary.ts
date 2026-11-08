@@ -1,11 +1,12 @@
 /**
  * WebDAV 目录解析与曲库拼装。
  *
- * 没有曲库服务的 NAS 只提供文件名和文件夹。
- * 这里把「直接放着音频的文件夹」当成专辑，它的上一级文件夹当成歌手。
+ * 歌名、歌手、专辑优先用文件里的标签，其次用「歌手 - 歌名」这种文件名。
+ * 两样都没有时，才用文件夹名兜底。
  */
 
 import type { AlbumDetail, ArtistDetail, Song } from '../types'
+import { parseAudioFilename } from './audioTags'
 
 const AUDIO_EXT = new Set([
   'mp3', 'flac', 'wav', 'm4a', 'aac', 'ogg', 'opus', 'oga', 'aiff', 'aif', 'alac',
@@ -32,6 +33,10 @@ export interface WebDavFile {
   /** 所在目录，带结尾斜杠 */
   directory: string
   size?: number
+  tagTitle?: string
+  tagArtist?: string
+  tagAlbum?: string
+  tagTrack?: number
 }
 
 export interface WebDavLibrary {
@@ -160,13 +165,20 @@ function folderName(directory: string): string {
   return lastSegment(directory) || '全部音乐'
 }
 
-function splitTrack(filename: string): { track?: number; title: string } {
-  const base = filename.replace(/\.[^.]+$/, '')
-  const match = /^(\d{1,3})[\s._-]+(.+)$/.exec(base)
-  if (!match) return { title: base }
-  const track = Number(match[1])
-  if (!Number.isFinite(track) || track <= 0) return { title: base }
-  return { track, title: match[2] }
+function text(value: string | undefined): string {
+  const trimmed = value?.trim() ?? ''
+  return trimmed
+}
+
+/** 标签和文件名都没有时，才用文件夹。上一级是歌手，当前文件夹是专辑。 */
+function folderFallback(directory: string, rootDir: string): { artist: string; album: string } {
+  const atRoot = sameResource(directory, rootDir)
+  const album = atRoot ? '全部音乐' : folderName(directory)
+  const parent = parentDirectory(directory)
+  const artist = atRoot || sameResource(parent, rootDir)
+    ? (atRoot ? '未知歌手' : album)
+    : folderName(parent)
+  return { artist, album }
 }
 
 const collator = new Intl.Collator('zh-CN')
@@ -195,49 +207,54 @@ export function buildLibrary(options: {
   const lrcBySongId = new Map<string, string>()
 
   for (const [directory, files] of byAlbum) {
-    const atRoot = sameResource(directory, rootDir)
-    const albumName = atRoot ? '全部音乐' : folderName(directory)
-    const parent = parentDirectory(directory)
-    const artistName = atRoot || sameResource(parent, rootDir)
-      ? (atRoot ? '未知歌手' : albumName)
-      : folderName(parent)
-    const artistId = `webdav-artist:${artistName}`
     const cover = options.covers.get(directory)
-    const albumSongs = files
-      .map(file => {
-        const { track, title } = splitTrack(file.name)
-        const ext = file.name.split('.').pop()?.toLowerCase()
-        const lrc = options.lrcs.get(file.url)
-        const song: Song = {
-          id: file.url,
-          title,
-          artist: artistName,
-          artistId,
-          album: albumName,
-          albumId: directory,
-          coverArt: cover,
-          duration: 0,
-          size: file.size,
-          track,
-          suffix: ext,
-          path: file.url,
-          serverId: options.serverId,
-        }
-        if (lrc) lrcBySongId.set(file.url, lrc)
-        return song
-      })
-      .sort((a, b) => (a.track ?? 9999) - (b.track ?? 9999) || collator.compare(a.title, b.title))
+    for (const file of files) {
+      const named = parseAudioFilename(file.name)
+      const place = folderFallback(directory, rootDir)
+      const title = text(file.tagTitle) || named.title || '未命名'
+      const artist = text(file.tagArtist) || named.artist || place.artist
+      const album = text(file.tagAlbum) || named.album || place.album
+      const track = file.tagTrack || named.track
+      const lrc = options.lrcs.get(file.url)
+      const song: Song = {
+        id: file.url,
+        title,
+        artist,
+        artistId: `webdav-artist:${artist}`,
+        album,
+        albumId: `webdav-album:${artist}::${album}`,
+        coverArt: cover,
+        duration: 0,
+        size: file.size,
+        track,
+        suffix: file.name.split('.').pop()?.toLowerCase(),
+        path: file.url,
+        serverId: options.serverId,
+      }
+      if (lrc) lrcBySongId.set(file.url, lrc)
+      songs.push(song)
+    }
+  }
 
-    songs.push(...albumSongs)
+  const albumGroups = new Map<string, Song[]>()
+  for (const song of songs) {
+    const key = song.albumId ?? song.album
+    const list = albumGroups.get(key) ?? []
+    list.push(song)
+    albumGroups.set(key, list)
+  }
+  for (const group of albumGroups.values()) {
+    group.sort((a, b) => (a.track ?? 9999) - (b.track ?? 9999) || collator.compare(a.title, b.title))
+    const first = group[0]
     albums.push({
-      id: directory,
-      name: albumName,
-      artist: artistName,
-      artistId,
-      coverArt: cover,
-      songCount: albumSongs.length,
+      id: first.albumId ?? first.album,
+      name: first.album,
+      artist: first.artist,
+      artistId: first.artistId,
+      coverArt: first.coverArt,
+      songCount: group.length,
       serverId: options.serverId,
-      songs: albumSongs,
+      songs: group,
     })
   }
 

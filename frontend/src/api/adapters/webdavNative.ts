@@ -26,6 +26,7 @@ export interface WebDavNativePlugin {
   configure(options: { baseUrl: string; username: string; password: string }): Promise<void>
   propfind(options: { url: string; depth: number | 'infinity' }): Promise<{ status: number; body: string }>
   getText(options: { url: string }): Promise<{ status: number; body: string }>
+  getRange(options: { url: string; length?: number }): Promise<{ status: number; body: string }>
   streamUrl(options: { target: string }): Promise<{ url: string }>
   openFlac(options: { target: string; volume: number; rate: number }): Promise<{ generation: number }>
   resumeFlac(): Promise<void>

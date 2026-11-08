@@ -88,6 +88,23 @@ final class WebDavAuth {
         return execute(request);
     }
 
+    /** 只读文件开头，用来看歌手、专辑、歌名标签。body 是 Base64。 */
+    static HttpResult getRange(String url, int length) throws IOException {
+        if (!allows(url)) throw new IOException("地址不在已连接的 WebDAV 里");
+        int want = Math.min(Math.max(length, 1), 262144);
+        Request request = new Request.Builder()
+            .url(url)
+            .header("Range", "bytes=0-" + (want - 1))
+            .header("Authorization", basic())
+            .header("User-Agent", "X-MUSIC")
+            .build();
+        try (Response response = STREAM.newCall(request).execute()) {
+            ResponseBody responseBody = response.body();
+            byte[] bytes = responseBody == null ? new byte[0] : readAtMost(responseBody.byteStream(), want);
+            return new HttpResult(response.code(), android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP));
+        }
+    }
+
     private static HttpResult execute(Request request) throws IOException {
         try (Response response = CLIENT.newCall(request).execute()) {
             ResponseBody responseBody = response.body();
@@ -143,6 +160,18 @@ final class WebDavAuth {
             out.write(buf, 0, n);
         }
         return out.toString(StandardCharsets.UTF_8.name());
+    }
+
+    private static byte[] readAtMost(InputStream in, int max) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int total = 0;
+        int n;
+        while (total < max && (n = in.read(buf, 0, Math.min(buf.length, max - total))) != -1) {
+            out.write(buf, 0, n);
+            total += n;
+        }
+        return out.toByteArray();
     }
 
     private static String trimSlash(String value) {

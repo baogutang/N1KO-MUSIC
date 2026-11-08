@@ -77,6 +77,46 @@ describe('buildLibrary', () => {
     expect(library.lrcBySongId.get(songUrl)).toContain('.lrc')
   })
 
+  it('文件标签优先于文件夹名', () => {
+    const directory = `${ROOT}/音乐2/杂/`
+    const library = buildLibrary({
+      serverId: 'nas',
+      root: ROOT,
+      files: [{
+        url: `${ROOT}/音乐2/杂/a.flac`,
+        name: 'a.flac',
+        directory,
+        tagTitle: '阿卜杜拉',
+        tagArtist: '赵雷',
+        tagAlbum: '署前街少年',
+        tagTrack: 9,
+      }],
+      covers: new Map(),
+      lrcs: new Map(),
+    })
+    expect(library.songs[0]).toMatchObject({ title: '阿卜杜拉', artist: '赵雷', album: '署前街少年', track: 9 })
+    expect(library.artists.map(artist => artist.name)).toEqual(['赵雷'])
+  })
+
+  it('没有标签时从「歌手 - 歌名」拆文件名', () => {
+    const library = buildLibrary({
+      serverId: 'nas',
+      root: ROOT,
+      files: [{
+        url: `${ROOT}/音乐2/a.mp3`,
+        name: '陈小熊 - 你有多久没有看过星星.mp3',
+        directory: `${ROOT}/音乐2/`,
+      }],
+      covers: new Map(),
+      lrcs: new Map(),
+    })
+    expect(library.songs[0]).toMatchObject({
+      title: '你有多久没有看过星星',
+      artist: '陈小熊',
+      album: '音乐2',
+    })
+  })
+
   it('直接放在根目录的歌归到「全部音乐」', () => {
     const library = buildLibrary({
       serverId: 'nas',

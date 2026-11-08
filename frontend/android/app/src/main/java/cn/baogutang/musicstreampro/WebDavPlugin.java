@@ -71,6 +71,25 @@ public class WebDavPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getRange(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null) {
+            call.reject("缺少文件地址");
+            return;
+        }
+        Integer length = call.getInt("length");
+        try {
+            WebDavAuth.HttpResult result = WebDavAuth.getRange(url, length == null ? 65536 : length);
+            JSObject ret = new JSObject();
+            ret.put("status", result.status);
+            ret.put("body", result.body);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject(e.getMessage() == null ? "读取失败" : e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void streamUrl(PluginCall call) {
         String target = call.getString("target");
         if (target == null || !WebDavAuth.allows(target)) {

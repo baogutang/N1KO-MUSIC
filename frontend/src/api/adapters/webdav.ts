@@ -36,6 +36,7 @@ import {
   type WebDavFile,
   type WebDavLibrary,
 } from './webdavLibrary'
+import { readAudioTags } from './audioTags'
 import { Capacitor } from '@capacitor/core'
 import { WebDavNative, webDavNativeAvailable, NATIVE_FLAC_PREFIX } from './webdavNative'
 
@@ -286,6 +287,7 @@ export class WebDavAdapter implements MusicServerAdapter {
       if (listed) this.ingest(listed, files, covers, lrcs)
       else await this.walk(root, 0, files, covers, lrcs, seen)
     }
+    await this.enrichTags(files)
     return buildLibrary({
       serverId: this.serverId,
       root: this.base,
@@ -376,6 +378,46 @@ export class WebDavAdapter implements MusicServerAdapter {
       if (lrc) lrcs.set(file.url, lrc)
     }
     await mapPool(subdirs, 8, dir => this.walk(dir, depth + 1, files, covers, lrcs, seen))
+  }
+
+  /** 读每首歌开头的标签。读不到就留空，后面用文件名。 */
+  private async enrichTags(files: WebDavFile[]): Promise<void> {
+    await mapPool(files, 8, async file => {
+      try {
+        let bytes = await this.readHeader(file.url, 65536)
+        if (!bytes) return
+        let tags = readAudioTags(bytes)
+        if (tags.bytesNeeded && tags.bytesNeeded > bytes.length) {
+          bytes = await this.readHeader(file.url, tags.bytesNeeded)
+          if (bytes) tags = readAudioTags(bytes)
+        }
+        file.tagTitle = tags.title
+        file.tagArtist = tags.artist
+        file.tagAlbum = tags.album
+        file.tagTrack = tags.track
+      } catch {
+        // 这一首没有标签，文件名和文件夹还能用
+      }
+    })
+  }
+
+  private async readHeader(url: string, length: number): Promise<Uint8Array | null> {
+    const want = Math.min(Math.max(length, 1), 262144)
+    await this.ensureNative()
+    if (Capacitor.isNativePlatform()) {
+      const result = await WebDavNative.getRange({ url, length: want })
+      if (result.status !== 200 && result.status !== 206) return null
+      if (!result.body) return null
+      return decodeBase64(result.body)
+    }
+    const response = await fetch(url, {
+      headers: {
+        Authorization: basicAuth(this.username, this.password),
+        Range: `bytes=0-${want - 1}`,
+      },
+    })
+    if (!response.ok && response.status !== 206) return null
+    return new Uint8Array(await response.arrayBuffer())
   }
 
   private async ensureNative(): Promise<void> {
@@ -494,6 +536,13 @@ function shuffle<T>(items: T[]): T[] {
 
 function abortError(): Error {
   return new DOMException('The operation was aborted.', 'AbortError')
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const binary = atob(value)
+  const out = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)
+  return out
 }
 
 function parentDir(fileUrl: string): string {
