@@ -13,8 +13,7 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { usePlayerStore } from '@/store/playerStore'
 import { useT } from '@/i18n'
-
-const APP_NAME = 'X-MUSIC'
+import { useAppName } from '@/hooks/useAppName'
 
 /** 路由前缀 → i18n 键。取最长匹配，所以 /albums/:id 会落到 album.detail 而非 albums。 */
 const ROUTE_TITLES: Array<[string, string]> = [
@@ -42,6 +41,7 @@ export function useDocumentTitle() {
   const { pathname } = useLocation()
   const currentSong = usePlayerStore(s => s.currentSong)
   const isPlaying = usePlayerStore(s => s.isPlaying)
+  const appName = useAppName()
 
   useEffect(() => {
     const entry = ROUTE_TITLES.find(([prefix]) => pathname.startsWith(prefix))
@@ -52,7 +52,7 @@ export function useDocumentTitle() {
       ? `${currentSong.title} · ${currentSong.artist}`
       : null
 
-    document.title = [nowPlaying, page, APP_NAME].filter(Boolean).join(' — ')
+    document.title = [nowPlaying, page, appName].filter(Boolean).join(' — ')
     // locale 是必要依赖：切语言后标题要跟着变
-  }, [pathname, currentSong, isPlaying, t, locale])
+  }, [pathname, currentSong, isPlaying, t, locale, appName])
 }

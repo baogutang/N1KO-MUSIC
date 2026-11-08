@@ -14,6 +14,7 @@ import { SPRING_SNAPPY } from '@/lib/motion'
 import { needsTrafficLightInset } from '@/lib/platform'
 import { prefetchRoute } from '@/routes/lazyRoutes'
 import { useT } from '@/i18n'
+import { useAppName } from '@/hooks/useAppName'
 import { PRIMARY_NAV, isNavActive } from './navItems'
 
 const railItem = (active: boolean) =>
@@ -38,6 +39,7 @@ export function AppRail() {
   const { t } = useT()
   const { pathname } = useLocation()
   const settingsActive = pathname.startsWith('/settings')
+  const appName = useAppName()
 
   return (
     <nav
@@ -51,11 +53,12 @@ export function AppRail() {
     >
       <NavLink
         to="/"
-        className={cn('mb-3 whitespace-nowrap font-display text-[12px] font-bold tracking-[-0.04em] text-ink', needsTrafficLightInset && 'mt-6')}
+        className={cn('mb-3 block max-w-[68px] truncate text-center font-display text-[12px] font-bold tracking-[-0.04em] text-ink', needsTrafficLightInset && 'mt-6')}
         aria-label={t('action.backHome')}
+        title={appName}
         data-tauri-drag-region
       >
-        X-MUSIC
+        {appName}
       </NavLink>
       {PRIMARY_NAV.map(item => {
         const active = isNavActive(item, pathname)

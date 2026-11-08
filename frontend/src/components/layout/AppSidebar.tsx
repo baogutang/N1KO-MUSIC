@@ -28,6 +28,7 @@ import { findAdapterFor } from '@/api'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { prefetchRoute } from '@/routes/lazyRoutes'
 import { useT } from '@/i18n'
+import { useAppName } from '@/hooks/useAppName'
 import { ServerMenu } from './ServerMenu'
 import { LibraryScopeMenu } from './LibraryScopeMenu'
 import { SIDEBAR_DISCOVER, SIDEBAR_LIBRARY, isNavActive, type NavItem } from './navItems'
@@ -177,6 +178,7 @@ export function AppSidebar() {
   const toggleSidebar = useThemeStore(s => s.toggleSidebar)
   const themeLabel = resolvedTheme === 'dark' ? t('settings.theme.toLight') : t('settings.theme.toDark')
   const settingsActive = pathname.startsWith('/settings')
+  const appName = useAppName()
 
   return (
     <nav
@@ -192,8 +194,8 @@ export function AppSidebar() {
         className={cn('flex h-[60px] flex-none items-center justify-between pl-5 pr-2.5', needsTrafficLightInset && 'pt-6 h-[80px]')}
         data-tauri-drag-region
       >
-        <NavLink to="/" className="font-display text-[22px] font-bold tracking-[-0.04em] text-ink" aria-label={t('action.backHome')}>
-          X-MUSIC
+        <NavLink to="/" className="min-w-0 truncate font-display text-[22px] font-bold tracking-[-0.04em] text-ink" aria-label={t('action.backHome')} title={appName}>
+          {appName}
         </NavLink>
         <button
           onClick={toggleSidebar}

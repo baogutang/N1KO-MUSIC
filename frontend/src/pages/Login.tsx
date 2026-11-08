@@ -27,6 +27,7 @@ import { pluginSourcesSupported } from '@/lib/platform'
 import { createAdapter } from '@/api'
 import type { ServerType } from '@/api/types'
 import { useT } from '@/i18n'
+import { useAppName } from '@/hooks/useAppName'
 import { usePluginStore, type InstalledPluginSummary } from '@/plugins/host/pluginStore'
 import { pluginLogoSrc, SourceLogo } from '@/components/sources/SourceBadge'
 import { closeAuthHost, getPluginHost, openAuthHost } from '@/plugins/host/pluginRuntime'
@@ -85,6 +86,7 @@ type LoginStep = 'type' | 'credentials' | 'plugin-disclaimer' | 'plugin-auth'
 
 export default function LoginPage() {
   const { t } = useT()
+  const appName = useAppName()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { servers, addServer, activateServer, connectServer, setPrimaryServer, updateServerAuth, updatePluginServer, removeServer } = useServerStore()
@@ -447,8 +449,8 @@ export default function LoginPage() {
         {/* 欢迎：糯米和毛豆挥手（装饰，对读屏隐藏），下面是字标 */}
         <header className="flex flex-col items-center text-center">
           <Mascot name="duo-wave" size={260} priority className="w-[min(64vw,260px)] wide:w-[min(38vw,460px)]" />
-          <p className="mt-2 font-display text-[44px] font-bold leading-none tracking-[-0.045em] text-ink wide:text-[64px]">
-            X-MUSIC
+          <p className="mt-2 max-w-[90vw] break-words font-display text-[44px] font-bold leading-none tracking-[-0.045em] text-ink wide:text-[64px]">
+            {appName}
           </p>
         </header>
 

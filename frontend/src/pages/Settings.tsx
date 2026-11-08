@@ -31,6 +31,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { toast } from '@/components/ui/use-toast'
+import { replaySplash } from '@/components/common/splashReplay'
+import { DEFAULT_APP_NAME } from '@/lib/appName'
+import { useAppName } from '@/hooks/useAppName'
 import {
   Row,
   Section,
@@ -296,11 +299,13 @@ export default function Settings() {
   const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
   const { theme, setTheme } = useThemeStore()
   const { t, locale } = useT()
+  const visibleName = useAppName()
   const volume    = usePlayerStore(s => s.volume)
   const setVolume = usePlayerStore(s => s.setVolume)
   const {
     apiPreferServer, apiAuthToken,
     coverRemoteTemplate, coverLoadAlbum, coverLoadArtist, coverShape, playerCardMode,
+    appName, splashEnabled,
     lyricsRemoteTemplate, lyricsConfirmTemplate, lyricsUseRemote, lyricsPreferRemote, lyricsFontSize,
     songDetailTemplate, songDetailPathReplace,
     translateTargetLang, translateType,
@@ -310,6 +315,7 @@ export default function Settings() {
     notificationActions, seekStepSeconds, resumeAfterInterruption, musicBrainzEnabled,
     setApiPreferServer, setApiAuthToken,
     setCoverRemoteTemplate, setCoverLoadAlbum, setCoverLoadArtist, setCoverShape, setPlayerCardMode,
+    setAppName, setSplashEnabled,
     setLyricsRemoteTemplate, setLyricsConfirmTemplate, setLyricsUseRemote, setLyricsPreferRemote, setLyricsFontSize,
     setSongDetailTemplate, setSongDetailPathReplace,
     setTranslateTargetLang, setTranslateType,
@@ -541,6 +547,29 @@ export default function Settings() {
 
         {/* 外观：皮肤已收敛为一套，只剩明暗 */}
         <Section title={t('settings.appearance')}>
+          <Row name={t('settings.appName.name')} desc={t('settings.appName.desc')}>
+            <Input
+              value={appName}
+              placeholder={DEFAULT_APP_NAME}
+              aria-label={t('settings.appName.name')}
+              onChange={e => setAppName(e.target.value)}
+              className={cn(fieldInputClass, 'w-44')}
+            />
+          </Row>
+          <Row name={t('settings.splash.name')} desc={t('settings.splash.desc')}>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => replaySplash()}
+                className="h-11 [@media(hover:hover)]:h-9"
+              >
+                {t('settings.splash.preview')}
+              </Button>
+              <Toggle checked={splashEnabled} onChange={setSplashEnabled} label={t('settings.splash.name')} />
+            </div>
+          </Row>
           <Row name={t('settings.theme.name')} desc={t('settings.theme.desc')}>
             <Segmented
               label={t('settings.theme.name')}
@@ -929,7 +958,7 @@ export default function Settings() {
               rel="noopener noreferrer"
               className="rounded-sm text-[15px] text-leaf underline-offset-4 hover:underline"
             >
-              X-MUSIC
+              {visibleName}
             </a>
           </Row>
         </Section>

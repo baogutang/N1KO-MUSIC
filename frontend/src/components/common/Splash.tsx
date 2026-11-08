@@ -4,7 +4,7 @@
  *   开灯  场灯的青柠与叶绿两团柔光从中心开出来；两束追光从左右上方扫进来，停在角色身上轻轻晃
  *   登场  糯米和毛豆从下面跳上来：起跳拉长、到顶、落地压扁再回弹，脚下扬起几团小烟尘
  *   演出  落地后跟着拍子蹦两下；毛豆耳机里飘出音符，糯米耳朵边闪两下小星光；最后两只一起眨一下眼
- *   字标  X-MUSIC 一个字母一个字母地升起，底下一道青柠的线从左划到右
+ *   字标  软件名称一个字一个字地升起，底下一道青柠的线从左划到右
  *   收场  角色和字标朝镜头冲出去淡掉，中心随即开出一个洞，底下早已渲染好的 App 从洞里扩散出来
  *
  * 它不挡启动：App 在它底下照常挂载、加载；开屏只是盖在上面的一层，时间到了自己收走。
@@ -12,14 +12,16 @@
  * 减弱动态效果时只留一个很短的淡出（全局的 reduced-motion 兜底会把关键帧压成瞬时）。
  * 整块对读屏隐藏：它不承载任何信息。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { MusicNote, MusicNotes, Sparkle } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { prefersReducedMotion } from '@/lib/motion'
+import { graphemes, resolveAppName, splashHoldMs } from '@/lib/appName'
+import { useSettingsStore } from '@/store/settingsStore'
+import { subscribeSplashReplay } from '@/components/common/splashReplay'
 
 const SEEN_KEY = 'n1ko-splash-seen'
-const WORD = ['X', '-', 'M', 'U', 'S', 'I', 'C']
 
 /**
  * 开发用：?splash-t=毫秒 把开屏定格在那一刻（逐帧检查编排），加 &splash-theme=dark 看深色；正式包里没有这段。
@@ -57,6 +59,7 @@ function shouldShow(): boolean {
   if (typeof window === 'undefined') return false
   if (import.meta.env.MODE === 'test') return false
   if (navigator.webdriver) return false
+  if (!useSettingsStore.getState().splashEnabled) return false
   try {
     if (sessionStorage.getItem(SEEN_KEY)) return false
     sessionStorage.setItem(SEEN_KEY, '1')
@@ -67,7 +70,11 @@ function shouldShow(): boolean {
 }
 
 export function Splash() {
+  const appName = useSettingsStore(s => resolveAppName(s.appName))
+  const glyphs = useMemo(() => graphemes(appName), [appName])
   const [phase, setPhase] = useState<'in' | 'out' | 'gone'>(() => (shouldShow() ? 'in' : 'gone'))
+
+  useEffect(() => subscribeSplashReplay(() => setPhase('in')), [])
 
   useEffect(() => {
     if (FREEZE_AT === null || phase !== 'in') return
@@ -89,14 +96,14 @@ export function Splash() {
 
   useEffect(() => {
     if (phase !== 'in' || FREEZE_AT !== null) return
-    const timer = setTimeout(() => setPhase('out'), prefersReducedMotion() ? 320 : 2050)
+    const timer = setTimeout(() => setPhase('out'), splashHoldMs(glyphs.length, prefersReducedMotion()))
     const skip = () => setPhase('out')
     window.addEventListener('keydown', skip, { once: true })
     return () => {
       clearTimeout(timer)
       window.removeEventListener('keydown', skip)
     }
-  }, [phase])
+  }, [phase, glyphs.length])
 
   if (phase === 'gone') return null
 
@@ -146,14 +153,20 @@ export function Splash() {
           ))}
         </div>
 
-        <div className="mt-4 flex font-display text-[40px] font-bold leading-none tracking-[-0.045em] text-ink regular:text-[52px]">
-          {WORD.map((ch, i) => (
-            <span key={i} className="splash-letter inline-block" style={{ '--i': i } as CSSProperties}>
-              {ch}
+        <div
+          className="mt-4 flex max-w-[92vw] justify-center font-display font-bold leading-none tracking-[-0.045em] text-ink"
+          style={{ fontSize: `clamp(12px, ${Math.max(3, Math.round(78 / Math.max(glyphs.length, 1)))}vw, 52px)` }}
+        >
+          {glyphs.map((ch, i) => (
+            <span key={`${i}-${ch}`} className="splash-letter inline-block" style={{ '--i': i } as CSSProperties}>
+              {ch === ' ' ? '\u00a0' : ch}
             </span>
           ))}
         </div>
-        <span className="splash-line mt-4 block h-[3px] w-14 rounded-pill bg-lime" />
+        <span
+          className="splash-line mt-4 block h-[3px] rounded-pill bg-lime"
+          style={{ width: Math.min(140, 24 + glyphs.length * 10) }}
+        />
       </div>
     </div>
   )

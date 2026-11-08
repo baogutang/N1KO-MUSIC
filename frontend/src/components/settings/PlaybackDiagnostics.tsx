@@ -11,6 +11,8 @@ import { toast } from '@/components/ui/use-toast'
 import { getPauseRecords, subscribePauseRecords, type PauseRecord } from '@/lib/playbackTrail'
 import { Row } from './primitives'
 import pkg from '../../../package.json'
+import { useSettingsStore } from '@/store/settingsStore'
+import { resolveAppName } from '@/lib/appName'
 
 const SHOWN = 6
 
@@ -36,7 +38,7 @@ function clock(at: number) {
 
 /** 复制出去的报告：一行一条，只有原因和数字 */
 function reportText(records: PauseRecord[]) {
-  const head = `X-MUSIC v${pkg.version} · ${nativeOS} · ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`
+  const head = `${resolveAppName(useSettingsStore.getState().appName)} v${pkg.version} · ${nativeOS} · ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`
   const lines = records.map(r => {
     const c = r.ctx
     return [

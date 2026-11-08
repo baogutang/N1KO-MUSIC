@@ -10,6 +10,7 @@ import { STORAGE_KEYS } from '@/services/storageKeys'
 import { PREAMP_MAX_DB, PREAMP_MIN_DB, type ReplayGainMode } from '@/utils/replayGain'
 import { t } from '@/i18n'
 import { LRCAPI_COVER_URL, LRCAPI_LYRICS_URL } from '@/services/customApi'
+import { clampAppName } from '@/lib/appName'
 
 /** 封面图来源优先级 */
 export type CoverSource = 'server_first' | 'remote_first' | 'remote_only' | 'server_only'
@@ -69,6 +70,12 @@ interface SettingsState {
   /** 横屏时正在播放换成一叠大封面（CardStage） */
   playerCardMode: CardMode
   setPlayerCardMode: (mode: CardMode) => void
+  /** 软件里显示的名字。空字符串表示用默认名。 */
+  appName: string
+  setAppName: (name: string) => void
+  /** 打开软件时是否播放开屏。字标按 appName 逐字生成。 */
+  splashEnabled: boolean
+  setSplashEnabled: (v: boolean) => void
 
   // --- 歌词设置 ---
   /** 自定义歌词 API 模板，如 https://api.example.com/lyrics?artist={artist}&title={title} */
@@ -192,6 +199,8 @@ export const useSettingsStore = create<SettingsState>()(
       coverLoadArtist: true,
       coverShape: 'square',
       playerCardMode: 'auto',
+      appName: '',
+      splashEnabled: true,
       lyricsRemoteTemplate: LRCAPI_LYRICS_URL,
       lyricsConfirmTemplate: '',
       lyricsUseRemote: true,
@@ -237,6 +246,8 @@ export const useSettingsStore = create<SettingsState>()(
       setCoverLoadArtist: (v) => set({ coverLoadArtist: v }),
       setCoverShape: (s) => set({ coverShape: s }),
       setPlayerCardMode: (mode) => set({ playerCardMode: mode }),
+      setAppName: (name) => set({ appName: clampAppName(name) }),
+      setSplashEnabled: (v) => set({ splashEnabled: v }),
       setLyricsRemoteTemplate: (t) => set({ lyricsRemoteTemplate: t }),
       setLyricsConfirmTemplate: (t) => set({ lyricsConfirmTemplate: t }),
       setLyricsUseRemote: (v) => set({ lyricsUseRemote: v }),
@@ -266,7 +277,7 @@ export const useSettingsStore = create<SettingsState>()(
       name: STORAGE_KEYS.settingsStore,
       // 体积小、纯用户主动变更，同步写入避免丢配置
       storage: createPersistStorage({ debounceMs: 0 }),
-      version: 3,
+      version: 4,
       // v0 -> v1：会员体系移除。旧版免费用户被强制锁定在 low（非主动选择），
       // 迁移为无损默认；之后用户在设置里的选择正常持久化
       migrate: (persisted, version) => {
@@ -298,6 +309,11 @@ export const useSettingsStore = create<SettingsState>()(
             state.lyricsRemoteTemplate = LRCAPI_LYRICS_URL
             state.lyricsUseRemote = true
           }
+        }
+        // v3 -> v4：软件名和开屏开关。旧数据没有这两项时保持原来的名字和开屏。
+        if (version < 4) {
+          if (state.appName === undefined) state.appName = ''
+          if (state.splashEnabled === undefined) state.splashEnabled = true
         }
         return state
       },
