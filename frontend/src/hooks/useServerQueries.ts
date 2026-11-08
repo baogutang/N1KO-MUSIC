@@ -325,7 +325,7 @@ interface CustomCoverParams {
  * - album: artist + album（不传 title）
  * - artist: 只传 artist
  */
-function buildCoverUrl(base: string, params: CustomCoverParams): string {
+export function buildCoverUrl(base: string, params: CustomCoverParams): string {
   const url = new URL(base)
   if (params.type === 'song') {
     if (params.title)  url.searchParams.set('title', params.title)

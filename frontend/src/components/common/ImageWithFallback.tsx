@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { User, MusicNote } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
-import { useCustomCoverUrl, type CoverQueryType } from '@/hooks/useServerQueries'
+import { buildCoverUrl, useCustomCoverUrl, type CoverQueryType } from '@/hooks/useServerQueries'
 import { pickMergedCoverDisplaySrc, usePinnedCover } from '@/hooks/useCoverUrl'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
@@ -67,6 +67,7 @@ export function ImageWithFallback({
   const [isVisible, setIsVisible] = useState(!!eager)
   const [serverError, setServerError] = useState(false)
   const [pinnedFailed, setPinnedFailed] = useState(false)
+  const [remoteFailed, setRemoteFailed] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   /**
    * eager 模式下用于强制重建 <img>，确保浏览器一定重新发起请求。
@@ -104,6 +105,7 @@ export function ImageWithFallback({
   useEffect(() => {
     setServerError(false)
     setPinnedFailed(false)
+    setRemoteFailed(false)
     setIsLoaded(false)
     if (eager) setImgLoadKey(k => k + 1)
   }, [src, customKey, eager, songId])
@@ -126,6 +128,15 @@ export function ImageWithFallback({
   const pinnedCover = usePinnedCover(songId)
   // 钉住的地址可能失效（远端删图/断网），失败后必须让位给服务器与自定义来源
   const pinnedSrc = pinnedFailed ? null : pinnedCover
+  // 接口若只回了跳转，下载结果是空的。播放页用图片地址自己跳转，所以里面看得到；
+  // 播放条只认下载结果，空了就一直是占位。下载不到时改把同一个地址交给图片自己加载。
+  let remoteUrl = ''
+  if (hasCustomConfig && coverRemoteTemplate && customCoverParams && !remoteFailed) {
+    try { remoteUrl = buildCoverUrl(coverRemoteTemplate, customCoverParams) } catch { remoteUrl = '' }
+  }
+  const customSrc = (typeof customCoverDataUrl === 'string' && customCoverDataUrl)
+    ? customCoverDataUrl
+    : (remoteUrl || undefined)
 
   let displaySrc: string | undefined
   if (isVisible) {
@@ -133,15 +144,16 @@ export function ImageWithFallback({
       coverSource,
       serverSrc: src,
       serverFailed: serverError,
-      customBlobUrl: customCoverDataUrl,
+      customBlobUrl: customSrc,
       hasCustom: hasCustomConfig,
       pinnedSrc,
     })
   }
   const showingPinned = !!pinnedSrc && displaySrc === pinnedSrc
+  const showingRemote = !!remoteUrl && displaySrc === remoteUrl
 
   // 判断是否应该显示占位图：未进入视口 或 所有来源都无数据
-  const customFailed = hasCustomConfig ? !customCoverDataUrl : true
+  const customFailed = hasCustomConfig ? !customSrc : true
   const serverFailed = !src || serverError
   const showPlaceholder = !isVisible || (!displaySrc && serverFailed && customFailed)
 
@@ -172,6 +184,7 @@ export function ImageWithFallback({
         onError={() => {
           setIsLoaded(false)
           if (showingPinned) setPinnedFailed(true)
+          else if (showingRemote) setRemoteFailed(true)
           else if (!serverError) setServerError(true)
         }}
         {...props}
