@@ -121,6 +121,34 @@ not expose the posture), so it needs a small native bridge, which is planned.
 
 <br/>
 
+## On TV
+
+The Android package is also the TV app. Install it on Android TV / Google TV (a TV or a TV box) and
+N1KO MUSIC shows up on the home screen with its own banner; it opens in a remote-control layout, dark by default.
+
+- **D-pad moves the focus, OK opens.** The focused button turns into a solid white pill with dark text
+  (ink on paper in the light theme) and grows a little, so you can see it from the sofa. Lime primary
+  buttons stay lime and get a ring; cover cards grow and get a ring; a song row inverts as a whole.
+- **A rail on the left.** Just icons until you press left into it, then it opens into a panel; press
+  right and you are back where you came from.
+- **Row by row.** Shelves are left-anchored: the focused card stays at the left edge and the rest slide
+  in. Moving to another row lands where you last were in that row. Press right on a song row to reach
+  its artist, favourite and more buttons.
+- **Music from the first screen.** The app opens with the focus on Resume (or Play album if nothing
+  has played yet). One press of OK.
+- **Now Playing for three metres away.** Big cover on the left, big lyrics on the right; after eight
+  seconds without a key press the progress bar and controls fade out. Up is the progress bar (left /
+  right seek 10 seconds), down raises the Up Next row. Bare left / right never scrub the whole song on a TV.
+- **Back.** On a detail page it goes back one page; on a top-level page it first goes to the rail,
+  then to Home; on Home a second press exits.
+- **Not for you?** Settings › Appearance › TV mode: Auto (on TVs only) / On / Off. You can switch it on
+  on a computer to try the layout; the arrow keys are the remote.
+
+> The UI colours use oklch(), which needs a system WebView based on Chrome 111 or newer. Some older TV
+> boxes ship an older WebView; the app then tells you to update "Android System WebView" from the store.
+
+<br/>
+
 ## Departments
 
 ### ♫ Playback
@@ -258,7 +286,7 @@ Grab the installer for your platform from
 | Windows | `N1KO.MUSIC_x.x.x_x64-setup.exe` / `.msi` |
 | Linux | `.AppImage` / `.deb` |
 | iPhone / iPad | `N1KO.MUSIC_x.x.x_ios_unsigned.ipa` (unsigned, sideload it — see below) |
-| Android | `N1KO.MUSIC_x.x.x_android.apk` (allow installs from unknown sources) |
+| Android / Android TV | `N1KO.MUSIC_x.x.x_android.apk` (allow installs from unknown sources; the same package switches to the remote layout on a TV) |
 
 **iPhone and iPad.** Apple doesn't let an unsigned app install directly, so you
 sign it with your own Apple ID while installing:

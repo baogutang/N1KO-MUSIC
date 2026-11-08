@@ -156,11 +156,32 @@ components:
 - **`DetailHero`**（专辑、歌单、歌手、榜单、单曲）：封面在上（窄）/ 左封面右文字（宽），头部铺本封面自己的 `ArtWash`；滚动 0→320px 时封面缩到 0.84、透明度到 0.35，文字上移 24px，光到 0.25（0→420px）。
 - **歌曲行 `.song-row`**：`px-3 py-2`，`gap-4`，圆角 `--r-sm`，hover 铺 `fill / 0.8`，不位移。
 
-### 全屏播放器的四种排法（`FullscreenPlayer.tsx` 的 `Layout`）
+### 全屏播放器的五种排法（`FullscreenPlayer.tsx` 的 `Layout`）
 - `stack`（compact）：封面 / 歌词 / 接下来三选一，下面是进度与控制，下拉收起。
 - `portrait`（竖着的大窗口）：上封面配控制，下歌词或接下来。
 - `landscape`：左列是操作的东西，右边一直摆着歌词。
 - `tabletop`（Duo 半折，`useDevicePosture`）：折痕以上歌词，以下封面带与控制。
+- `tv`（电视模式）：左 280px 封面、右歌名和大字歌词；底下一条进度、一排控制、一行按键提示。八秒没按键控制淡出（`.is-idle`），
+  焦点往下走「接下来」那一排从屏幕下沿升起（`.upnext-open`），返回键或上键收回、焦点回播放键。
+
+### 电视（`html[data-tv]`，`lib/tv.ts`）
+设置 › 外观 › 电视模式：`auto`（原生壳报告是电视才开）/ `on` / `off`。电视模式不是第四档窗口宽度，是另一套壳：
+
+- **视口。** 电视的 CSS 视口统一成 960 宽（原生壳开 wide viewport，网页把 meta viewport 改成 `width=960`），
+  1080p / 4K、密度 1.5 / 2 / 3 的电视排出来一样大。版面按 960×540 画。
+- **壳。** 没有侧栏、面板、播放条；左边 `TvRail`（收起只露 38px 图标列，焦点进来展开成 248px 面板、压暗内容），
+  顶上 `TvToolbar`（滚动后浮现的栏目名 + 右上角「正在播放」胶囊）。内容区 `pl-[116px] pr-12`。首页顶上是 `TvHero`。
+- **焦点 = 墨白反相。** 按钮、链接、选项拿到焦点整颗铺成 `--ink`、字换成 `--ground`、放大 1.06；里面的字靠
+  `--tv-inv-*` 把 `--ink` 系列翻过来（舞台上取这首歌的色相）。青柠的主操作保留青柠，外加一圈 `--ground` 缝 + 一圈 `--ink` 环、放大 1.08。
+  封面卡放大 `.cover-frame` 加环；`.song-row` 整行反相；兜底是一圈 3px 墨色描边。电视上不出 tooltip。
+- **方向键（`lib/spatialNav.ts`）。** 几何找最近；左右只认同一条光束里的；书架 `[data-nav-shelf]` 左对齐；
+  `[data-nav-group]` 记住上次停的位置、`[data-nav-preferred]` 优先；导航条 `[data-nav-enter="x"]` 只能横着进；
+  `[data-nav-row]` 歌曲行按右进行内按钮；控件自己要方向键时（滑块、菜单、文本框）让路；走到头轻推一下（`.tv-bump-*`）。
+  属性全表在 `spatialNav.ts` 文件头。
+- **返回键。** 焦点所在的组件先拿（`n1ko:back` 事件）→ 菜单 → 对话框 → 全屏播放器 → 页面：
+  详情页后退，一级页先回导航条再回首页，首页再按一次退出。
+- **深色。** 电视上第一次打开替用户换成深色（只换一次）。系统 WebView 认不出 oklch()（Chrome < 111）时
+  `public/webview-check.js` 盖一层提示去更新 WebView——那种内核上整套 token 都不生效，不做降级配色。
 
 ## Elevation & Depth
 
@@ -345,6 +366,7 @@ v6 一度在全屏播放器里放过一张可切换的 three.js 悬浮黑胶（�
 | 空态 / 错误 / 加载 | `frontend/src/components/common/{EmptyState,ErrorState}.tsx` |
 | 详情头、封面卡 / 书架 / 网格 | `frontend/src/components/common/{DetailHero,CoverCard}.tsx` |
 | 按钮 | `frontend/src/components/ui/button.tsx` |
+| 电视模式（检测、方向键导航、导航条、首页头条、播放器部件） | `frontend/src/lib/{tv,spatialNav}.ts`、`frontend/src/components/tv/`、原生 `frontend/android/app/src/main/java/cn/baogutang/musicstreampro/TvModePlugin.java` |
 | 方向合同 / 产品真相 | `.impeccable/surfaces/frontend-src.md`、`PRODUCT.md` |
 
 本文取代 `docs/redesign/v5/DESIGN.md`（后者保留作历史，不再维护）。
