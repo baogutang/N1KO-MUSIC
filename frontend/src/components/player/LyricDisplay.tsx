@@ -43,6 +43,8 @@ interface LyricDisplayProps {
   currentTimeSec?: number
   /** 是否紧凑模式（全屏播放器用大字，侧边栏用小字）*/
   variant?: 'fullscreen' | 'panel'
+  /** 全屏时字号是设置值的几倍（默认 1.4）。电视的歌词栏窄，用 1 倍左右 */
+  fontScale?: number
   className?: string
 }
 
@@ -50,6 +52,7 @@ export const LyricDisplay = memo(function LyricDisplay({
   lines,
   currentTimeSec: externalTime,
   variant = 'fullscreen',
+  fontScale = 1.4,
   className,
 }: LyricDisplayProps) {
   const { t } = useT()
@@ -190,7 +193,7 @@ export const LyricDisplay = memo(function LyricDisplay({
       <div className={cn(
         variant === 'fullscreen' ? 'flex flex-col gap-[0.55em] px-2' : 'space-y-3 px-4'
       )}
-        style={variant === 'fullscreen' ? { fontSize: `${Math.min(44, Math.round(lyricsFontSize * 1.4))}px` } : undefined}
+        style={variant === 'fullscreen' ? { fontSize: `${Math.min(44, Math.round(lyricsFontSize * fontScale))}px` } : undefined}
       >
         {lines.map((line, index) => (
           <LyricRow

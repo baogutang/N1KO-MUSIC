@@ -19,6 +19,7 @@ import {
 import { syncNotes } from './services/notes'
 import { useSyncStore } from './store/syncStore'
 import { installWindowDrag } from '@/lib/windowDrag'
+import { tvDeviceKnownNow, whenTvDeviceKnown } from '@/lib/tv'
 
 // 清掉旧版每 30 秒新增一条、从不回收的推荐缓存键：已被撑满配额的用户
 // 加载一次即可自愈。（persist 适配器本身也会在写入失败时回收，此处是提前腾空间。）
@@ -59,8 +60,15 @@ void Promise.all([initListeningHistory(), whenSyncStoreReady()]).then(() => {
   void syncNotes().catch(() => {})
 })
 
+/**
+ * 装好后第一次在电视上启动：原生壳还没回答「这是不是电视」，先等它一下（lib/tv，最多 800ms，
+ * 开屏动画还在放）。不等的话首帧是手机布局，答案一到整个外壳再换一遍。之后的启动读缓存，不等。
+ */
+let tvKnown = tvDeviceKnownNow()
+const tvDeviceKnown = whenTvDeviceKnown().then(() => { tvKnown = true })
+
 function bothStoresHydrated() {
-  return useServerStore.persist.hasHydrated() && useSettingsStore.persist.hasHydrated()
+  return useServerStore.persist.hasHydrated() && useSettingsStore.persist.hasHydrated() && tvKnown
 }
 
 /**
@@ -80,6 +88,7 @@ function Bootstrap({ children }: { children: React.ReactNode }) {
     }
     const unsub1 = useServerStore.persist.onFinishHydration(tryReady)
     const unsub2 = useSettingsStore.persist.onFinishHydration(tryReady)
+    void tvDeviceKnown.then(tryReady)
     tryReady()
     return () => {
       unsub1()

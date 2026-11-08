@@ -27,6 +27,10 @@ export const STORAGE_KEYS = {
   pluginDisclaimers: 'n1ko-plugin-disclaimers-confirmed',
   /** v6：封面取色结果（房间的光），完全可重建 */
   artLight: 'msp-art-light',
+  /** 原生壳报的「这台是电视」（'1' / '0'）。启动时同步读，首帧就是电视布局；theme-preflash.js 里有同一个键名 */
+  tvDevice: 'msp-tv-device',
+  /** 电视上第一次打开时已经替用户换成深色（只换一次，之后听用户的） */
+  tvThemeDefaulted: 'msp-tv-theme-defaulted',
 } as const
 
 /**

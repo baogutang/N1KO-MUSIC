@@ -13,6 +13,7 @@
 
 import { Suspense, lazy, useState, useEffect, useRef, useCallback } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { isTvModeActive } from '@/lib/tv'
 import { usePlayerStore } from '@/store/playerStore'
 import { useCoverUrl } from '@/hooks/useCoverUrl'
 import { markCoverLoaded } from '@/components/common/CoverImage'
@@ -133,7 +134,9 @@ export function FullscreenPlayerOverlay() {
              焦点仍在浮层里，Tab 照常进入按钮，Esc 照常收起 */
           onOpenAutoFocus={e => {
             e.preventDefault()
-            contentRef.current?.focus({ preventScroll: true })
+            // 电视上焦点直接落在播放键（data-tv-autofocus）：遥控器没有 Tab，落在浮层本身就得先按一下才看得见焦点
+            const tvTarget = isTvModeActive() ? contentRef.current?.querySelector<HTMLElement>('[data-tv-autofocus]') : null
+            ;(tvTarget ?? contentRef.current)?.focus({ preventScroll: true })
           }}
         >
           <DialogPrimitive.Title className="sr-only">{t('player.nowPlaying')}</DialogPrimitive.Title>

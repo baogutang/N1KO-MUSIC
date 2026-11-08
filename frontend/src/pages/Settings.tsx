@@ -24,6 +24,7 @@ import {
   type AudioQuality,
   type CoverShape,
   type CardMode,
+  type TvModeSetting,
 } from '@/store/settingsStore'
 import { createAdapter, getAdapter, hasAdapter } from '@/api'
 import { useLibraryScan } from '@/hooks/useServerQueries'
@@ -300,7 +301,7 @@ export default function Settings() {
   const setVolume = usePlayerStore(s => s.setVolume)
   const {
     apiPreferServer, apiAuthToken,
-    coverRemoteTemplate, coverLoadAlbum, coverLoadArtist, coverShape, playerCardMode,
+    coverRemoteTemplate, coverLoadAlbum, coverLoadArtist, coverShape, playerCardMode, tvMode,
     lyricsRemoteTemplate, lyricsConfirmTemplate, lyricsUseRemote, lyricsPreferRemote, lyricsFontSize,
     songDetailTemplate, songDetailPathReplace,
     translateTargetLang, translateType,
@@ -309,7 +310,7 @@ export default function Settings() {
     playbackRate, smoothTransitions, preloadNext, autoContinueQueue,
     notificationActions, seekStepSeconds, resumeAfterInterruption, musicBrainzEnabled,
     setApiPreferServer, setApiAuthToken,
-    setCoverRemoteTemplate, setCoverLoadAlbum, setCoverLoadArtist, setCoverShape, setPlayerCardMode,
+    setCoverRemoteTemplate, setCoverLoadAlbum, setCoverLoadArtist, setCoverShape, setPlayerCardMode, setTvMode,
     setLyricsRemoteTemplate, setLyricsConfirmTemplate, setLyricsUseRemote, setLyricsPreferRemote, setLyricsFontSize,
     setSongDetailTemplate, setSongDetailPathReplace,
     setTranslateTargetLang, setTranslateType,
@@ -573,6 +574,18 @@ export default function Settings() {
                 { value: 'auto', label: t('settings.cardMode.auto') },
                 { value: 'always', label: t('settings.cardMode.always') },
                 { value: 'off', label: t('settings.cardMode.off') },
+              ]}
+            />
+          </Row>
+          <Row name={t('settings.tvMode.name')} desc={t('settings.tvMode.desc')}>
+            <Segmented
+              label={t('settings.tvMode.name')}
+              value={tvMode}
+              onChange={(v) => setTvMode(v as TvModeSetting)}
+              options={[
+                { value: 'auto', label: t('settings.tvMode.auto') },
+                { value: 'on', label: t('settings.tvMode.on') },
+                { value: 'off', label: t('settings.tvMode.off') },
               ]}
             />
           </Row>

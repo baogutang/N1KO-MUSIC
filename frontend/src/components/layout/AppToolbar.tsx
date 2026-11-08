@@ -35,6 +35,8 @@ import { useT } from '@/i18n'
 import { MORE_NAV } from './navItems'
 import { sectionKeyFor } from './sections'
 import { useShellLayout } from './useShellLayout'
+import { useTvMode } from '@/lib/tv'
+import { TvToolbar } from '@/components/tv/TvToolbar'
 
 const toolBtn =
   'press-pop grid h-9 w-9 flex-none place-items-center rounded-pill text-ink-2 ' +
@@ -117,7 +119,15 @@ function MoreMenu() {
   )
 }
 
-export function AppToolbar({ scrolled, titled, children }: { scrolled: boolean; titled: boolean; children?: ReactNode }) {
+type ToolbarProps = { scrolled: boolean; titled: boolean; children?: ReactNode }
+
+/** 电视模式换一条只有栏目名和「正在播放」的工具栏（两个组件，免得 hooks 随模式切换而增减） */
+export function AppToolbar(props: ToolbarProps) {
+  const tv = useTvMode()
+  return tv ? <TvToolbar {...props} /> : <ShellToolbar {...props} />
+}
+
+function ShellToolbar({ scrolled, titled, children }: ToolbarProps) {
   const { t } = useT()
   const navigate = useNavigate()
   const { pathname } = useLocation()

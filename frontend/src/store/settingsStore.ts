@@ -18,6 +18,9 @@ export type CoverShape = 'square' | 'circle'
 /** 横屏卡片模式：auto = iPad / 手机横过来时；always = 电脑上的横屏窗口也用；off = 不用 */
 export type CardMode = 'auto' | 'always' | 'off'
 
+/** 电视模式：auto 跟着设备走（Android TV / Google TV 上自动打开），on / off 强制 */
+export type TvModeSetting = 'auto' | 'on' | 'off'
+
 /** 音频质量 */
 export type AudioQuality = 'lossless' | 'high' | 'medium' | 'low'
 
@@ -68,6 +71,9 @@ interface SettingsState {
   /** 横屏时正在播放换成一叠大封面（CardStage） */
   playerCardMode: CardMode
   setPlayerCardMode: (mode: CardMode) => void
+  /** 电视模式（遥控器布局）：auto 在电视上自动打开，on / off 强制（lib/tv） */
+  tvMode: TvModeSetting
+  setTvMode: (mode: TvModeSetting) => void
 
   // --- 歌词设置 ---
   /** 自定义歌词 API 模板，如 https://api.example.com/lyrics?artist={artist}&title={title} */
@@ -191,6 +197,7 @@ export const useSettingsStore = create<SettingsState>()(
       coverLoadArtist: true,
       coverShape: 'square',
       playerCardMode: 'auto',
+      tvMode: 'auto',
       lyricsRemoteTemplate: '',
       lyricsConfirmTemplate: '',
       lyricsUseRemote: false,
@@ -236,6 +243,7 @@ export const useSettingsStore = create<SettingsState>()(
       setCoverLoadArtist: (v) => set({ coverLoadArtist: v }),
       setCoverShape: (s) => set({ coverShape: s }),
       setPlayerCardMode: (mode) => set({ playerCardMode: mode }),
+      setTvMode: (mode) => set({ tvMode: mode }),
       setLyricsRemoteTemplate: (t) => set({ lyricsRemoteTemplate: t }),
       setLyricsConfirmTemplate: (t) => set({ lyricsConfirmTemplate: t }),
       setLyricsUseRemote: (v) => set({ lyricsUseRemote: v }),

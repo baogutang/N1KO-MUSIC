@@ -31,6 +31,7 @@ import { findAdapterFor } from '@/api'
 import type { Playlist } from '@/api/types'
 import { playAllInOrder, playAllShuffled } from '@/utils/playActions'
 import { useT } from '@/i18n'
+import { useTvMode } from '@/lib/tv'
 import { useTasteStore } from '@/store/tasteStore'
 import { filterRecommendable, applyRecommendationConstraints, useRecommendationConstraints, type RecommendationConstraints } from '@/services/recommendationFilters'
 
@@ -145,6 +146,7 @@ export function GroupStateRows({
  */
 export function MergedDailyRail() {
   const { t } = useT()
+  const tv = useTvMode()
   const retry = useRetrySourceGroup()
   const { good: sourceGroups, loading, failed, auth } = splitGroups(useSourceRecommendSongs())
   // 主库（NAS 等）没有 recommendSongs 这个插件扩展，它的那一份来自本地画像。
@@ -193,7 +195,8 @@ export function MergedDailyRail() {
           </Link>
         </div>
       </div>
-      <SongList songs={merged} showCover showAlbum showIndex sourceBadge />
+      {/* 电视上只摆前六首：遥控器一格一格往下走，十几行歌之后才轮到书架太远了；其余在推荐页 */}
+      <SongList songs={merged} showCover showAlbum showIndex sourceBadge maxRows={tv ? 6 : undefined} />
       <GroupStateRows failed={failed} loading={loading} auth={auth} showLoading={!merged.length} retry={retry} family="recommend-songs" />
     </section>
   )

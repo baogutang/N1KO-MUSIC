@@ -31,10 +31,14 @@ import type { Album } from '@/api/types'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { useT } from '@/i18n'
 import { detailPath } from '@/utils/detailPath'
+import { useTvMode } from '@/lib/tv'
+import { TvHero } from '@/components/tv/TvHero'
 
 export default function HomePage() {
   const { t } = useT()
   const navigate = useNavigate()
+  // 电视：大标题和精选专辑换成一块头条（在放的歌，或者本期专辑），焦点一进来就在「继续播放」上
+  const tv = useTvMode()
 
   const { data: recentAlbums, isLoading: albumsLoading } = useRecentAlbums(20)
   /* 只要画像（给热门歌手排序用）。推荐列表本身由 MergedDailyRail 负责，
@@ -72,16 +76,18 @@ export default function HomePage() {
 
   return (
     <div className="pt-2 regular:pt-4">
+      {tv && <TvHero album={heroAlbum ?? undefined} albumCoverUrl={heroCoverUrl} albumMeta={heroMeta} />}
+
       {/* ============ 页头：大标题 + 随便听听 ============ */}
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      {!tv && <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] text-ink regular:text-[44px]">
           {t('nav.home')}
         </h1>
         <ShuffleAllAction />
-      </header>
+      </header>}
 
       {/* ============ 精选专辑：大封面 + 大标题，直接落在外壳的光里 ============ */}
-      {heroAlbum && (
+      {heroAlbum && !tv && (
         /*
           整块可点（进专辑页），内层「播放整张」自管按键。
           外层的 Enter/Space 只在焦点落在本体上时才算（e.target === currentTarget），

@@ -10,6 +10,9 @@
  * 只是同一棵树换几块导航，页面、滚动位置、播放状态都不动。
  *
  * 底部播放区浮在内容上方：内容滚到它下面去，滚动区底部留出它的实际高度（--dock-h，实测）。
+ *
+ * 电视模式（lib/tv）是第四种：左边一条可展开的导航条（TvRail）盖在内容上，没有底部播放条和面板，
+ * 正在播放挂在工具栏右上角。内容让出导航条和电视的安全边（四周 5%）。
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -24,6 +27,8 @@ import { ShortcutSheet } from './ShortcutSheet'
 import { ConnectionBanner } from './ConnectionBanner'
 import { UpdatePrompt } from './UpdatePrompt'
 import { useShellLayout } from './useShellLayout'
+import { TvRail } from '@/components/tv/TvRail'
+import { useTvMode } from '@/lib/tv'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ResumeOffer } from '@/components/player/ResumeOffer'
 import { QueueDrawer } from '@/components/player/QueueDrawer'
@@ -79,7 +84,10 @@ export default function MainLayout() {
   // 房间的光：当前封面的色相写进根元素的 --art-*
   useArtLight()
 
-  const { wc, sidebarVisible, panelVisible } = useShellLayout()
+  const { wc, sidebarVisible: shellSidebar, panelVisible: shellPanel } = useShellLayout()
+  const tv = useTvMode()
+  const sidebarVisible = shellSidebar && !tv
+  const panelVisible = shellPanel && !tv
   const { sheetOpen, closeSheet } = useShellShortcuts(panelVisible)
   const location = useLocation()
 
@@ -112,13 +120,18 @@ export default function MainLayout() {
   useLayoutEffect(() => {
     const dock = dockRef.current
     const shell = shellRef.current
-    if (!dock || !shell) return
+    if (!shell) return
+    // 电视没有底部播放区
+    if (!dock) {
+      shell.style.setProperty('--dock-h', '0px')
+      return
+    }
     const apply = () => shell.style.setProperty('--dock-h', `${Math.ceil(dock.getBoundingClientRect().height)}px`)
     apply()
     const ro = new ResizeObserver(apply)
     ro.observe(dock)
     return () => ro.disconnect()
-  }, [wc])
+  }, [wc, tv])
 
   /* 空闲时预取常用路由与全屏播放器 */
   useEffect(() => {
@@ -140,7 +153,7 @@ export default function MainLayout() {
     return () => globalThis.clearTimeout(timer)
   }, [])
 
-  const leftColumn = sidebarVisible ? 'minmax(244px, 272px)' : wc === 'regular' ? '96px' : '0px'
+  const leftColumn = tv ? '0px' : sidebarVisible ? 'minmax(244px, 272px)' : wc === 'regular' ? '96px' : '0px'
   const rightColumn = showPanel ? 'minmax(312px, 356px)' : '0px'
 
   return (
@@ -150,14 +163,15 @@ export default function MainLayout() {
       <CommandPalette />
       <div
         ref={shellRef}
-        data-window-class={wc}
+        data-window-class={tv ? 'tv' : wc}
         className="relative isolate grid h-full overflow-clip text-ink"
         style={{ gridTemplateColumns: `${leftColumn} minmax(0, 1fr) ${rightColumn}`, gridTemplateRows: 'minmax(0, 1fr)' }}
       >
         {/* 房间的光：铺在最底下，侧栏与面板是半透明的，光从它们底下透出来 */}
         <ArtWash className="absolute inset-x-0 top-0 -z-10 h-[96vh]" />
         {sidebarVisible && <AppSidebar />}
-        {wc === 'regular' && <AppRail />}
+        {wc === 'regular' && !tv && <AppRail />}
+        {tv && <TvRail />}
 
         <div className="relative col-start-2 row-start-1 min-h-0 min-w-0">
           <main
@@ -165,7 +179,7 @@ export default function MainLayout() {
             onScroll={syncScroll}
             // 只纵向滚：哪一块意外撑宽了，也不让整页在触屏上跟着左右晃（横向书架有自己的滚动容器）
             className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain"
-            style={{ paddingBottom: 'calc(var(--dock-h, 96px) + 24px)' }}
+            style={{ paddingBottom: tv ? 27 : 'calc(var(--dock-h, 96px) + 24px)' }}
           >
             <AppToolbar scrolled={scrolled} titled={titled}>
               <UpdatePrompt />
@@ -174,8 +188,8 @@ export default function MainLayout() {
               <ResumeOffer />
             </AppToolbar>
             <div
-              className="mx-auto w-full max-w-[1240px] px-4 regular:px-6 wide:px-8"
-              style={wc === 'compact' ? {
+              className={tv ? 'w-full pl-[116px] pr-12' : 'mx-auto w-full max-w-[1240px] px-4 regular:px-6 wide:px-8'}
+              style={wc === 'compact' && !tv ? {
                 paddingLeft: 'max(16px, env(safe-area-inset-left))',
                 paddingRight: 'max(16px, env(safe-area-inset-right))',
               } : undefined}
@@ -191,26 +205,28 @@ export default function MainLayout() {
 
         {showPanel && <NowPlayingPanel />}
 
-        {/* 底部播放区：横跨内容列与面板列，浮在内容上方。
-            绝对定位在网格区域里（网格项的包含块就是它的网格区域），不用 sticky：
-            外壳本来就不滚动，sticky 只会多出一层要由 WebKit 在界面进程里摆位置的吸附层 */}
-        <div
-          ref={dockRef}
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-40 col-start-2 col-end-[-1] row-start-1 flex flex-col gap-2 px-2 regular:px-3"
-          style={{
-            paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
-            paddingRight: 'calc(env(safe-area-inset-right) + 8px)',
-            paddingLeft: wc === 'compact' ? 'calc(env(safe-area-inset-left) + 8px)' : undefined,
-          }}
-        >
-          {/* 底部的一层渐隐：内容滚到玻璃胶囊底下时仍然看得见，但不抢字 */}
+        {!tv && (
+          /* 底部播放区：横跨内容列与面板列，浮在内容上方。
+              绝对定位在网格区域里（网格项的包含块就是它的网格区域），不用 sticky：
+              外壳本来就不滚动，sticky 只会多出一层要由 WebKit 在界面进程里摆位置的吸附层 */
           <div
-            aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+32px)] bg-gradient-to-t from-ground via-ground/80 to-ground/0"
-          />
-          <PlayerBar wc={wc} />
-          {wc === 'compact' && <TabBar />}
-        </div>
+            ref={dockRef}
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-40 col-start-2 col-end-[-1] row-start-1 flex flex-col gap-2 px-2 regular:px-3"
+            style={{
+              paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
+              paddingRight: 'calc(env(safe-area-inset-right) + 8px)',
+              paddingLeft: wc === 'compact' ? 'calc(env(safe-area-inset-left) + 8px)' : undefined,
+            }}
+          >
+            {/* 底部的一层渐隐：内容滚到玻璃胶囊底下时仍然看得见，但不抢字 */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-x-0 bottom-0 -z-10 h-[calc(100%+32px)] bg-gradient-to-t from-ground via-ground/80 to-ground/0"
+            />
+            <PlayerBar wc={wc} />
+            {wc === 'compact' && <TabBar />}
+          </div>
+        )}
 
         <FullscreenPlayerOverlay />
         <Toaster />

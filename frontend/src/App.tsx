@@ -4,6 +4,7 @@ import { useThemeStore } from './store/themeStore'
 import { useServerStore } from './store/serverStore'
 import { useT } from '@/i18n'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
+import { TvModeEffects } from './components/tv/TvModeEffects'
 import { CircleNotch } from '@phosphor-icons/react'
 import {
   MainLayoutPage,
@@ -86,6 +87,8 @@ export default function App() {
     <ErrorBoundary>
       {/* v7 起 startTransition 与 relativeSplatPath 已是默认行为，future 开关随之移除 */}
       <BrowserRouter>
+        {/* 电视模式：方向键导航、换页落焦点、返回键规则；登录页也要能用遥控器，所以挂在路由外面 */}
+        <TvModeEffects />
         <Suspense fallback={<RouteLoading />}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />

@@ -6,6 +6,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:banner="@drawable/tv_banner"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
@@ -15,9 +16,14 @@
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
             android:exported="true">
+            <!--
+                LEANBACK_LAUNCHER：出现在 Android TV / Google TV 的桌面上（横幅是 application 的 android:banner）。
+                网页那一侧按 TvModePlugin 的回答换成遥控器布局（src/lib/tv.ts）。
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
 
             <!--
@@ -41,6 +47,13 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
     </application>
+
+    <!--
+        电视没有触屏：不声明的话应用商店（和部分电视的安装器）会认为它「需要触屏」，在电视上把它藏起来。
+        leanback 同理写成非必需：手机、平板照样能装。
+    -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <!-- Permissions -->
 

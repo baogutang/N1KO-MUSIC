@@ -1255,3 +1255,368 @@ body {
   from { opacity: 1; transform: scale(1); }
   to { opacity: 0.6; transform: scale(1.5); }
 }
+
+/* ===================================================
+   电视模式（html[data-tv]，lib/tv）：遥控器的焦点就是指针，必须隔着三米也一眼看见。
+   焦点是墨白反相：按钮整颗铺成墨色（深色主题下是白），字换成底色，放大一点；
+   青柠的主操作保留青柠、外加一圈环；封面卡放大加环；歌曲行整行反相。
+   这一节在所有 @layer 之后，选择器也更具体，盖得过 hover / aria-pressed 之类的 utility。
+   =================================================== */
+:root {
+  /* 反相块里面的字：浅色主题反相成深底，里面用暗色主题的墨；深色主题反过来 */
+  --tv-inv-ink: 96.6% 0.005 262;
+  --tv-inv-ink-2: 81% 0.011 262;
+  --tv-inv-ink-3: 70% 0.013 262;
+  --tv-inv-leaf: 89.5% 0.2 127;
+}
+
+:root[data-theme='dark'] {
+  --tv-inv-ink: 19% 0.016 262;
+  --tv-inv-ink-2: 38% 0.016 262;
+  --tv-inv-ink-3: 48% 0.014 262;
+  --tv-inv-leaf: 47% 0.155 142;
+}
+
+/* 舞台永远是暗场：反相成白底，里面的字取这首歌的色相 */
+.stage {
+  --tv-inv-ink: 21% 0.03 var(--art-h);
+  --tv-inv-ink-2: 36% 0.03 var(--art-h);
+  --tv-inv-ink-3: 46% 0.03 var(--art-h);
+  --tv-inv-leaf: 45% 0.15 142;
+}
+
+html[data-tv] :focus,
+html[data-tv] :focus-visible {
+  outline: none;
+}
+
+/* 电视上没有指针可拖，滚动条只是屏幕边上一道多余的线：焦点走到哪，页面就滚到哪 */
+html[data-tv] * {
+  scrollbar-width: none;
+}
+
+html[data-tv] ::-webkit-scrollbar {
+  display: none;
+}
+
+/* 兜底：任何拿到焦点的东西至少有一圈墨色环（开关、滑块、输入框都走这一条）。
+   :where 压低特异性：下面封面卡、歌曲行、播放键各自的样式要盖得过它 */
+html[data-tv] :where(a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])):focus:not([data-tv-focus]) {
+  outline: 3px solid oklch(var(--ink));
+  outline-offset: 3px;
+}
+
+/* 没有自己过渡的按钮补一段：焦点挪过来时放大是「长」出来的，不是跳出来的（:where 零特异性，组件自己的过渡照样优先） */
+:where(html[data-tv]) :where(button, a[href], [role='button']) {
+  transition: scale var(--dur-2) var(--ease-out), background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+/* 按钮与链接：墨白反相 */
+html[data-tv] :is(button, a[href], [role='button'], [role='tab'], [role='radio'], [role='menuitem']):focus:not([data-tv-card], .song-row, .play-key, [role='switch'], [role='slider'], [data-tv-focus], [class~='bg-lime']) {
+  outline: none;
+  background-color: oklch(var(--ink));
+  color: oklch(var(--ground));
+  scale: 1.06;
+  box-shadow: 0 8px 18px -8px oklch(var(--shade) / 0.6);
+}
+
+/* 分区标题右边的纯文字链接（「查看全部」）：两边补一截内边距、圆成胶囊，反相时不是贴着字切下来的一块方块。
+   外边距抵掉内边距，字的位置不动 */
+html[data-tv] .section-head .more {
+  margin-inline: -10px;
+  padding-inline: 10px;
+  border-radius: 999px;
+}
+
+html[data-tv] :is(button, a[href], [role='button'], [role='tab'], [role='radio'], [role='menuitem']):focus:not([data-tv-card], .song-row, .play-key, [role='switch'], [role='slider'], [data-tv-focus], [class~='bg-lime']) *,
+html[data-tv] .song-row:focus > * {
+  --ink: var(--tv-inv-ink);
+  --ink-2: var(--tv-inv-ink-2);
+  --ink-3: var(--tv-inv-ink-3);
+  --leaf: var(--tv-inv-leaf);
+}
+
+/* 青柠的主操作（播放键、主按钮）：保留青柠，外面一圈底色缝 + 一圈墨色环 */
+html[data-tv] :is(.play-key, [class~='bg-lime']):focus {
+  outline: none;
+  background-color: oklch(var(--lime-deep));
+  scale: 1.08;
+  box-shadow: 0 0 0 3px oklch(var(--ground)), 0 0 0 6px oklch(var(--ink)), 0 10px 22px -10px oklch(var(--shade) / 0.6);
+}
+
+/* 封面卡：封面放大、加环；图注亮一档 */
+html[data-tv] [data-tv-card] .cover-frame {
+  transition: scale var(--dur-3) var(--ease-snappy), box-shadow var(--dur-2) var(--ease-out);
+}
+
+html[data-tv] [data-tv-card]:focus {
+  outline: none;
+}
+
+html[data-tv] [data-tv-card]:focus .cover-frame {
+  scale: 1.06;
+  box-shadow: 0 0 0 3px oklch(var(--ground)), 0 0 0 6px oklch(var(--ink)), 0 18px 32px -14px oklch(var(--shade) / 0.6);
+}
+
+html[data-tv] [data-tv-card]:focus p {
+  color: oklch(var(--ink));
+}
+
+/* 歌曲行：整行反相，行里的字跟着换（上面那条把 --ink 系列换掉了） */
+html[data-tv] .song-row:focus {
+  outline: none;
+  background-color: oklch(var(--ink));
+}
+
+/* 行里那些「悬停才出现」的按钮（更多、未收藏的心）：电视上没有悬停，焦点进了这一行就亮出来，
+   不然遥控器永远走不到它们（看不见的元素焦点引擎不认）。序号位置上的播放键在电视上是跳过的，不亮 */
+html[data-tv] .song-row:focus-within :is(button, a):not([data-nav-skip]) {
+  opacity: 1;
+}
+
+/* 行里的歌手 / 专辑是贴着字的链接：反相时四周补一圈同色、圆角，不是贴字切下来的方块。
+   自带圆角的（心、更多是圆形）只补那一圈，形状照旧 */
+html[data-tv] .song-row :is(button, a):not([data-nav-skip]):focus {
+  box-shadow: 0 0 0 4px oklch(var(--ink));
+}
+
+html[data-tv] .song-row :is(button, a):not([data-nav-skip], [class*='rounded']):focus {
+  border-radius: 6px;
+}
+
+/* 菜单：电视只有 540 高，歌曲的「更多」菜单放不下；限高、里面滚（焦点项由 TvModeEffects 滚进来） */
+html[data-tv] [role='menu'] {
+  max-height: var(--radix-dropdown-menu-content-available-height, 100vh);
+  overflow-y: auto;
+}
+
+/* 走到头：往那个方向轻推一下又回来（只动 translate，和焦点放大的 scale 叠得起来） */
+html[data-tv] .tv-bump-left { animation: tv-bump-left 0.28s var(--ease-out); }
+html[data-tv] .tv-bump-right { animation: tv-bump-right 0.28s var(--ease-out); }
+html[data-tv] .tv-bump-up { animation: tv-bump-up 0.28s var(--ease-out); }
+html[data-tv] .tv-bump-down { animation: tv-bump-down 0.28s var(--ease-out); }
+@keyframes tv-bump-left { 40% { translate: -6px 0; } }
+@keyframes tv-bump-right { 40% { translate: 6px 0; } }
+@keyframes tv-bump-up { 40% { translate: 0 -5px; } }
+@keyframes tv-bump-down { 40% { translate: 0 5px; } }
+
+/* ---------- 左侧导航条（components/tv/TvRail） ----------
+   平时只露一列图标；焦点一进来就展开成一块面板，文字滑出来，内容区压暗。
+   当前页是一片淡墨底，焦点是一整片墨色（反相），二者可以是同一项 */
+.tv-rail {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 45;
+  width: 248px;
+  pointer-events: none;
+}
+
+.tv-rail-dim {
+  position: fixed;
+  inset: 0;
+  background: oklch(var(--ground) / 0.55);
+  opacity: 0;
+  transition: opacity var(--dur-3) var(--ease-out);
+}
+
+.tv-rail-bg {
+  position: absolute;
+  inset: 0;
+  background: oklch(var(--surface-2) / 0.96);
+  box-shadow: 15px 0 40px -15px oklch(var(--shade) / 0.5), inset -1px 0 0 oklch(var(--hair));
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: opacity var(--dur-3) var(--ease-out), transform 0.42s var(--ease-snappy);
+}
+
+.tv-rail:focus-within .tv-rail-dim,
+.tv-rail:focus-within .tv-rail-bg {
+  opacity: 1;
+  transform: none;
+}
+
+.tv-rail-logo {
+  position: absolute;
+  left: 48px;
+  top: 30px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  color: oklch(var(--ink));
+}
+
+.tv-rail-logo span {
+  font-weight: 450;
+  color: oklch(var(--ink-3));
+  opacity: 0;
+  transform: translateX(-5px);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-4) var(--ease-snappy);
+}
+
+.tv-rail:focus-within .tv-rail-logo span {
+  opacity: 1;
+  transform: none;
+  transition-delay: 60ms;
+}
+
+.tv-rail-list {
+  position: absolute;
+  left: 48px;
+  top: 92px;
+  bottom: 27px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.tv-rail-item {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 13px;
+  width: 170px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: oklch(var(--ink-3));
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  /* 收着的时候只有图标那一截能点：不然右边透明的那一大截会挡住内容区的点击（接了鼠标的电视） */
+  pointer-events: none;
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+.tv-rail-item svg {
+  flex: none;
+  pointer-events: auto;
+}
+
+.tv-rail:focus-within .tv-rail-item {
+  pointer-events: auto;
+}
+
+.tv-rail-item.is-last {
+  margin-top: auto;
+}
+
+.tv-rail-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 999px;
+  background: transparent;
+  clip-path: inset(0 132px 0 0 round 19px);
+  transition: clip-path 0.36s var(--ease-snappy), background-color var(--dur-2) var(--ease-out);
+}
+
+.tv-rail:focus-within .tv-rail-item::before {
+  clip-path: inset(0 0 0 0 round 19px);
+}
+
+.tv-rail-item .lbl {
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity var(--dur-2) var(--ease-out), transform 0.36s var(--ease-snappy);
+}
+
+.tv-rail:focus-within .tv-rail-item .lbl {
+  opacity: 1;
+  transform: none;
+  transition-delay: 40ms;
+}
+
+.tv-rail-item[aria-current='page'] {
+  color: oklch(var(--ink));
+}
+
+.tv-rail-item[aria-current='page']::before {
+  background: oklch(var(--ink) / 0.08);
+}
+
+html[data-tv] .tv-rail-item:focus {
+  color: oklch(var(--ground));
+}
+
+html[data-tv] .tv-rail-item:focus::before {
+  background: oklch(var(--ink));
+}
+
+/* ---------- 正在播放（FullscreenPlayer 的 tv 排法） ----------
+   八秒没按键，进度和控制淡下去，只剩封面和歌词；按任意键回来。
+   焦点挪到「接下来」那一排，它从底下升起来，控制让开 */
+.tv-np-chrome {
+  transition: opacity var(--dur-5) var(--ease-out), transform 0.6s var(--ease-smooth);
+}
+
+.tv-np.is-idle .tv-np-chrome,
+.tv-np.upnext-open .tv-np-chrome {
+  opacity: 0;
+  transform: translateY(15px);
+}
+
+.tv-np-upnext {
+  transform: translateY(100%);
+  transition: transform 0.46s var(--ease-smooth);
+}
+
+.tv-np.upnext-open .tv-np-upnext {
+  transform: none;
+}
+
+.tv-np.upnext-open .tv-np-lyrics {
+  opacity: 0.35;
+}
+
+/* 进度条拿到焦点：一条淡墨底的胶囊，轨道加粗、拇指出现（左右键快退快进） */
+html[data-tv] .tv-progress:focus {
+  background-color: oklch(var(--ink) / 0.08);
+}
+
+.tv-progress .tv-progress-rail {
+  transition: transform var(--dur-2) var(--ease-snappy);
+}
+
+.tv-progress:focus .tv-progress-rail {
+  transform: scaleY(1.6);
+}
+
+.tv-progress .tv-progress-thumb {
+  scale: 0;
+  transition: scale var(--dur-2) var(--ease-snappy);
+}
+
+.tv-progress:focus .tv-progress-thumb {
+  scale: 1;
+  box-shadow: 0 0 0 3px oklch(var(--ink) / 0.35);
+}
+
+/* 控制键里开着的那几颗（随机、循环）底下一个小点 */
+.tv-ctl[aria-pressed='true']::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-tv] *,
+  html[data-tv] *::before,
+  html[data-tv] *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

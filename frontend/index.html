@@ -31,6 +31,8 @@
     <meta name="description" content="N1KO MUSIC - 现代化音乐流媒体客户端，支持 Navidrome/Subsonic/Jellyfin/Emby" />
     <title>N1KO MUSIC</title>
     <script src="./theme-preflash.js"></script>
+    <!-- 系统 WebView 认不出 oklch() 时（老电视盒子）提示升级；新内核上第一行就返回 -->
+    <script src="./webview-check.js"></script>
   </head>
   <body>
     <div id="root"></div>

@@ -164,8 +164,9 @@ export default function Library() {
         )}
       </header>
 
-      {/* 分段控件：只有「歌曲」留在本页（托起的那一格），其余三格是去处 */}
-      <div className="mt-6 inline-flex max-w-full overflow-x-auto rounded-pill bg-ink/[0.06] p-1 scrollbar-hide">
+      {/* 分段控件：只有「歌曲」留在本页（托起的那一格），其余三格是去处。
+          data-nav-options：遥控器从外面进来落在当前这一格上（lib/spatialNav） */}
+      <div className="mt-6 inline-flex max-w-full overflow-x-auto rounded-pill bg-ink/[0.06] p-1 scrollbar-hide" data-nav-options="">
         {tabs.map(tab => {
           const here = !tab.to
           return (

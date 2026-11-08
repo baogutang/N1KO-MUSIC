@@ -7,6 +7,8 @@
  *   landscape  横着的窗口（iPad 横屏、Duo 横握、桌面）：左列是你操作的东西，右边一直摆着歌词
  *   cards      iPad / 手机横过来时（设置「横屏卡片模式」）：一叠大封面左右甩着挑歌，底下一条正在播放（CardStage）
  *   tabletop   Duo 半折悬停（useDevicePosture）：折痕以上是歌词，以下是封面带与控制
+ *   tv         电视模式（lib/tv）：左边大封面、右边歌词，底下一条进度和一排控制，焦点一开始就在播放键上；
+ *              再往下是藏着的「接下来」那一排；八秒不按键控制淡出（components/tv/TvPlayerParts）
  *
  * 舞台：背景是 StageField（封面取色的光场，换歌时新颜色从封面向外漫开），永远是暗场、白字，
  * 与外壳的亮暗主题无关（.stage 在这一层重新声明了中性 token）。
@@ -29,7 +31,7 @@ import {
   Repeat, RepeatOnce, Shuffle, ArrowsDownUp,
   SpeakerHigh, SpeakerX, SpeakerLow,
   CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork, Moon,
-  ListPlus, FileText,
+  ListPlus, FileText, Queue,
 } from '@phosphor-icons/react'
 import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
 import { cn } from '@/lib/utils'
@@ -74,9 +76,11 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
+import { useTvMode } from '@/lib/tv'
+import { useTvIdle, TvUpNextRow } from '@/components/tv/TvPlayerParts'
 
 
-type Layout = 'stack' | 'portrait' | 'landscape' | 'cards' | 'tabletop'
+type Layout = 'stack' | 'portrait' | 'landscape' | 'cards' | 'tabletop' | 'tv'
 type PaneView = 'lyrics' | 'queue'
 
 const LANDSCAPE_QUERY = '(orientation: landscape)'
@@ -111,7 +115,7 @@ const chipBtn =
  * 进度行：独立订阅 currentTime / duration / buffered，播放中只有它重渲染。
  * 拖动期间只更新本地值，松手才 seek；松手后 500ms 内忽略回传的旧位置。
  */
-const FSProgressBar = memo(function FSProgressBar() {
+const FSProgressBar = memo(function FSProgressBar({ tv = false }: { tv?: boolean }) {
   const { t } = useT()
   const currentTime = usePlayerStore(s => s.currentTime)
   const duration = usePlayerStore(s => s.duration)
@@ -188,7 +192,8 @@ const FSProgressBar = memo(function FSProgressBar() {
     document.addEventListener('pointercancel', onUp)
   }, [clearDragListeners])
 
-  // 键盘 seek：←/→ ±5s
+  // 键盘 seek：←/→ ±5s（电视遥控器一下 10 秒：按着不放也走得快）
+  const step = tv ? 10 : 5
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
     e.preventDefault()
@@ -196,30 +201,54 @@ const FSProgressBar = memo(function FSProgressBar() {
       0,
       Math.min(
         safeDurationRef.current,
-        usePlayerStore.getState().currentTime + (e.key === 'ArrowRight' ? 5 : -5)
+        usePlayerStore.getState().currentTime + (e.key === 'ArrowRight' ? step : -step)
       )
     )
     releaseGuardRef.current = { target, until: performance.now() + 500 }
     seekHowl(target)
-  }, [])
+  }, [step])
+
+  const sliderProps = {
+    onKeyDown: handleKeyDown,
+    role: 'slider',
+    tabIndex: 0,
+    'aria-label': t('player.progress'),
+    'aria-valuemin': 0,
+    'aria-valuemax': Math.round(safeDuration),
+    'aria-valuenow': Math.round(displayTime),
+    // 读屏要听到「2:22，共 3:11」，不是裸秒数
+    'aria-valuetext': t('player.progressAt', {
+      current: formatDuration(Math.round(displayTime)),
+      total: formatDuration(Math.round(safeDuration)),
+    }),
+  } as const
+
+  /* 电视：整条（时间 + 轨道 + 时间）就是一个焦点，拿到焦点时铺一片淡墨底、轨道加粗、拇指出现（index.css 的 .tv-progress）。
+     没有指针，不挂拖动 */
+  if (tv) {
+    return (
+      <div {...sliderProps} data-tv-focus="progress" className="tv-progress flex h-9 w-full items-center gap-3.5 rounded-pill px-3 text-[12px] font-medium text-ink-3">
+        <span className="num w-10 flex-none">{formatDuration(displayTime)}</span>
+        <div className="relative flex h-3.5 flex-1 items-center">
+          <div className="tv-progress-rail relative h-1 w-full overflow-hidden rounded-pill bg-ink/20">
+            <div className="absolute inset-0 origin-left bg-lime" style={{ transform: `scaleX(${playRatio})` }} />
+          </div>
+          <div
+            className="tv-progress-thumb pointer-events-none absolute top-0 -ml-[7px] h-3.5 w-3.5 rounded-pill bg-ink"
+            style={{ left: `${playRatio * 100}%` }}
+          />
+        </div>
+        <span className="num w-10 flex-none text-right">{formatDuration(safeDuration)}</span>
+      </div>
+    )
+  }
 
   return (
     <div className="flex w-full flex-col gap-1.5">
       <div
         ref={progressRef}
         onPointerDown={handlePointerDown}
-        onKeyDown={handleKeyDown}
-        role="slider"
-        tabIndex={0}
-        aria-label={t('player.progress')}
-        aria-valuemin={0}
-        aria-valuemax={Math.round(safeDuration)}
-        aria-valuenow={Math.round(displayTime)}
-        // 读屏要听到「2:22，共 3:11」，不是裸秒数
-        aria-valuetext={t('player.progressAt', {
-          current: formatDuration(Math.round(displayTime)),
-          total: formatDuration(Math.round(safeDuration)),
-        })}
+        {...sliderProps}
         className="group/track relative flex h-6 w-full cursor-pointer touch-none select-none items-center"
       >
         {/* 按住时轨道加粗：手指底下的东西要看得见 */}
@@ -310,12 +339,30 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const cardMode = useSettingsStore(s => s.playerCardMode)
   // 横过来就是挑歌的姿势：iPad / 手机横屏自动换成卡片叠；设置里可以关掉，或者让电脑上的横屏窗口也用
   const cards = landscape && tallEnough && (cardMode === 'always' || (cardMode === 'auto' && (isNativePlatform || coarse)))
-  const layout: Layout = posture === 'tabletop' ? 'tabletop'
+  const tv = useTvMode()
+  const layout: Layout = tv ? 'tv'
+    : posture === 'tabletop' ? 'tabletop'
     : wc === 'compact' ? 'stack'
       : landscape ? (cards ? 'cards' : 'landscape')
         : 'portrait'
   /** 卡片叠在看哪一栏；每次打开从「接下来」（正在放的那张）开始 */
   const [cardTab, setCardTab] = useState<CardTab>('queue')
+
+  /* 电视：焦点在哪一块（决定底下那行提示，以及「接下来」那一排升不升起来）；放着歌没人按键时控制淡出 */
+  const [tvZone, setTvZone] = useState<'progress' | 'controls' | 'upnext'>('controls')
+  const tvIdle = useTvIdle(tv && isPlaying && tvZone !== 'upnext')
+  const tvPlayRef = useRef<HTMLButtonElement>(null)
+  const focusTvPlay = useCallback(() => tvPlayRef.current?.focus(), [])
+  // 打开播放页：焦点落在播放键上（浮层 onOpenAutoFocus 先把焦点给了浮层本身，这里等它之后再接过来）
+  useEffect(() => {
+    if (!tv) return
+    const id = window.setTimeout(() => {
+      const root = tvPlayRef.current?.closest('[data-fullscreen-player]')
+      const active = document.activeElement
+      if (!root || !active || !root.contains(active) || active === root) tvPlayRef.current?.focus()
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [tv])
 
   /**
    * 封面 / 歌词 / 接下来 的选择要留住：浮层关闭后就卸载，
@@ -751,6 +798,77 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     </div>
   )
 
+  /** 「更多」菜单：顶栏的圆钮和电视控制排最右那颗共用 */
+  const moreMenuContent = (
+    <DropdownMenuContent align="end" className="w-64">
+      <div className="mb-1 px-3 py-2.5 hairline-b">
+        <p className="truncate text-sm font-semibold">{currentSong.title}</p>
+        <p className="mt-0.5 truncate text-xs text-ink-3">{currentSong.artist}</p>
+      </div>
+      {currentSong.artistId && (
+        <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2">
+          <MicrophoneStage size={16} />
+          {t('player.viewArtist', { name: currentSong.artist })}
+        </DropdownMenuItem>
+      )}
+      {currentSong.albumId && (
+        <DropdownMenuItem onClick={handleNavigateAlbum} className="gap-2">
+          <VinylRecord size={16} />
+          {t('player.viewAlbum', { name: currentSong.album })}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onClick={() => { toggleFullscreen(); navigate(detailPath('songs', currentSong.id, currentSong.serverId), { state: { song: currentSong } }) }}
+        className="gap-2"
+      >
+        <FileText size={16} />
+        {t('player.viewSongDetail')}
+      </DropdownMenuItem>
+      {capabilities.shares && currentSong.serverId === activeServerId && (
+        <DropdownMenuItem onClick={() => setShareSong(currentSong)} className="gap-2">
+          <ShareNetwork size={16} />
+          {t('share.link')}
+        </DropdownMenuItem>
+      )}
+      {/* 睡眠定时最常用的场景是「躺着用手机听着睡」：手机上的入口在这里 */}
+      <DropdownMenuItem onSelect={e => { e.preventDefault(); setSleepOpen(true) }} className="gap-2">
+        <Moon size={16} />
+        {t('player.sleepTimer')}
+      </DropdownMenuItem>
+      {!tv && (
+        <DropdownMenuItem onClick={() => { toggleFullscreen(); setCarMode(true) }} className="gap-2">
+          <SteeringWheel size={16} />
+          {t('player.carMode')}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuSeparator />
+      <div className="space-y-1.5 px-3 py-2">
+        <p className="mb-1.5 text-[12.5px] font-medium text-ink-3">{t('player.songInfo')}</p>
+        {currentSong.duration > 0 && (
+          <div className="flex items-center gap-2 text-xs text-ink-2">
+            <Clock size={12} className="flex-shrink-0" />
+            <span className="num">{formatDuration(currentSong.duration)}</span>
+          </div>
+        )}
+        {currentSong.bitRate && (
+          <div className="flex items-center gap-2 text-xs text-ink-2">
+            <MusicNote size={12} className="flex-shrink-0" />
+            <span className="num">{currentSong.bitRate} kbps</span>
+            {fileType && <span className="text-ink-3">{fileType}</span>}
+          </div>
+        )}
+        {currentSong.year && (
+          <div className="flex items-center gap-2 text-xs text-ink-2">
+            <Info size={12} className="flex-shrink-0" />
+            <span className="num">{t('song.year', { year: currentSong.year })}</span>
+            {currentSong.genre && <span className="text-ink-3">{currentSong.genre}</span>}
+          </div>
+        )}
+      </div>
+    </DropdownMenuContent>
+  )
+
   const header = (
     <header
       className="relative z-10 flex flex-none items-center gap-2 px-4 pb-2 regular:px-6"
@@ -784,71 +902,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
             <DotsThree size={22} weight="bold" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64">
-          <div className="mb-1 px-3 py-2.5 hairline-b">
-            <p className="truncate text-sm font-semibold">{currentSong.title}</p>
-            <p className="mt-0.5 truncate text-xs text-ink-3">{currentSong.artist}</p>
-          </div>
-          {currentSong.artistId && (
-            <DropdownMenuItem onClick={handleNavigateArtist} className="gap-2">
-              <MicrophoneStage size={16} />
-              {t('player.viewArtist', { name: currentSong.artist })}
-            </DropdownMenuItem>
-          )}
-          {currentSong.albumId && (
-            <DropdownMenuItem onClick={handleNavigateAlbum} className="gap-2">
-              <VinylRecord size={16} />
-              {t('player.viewAlbum', { name: currentSong.album })}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => { toggleFullscreen(); navigate(detailPath('songs', currentSong.id, currentSong.serverId), { state: { song: currentSong } }) }}
-            className="gap-2"
-          >
-            <FileText size={16} />
-            {t('player.viewSongDetail')}
-          </DropdownMenuItem>
-          {capabilities.shares && currentSong.serverId === activeServerId && (
-            <DropdownMenuItem onClick={() => setShareSong(currentSong)} className="gap-2">
-              <ShareNetwork size={16} />
-              {t('share.link')}
-            </DropdownMenuItem>
-          )}
-          {/* 睡眠定时最常用的场景是「躺着用手机听着睡」：手机上的入口在这里 */}
-          <DropdownMenuItem onSelect={e => { e.preventDefault(); setSleepOpen(true) }} className="gap-2">
-            <Moon size={16} />
-            {t('player.sleepTimer')}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => { toggleFullscreen(); setCarMode(true) }} className="gap-2">
-            <SteeringWheel size={16} />
-            {t('player.carMode')}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <div className="space-y-1.5 px-3 py-2">
-            <p className="mb-1.5 text-[12.5px] font-medium text-ink-3">{t('player.songInfo')}</p>
-            {currentSong.duration > 0 && (
-              <div className="flex items-center gap-2 text-xs text-ink-2">
-                <Clock size={12} className="flex-shrink-0" />
-                <span className="num">{formatDuration(currentSong.duration)}</span>
-              </div>
-            )}
-            {currentSong.bitRate && (
-              <div className="flex items-center gap-2 text-xs text-ink-2">
-                <MusicNote size={12} className="flex-shrink-0" />
-                <span className="num">{currentSong.bitRate} kbps</span>
-                {fileType && <span className="text-ink-3">{fileType}</span>}
-              </div>
-            )}
-            {currentSong.year && (
-              <div className="flex items-center gap-2 text-xs text-ink-2">
-                <Info size={12} className="flex-shrink-0" />
-                <span className="num">{t('song.year', { year: currentSong.year })}</span>
-                {currentSong.genre && <span className="text-ink-3">{currentSong.genre}</span>}
-              </div>
-            )}
-          </div>
-        </DropdownMenuContent>
+        {moreMenuContent}
       </DropdownMenu>
     </header>
   )
@@ -946,6 +1000,126 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         {pane}
       </div>
     )
+  } else if (layout === 'tv') {
+    /* 电视：三米外看。左边大封面、右边歌名和歌词；底下一条进度、一排控制、一行按键提示；
+       再往下藏着「接下来」那一排（焦点走下去它才升起来）。歌名只是字，不做成按钮——遥控器上它会变成一个多余的焦点 */
+    const pos = order.indexOf(queueIndex)
+    const upcoming: number[] = []
+    if (pos >= 0) {
+      for (let k = 1; k < order.length && upcoming.length < 12; k++) {
+        if (pos + k >= order.length && repeatMode !== 'all') break
+        upcoming.push(order[(pos + k) % order.length])
+      }
+    }
+    const tvCtl = cn(softBtnBase, 'tv-ctl relative h-[46px] w-[46px] text-ink aria-pressed:text-leaf')
+    const hint = tvZone === 'progress' ? t('tv.hint.progress') : tvZone === 'upnext' ? t('tv.hint.upNext') : t('tv.hint.controls')
+    body = (
+      <div className={cn('tv-np relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden', tvIdle && 'is-idle', tvZone === 'upnext' && 'upnext-open')}>
+        <div className="flex min-h-0 flex-1 gap-10 px-[80px] pt-[52px]">
+          {coverStage('mx-0 h-[280px] w-[280px]')}
+          <div className="flex min-w-0 flex-1 flex-col" data-fs-reveal="">
+            <motion.p
+              key={currentSong.id}
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={SPRING_SNAPPY}
+              className="truncate font-display text-[33px] font-bold leading-[1.08] tracking-[-0.03em] text-ink"
+            >
+              {spaceCJK(currentSong.title)}
+            </motion.p>
+            <p className="mt-1.5 truncate text-[15px] font-medium text-ink-2">
+              {spaceCJK(currentSong.artist)}{currentSong.album ? ` · ${spaceCJK(currentSong.album)}` : ''}
+            </p>
+            <div className="tv-np-lyrics relative mt-4 min-h-0 flex-1 transition-opacity duration-4" data-nav-skip="">
+              {lyrics ? (
+                <LyricDisplay lines={lyrics.lines} variant="fullscreen" fontScale={0.95} className="h-full pb-[120px] pt-1" />
+              ) : (
+                <p className={cn('pt-6 text-[15px] font-medium', lyricsQuery.isLoading ? 'animate-pulse text-ink-3' : 'text-ink-3')}>
+                  {lyricsQuery.isLoading ? t('lyrics.loading') : lyricsQuery.isError ? t('lyrics.loadFailed') : t('lyrics.none')}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 「接下来」升起来时控制是淡出的：焦点引擎别再把它们当候选（往上那一下由 TvUpNextRow 接住）。
+            淡出写在里面那一层：外面这层的入场动画会在行内样式里留下 opacity: 1，盖过 .is-idle */}
+        <div className="flex-none" data-fs-reveal="" data-nav-skip={tvZone === 'upnext' ? '' : undefined}>
+          <div className="tv-np-chrome px-[68px] pb-[22px] pt-4">
+            <div onFocus={() => setTvZone('progress')}>
+              <FSProgressBar tv />
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-4" onFocus={() => setTvZone('controls')}>
+              <button onClick={toggleShuffle} className={tvCtl} aria-label={t('player.shuffle')} aria-pressed={shuffle}>
+                {shuffle ? <Shuffle size={21} weight="bold" /> : <ArrowsDownUp size={21} />}
+              </button>
+              <button onClick={handlePrev} className={tvCtl} aria-label={t('player.previous')}>
+                <SkipBack size={22} weight="fill" />
+              </button>
+              <button
+                ref={tvPlayRef}
+                onClick={handleTogglePlay}
+                className={cn('play-key mx-1 h-[62px] w-[62px]', isPlaying && streamBuffering && 'animate-buffering')}
+                aria-label={playLabel}
+                aria-busy={isPlaying && streamBuffering}
+                data-tv-autofocus=""
+              >
+                <PlayPauseGlyph playing={isPlaying} size={27} />
+              </button>
+              <button onClick={handleNext} className={tvCtl} aria-label={t('player.next')}>
+                <SkipForward size={22} weight="fill" />
+              </button>
+              <button
+                onClick={cycleRepeatMode}
+                className={tvCtl}
+                aria-label={t('player.repeatWithMode', { mode: repeatLabel })}
+                aria-pressed={repeatMode !== 'none'}
+              >
+                {repeatMode === 'one' ? <RepeatOnce size={21} weight="bold" /> : <Repeat size={21} weight={repeatMode === 'all' ? 'bold' : 'regular'} />}
+              </button>
+              <span className="w-4" aria-hidden="true" />
+              {canFavoriteCurrent && (
+                <button
+                  onClick={handleToggleStar}
+                  disabled={toggleStar.isPending}
+                  aria-label={currentSong.starred ? t('player.unfavorite') : t('player.favorite')}
+                  aria-pressed={!!currentSong.starred}
+                  className={cn(tvCtl, 'aria-pressed:text-ink')}
+                >
+                  <HeartGlyph on={!!currentSong.starred} size={21} />
+                </button>
+              )}
+              <button
+                onClick={e => e.currentTarget.closest('.tv-np')?.querySelector<HTMLElement>('.tv-np-upnext [data-tv-card]')?.focus()}
+                className={tvCtl}
+                aria-label={t('shell.upNext')}
+                disabled={upcoming.length === 0}
+              >
+                <Queue size={21} />
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button aria-label={t('action.more')} className={tvCtl}>
+                    <DotsThree size={22} weight="bold" />
+                  </button>
+                </DropdownMenuTrigger>
+                {moreMenuContent}
+              </DropdownMenu>
+            </div>
+            <p className="mt-3.5 text-center text-[11.5px] font-medium text-ink-3" aria-hidden="true">{hint}</p>
+          </div>
+        </div>
+
+        <div onFocus={() => setTvZone('upnext')}>
+          <TvUpNextRow
+            queue={queue}
+            upcoming={upcoming}
+            onPick={qi => { jumpToIndex(qi); focusTvPlay() }}
+            onBack={focusTvPlay}
+          />
+        </div>
+      </div>
+    )
   } else {
     /* 悬停：上半是歌词（含顶栏），下半是封面带与控制；两半各占一半，正好对齐折痕 */
     const pos = order.indexOf(queueIndex)
@@ -1015,7 +1189,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.24, ease: EASE_OUT }}
       >
-        {layout !== 'tabletop' && header}
+        {layout !== 'tabletop' && layout !== 'tv' && header}
         {body}
       </motion.div>
 

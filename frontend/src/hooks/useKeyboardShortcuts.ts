@@ -3,6 +3,7 @@ import { usePlayerStore } from '@/store/playerStore'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { computeSeekTarget, SEEK_STEP_SEC } from '@/utils/seekMath'
 import { notePauseReason } from '@/lib/playbackTrail'
+import { isTvModeActive } from '@/lib/tv'
 
 /** 不应被快捷键抢走按键的文本录入类型 */
 const TEXT_INPUT_TYPES = new Set([
@@ -117,6 +118,8 @@ export function useKeyboardShortcuts() {
        */
       if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !meta && !e.shiftKey && !e.altKey) {
         if (arrowsBelongToFocusedControl(e.target)) return
+        // 电视上方向键是挪焦点的（lib/spatialNav），快退快进在播放页的进度条上
+        if (isTvModeActive()) return
         if (!store.currentSong) return
         e.preventDefault()
         const delta = e.key === 'ArrowRight' ? SEEK_STEP_SEC : -SEEK_STEP_SEC

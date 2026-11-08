@@ -12,7 +12,9 @@
   try {
     var s = JSON.parse(localStorage.getItem('msp-theme-store') || '{}')
     var st = (s && s.state) || {}
-    var d = st.theme === 'dark' || (st.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+    // 电视上还没选过明暗时默认深色（与 TvModeEffects 一致；键名同 storageKeys 的 tvDevice）
+    var tv = !st.theme && localStorage.getItem('msp-tv-device') === '1'
+    var d = tv || st.theme === 'dark' || (st.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
     document.documentElement.classList.toggle('dark', d)
     document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light')
     document.documentElement.style.background = BG[d ? 'dark' : 'light']

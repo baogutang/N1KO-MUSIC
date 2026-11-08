@@ -14,6 +14,8 @@ import { usePlayerStore } from '@/store/playerStore'
 import { useThemeStore } from '@/store/themeStore'
 import { isNativePlatform } from '@/lib/platform'
 import { initNativeNetwork } from '@/lib/network'
+import { isTvModeActive } from '@/lib/tv'
+import { closeOpenMenu, dispatchBackToFocused, handleTvBack } from '@/components/tv/TvModeEffects'
 
 export function useNativeAppIntegration() {
   const navigate = useNavigate()
@@ -50,6 +52,10 @@ export function useNativeAppIntegration() {
         player0.setCarMode(false)
         return
       }
+      // 焦点所在的组件先拿（全屏播放器「接下来」那一排：返回是收起那一排）
+      if (isTvModeActive() && dispatchBackToFocused()) return
+      // 菜单开着先关菜单：它不是 dialog，以前会直接漏到「后退一页」
+      if (closeOpenMenu()) return
       // 有对话框打开时返回键应当先关对话框，而不是直接退到上一页
       const dialog = document.querySelector('[role="dialog"], [role="alertdialog"]')
       if (dialog) {
@@ -65,6 +71,11 @@ export function useNativeAppIntegration() {
       }
       if (player.isQueueOpen) {
         player.setQueueOpen(false)
+        return
+      }
+      // 电视：详情页后退；一级页先回导航条，再回首页，首页再按一次才退出
+      if (isTvModeActive()) {
+        handleTvBack(navigate)
         return
       }
       if (window.location.pathname !== '/') {

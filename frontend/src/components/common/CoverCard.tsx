@@ -65,6 +65,8 @@ export function CoverCard({
       role="button"
       tabIndex={0}
       aria-label={ariaLabel}
+      // 电视焦点样式认这个：封面放大加一圈环，不做按钮那种反相（index.css 的电视一节）
+      data-tv-card=""
       className={cn(
         'group min-w-0 cursor-pointer rounded-md',
         centered && 'w-full text-center',
@@ -149,10 +151,14 @@ export function CoverShelf({ children, className }: { children: ReactNode; class
   }
 
   const arrow = 'press-pop glass absolute top-[38%] z-raised hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-pill text-ink [@media(hover:hover)]:grid'
+  /* 遥控器上书架是一排（data-nav-group）：上下换排时回到这一排上次停的那张；
+     data-nav-shelf 让焦点卡左对齐。两端翻页键给鼠标用，焦点引擎跳过它们（data-nav-skip） */
   return (
     <div className="group/shelf relative">
       <div
         ref={railRef}
+        data-nav-group="shelf"
+        data-nav-shelf=""
         className={cn(
           'flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain scrollbar-hide -mx-4 scroll-px-4 px-4 pb-5 pt-2 regular:-mx-6 regular:scroll-px-6 regular:px-6 wide:-mx-8 wide:scroll-px-8 wide:px-8',
           '[&>*]:w-[148px] [&>*]:flex-none [&>*]:snap-start regular:[&>*]:w-[164px] wide:[&>*]:w-[180px]',
@@ -166,6 +172,8 @@ export function CoverShelf({ children, className }: { children: ReactNode; class
           type="button"
           onClick={() => page(-1)}
           aria-label={t('action.previousPage')}
+          data-nav-skip=""
+          tabIndex={-1}
           className={cn(arrow, '-left-3 opacity-0 transition-opacity duration-3 group-hover/shelf:opacity-100 focus-visible:opacity-100')}
         >
           <CaretLeft size={18} weight="bold" />
@@ -176,6 +184,8 @@ export function CoverShelf({ children, className }: { children: ReactNode; class
           type="button"
           onClick={() => page(1)}
           aria-label={t('action.nextPage')}
+          data-nav-skip=""
+          tabIndex={-1}
           className={cn(arrow, '-right-3 opacity-0 transition-opacity duration-3 group-hover/shelf:opacity-100 focus-visible:opacity-100')}
         >
           <CaretRight size={18} weight="bold" />
