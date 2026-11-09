@@ -26,7 +26,7 @@ import {
  * 白名单而不是黑名单：搜索结果、随机曲目、正在播放的人这类东西离线摆出来
  * 只会误导——它们的意义就在于「此刻」。
  */
-const CACHEABLE = new Set(['songs', 'albums', 'artists', 'playlists', 'starred', 'genres'])
+const CACHEABLE = new Set(['albums', 'artists', 'playlists', 'starred', 'genres'])
 
 /**
  * queryKey 的第一段是 serverKey()，第二段是类别。

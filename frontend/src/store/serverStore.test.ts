@@ -10,7 +10,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { MusicServerAdapter, ServerConfig, Song } from '@/api/types'
-import { clearAdapter, hasAdapter, hasAdapterFor, registerAdapter, setPrimary } from '@/api'
+import { clearAdapter, findAdapterFor, hasAdapter, hasAdapterFor, registerAdapter, setPrimary } from '@/api'
 import { usePlayerStore } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
 
@@ -132,8 +132,9 @@ describe('removeServer', () => {
 describe('updateServerUrl', () => {
   const OLD = 'http://192.168.1.3:5005'
   const NEXT = 'http://192.168.1.150:5005'
-  const FILE = `${OLD}/sata/音乐/a.flac`
-  const COVER = `${OLD}/sata/cover.jpg`
+  // WebDAV 的 id 是文件路径（保持服务器给的编码），不带主机
+  const FILE = '/sata/%E9%9F%B3%E4%B9%90/a.flac'
+  const COVER = '/sata/cover.jpg'
 
   function webdavReady() {
     const config = server(NAS, 'webdav')
@@ -152,17 +153,17 @@ describe('updateServerUrl', () => {
     })
     usePlayerStore.setState({
       queue: [
-        { ...song(FILE, NAS), path: FILE, coverArt: COVER },
+        { ...song(FILE, NAS), path: '/sata/音乐/a.flac', coverArt: COVER },
         song('b', WY),
       ],
       queueIndex: 0,
-      currentSong: { ...song(FILE, NAS), path: FILE, coverArt: COVER },
-      history: [song(`${OLD}/old.mp3`, NAS)],
+      currentSong: { ...song(FILE, NAS), path: '/sata/音乐/a.flac', coverArt: COVER },
+      history: [song('/old.mp3', NAS)],
       isPlaying: true,
     })
   }
 
-  it('改 WebDAV 地址时换掉队列里的文件地址，并保持主库连着', () => {
+  it('改 WebDAV 地址时队列原样不动，新适配器按新地址取文件，主库保持连着', () => {
     webdavReady()
 
     expect(useServerStore.getState().updateServerUrl(NAS, `${NEXT}/`)).toBe(true)
@@ -170,14 +171,13 @@ describe('updateServerUrl', () => {
     const saved = useServerStore.getState().servers.find(item => item.id === NAS)
     expect(saved?.url).toBe(NEXT)
     expect(saved?.name).toBe('WebDAV - 192.168.1.150')
-    expect(usePlayerStore.getState().currentSong?.id).toBe(`${NEXT}/sata/音乐/a.flac`)
-    expect(usePlayerStore.getState().currentSong?.path).toBe(`${NEXT}/sata/音乐/a.flac`)
-    expect(usePlayerStore.getState().currentSong?.coverArt).toBe(`${NEXT}/sata/cover.jpg`)
-    expect(usePlayerStore.getState().queue.map(item => item.id)).toEqual([
-      `${NEXT}/sata/音乐/a.flac`,
-      'b',
-    ])
-    expect(usePlayerStore.getState().history[0]?.id).toBe(`${NEXT}/old.mp3`)
+    expect(usePlayerStore.getState().currentSong?.id).toBe(FILE)
+    expect(usePlayerStore.getState().queue.map(item => item.id)).toEqual([FILE, 'b'])
+    expect(usePlayerStore.getState().history[0]?.id).toBe('/old.mp3')
+    expect(findAdapterFor(NAS)?.getStreamUrl(FILE, 0, 'raw')).toBe(`${NEXT}${FILE}`)
+    expect(findAdapterFor(NAS)?.getCoverUrl(COVER)).toBe(`${NEXT}${COVER}`)
+    // 合并前的测试版把整条地址当 id，也能接着播
+    expect(findAdapterFor(NAS)?.getStreamUrl(`${OLD}${FILE}`, 0, 'raw')).toBe(`${NEXT}${FILE}`)
     expect(useServerStore.getState().activeServerId).toBe(NAS)
     expect(hasAdapter()).toBe(true)
     expect(hasAdapterFor(WY)).toBe(true)

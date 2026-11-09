@@ -1,8 +1,9 @@
 /**
- * 安卓壳上的 WebDAV 通道。
+ * 安卓壳上的 WebDAV 通道（android/…/WebDavPlugin.java）。
  *
- * WebView 里的 fetch 会被 CORS 挡住，<audio> 也不能自己加 Authorization。
- * 目录列举走原生插件；真正播歌时由 WebViewClient 按已配置的账号补上认证头。
+ * WebView 里的 fetch 会被 CORS 挡住，<audio> 和 <img> 也不能自己加 Authorization。
+ * 列目录、读歌词和标签走这个插件；播歌走 configure 返回的 127.0.0.1 口子，
+ * 原生在那里补上账号再把文件转回来。账号只活在原生内存里，每台 WebDAV 各一份。
  */
 
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core'
@@ -23,11 +24,11 @@ export interface FlacEvent {
 }
 
 export interface WebDavNativePlugin {
-  configure(options: { baseUrl: string; username: string; password: string }): Promise<void>
+  /** 记下这台 WebDAV 的账号。proxy 是播放口子的前缀，后面接 encodeURIComponent(文件地址) */
+  configure(options: { baseUrl: string; username: string; password: string }): Promise<{ proxy: string }>
   propfind(options: { url: string; depth: number | 'infinity' }): Promise<{ status: number; body: string }>
   getText(options: { url: string }): Promise<{ status: number; body: string }>
   getRange(options: { url: string; length?: number }): Promise<{ status: number; body: string }>
-  streamUrl(options: { target: string }): Promise<{ url: string }>
   openFlac(options: { target: string; volume: number; rate: number }): Promise<{ generation: number }>
   resumeFlac(): Promise<void>
   pauseFlac(): Promise<void>

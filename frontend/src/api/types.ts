@@ -421,6 +421,11 @@ export interface MusicServerAdapter {
 
   // --- 封面 ---
   getCoverUrl(id: string, size?: number): string
+  /**
+   * 给原生插件（锁屏 / 通知栏）用的封面地址。WebView 里的封面地址原生取不到时才实现，
+   * 例如要补账号的 WebDAV；没有实现就用 getCoverUrl。
+   */
+  getNativeCoverUrl?(id: string, size?: number): string
 
   // --- 流派 ---
   getGenres(signal?: AbortSignal): Promise<Array<{ name: string; songCount: number; albumCount: number }>>

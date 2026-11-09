@@ -8,32 +8,61 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-/** 给网页里的 WebDAV 适配器列目录、读歌词。播歌不走这里。 */
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * 给网页里的 WebDAV 适配器列目录、读歌词和标签，并控制 FLAC 播放。
+ *
+ * Capacitor 的插件方法都排在同一条线程上。网络请求要是直接在那里跑，
+ * 扫曲库时读几千个文件头会把其他插件（通知栏、状态栏……）的调用全堵在后面，
+ * 网页那边开的并发也成了一个一个排队。所以联网的活都交给自己的线程池。
+ */
 @UnstableApi
 @CapacitorPlugin(name = "WebDav")
 public class WebDavPlugin extends Plugin {
+    private final ExecutorService network = Executors.newFixedThreadPool(6, runnable -> {
+        Thread thread = new Thread(runnable, "webdav-net");
+        thread.setDaemon(true);
+        return thread;
+    });
+
     @Override
     public void load() {
         WebDavFlacPlayer.setSink((event, data) -> notifyListeners(event, data));
     }
+
+    @Override
+    protected void handleOnDestroy() {
+        WebDavFlacPlayer.release();
+        network.shutdownNow();
+        super.handleOnDestroy();
+    }
+
     @PluginMethod
     public void configure(PluginCall call) {
         String base = call.getString("baseUrl");
         String username = call.getString("username");
         String password = call.getString("password");
         if (base == null || username == null || password == null) {
-            call.reject("缺少 WebDAV 连接信息");
+            call.reject("missing WebDAV address or account");
             return;
         }
-        WebDavAuth.configure(base, username, password);
-        call.resolve();
+        try {
+            WebDavAuth.configure(base, username, password);
+            JSObject ret = new JSObject();
+            ret.put("proxy", WebDavProxy.prefix());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject(e.getMessage() == null ? "configure failed" : e.getMessage());
+        }
     }
 
     @PluginMethod
     public void propfind(PluginCall call) {
         String url = call.getString("url");
         if (url == null) {
-            call.reject("缺少目录地址");
+            call.reject("missing url");
             return;
         }
         String depth = call.getString("depth");
@@ -41,89 +70,54 @@ public class WebDavPlugin extends Plugin {
             Integer numeric = call.getInt("depth");
             depth = numeric == null ? "1" : String.valueOf(numeric);
         }
-        try {
-            WebDavAuth.HttpResult result = WebDavAuth.propfind(url, depth);
-            JSObject ret = new JSObject();
-            ret.put("status", result.status);
-            ret.put("body", result.body);
-            call.resolve(ret);
-        } catch (Exception e) {
-            call.reject(e.getMessage() == null ? "PROPFIND 失败" : e.getMessage());
-        }
+        String value = depth;
+        network.execute(() -> respond(call, () -> WebDavAuth.propfind(url, value)));
     }
 
     @PluginMethod
     public void getText(PluginCall call) {
         String url = call.getString("url");
         if (url == null) {
-            call.reject("缺少文件地址");
+            call.reject("missing url");
             return;
         }
-        try {
-            WebDavAuth.HttpResult result = WebDavAuth.getText(url);
-            JSObject ret = new JSObject();
-            ret.put("status", result.status);
-            ret.put("body", result.body);
-            call.resolve(ret);
-        } catch (Exception e) {
-            call.reject(e.getMessage() == null ? "读取失败" : e.getMessage());
-        }
+        network.execute(() -> respond(call, () -> WebDavAuth.getText(url)));
     }
 
     @PluginMethod
     public void getRange(PluginCall call) {
         String url = call.getString("url");
         if (url == null) {
-            call.reject("缺少文件地址");
+            call.reject("missing url");
             return;
         }
         Integer length = call.getInt("length");
-        try {
-            WebDavAuth.HttpResult result = WebDavAuth.getRange(url, length == null ? 65536 : length);
-            JSObject ret = new JSObject();
-            ret.put("status", result.status);
-            ret.put("body", result.body);
-            call.resolve(ret);
-        } catch (Exception e) {
-            call.reject(e.getMessage() == null ? "读取失败" : e.getMessage());
-        }
-    }
-
-    @PluginMethod
-    public void streamUrl(PluginCall call) {
-        String target = call.getString("target");
-        if (target == null || !WebDavAuth.allows(target)) {
-            call.reject("无法播放这个地址");
-            return;
-        }
-        try {
-            int port = WebDavProxy.ensureStarted();
-            String encoded = java.net.URLEncoder.encode(target, "UTF-8");
-            JSObject ret = new JSObject();
-            ret.put("url", "http://127.0.0.1:" + port + "/play?u=" + encoded);
-            call.resolve(ret);
-        } catch (Exception e) {
-            call.reject(e.getMessage() == null ? "播放通道没打开" : e.getMessage());
-        }
+        int want = length == null ? 65536 : length;
+        network.execute(() -> respond(call, () -> WebDavAuth.getRange(url, want)));
     }
 
     @PluginMethod
     public void openFlac(PluginCall call) {
         String target = call.getString("target");
         if (target == null || !WebDavAuth.allows(target)) {
-            call.reject("无法播放这个地址");
+            call.reject("not under a connected WebDAV");
             return;
         }
         if (getContext() == null) {
-            call.reject("播放器还没准备好");
+            call.reject("player not ready");
             return;
         }
         float volume = call.getDouble("volume", 1d).floatValue();
         float rate = call.getDouble("rate", 1d).floatValue();
-        int generation = WebDavFlacPlayer.open(getContext(), target, volume, rate);
-        JSObject ret = new JSObject();
-        ret.put("generation", generation);
-        call.resolve(ret);
+        try {
+            // ExoPlayer 也走 127.0.0.1：账号只在代取那一层加，跳转到别的主机时不会被带过去
+            int generation = WebDavFlacPlayer.open(getContext(), WebDavProxy.playUrl(target), volume, rate);
+            JSObject ret = new JSObject();
+            ret.put("generation", generation);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject(e.getMessage() == null ? "open failed" : e.getMessage());
+        }
     }
 
     @PluginMethod
@@ -161,5 +155,21 @@ public class WebDavPlugin extends Plugin {
     public void stopFlac(PluginCall call) {
         WebDavFlacPlayer.stop();
         call.resolve();
+    }
+
+    private interface Request {
+        WebDavAuth.HttpResult run() throws Exception;
+    }
+
+    private static void respond(PluginCall call, Request request) {
+        try {
+            WebDavAuth.HttpResult result = request.run();
+            JSObject ret = new JSObject();
+            ret.put("status", result.status);
+            ret.put("body", result.body);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject(e.getMessage() == null ? "request failed" : e.getMessage());
+        }
     }
 }

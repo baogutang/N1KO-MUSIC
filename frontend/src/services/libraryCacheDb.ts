@@ -144,38 +144,6 @@ export async function pruneCache(max = MAX_CACHE_ENTRIES): Promise<number> {
   }
 }
 
-/**
- * 把缓存里属于这台服务器的文件地址改到当前基址。
- * 列表可以继续拿来显示，不用整库重扫；外站封面不会被改掉。
- */
-export async function alignCacheForServer(
-  serverId: string,
-  align: (value: unknown) => { value: unknown; changed: boolean },
-): Promise<void> {
-  const db = await getDb()
-  if (!db) return
-  try {
-    const tx = db.transaction(STORE_NAME, 'readwrite')
-    const store = tx.objectStore(STORE_NAME)
-    const cursorRequest = store.openCursor()
-    await new Promise<void>((resolve, reject) => {
-      cursorRequest.onsuccess = () => {
-        const cursor = cursorRequest.result
-        if (!cursor) { resolve(); return }
-        const entry = cursor.value as CacheEntry
-        if (entry.serverId === serverId) {
-          const aligned = align(entry.value)
-          if (aligned.changed) cursor.update({ ...entry, value: aligned.value })
-        }
-        cursor.continue()
-      }
-      cursorRequest.onerror = () => reject(cursorRequest.error)
-    })
-  } catch {
-    // 改不了就留给 clearCacheForServer
-  }
-}
-
 /** 换服务器 / 退出登录时清掉该服务器的缓存，别让上一台的内容闪在新一台上 */
 export async function clearCacheForServer(serverId: string): Promise<void> {
   const db = await getDb()

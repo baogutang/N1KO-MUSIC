@@ -3,6 +3,10 @@
  *
  * 歌名、歌手、专辑优先用文件里的标签，其次用「歌手 - 歌名」这种文件名。
  * 两样都没有时，才用文件夹名兜底。
+ *
+ * 曲目 / 封面 / 歌词的 id 是文件在服务器上的路径（URL 的 pathname，保持服务器给的编码），
+ * 不带主机。NAS 换了 IP 或端口，只改服务器地址就行：队列、历史、歌单、缓存里的 id 都不用动，
+ * 用到时再拼上当前地址（fileUrlOf）。id 里也就不会带着局域网地址被分享、同步或发给歌词接口。
  */
 
 import type { AlbumDetail, ArtistDetail, Song } from '../types'
@@ -25,6 +29,9 @@ export interface DavEntry {
   collection: boolean
   size?: number
   contentType?: string
+  /** 服务器给的最后修改时间（毫秒），没有就是 undefined */
+  modified?: number
+  etag?: string
 }
 
 export interface WebDavFile {
@@ -33,17 +40,26 @@ export interface WebDavFile {
   /** 所在目录，带结尾斜杠 */
   directory: string
   size?: number
+  modified?: number
+  etag?: string
   tagTitle?: string
   tagArtist?: string
+  tagAlbumArtist?: string
   tagAlbum?: string
   tagTrack?: number
+  /** 从文件头算出的时长（秒） */
+  tagDuration?: number
+  /** 标签读过了（读不到也算），下次扫描文件没变就不再读 */
+  tagsRead?: boolean
 }
 
 export interface WebDavLibrary {
   songs: Song[]
   albums: AlbumDetail[]
   artists: ArtistDetail[]
-  /** 歌曲 URL → 同目录同名 .lrc */
+  /** 按修改时间从新到旧 */
+  recentAlbums: AlbumDetail[]
+  /** 曲目 id → 同目录同名 .lrc 的 id */
   lrcBySongId: Map<string, string>
 }
 
@@ -78,52 +94,31 @@ export function directoryUrl(baseOrDir: string): string {
   return baseOrDir.endsWith('/') ? baseOrDir : `${baseOrDir}/`
 }
 
+/** 文件地址 → id：只留路径，保持服务器给的编码（同一个文件永远是同一个 id） */
+export function idOf(fileUrl: string): string {
+  return new URL(fileUrl).pathname
+}
+
 /**
- * 曲目 id 就是文件地址。服务器换了 IP 之后，队列和缓存里还会留着旧主机。
- * 路径不动，只把主机换成当前这台，否则原生播放器会当成「不是这台服务器的文件」拒绝。
+ * id → 当前服务器上的地址。
+ * 也认旧版留下的完整地址（PR #38 合并前的测试版本把整条 URL 当 id），只换成当前的主机。
  */
-export function retargetFileUrl(fileUrl: string, base: string): string {
-  if (!fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) return fileUrl
-  let file: URL
-  let root: URL
-  try {
-    file = new URL(fileUrl)
-    root = new URL(base)
-  } catch {
-    return fileUrl
+export function fileUrlOf(base: string, id: string): string {
+  const origin = new URL(base).origin
+  if (/^https?:\/\//i.test(id)) {
+    const old = new URL(id)
+    return origin + id.slice(old.origin.length)
   }
-  if (file.origin === root.origin) return fileUrl
-  // 只换主机，路径原样留下。URL.toString() 会把「音乐」重新编码，
-  // 同一首歌就会变成另一个 id。
-  if (fileUrl.startsWith(file.origin)) return root.origin + fileUrl.slice(file.origin.length)
-  return fileUrl
+  return origin + (id.startsWith('/') ? id : `/${id}`)
 }
 
-/** 只替换指定旧基址，避免把别的网站的链接也改掉。 */
-export function rewriteFileBase(value: string, from: string, to: string): string {
-  if (!from || from === to || !value.startsWith(from)) return value
-  if (value === from) return to
-  const boundary = value.charAt(from.length)
-  if (boundary === '/' || boundary === '?' || boundary === '#') return to + value.slice(from.length)
-  return value
-}
-
-type WebDavSongFields = { id: string; path?: string; coverArt?: string }
-
-/** 这首歌属于这台 WebDAV 时，把文件地址对齐到当前服务器。封面若在别的网站上则不动。 */
-export function alignWebDavSong<T extends WebDavSongFields>(song: T, base: string): T {
-  if (!song.id.startsWith('http://') && !song.id.startsWith('https://')) return song
-  let oldOrigin = ''
+/** 给人看的路径（解码后），也是歌词 / 封面接口里的 {path} */
+export function displayPath(id: string): string {
   try {
-    oldOrigin = new URL(song.id).origin
+    return decodeURI(id)
   } catch {
-    return song
+    return id
   }
-  const id = retargetFileUrl(song.id, base)
-  const path = song.path?.startsWith(oldOrigin) ? retargetFileUrl(song.path, base) : song.path
-  const coverArt = song.coverArt?.startsWith(oldOrigin) ? retargetFileUrl(song.coverArt, base) : song.coverArt
-  if (id === song.id && path === song.path && coverArt === song.coverArt) return song
-  return { ...song, id, path, coverArt }
 }
 
 function pathKey(url: URL): string {
@@ -190,12 +185,16 @@ export function parsePropfind(xml: string, requestUrl: string): DavEntry[] {
     const name = tagText(block, 'displayname') || lastSegment(url)
     const length = Number(tagText(block, 'getcontentlength'))
     const contentType = tagText(block, 'getcontenttype') ?? undefined
+    const modified = Date.parse(tagText(block, 'getlastmodified') ?? '')
+    const etag = tagText(block, 'getetag') ?? undefined
     entries.push({
       url: collection ? directoryUrl(url) : url.replace(/\/$/, ''),
       name,
       collection,
       size: Number.isFinite(length) && length > 0 ? length : undefined,
       contentType: contentType || undefined,
+      modified: Number.isFinite(modified) ? modified : undefined,
+      etag: etag || undefined,
     })
   }
   return entries
@@ -229,11 +228,19 @@ function folderFallback(directory: string, rootDir: string): { artist: string; a
   return { artist, album }
 }
 
-const collator = new Intl.Collator('zh-CN')
+const collator = new Intl.Collator('zh-CN', { numeric: true })
+
+function dirOf(id: string): string {
+  return id.slice(0, id.lastIndexOf('/') + 1)
+}
 
 /**
  * 把扫到的音频文件收成歌曲、专辑、歌手。
  * root 是用户填的 WebDAV 根，用来判断「上一级是不是已经到根」。
+ * covers 是目录 → 封面文件地址，lrcs 是音频文件地址 → 同名 .lrc 地址。
+ *
+ * 专辑按「专辑歌手 + 专辑名」归组：合辑里每首歌的歌手不同，但专辑歌手（TPE2 / ALBUMARTIST）相同，
+ * 不这样分，一张合辑会被拆成十几张只有一首歌的专辑。没有专辑歌手时用歌曲自己的歌手。
  */
 export function buildLibrary(options: {
   serverId: string
@@ -243,97 +250,111 @@ export function buildLibrary(options: {
   lrcs: Map<string, string>
 }): WebDavLibrary {
   const rootDir = directoryUrl(options.root)
-  const byAlbum = new Map<string, WebDavFile[]>()
+  const songs: Song[] = []
+  const lrcBySongId = new Map<string, string>()
+  const modifiedBySong = new Map<string, number>()
+  const albumGroups = new Map<string, { albumArtist: string; songs: Song[] }>()
+
   for (const file of options.files) {
-    const list = byAlbum.get(file.directory) ?? []
-    list.push(file)
-    byAlbum.set(file.directory, list)
+    const named = parseAudioFilename(file.name)
+    const place = folderFallback(file.directory, rootDir)
+    const title = text(file.tagTitle) || named.title || '未命名'
+    const artist = text(file.tagArtist) || named.artist || place.artist
+    const albumArtist = text(file.tagAlbumArtist) || artist
+    const album = text(file.tagAlbum) || named.album || place.album
+    const cover = options.covers.get(file.directory)
+    const id = idOf(file.url)
+    const albumId = `webdav-album:${albumArtist}::${album}`
+    const song: Song = {
+      id,
+      title,
+      artist,
+      artistId: `webdav-artist:${artist}`,
+      album,
+      albumId,
+      coverArt: cover ? idOf(cover) : undefined,
+      duration: file.tagDuration && file.tagDuration > 0 ? Math.round(file.tagDuration) : 0,
+      size: file.size,
+      track: file.tagTrack || named.track,
+      suffix: file.name.split('.').pop()?.toLowerCase(),
+      path: displayPath(id),
+      serverId: options.serverId,
+    }
+    const lrc = options.lrcs.get(file.url)
+    if (lrc) lrcBySongId.set(id, idOf(lrc))
+    if (file.modified) modifiedBySong.set(id, file.modified)
+    songs.push(song)
+    const group = albumGroups.get(albumId)
+    if (group) group.songs.push(song)
+    else albumGroups.set(albumId, { albumArtist, songs: [song] })
   }
 
   const albums: AlbumDetail[] = []
-  const songs: Song[] = []
-  const lrcBySongId = new Map<string, string>()
+  const newestByAlbum = new Map<string, number>()
+  for (const [id, group] of albumGroups) {
+    const list = group.songs
+    // 分碟放在 CD1 / CD2 子目录里时，先按目录排，碟内再按曲目号
+    list.sort((a, b) => collator.compare(dirOf(a.id), dirOf(b.id)) || (a.track ?? 9999) - (b.track ?? 9999) || collator.compare(a.title, b.title))
+    const first = list[0]
+    const duration = list.reduce((sum, song) => sum + (song.duration || 0), 0)
+    albums.push({
+      id,
+      name: first.album,
+      artist: group.albumArtist,
+      artistId: `webdav-artist:${group.albumArtist}`,
+      // 分碟的专辑可能只有某一张碟的目录里放了封面
+      coverArt: list.find(song => song.coverArt)?.coverArt,
+      songCount: list.length,
+      duration: duration || undefined,
+      serverId: options.serverId,
+      songs: list,
+    })
+    newestByAlbum.set(id, list.reduce((newest, song) => Math.max(newest, modifiedBySong.get(song.id) ?? 0), 0))
+  }
+  albums.sort((a, b) => collator.compare(a.artist, b.artist) || collator.compare(a.name, b.name))
 
-  for (const [directory, files] of byAlbum) {
-    const cover = options.covers.get(directory)
-    for (const file of files) {
-      const named = parseAudioFilename(file.name)
-      const place = folderFallback(directory, rootDir)
-      const title = text(file.tagTitle) || named.title || '未命名'
-      const artist = text(file.tagArtist) || named.artist || place.artist
-      const album = text(file.tagAlbum) || named.album || place.album
-      const track = file.tagTrack || named.track
-      const lrc = options.lrcs.get(file.url)
-      const song: Song = {
-        id: file.url,
-        title,
-        artist,
-        artistId: `webdav-artist:${artist}`,
-        album,
-        albumId: `webdav-album:${artist}::${album}`,
-        coverArt: cover,
-        duration: 0,
-        size: file.size,
-        track,
-        suffix: file.name.split('.').pop()?.toLowerCase(),
-        path: file.url,
-        serverId: options.serverId,
-      }
-      if (lrc) lrcBySongId.set(file.url, lrc)
-      songs.push(song)
+  // 歌手页：做专辑歌手的专辑，加上自己唱的歌（合辑里的那一首也算）
+  const byArtist = new Map<string, { name: string; albums: AlbumDetail[]; songs: Song[] }>()
+  const entry = (name: string) => {
+    const id = `webdav-artist:${name}`
+    let found = byArtist.get(id)
+    if (!found) {
+      found = { name, albums: [], songs: [] }
+      byArtist.set(id, found)
+    }
+    return found
+  }
+  for (const album of albums) {
+    const owner = entry(album.artist)
+    owner.albums.push(album)
+    for (const song of album.songs) {
+      entry(song.artist).songs.push(song)
+      if (song.artist !== album.artist) owner.songs.push(song)
     }
   }
 
-  const albumGroups = new Map<string, Song[]>()
-  for (const song of songs) {
-    const key = song.albumId ?? song.album
-    const list = albumGroups.get(key) ?? []
-    list.push(song)
-    albumGroups.set(key, list)
-  }
-  for (const group of albumGroups.values()) {
-    group.sort((a, b) => (a.track ?? 9999) - (b.track ?? 9999) || collator.compare(a.title, b.title))
-    const first = group[0]
-    albums.push({
-      id: first.albumId ?? first.album,
-      name: first.album,
-      artist: first.artist,
-      artistId: first.artistId,
-      coverArt: first.coverArt,
-      songCount: group.length,
-      serverId: options.serverId,
-      songs: group,
-    })
-  }
-
-  albums.sort((a, b) => collator.compare(a.artist, b.artist) || collator.compare(a.name, b.name))
-
-  const byArtist = new Map<string, AlbumDetail[]>()
-  for (const album of albums) {
-    const key = album.artistId ?? album.artist
-    const list = byArtist.get(key) ?? []
-    list.push(album)
-    byArtist.set(key, list)
-  }
-
   const artists: ArtistDetail[] = []
-  for (const artistAlbums of byArtist.values()) {
-    const first = artistAlbums[0]
-    const artistSongs = artistAlbums.flatMap(album => album.songs)
+  for (const [id, item] of byArtist) {
     artists.push({
-      id: first.artistId ?? `webdav-artist:${first.artist}`,
-      name: first.artist,
-      albumCount: artistAlbums.length,
-      coverArt: first.coverArt,
+      id,
+      name: item.name,
+      albumCount: item.albums.length,
+      coverArt: item.albums.find(album => album.coverArt)?.coverArt ?? item.songs.find(song => song.coverArt)?.coverArt,
       serverId: options.serverId,
-      albums: artistAlbums,
-      songs: artistSongs,
-      topSongs: artistSongs.slice(0, 10),
+      albums: item.albums,
+      songs: item.songs,
+      topSongs: item.songs.slice(0, 10),
     })
   }
   artists.sort((a, b) => collator.compare(a.name, b.name))
 
-  return { songs, albums, artists, lrcBySongId }
+  // 「最近添加」：按专辑里最新那首歌的修改时间。服务器不给时间就保持原来的顺序。
+  const recentAlbums = albums
+    .map((album, index) => ({ album, index, at: newestByAlbum.get(album.id) ?? 0 }))
+    .sort((a, b) => b.at - a.at || a.index - b.index)
+    .map(item => item.album)
+
+  return { songs, albums, artists, recentAlbums, lrcBySongId }
 }
 
 /** 同目录 .lrc 用「去掉扩展名」对上音频文件，大小写不敏感 */

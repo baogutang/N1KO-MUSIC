@@ -78,7 +78,74 @@ describe('readAudioTags', () => {
       0x49, 0x44, 0x33, 0x04, 0x00, 0x00,
       0x00, 0x00, 0x02, 0x00,
     ]))
-    expect(tags.bytesNeeded).toBe(10 + 256)
+    // 标签本身 + 后面一段（时长要看标签后的第一帧）
+    expect(tags.bytesNeeded).toBe(10 + 256 + 4096)
+  })
+
+  it('ID3 的 TPE2 是专辑歌手', () => {
+    const encoder = new TextEncoder()
+    const frames = [
+      ...id3Frame('TPE1', 3, [...encoder.encode('赵雷')]),
+      ...id3Frame('TPE2', 3, [...encoder.encode('群星')]),
+    ]
+    expect(readAudioTags(id3(frames))).toMatchObject({ artist: '赵雷', albumArtist: '群星' })
+  })
+
+  it('FLAC 从 STREAMINFO 算时长', () => {
+    const samples = 44100 * 180
+    const info = new Array(34).fill(0)
+    info[10] = (44100 >> 12) & 0xff
+    info[11] = (44100 >> 4) & 0xff
+    info[12] = ((44100 & 0x0f) << 4) | 0x02
+    info[13] = 0xf0
+    info[14] = (samples >>> 24) & 0xff
+    info[15] = (samples >>> 16) & 0xff
+    info[16] = (samples >>> 8) & 0xff
+    info[17] = samples & 0xff
+    const comments = flac(['ALBUMARTIST=群星'])
+    const data = Uint8Array.from([0x66, 0x4c, 0x61, 0x43, 0x00, 0, 0, 34, ...info, ...comments.subarray(4)])
+    expect(readAudioTags(data)).toMatchObject({ duration: 180, albumArtist: '群星', artist: '群星' })
+  })
+
+  it('变码率 MP3 按 Xing 头里的总帧数算时长', () => {
+    const header = [0xff, 0xfb, 0x90, 0x00]
+    const xing = [0x58, 0x69, 0x6e, 0x67, 0, 0, 0, 1, 0, 0, 0x03, 0xe8]
+    const frame = [...header, ...new Array(32).fill(0), ...xing, ...new Array(64).fill(0)]
+    const data = Uint8Array.from([...id3(id3Frame('TIT2', 3, [0x61])), ...frame])
+    expect(readAudioTags(data).duration).toBeCloseTo((1000 * 1152) / 44100, 3)
+  })
+
+  it('固定码率 MP3 用文件大小估时长', () => {
+    const tag = id3(id3Frame('TIT2', 3, [0x61]))
+    const frame = [0xff, 0xfb, 0x90, 0x00, ...new Array(200).fill(0)]
+    const data = Uint8Array.from([...tag, ...frame])
+    const tags = readAudioTags(data, { fileSize: tag.length + 1_600_000 })
+    expect(tags.duration).toBeCloseTo(100, 3)
+  })
+
+  it('WAV 用 data 块大小除以每秒字节数', () => {
+    const fmt = [0x66, 0x6d, 0x74, 0x20, ...u32le(16), 1, 0, 2, 0, ...u32le(44100), ...u32le(176400), 4, 0, 16, 0]
+    const data = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, ...u32le(0), 0x57, 0x41, 0x56, 0x45,
+      ...fmt,
+      0x64, 0x61, 0x74, 0x61, ...u32le(176400 * 10),
+    ])
+    expect(readAudioTags(data).duration).toBe(10)
+  })
+
+  it('M4A 读 mvhd 的时长和 ilst 里的歌名', () => {
+    const box = (type: number[], body: number[]) => {
+      const size = 8 + body.length
+      return [(size >> 24) & 255, (size >> 16) & 255, (size >> 8) & 255, size & 255, ...type, ...body]
+    }
+    const ascii = (text: string) => [...text].map(char => char.charCodeAt(0))
+    const be = (value: number) => [(value >> 24) & 255, (value >> 16) & 255, (value >> 8) & 255, value & 255]
+    const mvhd = box(ascii('mvhd'), [0, 0, 0, 0, ...be(0), ...be(0), ...be(1000), ...be(215000), ...new Array(80).fill(0)])
+    const title = box([0xa9, ...ascii('nam')], box(ascii('data'), [...be(1), ...be(0), ...new TextEncoder().encode('成都')]))
+    const meta = box(ascii('meta'), [0, 0, 0, 0, ...box(ascii('ilst'), title)])
+    const moov = box(ascii('moov'), [...mvhd, ...box(ascii('udta'), meta)])
+    const data = Uint8Array.from([...box(ascii('ftyp'), ascii('M4A \0\0\0\0')), ...moov])
+    expect(readAudioTags(data)).toMatchObject({ duration: 215, title: '成都' })
   })
 })
 

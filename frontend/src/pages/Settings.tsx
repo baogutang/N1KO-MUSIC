@@ -28,8 +28,8 @@ import {
 } from '@/store/settingsStore'
 import { createAdapter, getAdapter, hasAdapter } from '@/api'
 import type { ServerConfig } from '@/api/types'
-import { WebDavNative, webDavNativeAvailable } from '@/api/adapters/webdavNative'
 import { useLibraryScan } from '@/hooks/useServerQueries'
+import { LRCAPI_COVER_URL, LRCAPI_LYRICS_URL } from '@/services/customApi'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
@@ -337,6 +337,7 @@ export default function Settings() {
   const scan = useLibraryScan()
   // 能力探测：不支持的服务器上整个入口不出现，而不是点了没反应
   const supportsScan = hasAdapter() && typeof getAdapter().startScan === 'function'
+  const usingLrcApi = lyricsRemoteTemplate === LRCAPI_LYRICS_URL && coverRemoteTemplate === LRCAPI_COVER_URL && lyricsUseRemote
 
   const activeServer = servers.find(s => s.id === activeServerId)
 
@@ -391,16 +392,6 @@ export default function Settings() {
     setEditError('')
   }
 
-  /** 试连会改掉原生 WebDAV 的当前地址；失败时要拨回去，否则正在用的那台跟着偏掉。 */
-  async function restoreWebDavNative(server: ServerConfig) {
-    if (server.type !== 'webdav' || !webDavNativeAvailable()) return
-    await WebDavNative.configure({
-      baseUrl: server.url,
-      username: server.username,
-      password: server.token,
-    }).catch(() => {})
-  }
-
   async function handleSaveAddress() {
     const server = servers.find(s => s.id === editingServerId)
     if (!server || editSaving) return
@@ -421,19 +412,16 @@ export default function Settings() {
     try {
       const reachable = await createAdapter({ ...server, url: next }).ping()
       if (!reachable) {
-        await restoreWebDavNative(server)
         setEditError(t('settings.addressDialog.fail'))
         return
       }
       if (!updateServerUrl(server.id, next)) {
-        await restoreWebDavNative(server)
         setEditError(t('settings.addressDialog.invalid'))
         return
       }
       toast({ title: t('settings.addressDialog.saved') })
       setEditingServerId(null)
     } catch {
-      await restoreWebDavNative(server)
       setEditError(t('settings.addressDialog.fail'))
     } finally {
       setEditSaving(false)
@@ -860,12 +848,30 @@ export default function Settings() {
             )}
           />
 
+          {/* 公共实例默认不填：用了它，每首歌的歌名、歌手、专辑都会发给别人的服务器，得用户自己点 */}
+          <Row name={t('settings.api.lrcapi')} desc={t('settings.api.lrcapiDesc')}>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={usingLrcApi}
+              onClick={() => {
+                setLyricsRemoteTemplate(LRCAPI_LYRICS_URL)
+                setCoverRemoteTemplate(LRCAPI_COVER_URL)
+                setLyricsUseRemote(true)
+                toast({ title: t('settings.api.lrcapiDone') })
+              }}
+              className="h-11 [@media(hover:hover)]:h-9"
+            >
+              {usingLrcApi ? t('settings.api.lrcapiInUse') : t('settings.api.lrcapiFill')}
+            </Button>
+          </Row>
+
           <SubHead title={t('settings.api.lyrics')} />
           <EndpointRow
             label={t('settings.api.url')}
             value={lyricsRemoteTemplate}
             onChange={setLyricsRemoteTemplate}
-            placeholder="https://api.lrc.cx/lyrics"
+            placeholder="https://lrcapi.example.com/api?title={title}&artist={artist}"
           />
 
           <SubHead title={t('settings.api.lyricsConfirm')} />
@@ -881,7 +887,7 @@ export default function Settings() {
             label={t('settings.api.url')}
             value={coverRemoteTemplate}
             onChange={setCoverRemoteTemplate}
-            placeholder="https://api.lrc.cx/cover"
+            placeholder="https://api.example.com/cover?artist={artist}&album={album}"
           />
           <Row name={t('settings.api.loadAlbumCover')}>
             <Toggle label={t('settings.api.loadAlbumCover')} checked={coverLoadAlbum} onChange={setCoverLoadAlbum} />

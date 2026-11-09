@@ -19,7 +19,6 @@ import { t } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/lyricCacheStore'
 import { clearCacheForServer } from '@/services/libraryCacheDb'
-import { alignWebDavServerData } from '@/services/webdavUrlMigration'
 import { useSettingsStore } from '@/store/settingsStore'
 import { createSecurePersistStorage } from '@/store/securePersistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
@@ -88,7 +87,6 @@ interface ServerState {
   /**
    * 改已有音源的地址，账号和凭据不动。
    * 地址没变返回 true；插件音源、空地址、非 http(s) 返回 false。
-   * WebDAV 的曲目 id 就是文件地址，改主机后队列里的旧地址一并换成新的。
    */
   updateServerUrl: (id: string, url: string) => boolean
   /** 插件音源凭据回写（env.setCredentials / 重新登录产生新串时）*/
@@ -376,16 +374,10 @@ export const useServerStore = create<ServerState>()(
           servers: state.servers.map(s => (s.id === id ? { ...s, url: next, name } : s)),
         }))
 
-        const addressChanged = previous !== next
-        if (addressChanged && server.type === 'webdav') {
-          // 队列、曲库缓存、推荐、历史、歌单、歌词和封面键里都存着文件地址。
-          // 只改服务器配置的话，点开旧列表仍会去请求旧 IP。
-          void alignWebDavServerData(id, next)
-        } else if (addressChanged) {
+        // WebDAV 的曲目、封面、歌词 id 只是文件路径，不带主机，换了地址照样能用，什么都不用清。
+        // 其余音源的列表里可能带着整条旧地址（歌手图之类），清掉重拉。
+        if (previous !== next && server.type !== 'webdav') {
           void clearCacheForServer(id)
-        }
-        if (addressChanged) {
-          // 内存里的列表还是改地址之前取回来的那一份。
           queryClient.clear()
         }
 
@@ -478,13 +470,6 @@ export const useServerStore = create<ServerState>()(
              */
             if (state.activeServerId) {
               usePlayerStore.getState().adoptLegacySongSource(state.activeServerId)
-            }
-            // 换过地址之后，盘上的曲目列表可能还指着旧 IP。连上之前先对齐，
-            // 免得首页先把旧地址摆出来。
-            for (const server of state.servers) {
-              if (server.type !== 'webdav') continue
-              const base = canonicalServerUrl(server.url)
-              if (base) await alignWebDavServerData(server.id, base)
             }
             /*
              * 插件清单要在连接**之前**载入（顺带跑首启种子与内置更新）。

@@ -37,6 +37,7 @@ import { QrLogin } from '@/components/sources/QrLogin'
 import { CookieLogin } from '@/components/sources/CookieLogin'
 import { AddPluginDialog } from '@/components/sources/AddPluginDialog'
 import { STORAGE_KEYS } from '@/services/storageKeys'
+import { webDavNativeAvailable } from '@/api/adapters/webdavNative'
 
 // 说明句只存 key：这张表在模块加载时就建好了，直接存译文会把语言钉死在首次加载那一刻
 const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string; icon: Icon }> = [
@@ -46,6 +47,9 @@ const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string; ic
   { type: 'emby', label: 'Emby', descKey: 'login.type.emby', icon: MonitorPlay },
   { type: 'webdav', label: 'WebDAV', descKey: 'login.type.webdav', icon: FolderSimple },
 ]
+
+/** WebDAV 要靠安卓壳里的原生通道补账号（api/adapters/webdavNative），别的平台上连不上，不给入口 */
+const VISIBLE_SERVER_TYPES = SERVER_TYPES.filter(item => item.type !== 'webdav' || webDavNativeAvailable())
 
 /** 表单字段上方的小标签：正常句式大小写，不拉字距 */
 const FIELD_LABEL_CLS = 'mb-1.5 block text-[13px] font-medium text-ink-2'
@@ -616,12 +620,13 @@ export default function LoginPage() {
                   </section>
                 )}
 
-                {/* 服务器类型：2×2 的抬起面（当前项描一圈叶绿 + 强调色图标） */}
+                {/* 服务器类型：两列的抬起面（当前项描一圈叶绿 + 强调色图标）；单出来的最后一个占满一行 */}
                 <section aria-labelledby="login-types">
                   <h2 id="login-types" className={GROUP_HEAD_CLS}>{t('login.typeHeading')}</h2>
                   <div className="grid grid-cols-2 gap-3">
-                    {SERVER_TYPES.map(({ type, label, descKey, icon: TypeIcon }) => {
+                    {VISIBLE_SERVER_TYPES.map(({ type, label, descKey, icon: TypeIcon }, index, list) => {
                       const active = selectedType === type
+                      const lone = list.length % 2 === 1 && index === list.length - 1
                       return (
                         <button
                           key={type}
@@ -629,6 +634,7 @@ export default function LoginPage() {
                           aria-pressed={active}
                           className={cn(
                             'press-pop flex min-h-[104px] flex-col items-start gap-2 rounded-md p-4 text-left',
+                            lone && 'col-span-2',
                             active ? 'bg-ink/[0.08] ring-2 ring-leaf/60' : 'bg-surface shadow-sm hover:bg-fill'
                           )}
                         >

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { alignWebDavSong, buildLibrary, parsePropfind, retargetFileUrl, sameResource } from './webdavLibrary'
+import { buildLibrary, fileUrlOf, idOf, parsePropfind, sameResource } from './webdavLibrary'
 
 const ROOT = 'http://192.168.1.3:5005'
 
@@ -64,17 +64,20 @@ describe('buildLibrary', () => {
       lrcs: new Map([[songUrl, `${directory}01%20七里香.lrc`]]),
     })
     expect(library.songs).toHaveLength(1)
+    const id = idOf(songUrl)
     expect(library.songs[0]).toMatchObject({
+      id,
       title: '七里香',
       artist: '周杰伦',
       album: '七里香',
       track: 1,
       serverId: 'nas',
-      coverArt: `${directory}cover.jpg`,
+      coverArt: idOf(`${directory}cover.jpg`),
+      path: '/音乐/周杰伦/七里香/01 七里香.flac',
     })
     expect(library.albums[0].songCount).toBe(1)
     expect(library.artists.map(artist => artist.name)).toEqual(['周杰伦'])
-    expect(library.lrcBySongId.get(songUrl)).toContain('.lrc')
+    expect(library.lrcBySongId.get(id)).toBe(idOf(`${directory}01%20七里香.lrc`))
   })
 
   it('文件标签优先于文件夹名', () => {
@@ -129,32 +132,51 @@ describe('buildLibrary', () => {
   })
 })
 
-describe('retargetFileUrl', () => {
+describe('id 和地址', () => {
   const next = 'http://192.168.1.150:5005'
   const file = `${ROOT}/sata11/%E8%AE%B8%E5%B5%A9%20-%20%E5%AE%87%E5%AE%99%E4%B9%8B%E5%A4%A7.mp3`
 
-  it('换 IP 之后只改主机，路径原样留下', () => {
-    expect(retargetFileUrl(file, next)).toBe(
+  it('id 只是路径，不带主机', () => {
+    expect(idOf(file)).toBe('/sata11/%E8%AE%B8%E5%B5%A9%20-%20%E5%AE%87%E5%AE%99%E4%B9%8B%E5%A4%A7.mp3')
+  })
+
+  it('换 IP 之后同一个 id 拼出新地址', () => {
+    expect(fileUrlOf(`${next}/dav`, idOf(file))).toBe(
       `${next}/sata11/%E8%AE%B8%E5%B5%A9%20-%20%E5%AE%87%E5%AE%99%E4%B9%8B%E5%A4%A7.mp3`,
     )
   })
 
-  it('已经是当前主机就不动', () => {
-    const current = `${next}/sata11/a.mp3`
-    expect(retargetFileUrl(current, next)).toBe(current)
+  it('旧测试版留下的整条地址也换成当前主机', () => {
+    expect(fileUrlOf(next, file)).toBe(`${next}${idOf(file)}`)
+  })
+})
+
+describe('专辑歌手、时长与最近添加', () => {
+  const dir = `${ROOT}/合辑/夏天/`
+  const files = [
+    { url: `${dir}1.flac`, name: '1.flac', directory: dir, tagTitle: '甲', tagArtist: '赵雷', tagAlbumArtist: '群星', tagAlbum: '夏天', tagTrack: 1, tagDuration: 200.4, modified: 1000 },
+    { url: `${dir}2.flac`, name: '2.flac', directory: dir, tagTitle: '乙', tagArtist: '李志', tagAlbumArtist: '群星', tagAlbum: '夏天', tagTrack: 2, tagDuration: 100, modified: 1000 },
+    { url: `${ROOT}/新/a.mp3`, name: 'a.mp3', directory: `${ROOT}/新/`, tagTitle: '丙', tagArtist: '赵雷', tagAlbum: '新专辑', modified: 5000 },
+  ]
+  const library = buildLibrary({ serverId: 'nas', root: ROOT, files, covers: new Map(), lrcs: new Map() })
+
+  it('合辑按专辑歌手归成一张，曲目保留各自的歌手', () => {
+    const album = library.albums.find(item => item.name === '夏天')
+    expect(album?.artist).toBe('群星')
+    expect(album?.songs.map(song => song.artist)).toEqual(['赵雷', '李志'])
+    expect(album?.duration).toBe(300)
+    expect(library.songs.find(song => song.title === '甲')?.duration).toBe(200)
   })
 
-  it('不是文件地址就原样返回', () => {
-    expect(retargetFileUrl('webdav-artist:许嵩', next)).toBe('webdav-artist:许嵩')
+  it('只在合辑里唱过一首的歌手也有自己的歌手页', () => {
+    const lizhi = library.artists.find(item => item.name === '李志')
+    expect(lizhi?.songs?.map(song => song.title)).toEqual(['乙'])
+    expect(lizhi?.albumCount).toBe(0)
+    const zhaolei = library.artists.find(item => item.name === '赵雷')
+    expect(zhaolei?.songs?.map(song => song.title).sort()).toEqual(['丙', '甲'])
   })
 
-  it('对齐曲目时只改这台服务器上的文件，外站封面留下', () => {
-    const song = alignWebDavSong({
-      id: file,
-      path: file,
-      coverArt: 'https://api.lrc.cx/cover.jpg',
-    }, next)
-    expect(song.id).toBe(`${next}/sata11/%E8%AE%B8%E5%B5%A9%20-%20%E5%AE%87%E5%AE%99%E4%B9%8B%E5%A4%A7.mp3`)
-    expect(song.coverArt).toBe('https://api.lrc.cx/cover.jpg')
+  it('最近添加按文件修改时间排', () => {
+    expect(library.recentAlbums.map(album => album.name)).toEqual(['新专辑', '夏天'])
   })
 })

@@ -70,17 +70,12 @@ class HybridAudio extends EventTarget {
   set src(value: string) {
     this.failure = null
     if (!value) {
-      this.stopNative()
-      this.native = false
-      this.srcValue = ''
-      this.inner.pause()
-      this.inner.removeAttribute('src')
+      this.clearSource()
       return
     }
     if (value.startsWith(NATIVE_FLAC_PREFIX)) {
       this.native = true
-      this.inner.pause()
-      this.inner.removeAttribute('src')
+      this.releaseInner()
       this.srcValue = value
       this.hasEnded = false
       this.isPaused = true
@@ -93,6 +88,29 @@ class HybridAudio extends EventTarget {
     this.stopNative()
     this.native = false
     this.inner.src = value
+  }
+
+  /*
+   * 引擎清空播放源用的是 removeAttribute('src') + load()（标准做法：src = '' 会被当成相对地址去请求页面本身）。
+   * HybridAudio 不是真的元素，这几个要自己接住，否则清空时直接抛错。
+   */
+  getAttribute(name: string): string | null {
+    if (name !== 'src') return this.inner.getAttribute(name)
+    return this.native ? this.srcValue : this.inner.getAttribute('src')
+  }
+
+  hasAttribute(name: string): boolean {
+    return this.getAttribute(name) !== null
+  }
+
+  setAttribute(name: string, value: string): void {
+    if (name === 'src') this.src = value
+    else this.inner.setAttribute(name, value)
+  }
+
+  removeAttribute(name: string): void {
+    if (name === 'src') this.clearSource()
+    else this.inner.removeAttribute(name)
   }
 
   get currentSrc(): string {
@@ -238,6 +256,22 @@ class HybridAudio extends EventTarget {
     this.isPaused = true
     void WebDavNative.pauseFlac()
     this.dispatchEvent(new Event('pause'))
+  }
+
+  private clearSource(): void {
+    this.failure = null
+    this.stopNative()
+    this.native = false
+    this.srcValue = ''
+    this.releaseInner()
+  }
+
+  /** 只 removeAttribute 不 load，旧的连接和解码器还挂着，下一首前会一直占着网络 */
+  private releaseInner(): void {
+    this.inner.pause()
+    if (!this.inner.hasAttribute('src')) return
+    this.inner.removeAttribute('src')
+    this.inner.load()
   }
 
   private stopNative(): void {

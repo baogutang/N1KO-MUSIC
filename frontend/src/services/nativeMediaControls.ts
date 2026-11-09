@@ -56,9 +56,12 @@ export function useNativeMediaControls() {
       creatingFor = keyOf(currentSong)
       // 256 封面：插件会把 bitmap 两次塞进 MediaSession metadata，
       // 512 位图接近 Binder 事务上限（TransactionTooLargeException 闪退）。
-      // 封面由原生去取、不经过 WebView：局域网 IP 的代取地址（lib/lanMedia）要换回服务器原地址
+      // 封面由原生去取、不经过 WebView：局域网 IP 的代取地址（lib/lanMedia）要换回服务器原地址；
+      // 要带账号的（WebDAV）由适配器给一个原生能直接取的地址
+      const adapter = findAdapterFor(currentSong.serverId)
       const cover = currentSong.coverArt
-        ? originalMediaUrl(findAdapterFor(currentSong.serverId)?.getCoverUrl(currentSong.coverArt, 256) ?? '')
+        ? adapter?.getNativeCoverUrl?.(currentSong.coverArt, 256)
+          ?? originalMediaUrl(adapter?.getCoverUrl(currentSong.coverArt, 256) ?? '')
         : ''
       CapacitorMusicControls.create({
         track: currentSong.title,

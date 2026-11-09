@@ -26,6 +26,8 @@ public class MainActivity extends BridgeActivity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 if (LanMediaProxy.handles(request.getUrl(), appHost)) return LanMediaProxy.handle(request);
+                // WebDAV 的封面要补账号（见 WebDavProxy）
+                if (WebDavProxy.handles(request.getUrl(), appHost)) return WebDavProxy.handle(request);
                 return super.shouldInterceptRequest(view, request);
             }
         });

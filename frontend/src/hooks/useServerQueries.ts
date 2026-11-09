@@ -7,6 +7,7 @@
 
 import { useEffect } from 'react'
 import { fetchExternalImage, fetchExternalText } from '@/services/externalFetch'
+import { mayReceivePath } from '@/services/customApi'
 import {
   useQuery,
   useMutation,
@@ -218,7 +219,7 @@ export function useLyricsQuery(
     if (title)    url.searchParams.set('title', title)
     if (artist)   url.searchParams.set('artist', artist)
     if (album)    url.searchParams.set('album', album)
-    if (path)     url.searchParams.set('path', path)
+    if (path && mayReceivePath(url)) url.searchParams.set('path', path)
     if (duration) url.searchParams.set('duration', String(Math.round(duration)))
     url.searchParams.set('offset', '0')
     url.searchParams.set('limit', '10')
@@ -331,7 +332,7 @@ export function buildCoverUrl(base: string, params: CustomCoverParams): string {
     if (params.title)  url.searchParams.set('title', params.title)
     if (params.artist) url.searchParams.set('artist', params.artist)
     if (params.album)  url.searchParams.set('album', params.album)
-    if (params.path)   url.searchParams.set('path', params.path)
+    if (params.path && mayReceivePath(url)) url.searchParams.set('path', params.path)
   } else if (params.type === 'album') {
     if (params.artist) url.searchParams.set('artist', params.artist)
     if (params.album)  url.searchParams.set('album', params.album)

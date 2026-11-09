@@ -20,9 +20,15 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 
 import com.getcapacitor.JSObject;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * WebView 的 audio 标签不认 FLAC，平板系统的解码器认。
  * 赵雷这批 192kHz FLAC 走这里，直接解成 PCM 送给声卡，不先包成 WAV。
+ *
+ * 地址是 WebDavProxy 的 127.0.0.1 口子，账号在那一层补，这里不带任何认证头。
+ * generation 是「第几次打开」：open / stop 在调用的线程上立刻加一，主线程上的活按它判断自己还算不算数，
+ * 先 stop 后 open 时排在后面的 stop 不会把新开的那首吞掉。
  */
 @UnstableApi
 final class WebDavFlacPlayer {
@@ -35,7 +41,9 @@ final class WebDavFlacPlayer {
 
     private static ExoPlayer player;
     private static Sink sink = (event, data) -> { };
-    private static volatile int generation;
+    private static final AtomicInteger GENERATION = new AtomicInteger();
+    /** 播放器里现在装的是第几次打开的那首（只在主线程上读写）。事件按它标号，网页据此丢掉上一首的尾巴。 */
+    private static int loaded;
     private static boolean wantPlay;
     private static float volume = 1f;
     private static float rate = 1f;
@@ -61,9 +69,10 @@ final class WebDavFlacPlayer {
     }
 
     static int open(Context context, String url, float nextVolume, float nextRate) {
-        final int token = ++generation;
+        final int token = GENERATION.incrementAndGet();
         MAIN.post(() -> {
-            if (token != generation) return;
+            if (token != GENERATION.get()) return;
+            loaded = token;
             volume = nextVolume;
             rate = nextRate;
             wantPlay = false;
@@ -75,19 +84,16 @@ final class WebDavFlacPlayer {
                 exo.setVolume(volume);
                 exo.setPlaybackParameters(new PlaybackParameters(rate));
                 DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
-                    .setUserAgent("N1KO-MUSIC")
-                    .setDefaultRequestProperties(WebDavAuth.playbackHeaders())
+                    .setUserAgent(WebDavAuth.USER_AGENT)
                     .setConnectTimeoutMs(15_000)
-                    .setReadTimeoutMs(30_000)
-                    .setAllowCrossProtocolRedirects(true);
+                    .setReadTimeoutMs(30_000);
                 ProgressiveMediaSource source = new ProgressiveMediaSource.Factory(http)
                     .createMediaSource(MediaItem.fromUri(Uri.parse(url)));
                 exo.setMediaSource(source);
                 exo.prepare();
-                Log.i(TAG, "open " + url);
             } catch (RuntimeException e) {
                 Log.e(TAG, "open failed", e);
-                if (token == generation) emitError(4, e.getMessage() == null ? "FLAC 打不开" : e.getMessage());
+                if (token == GENERATION.get()) emitError(4, e.getMessage() == null ? "FLAC open failed" : e.getMessage());
             }
         });
         return token;
@@ -142,14 +148,29 @@ final class WebDavFlacPlayer {
     }
 
     static void stop() {
+        final int token = GENERATION.incrementAndGet();
         MAIN.post(() -> {
-            generation += 1;
+            if (token != GENERATION.get()) return;
+            loaded = token;
             wantPlay = false;
             pendingSeekMs = -1;
             MAIN.removeCallbacks(TICK);
             if (player != null) {
                 player.pause();
                 player.clearMediaItems();
+            }
+        });
+    }
+
+    /** 插件销毁时（Activity 没了）放掉解码器和音频焦点 */
+    static void release() {
+        GENERATION.incrementAndGet();
+        MAIN.post(() -> {
+            MAIN.removeCallbacks(TICK);
+            wantPlay = false;
+            if (player != null) {
+                player.release();
+                player = null;
             }
         });
     }
@@ -165,6 +186,8 @@ final class WebDavFlacPlayer {
                 .build(),
             true
         );
+        // 拔耳机 / 断蓝牙时先停下，别突然从扬声器里放出来
+        exo.setHandleAudioBecomingNoisy(true);
         exo.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int state) {
@@ -174,8 +197,8 @@ final class WebDavFlacPlayer {
                         exo.seekTo(pendingSeekMs);
                         pendingSeekMs = -1;
                     }
-                    if (readyGeneration != generation) {
-                        readyGeneration = generation;
+                    if (readyGeneration != loaded) {
+                        readyGeneration = loaded;
                         JSObject data = new JSObject();
                         data.put("duration", seconds(exo.getDuration()));
                         emit("flacReady", data);
@@ -227,7 +250,7 @@ final class WebDavFlacPlayer {
     }
 
     private static void emit(String event, JSObject data) {
-        data.put("generation", generation);
+        data.put("generation", loaded);
         sink.emit(event, data);
     }
 

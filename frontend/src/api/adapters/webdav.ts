@@ -3,7 +3,13 @@
  *
  * 给没有 Navidrome / Jellyfin 的 NAS 用。打开设备的 WebDAV 服务后，
  * 填它的地址（例如 http://192.168.1.3:5005）和 NAS 自己的账号。
- * 播放地址仍是文件的真实 URL，认证由安卓 WebView 拦截后补上。
+ *
+ * 只在安卓原生壳里能用：WebView 里的 fetch 过不了 CORS，<audio> 和 <img> 也带不上账号。
+ * 列目录、读标签和歌词走原生插件；封面走同源的 /_n1ko_dav/ 由原生代取；
+ * 播歌走原生在 127.0.0.1 上开的口子（带一次性口令），FLAC 交给系统解码器。
+ *
+ * 曲库是自己扫出来的：第一次逐层列目录、逐首读文件头的标签，结果存进 IndexedDB。
+ * 之后每次打开先把上次的曲库摆出来，再在后台重新列目录，只给新增和改过的文件读标签。
  */
 
 import type {
@@ -24,22 +30,25 @@ import type {
   ListParams,
 } from '../types'
 import { parseLrc } from '@/utils/lrc'
+import { t } from '@/i18n'
 import {
   basenameKey,
   buildLibrary,
   directoryUrl,
+  fileUrlOf,
+  idOf,
   isAudioName,
   isCoverName,
   isLrcName,
   normalizeBase,
   parsePropfind,
-  retargetFileUrl,
+  type DavEntry,
   type WebDavFile,
   type WebDavLibrary,
 } from './webdavLibrary'
 import { readAudioTags } from './audioTags'
-import { Capacitor } from '@capacitor/core'
 import { queryClient } from '@/lib/queryClient'
+import { readCacheEntry, writeCacheEntry } from '@/services/libraryCacheDb'
 import { WebDavNative, webDavNativeAvailable, NATIVE_FLAC_PREFIX } from './webdavNative'
 
 const PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8"?>
@@ -49,11 +58,20 @@ const PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8"?>
     <d:resourcetype/>
     <d:getcontentlength/>
     <d:getcontenttype/>
+    <d:getlastmodified/>
+    <d:getetag/>
   </d:prop>
 </d:propfind>`
 
 const MAX_DEPTH = 8
 const MAX_FILES = 10000
+/** 第一次扫描最多等这么久才摆出第一版曲库（整库读完就不用等） */
+const FIRST_PUBLISH_WAIT_MS = 8000
+/** 读标签时每读完这么多首，换上一版曲库 */
+const TAG_PUBLISH_EVERY = 300
+/** 封面经原生代取的同源前缀（android/…/WebDavProxy.java） */
+const COVER_PREFIX = '/_n1ko_dav/'
+const INDEX_VERSION = 1
 
 interface WebDavOptions {
   url: string
@@ -61,6 +79,20 @@ interface WebDavOptions {
   password: string
   serverId: string
   musicPaths?: string
+}
+
+/** 存进 IndexedDB 的曲库。地址只存路径，换了 IP 也能接着用。 */
+interface StoredIndex {
+  v: number
+  files: WebDavFile[]
+  covers: Array<[string, string]>
+  lrcs: Array<[string, string]>
+}
+
+interface ScanState {
+  files: WebDavFile[]
+  covers: Map<string, string>
+  lrcs: Map<string, string>
 }
 
 export class WebDavAdapter implements MusicServerAdapter {
@@ -72,13 +104,18 @@ export class WebDavAdapter implements MusicServerAdapter {
   private readonly serverId: string
   private musicPaths: string
   private nativeReady: Promise<void> | null = null
+  /** 原生播放口子的前缀：http://127.0.0.1:端口/play?t=口令&u= */
+  private proxyPrefix = ''
   private indexPromise: Promise<WebDavLibrary> | null = null
   /** 已经能拿来显示的曲库。目录还在往下扫时，这里是已经扫到的那一部分。 */
   private published: WebDavLibrary | null = null
+  /** 最近一次扫描（或上次存下）的原始文件表，重扫时拿来复用标签 */
+  private lastScan: ScanState | null = null
   private firstReady: Promise<WebDavLibrary> | null = null
   private resolveFirst: ((library: WebDavLibrary) => void) | null = null
   private rejectFirst: ((err: unknown) => void) | null = null
   private lastRefresh = 0
+  private scanning = false
 
   constructor(options: WebDavOptions) {
     this.base = normalizeBase(options.url)
@@ -86,7 +123,7 @@ export class WebDavAdapter implements MusicServerAdapter {
     this.password = options.password
     this.serverId = options.serverId
     this.musicPaths = options.musicPaths ?? ''
-    if (this.password) void this.ensureNative()
+    if (this.password) void this.ensureNative().catch(() => {})
   }
 
   async login(url: string, username: string, password: string): Promise<AuthResult> {
@@ -148,7 +185,8 @@ export class WebDavAdapter implements MusicServerAdapter {
 
   async getSong(songId: string): Promise<Song | null> {
     const library = await this.library()
-    return library.songs.find(song => song.id === songId) ?? null
+    const id = normalizeId(songId)
+    return library.songs.find(song => song.id === id) ?? null
   }
 
   async searchAll(query: string, signal?: AbortSignal): Promise<SearchResult> {
@@ -164,29 +202,25 @@ export class WebDavAdapter implements MusicServerAdapter {
   }
 
   getStreamUrl(songId: string): string {
-    void this.ensureNative()
-    return retargetFileUrl(songId, this.base)
+    const target = this.fileUrl(songId)
+    return this.proxyPrefix ? this.proxyPrefix + encodeURIComponent(target) : target
   }
 
   async resolveStreamUrl(songId: string): Promise<{ url: string; mimeType?: string }> {
     await this.ensureNative()
-    const target = retargetFileUrl(songId, this.base)
-    if (Capacitor.isNativePlatform()) {
-      const path = target.split(/[?#]/, 1)[0] ?? target
-      if (Capacitor.getPlatform() === 'android' && path.toLowerCase().endsWith('.flac')) {
-        return { url: NATIVE_FLAC_PREFIX + target, mimeType: 'audio/flac' }
-      }
-      const streamed = await WebDavNative.streamUrl({ target })
-      return { url: streamed.url }
-    }
-    return { url: target }
+    const target = this.fileUrl(songId)
+    if (!webDavNativeAvailable()) return { url: target }
+    const path = new URL(target).pathname.toLowerCase()
+    // WebView 的 audio 不解 FLAC，交给系统解码器（audio/hybridAudio）
+    if (path.endsWith('.flac')) return { url: NATIVE_FLAC_PREFIX + target, mimeType: 'audio/flac' }
+    return { url: this.proxyPrefix + encodeURIComponent(target) }
   }
 
   async getLyrics(songId: string): Promise<Lyrics | null> {
     const library = await this.library()
-    const lrcUrl = library.lrcBySongId.get(songId)
-    if (!lrcUrl) return null
-    const text = await this.getText(lrcUrl)
+    const lrcId = library.lrcBySongId.get(normalizeId(songId))
+    if (!lrcId) return null
+    const text = await this.getText(this.fileUrl(lrcId))
     const lines = parseLrc(text)
     if (!lines.length) return null
     return { songId, lines, synced: lines.some(line => line.time > 0) }
@@ -202,13 +236,13 @@ export class WebDavAdapter implements MusicServerAdapter {
   async getAlbumDetail(albumId: string, signal?: AbortSignal): Promise<AlbumDetail> {
     const library = await this.library(signal)
     const album = library.albums.find(item => item.id === albumId)
-    if (!album) throw new WebDavFailure('找不到这个专辑', 'http')
+    if (!album) throw new WebDavFailure(t('webdav.error.noAlbum'), 'http')
     return album
   }
 
   async getRecentAlbums(size = 20, signal?: AbortSignal): Promise<Album[]> {
     const library = await this.library(signal)
-    return library.albums.slice(0, size)
+    return library.recentAlbums.slice(0, size)
   }
 
   async getRandomSongs(size = 30, _musicFolderId?: string, signal?: AbortSignal): Promise<Song[]> {
@@ -224,7 +258,7 @@ export class WebDavAdapter implements MusicServerAdapter {
   async getArtistDetail(artistId: string, signal?: AbortSignal): Promise<ArtistDetail> {
     const library = await this.library(signal)
     const artist = library.artists.find(item => item.id === artistId)
-    if (!artist) throw new WebDavFailure('找不到这个歌手', 'http')
+    if (!artist) throw new WebDavFailure(t('webdav.error.noArtist'), 'http')
     return artist
   }
 
@@ -241,48 +275,85 @@ export class WebDavAdapter implements MusicServerAdapter {
   }
 
   async getPlaylistDetail(): Promise<PlaylistDetail> {
-    throw new WebDavFailure('WebDAV 没有服务端歌单', 'http')
+    throw new WebDavFailure(t('webdav.error.noPlaylists'), 'http')
   }
 
   async createPlaylist(): Promise<Playlist> {
-    throw new WebDavFailure('WebDAV 不能在服务器上新建歌单', 'http')
+    throw new WebDavFailure(t('webdav.error.noPlaylists'), 'http')
   }
 
   async deletePlaylist(): Promise<void> {
-    throw new WebDavFailure('WebDAV 不能在服务器上删除歌单', 'http')
+    throw new WebDavFailure(t('webdav.error.noPlaylists'), 'http')
   }
 
   async addSongsToPlaylist(): Promise<void> {
-    throw new WebDavFailure('WebDAV 不能修改服务端歌单', 'http')
+    throw new WebDavFailure(t('webdav.error.noPlaylists'), 'http')
   }
 
   async removeSongsFromPlaylist(): Promise<void> {
-    throw new WebDavFailure('WebDAV 不能修改服务端歌单', 'http')
+    throw new WebDavFailure(t('webdav.error.noPlaylists'), 'http')
   }
 
   async getStarred(): Promise<{ songs: Song[]; albums: Album[]; artists: Artist[] }> {
     return { songs: [], albums: [], artists: [] }
   }
 
-  getCoverUrl(id: string): string {
-    if (id.startsWith('http://') || id.startsWith('https://')) return id
-    return ''
+  /**
+   * 封面是文件夹里的 cover.jpg 一类。安卓上改成同源的 /_n1ko_dav/{协议}/{主机}{路径}，
+   * 由原生补上账号去取，并按 size 缩小（NAS 上的封面常常几千像素，列表里几十张就是几十 MB）。
+   * 同源还有一个好处：取色（artLight）读得到像素。
+   */
+  getCoverUrl(id: string, size?: number): string {
+    if (!id) return ''
+    const target = new URL(this.fileUrl(id))
+    if (!webDavNativeAvailable() || typeof location === 'undefined') return target.toString()
+    const scheme = target.protocol.replace(':', '')
+    const sized = size ? `?s=${Math.round(size)}` : ''
+    return `${location.origin}${COVER_PREFIX}${scheme}/${encodeURIComponent(target.host)}${target.pathname}${sized}`
+  }
+
+  /** 锁屏 / 通知栏的封面由原生插件自己下载，不经过 WebView，走播放口子 */
+  getNativeCoverUrl(id: string, size = 256): string {
+    if (!id || !this.proxyPrefix) return ''
+    return `${this.proxyPrefix}${encodeURIComponent(this.fileUrl(id))}&s=${Math.round(size)}`
   }
 
   async getGenres(): Promise<Array<{ name: string; songCount: number; albumCount: number }>> {
     return []
   }
 
+  /** 设置页的「扫描曲库」：重新列一遍目录，没变的文件不再读标签 */
+  async startScan(): Promise<void> {
+    if (this.scanning) return
+    if (!this.indexPromise) {
+      this.ensureScan()
+      return
+    }
+    void this.scan(this.lastScan).catch(() => {
+      // 连不上时保留现有的曲库
+    })
+  }
+
+  async getScanStatus(): Promise<{ scanning: boolean; count?: number } | null> {
+    return { scanning: this.scanning, count: this.published?.songs.length }
+  }
+
+  /** 曲目 / 封面 / 歌词 id → 当前地址上的文件 */
+  private fileUrl(id: string): string {
+    return fileUrlOf(this.base, id)
+  }
+
   private library(signal?: AbortSignal): Promise<WebDavLibrary> {
     if (signal?.aborted) return Promise.reject(abortError())
     if (this.published) return Promise.resolve(this.published)
     this.ensureScan()
-    return this.firstReady ?? this.indexPromise ?? Promise.reject(new Error('曲库还没开始扫描'))
+    return this.firstReady ?? this.indexPromise ?? Promise.reject(new Error(t('webdav.error.notScanned')))
   }
 
   private resetIndex(): void {
     this.indexPromise = null
     this.published = null
+    this.lastScan = null
     this.firstReady = null
     this.resolveFirst = null
     this.rejectFirst = null
@@ -296,7 +367,7 @@ export class WebDavAdapter implements MusicServerAdapter {
     })
     // 不把某一次页面请求的 signal 传进去：离开页面会 abort，
     // 整库扫描不该因此作废，下次进来还得从头列目录。
-    this.indexPromise = this.scan().catch(err => {
+    this.indexPromise = this.loadAndScan().catch(err => {
       this.indexPromise = null
       this.rejectFirst?.(err)
       this.resolveFirst = null
@@ -305,44 +376,100 @@ export class WebDavAdapter implements MusicServerAdapter {
     })
   }
 
-  private async scan(): Promise<WebDavLibrary> {
-    const files: WebDavFile[] = []
-    const covers = new Map<string, string>()
-    const lrcs = new Map<string, string>()
-    const seen = new Set<string>()
-    for (const root of this.scanRoots()) {
-      const listed = await this.tryInfinity(root)
-      if (listed) {
-        this.ingest(listed, files, covers, lrcs)
-        this.publish(files, covers, lrcs, false)
-      } else {
-        await this.walk(root, 0, files, covers, lrcs, seen)
-      }
+  /** 先摆出上次存下的曲库，再在后台重扫 */
+  private async loadAndScan(): Promise<WebDavLibrary> {
+    const cached = await this.readIndex()
+    if (cached) {
+      this.lastScan = cached
+      this.publish(cached, true)
     }
-    const listed = this.publish(files, covers, lrcs, true)
-    // 标签要逐首读文件头。隔着 Tailscale 这会比列目录还久，
-    // 不能挡着全部歌曲先出来。读完再换上带标签的那一版。
-    void this.enrichTags(files).then(() => {
-      this.publish(files, covers, lrcs, true)
-    }).catch(() => {
-      // 标签读不完也还有文件名和文件夹
-    })
-    return listed
+    try {
+      return await this.scan(cached)
+    } catch (err) {
+      // 连不上 NAS 时，上次的曲库照样能浏览（播放要等连上）
+      if (this.published) return this.published
+      throw err
+    }
   }
 
-  /** 把目前扫到的文件收成曲库。第一批立刻交给正在等的页面，之后节流刷新。 */
-  private publish(
-    files: WebDavFile[],
-    covers: Map<string, string>,
-    lrcs: Map<string, string>,
-    final: boolean,
-  ): WebDavLibrary {
+  private async scan(previous: ScanState | null): Promise<WebDavLibrary> {
+    this.scanning = true
+    let firstPublish: ReturnType<typeof setTimeout> | undefined
+    try {
+      const state: ScanState = { files: [], covers: new Map(), lrcs: new Map() }
+      /*
+       * 第一次扫（盘上还没有曲库）：边列目录边读标签，读好的歌才摆出来，而且第一版尽量等整库读完再给
+       * （最多等 FIRST_PUBLISH_WAIT_MS）。首页的每日推荐拿第一版算、存一整天：
+       * 按文件名先摆出来，它记下的是「01 · 合辑 · 0:00」；摆得太早，它只从头几首里挑。
+       * 已经有曲库在显示时，扫完再整体换掉，不拿扫了一半的结果去替换它。
+       */
+      let lastBuild = 0
+      const startedAt = Date.now()
+      const tags = previous ? null : new TagQueue(file => this.readTags(file), () => {
+        const now = Date.now()
+        if (!this.published && now - startedAt < FIRST_PUBLISH_WAIT_MS) return
+        if (this.published && now - lastBuild < 1000) return
+        lastBuild = now
+        this.publish(state, false, true)
+      })
+      if (tags) {
+        firstPublish = setTimeout(() => { if (!this.published) this.publish(state, false, true) }, FIRST_PUBLISH_WAIT_MS)
+      }
+      const seen = new Set<string>()
+      for (const root of this.scanRoots()) {
+        const before = state.files.length
+        const listed = await this.tryInfinity(root)
+        if (listed) {
+          this.ingest(listed, state)
+          tags?.push(state.files.slice(before))
+        } else {
+          await this.walk(root, 0, state, seen, tags)
+        }
+      }
+      if (tags) {
+        await tags.drain()
+        this.lastScan = state
+        const library = this.publish(state, true)
+        void this.writeIndex(state)
+        this.scanning = false
+        return library
+      }
+      reuseTags(state.files, previous?.files ?? [])
+      this.lastScan = state
+      const listed = this.publish(state, true)
+      const pending = state.files.filter(file => !file.tagsRead)
+      if (!pending.length) {
+        void this.writeIndex(state)
+        this.scanning = false
+        return listed
+      }
+      // 标签要逐首读文件头。隔着 Tailscale 这会比列目录还久，
+      // 不能挡着全部歌曲先出来。读一批换一版，读完存盘。
+      void this.enrichTags(pending, state).finally(() => {
+        this.publish(state, true)
+        void this.writeIndex(state)
+        this.scanning = false
+      })
+      return listed
+    } catch (err) {
+      this.scanning = false
+      throw err
+    } finally {
+      clearTimeout(firstPublish)
+    }
+  }
+
+  /**
+   * 把目前扫到的文件收成曲库。第一批立刻交给正在等的页面，之后节流刷新。
+   * onlyRead：只收已经读过标签的（第一次扫描的中途）。
+   */
+  private publish(state: ScanState, final: boolean, onlyRead = false): WebDavLibrary {
     const library = buildLibrary({
       serverId: this.serverId,
       root: this.base,
-      files,
-      covers,
-      lrcs,
+      files: onlyRead ? state.files.filter(file => file.tagsRead) : state.files,
+      covers: state.covers,
+      lrcs: state.lrcs,
     })
     const first = this.published == null
     this.published = library
@@ -355,31 +482,40 @@ export class WebDavAdapter implements MusicServerAdapter {
     const now = Date.now()
     if (!final && now - this.lastRefresh < 1200) return library
     this.lastRefresh = now
+    // 扫到一半只刷列表；扫完（或标签读完）连首页的随机推荐、最近添加一起换掉，
+    // 不然那里一直是按文件名猜的歌名和 0:00 的时长
     queryClient.invalidateQueries({
       predicate: query => {
         const key = query.queryKey
         if (!Array.isArray(key) || typeof key[0] !== 'string') return false
         const owner = key[0].split('@', 1)[0]
         if (owner !== this.serverId) return false
-        return key[1] === 'songs' || key[1] === 'albums' || key[1] === 'artists'
+        return final || key[1] === 'songs' || key[1] === 'albums' || key[1] === 'artists'
       },
     })
     return library
   }
 
-  /** 留空就扫连接地址；填了就只扫这几处，避免把照片和下载目录也走一遍。 */
+  /**
+   * 留空就扫连接地址；填了就只扫这几处，避免把照片和下载目录也走一遍。
+   * 「/音乐/流行」按连接地址往下找；已经写全了连接地址那一段的也认。
+   */
   private scanRoots(): string[] {
     const lines = this.musicPaths.split(/[\n,，]/).map(line => line.trim()).filter(Boolean)
     if (!lines.length) return [directoryUrl(this.base)]
+    const base = new URL(directoryUrl(this.base))
     return lines.map(line => {
       if (/^https?:\/\//i.test(line)) return directoryUrl(line)
-      const path = line.startsWith('/') ? line : `/${line}`
-      return directoryUrl(new URL(path, directoryUrl(this.base)).toString())
+      const path = new URL(line.startsWith('/') ? line : `/${line}`, base.origin).pathname
+      if (path === base.pathname.replace(/\/$/, '') || path.startsWith(base.pathname)) {
+        return directoryUrl(base.origin + path)
+      }
+      return directoryUrl(new URL(path.replace(/^\/+/, ''), base).toString())
     })
   }
 
   /** 一个请求拿整棵树。服务器不支持或只回了一层时，退回逐层扫描。 */
-  private async tryInfinity(root: string): Promise<ReturnType<typeof parsePropfind> | null> {
+  private async tryInfinity(root: string): Promise<DavEntry[] | null> {
     try {
       const entries = parsePropfind(await this.propfind(root, 'infinity'), root)
       if (!entries.some(entry => nestedUnder(root, entry.url))) return null
@@ -389,42 +525,38 @@ export class WebDavAdapter implements MusicServerAdapter {
     }
   }
 
-  private ingest(
-    entries: ReturnType<typeof parsePropfind>,
-    files: WebDavFile[],
-    covers: Map<string, string>,
-    lrcs: Map<string, string>,
-  ): void {
+  private ingest(entries: DavEntry[], state: ScanState): void {
     const lrcByDir = new Map<string, Map<string, string>>()
+    const added: WebDavFile[] = []
     for (const entry of entries) {
       if (entry.name.startsWith('.') || entry.name.startsWith('#')) continue
       if (entry.collection) continue
       const dir = parentDir(entry.url)
       if (isCoverName(entry.name)) {
-        if (!covers.has(dir)) covers.set(dir, entry.url)
+        if (!state.covers.has(dir)) state.covers.set(dir, entry.url)
       } else if (isLrcName(entry.name)) {
         const bucket = lrcByDir.get(dir) ?? new Map<string, string>()
         bucket.set(basenameKey(entry.name), entry.url)
         lrcByDir.set(dir, bucket)
-      } else if (isAudioName(entry.name) && files.length < MAX_FILES) {
-        files.push({ url: entry.url, name: entry.name, directory: dir, size: entry.size })
+      } else if (isAudioName(entry.name) && state.files.length + added.length < MAX_FILES) {
+        added.push(fileOf(entry, dir))
       }
     }
-    for (const file of files) {
+    for (const file of added) {
+      state.files.push(file)
       const lrc = lrcByDir.get(file.directory)?.get(basenameKey(file.name))
-      if (lrc) lrcs.set(file.url, lrc)
+      if (lrc) state.lrcs.set(file.url, lrc)
     }
   }
 
   private async walk(
     dirUrl: string,
     depth: number,
-    files: WebDavFile[],
-    covers: Map<string, string>,
-    lrcs: Map<string, string>,
+    state: ScanState,
     seen: Set<string>,
+    tags: TagQueue | null,
   ): Promise<void> {
-    if (depth > MAX_DEPTH || files.length >= MAX_FILES || seen.has(dirUrl)) return
+    if (depth > MAX_DEPTH || state.files.length >= MAX_FILES || seen.has(dirUrl)) return
     seen.add(dirUrl)
     const entries = parsePropfind(await this.propfind(dirUrl, 1), dirUrl)
     const subdirs: string[] = []
@@ -436,46 +568,71 @@ export class WebDavAdapter implements MusicServerAdapter {
         subdirs.push(entry.url)
         continue
       }
-      if (isCoverName(entry.name) && !covers.has(dirUrl)) covers.set(dirUrl, entry.url)
-      else if (isLrcName(entry.name)) folderLrc.set(basenameKey(entry.name), entry.url)
-      else if (isAudioName(entry.name)) {
-        folderFiles.push({ url: entry.url, name: entry.name, directory: dirUrl, size: entry.size })
+      if (isCoverName(entry.name)) {
+        if (!state.covers.has(dirUrl)) state.covers.set(dirUrl, entry.url)
+      } else if (isLrcName(entry.name)) {
+        folderLrc.set(basenameKey(entry.name), entry.url)
+      } else if (isAudioName(entry.name)) {
+        folderFiles.push(fileOf(entry, dirUrl))
       }
     }
+    const before = state.files.length
     for (const file of folderFiles) {
-      files.push(file)
+      if (state.files.length >= MAX_FILES) break
+      state.files.push(file)
       const lrc = folderLrc.get(basenameKey(file.name))
-      if (lrc) lrcs.set(file.url, lrc)
+      if (lrc) state.lrcs.set(file.url, lrc)
     }
-    if (folderFiles.length) this.publish(files, covers, lrcs, false)
-    await mapPool(subdirs, 8, dir => this.walk(dir, depth + 1, files, covers, lrcs, seen))
+    tags?.push(state.files.slice(before))
+    await mapPool(subdirs, 6, dir => this.walk(dir, depth + 1, state, seen, tags))
   }
 
-  /** 读每首歌开头的标签。读不到就留空，后面用文件名。 */
-  private async enrichTags(files: WebDavFile[]): Promise<void> {
-    await mapPool(files, 8, async file => {
-      try {
-        let bytes = await this.readHeader(file.url, 65536)
-        if (!bytes) return
-        let tags = readAudioTags(bytes)
-        if (tags.bytesNeeded && tags.bytesNeeded > bytes.length) {
-          bytes = await this.readHeader(file.url, tags.bytesNeeded)
-          if (bytes) tags = readAudioTags(bytes)
-        }
-        file.tagTitle = tags.title
-        file.tagArtist = tags.artist
-        file.tagAlbum = tags.album
-        file.tagTrack = tags.track
-      } catch {
-        // 这一首没有标签，文件名和文件夹还能用
+  /** 重扫时给新增和改过的文件读标签。读一批换一版、存一次盘。 */
+  private async enrichTags(files: WebDavFile[], state: ScanState): Promise<void> {
+    let done = 0
+    await mapPool(files, 6, async file => {
+      await this.readTags(file)
+      done += 1
+      if (done % TAG_PUBLISH_EVERY === 0) {
+        this.publish(state, false)
+        void this.writeIndex(state)
       }
     })
+  }
+
+  /** 读一首歌开头的标签和时长。读不到就留空，后面用文件名。 */
+  private async readTags(file: WebDavFile): Promise<void> {
+    try {
+      let bytes = await this.readHeader(file.url, 65536)
+      if (!bytes) {
+        // 服务器回了 4xx（读不了这个文件），当它没有标签
+        file.tagsRead = true
+        return
+      }
+      let tags = readAudioTags(bytes, { fileSize: file.size })
+      if (tags.bytesNeeded && tags.bytesNeeded > bytes.length && (!file.size || bytes.length < file.size)) {
+        const more = await this.readHeader(file.url, tags.bytesNeeded)
+        if (more) {
+          bytes = more
+          tags = readAudioTags(bytes, { fileSize: file.size })
+        }
+      }
+      file.tagTitle = tags.title
+      file.tagArtist = tags.artist
+      file.tagAlbumArtist = tags.albumArtist
+      file.tagAlbum = tags.album
+      file.tagTrack = tags.track
+      file.tagDuration = tags.duration
+      file.tagsRead = true
+    } catch {
+      // 这一首这次没读到（断网之类），下次扫描再试；文件名和文件夹还能用
+    }
   }
 
   private async readHeader(url: string, length: number): Promise<Uint8Array | null> {
     const want = Math.min(Math.max(length, 1), 262144)
     await this.ensureNative()
-    if (Capacitor.isNativePlatform()) {
+    if (webDavNativeAvailable()) {
       const result = await WebDavNative.getRange({ url, length: want })
       if (result.status !== 200 && result.status !== 206) return null
       if (!result.body) return null
@@ -491,13 +648,45 @@ export class WebDavAdapter implements MusicServerAdapter {
     return new Uint8Array(await response.arrayBuffer())
   }
 
+  private indexKey(): string {
+    return `webdav-index:${this.serverId}`
+  }
+
+  private async readIndex(): Promise<ScanState | null> {
+    try {
+      const entry = await readCacheEntry<StoredIndex>(this.indexKey())
+      const stored = entry?.value
+      if (!stored || stored.v !== INDEX_VERSION || !Array.isArray(stored.files) || !stored.files.length) return null
+      const at = (path: string) => fileUrlOf(this.base, path)
+      return {
+        files: stored.files.map(file => ({ ...file, url: at(file.url), directory: at(file.directory) })),
+        covers: new Map(stored.covers.map(([dir, cover]) => [at(dir), at(cover)])),
+        lrcs: new Map(stored.lrcs.map(([file, lrc]) => [at(file), at(lrc)])),
+      }
+    } catch {
+      return null
+    }
+  }
+
+  private async writeIndex(state: ScanState): Promise<void> {
+    const value: StoredIndex = {
+      v: INDEX_VERSION,
+      files: state.files.map(file => ({ ...file, url: idOf(file.url), directory: idOf(file.directory) })),
+      covers: [...state.covers].map(([dir, cover]) => [idOf(dir), idOf(cover)]),
+      lrcs: [...state.lrcs].map(([file, lrc]) => [idOf(file), idOf(lrc)]),
+    }
+    await writeCacheEntry(this.indexKey(), this.serverId, value)
+  }
+
   private async ensureNative(): Promise<void> {
-    if (!Capacitor.isNativePlatform()) return
+    if (!webDavNativeAvailable()) return
     if (!this.nativeReady) {
       this.nativeReady = WebDavNative.configure({
         baseUrl: this.base,
         username: this.username,
         password: this.password,
+      }).then(result => {
+        this.proxyPrefix = result.proxy
       }).catch(err => {
         this.nativeReady = null
         throw err
@@ -508,14 +697,14 @@ export class WebDavAdapter implements MusicServerAdapter {
 
   private async propfind(url: string, depth: number | 'infinity'): Promise<string> {
     await this.ensureNative()
-    if (Capacitor.isNativePlatform()) {
+    if (webDavNativeAvailable()) {
       try {
         const result = await WebDavNative.propfind({ url, depth })
         return this.readDav(result.status, result.body)
       } catch (err) {
         if (err instanceof WebDavFailure) throw err
-        const detail = err instanceof Error ? err.message : '连不上'
-        throw new WebDavFailure(detail || '连不上', 'network')
+        const detail = err instanceof Error ? err.message : ''
+        throw new WebDavFailure(detail, 'network')
       }
     }
     let response: Response
@@ -530,7 +719,7 @@ export class WebDavAdapter implements MusicServerAdapter {
         body: PROPFIND_BODY,
       })
     } catch {
-      throw new WebDavFailure('连不上', 'network')
+      throw new WebDavFailure('', 'network')
     }
     return this.readDav(response.status, await response.text())
   }
@@ -539,39 +728,115 @@ export class WebDavAdapter implements MusicServerAdapter {
     await this.ensureNative()
     if (webDavNativeAvailable()) {
       const result = await WebDavNative.getText({ url })
-      if (result.status === 401 || result.status === 403) throw new WebDavFailure('账号或密码不对', 'auth')
-      if (result.status < 200 || result.status >= 300) throw new WebDavFailure('读歌词失败', 'http')
+      if (result.status === 401 || result.status === 403) throw new WebDavFailure(t('webdav.error.auth'), 'auth')
+      if (result.status < 200 || result.status >= 300) throw new WebDavFailure(t('webdav.error.lyrics'), 'http')
       return result.body
     }
     const response = await fetch(url, { headers: { Authorization: basicAuth(this.username, this.password) } })
-    if (!response.ok) throw new WebDavFailure('读歌词失败', 'http')
+    if (!response.ok) throw new WebDavFailure(t('webdav.error.lyrics'), 'http')
     return response.text()
   }
 
   private readDav(status: number, body: string): string {
-    if (status === 401 || status === 403) throw new WebDavFailure('账号或密码不对', 'auth')
-    if (status !== 207 && status !== 200) throw new WebDavFailure(`WebDAV ${status}`, 'http')
+    if (status === 401 || status === 403) throw new WebDavFailure(t('webdav.error.auth'), 'auth')
+    if (status !== 207 && status !== 200) throw new WebDavFailure(t('webdav.error.status', { status }), 'http')
     return body
   }
 
   private loginMessage(err: unknown): string {
     if (err instanceof WebDavFailure) {
-      if (err.kind === 'auth') return '账号或密码不对'
+      if (err.kind === 'auth') return t('webdav.error.auth')
       if (err.kind === 'network') {
-        const detail = err.message && err.message !== '连不上' ? `：${err.message}` : ''
-        return Capacitor.isNativePlatform()
-          ? `连不上这台 WebDAV${detail}。请确认地址能从这台设备访问，并且账号密码正确`
-          : '浏览器跨域限制，无法直接连接 WebDAV。请使用安卓 App 连接。'
+        if (!webDavNativeAvailable()) return t('webdav.error.browser')
+        return err.message
+          ? t('webdav.error.unreachableDetail', { detail: err.message })
+          : t('webdav.error.unreachable')
       }
+      return err.message
     }
-    if (err instanceof TypeError) return '地址不是一个有效的 http 链接'
-    return '连接失败，请检查地址和账号密码'
+    if (err instanceof TypeError) return t('webdav.error.badUrl')
+    return t('webdav.error.generic')
   }
 }
 
 class WebDavFailure extends Error {
   constructor(message: string, readonly kind: 'auth' | 'network' | 'http') {
     super(message)
+  }
+}
+
+/** 第一次扫描时边列目录边读标签：同时最多读 limit 首，每读完一首回调一次 */
+class TagQueue {
+  private queue: WebDavFile[] = []
+  private running = 0
+  private waiting: Array<() => void> = []
+
+  constructor(
+    private readonly read: (file: WebDavFile) => Promise<void>,
+    private readonly onRead: () => void,
+    private readonly limit = 6,
+  ) {}
+
+  push(files: WebDavFile[]): void {
+    this.queue.push(...files)
+    this.pump()
+  }
+
+  /** 列目录结束后调用：等手上和排着的都读完 */
+  drain(): Promise<void> {
+    if (!this.running && !this.queue.length) return Promise.resolve()
+    return new Promise(resolve => this.waiting.push(resolve))
+  }
+
+  private pump(): void {
+    while (this.running < this.limit) {
+      const file = this.queue.shift()
+      if (!file) break
+      this.running += 1
+      void this.read(file).finally(() => {
+        this.running -= 1
+        this.onRead()
+        this.pump()
+        if (!this.running && !this.queue.length) this.waiting.splice(0).forEach(resolve => resolve())
+      })
+    }
+  }
+}
+
+/** 旧测试版把整条文件地址当 id，统一成路径 */
+function normalizeId(id: string): string {
+  return /^https?:\/\//i.test(id) ? idOf(id) : id
+}
+
+function fileOf(entry: DavEntry, directory: string): WebDavFile {
+  return {
+    url: entry.url,
+    name: entry.name,
+    directory,
+    size: entry.size,
+    modified: entry.modified,
+    etag: entry.etag,
+  }
+}
+
+/** 文件没变（etag 一样，或大小和修改时间都一样）就沿用上次读到的标签 */
+function reuseTags(files: WebDavFile[], previous: WebDavFile[]): void {
+  if (!previous.length) return
+  const byUrl = new Map(previous.map(file => [file.url, file]))
+  for (const file of files) {
+    const old = byUrl.get(file.url)
+    if (!old?.tagsRead) continue
+    const same = file.etag && old.etag
+      ? file.etag === old.etag
+      : file.size === old.size && file.modified === old.modified
+    if (!same) continue
+    file.tagTitle = old.tagTitle
+    file.tagArtist = old.tagArtist
+    file.tagAlbumArtist = old.tagAlbumArtist
+    file.tagAlbum = old.tagAlbum
+    file.tagTrack = old.tagTrack
+    file.tagDuration = old.tagDuration
+    file.tagsRead = true
   }
 }
 

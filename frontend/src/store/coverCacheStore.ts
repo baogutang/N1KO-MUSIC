@@ -11,7 +11,6 @@ import { useServerStore } from './serverStore'
 import { createPersistStorage } from '@/store/persistStorage'
 import { COVER_CACHE_LIMIT, STORAGE_KEYS, STORAGE_PRESSURE_EVENT } from '@/services/storageKeys'
 import { capByRecency } from '@/utils/boundedCache'
-import { retargetFileUrl } from '@/api/adapters/webdavLibrary'
 
 interface CoverCache {
   /** 封面图片 URL */
@@ -47,9 +46,6 @@ interface CoverCacheState {
 
   /** 裁剪到指定条数（保留最近保存的），用于响应存储配额压力 */
   trimTo: (limit: number) => void
-
-  /** 服务器换地址后，把这个源的曲目键改到新文件地址。外站封面链接不动。 */
-  retargetFileUrls: (serverId: string, base: string) => void
 }
 
 export const useCoverCacheStore = create<CoverCacheState>()(
@@ -93,37 +89,6 @@ export const useCoverCacheStore = create<CoverCacheState>()(
         set(state => {
           const cache = capByRecency(state.cache, Math.max(0, limit))
           return cache === state.cache ? state : { cache }
-        })
-      },
-
-      retargetFileUrls: (serverId, base) => {
-        const prefix = `${serverId}:`
-        set(state => {
-          let changed = false
-          const next: typeof state.cache = {}
-          for (const [key, value] of Object.entries(state.cache)) {
-            const songId = key.startsWith(prefix) ? key.slice(prefix.length) : key
-            const owned = key.startsWith(prefix) || key.startsWith('http://') || key.startsWith('https://')
-            if (!owned) {
-              next[key] = value
-              continue
-            }
-            const mapped = songId.startsWith('http://') || songId.startsWith('https://')
-              ? retargetFileUrl(songId, base)
-              : songId
-            const nextKey = key.startsWith(prefix) ? prefix + mapped : mapped
-            let nextUrl = value.url
-            if (nextUrl.startsWith('http://') || nextUrl.startsWith('https://')) {
-              try {
-                if (new URL(songId).origin === new URL(nextUrl).origin) nextUrl = retargetFileUrl(nextUrl, base)
-              } catch {
-                nextUrl = value.url
-              }
-            }
-            if (nextKey !== key || nextUrl !== value.url) changed = true
-            next[nextKey] = nextUrl === value.url ? value : { ...value, url: nextUrl }
-          }
-          return changed ? { cache: next } : state
         })
       },
     }),
