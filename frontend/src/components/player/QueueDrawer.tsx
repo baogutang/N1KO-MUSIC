@@ -488,11 +488,12 @@ export function QueueDrawer() {
                 if (opener?.isConnected && opener !== document.body) opener.focus({ preventScroll: true })
               }}
             >
-              {/* 底部弹层（含底部安全区，盖过标签栏）；位移 y 由把手的拖动驱动 */}
+              {/* 底部弹层（含底部安全区，盖过标签栏）；位移 y 由把手的拖动驱动。
+                  焦点落在弹层本身时不画环：全局 :focus-visible 写在层外，光 outline-none 压不住 */}
               <motion.div
                 ref={sheetRef}
                 tabIndex={-1}
-                className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85%] flex-col overflow-hidden rounded-t-xl bg-surface shadow-lg outline-none animate-sheet-in motion-reduce:animate-none"
+                className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85%] flex-col overflow-hidden rounded-t-xl bg-surface shadow-lg outline-none focus-visible:outline-none animate-sheet-in motion-reduce:animate-none"
                 style={{ y: dragY, paddingBottom: 'env(safe-area-inset-bottom)' }}
               >
                 {panelBody}
