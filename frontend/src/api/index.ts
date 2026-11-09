@@ -11,6 +11,7 @@ import type { ServerConfig, MusicServerAdapter } from './types'
 import { SubsonicAdapter } from './adapters/subsonic'
 import { JellyfinAdapter } from './adapters/jellyfin'
 import { EmbyAdapter } from './adapters/emby'
+import { WebDavAdapter } from './adapters/webdav'
 
 /** 已连接音源的适配器注册表（serverId → adapter） */
 const adapters = new Map<string, MusicServerAdapter>()
@@ -46,6 +47,15 @@ export function createAdapter(config: ServerConfig): MusicServerAdapter {
         token: config.token,
         userId: config.userId ?? '',
         serverId: config.id,
+      })
+
+    case 'webdav':
+      return new WebDavAdapter({
+        url: config.url,
+        username: config.username,
+        password: config.token,
+        serverId: config.id,
+        musicPaths: config.musicPaths,
       })
 
     // 插件音源装载沙箱是异步的，不走 createAdapter：
@@ -145,4 +155,4 @@ export function clearAdapter(): void {
 
 // 重导出类型和适配器类，方便外部使用
 export type { MusicServerAdapter }
-export { SubsonicAdapter, JellyfinAdapter, EmbyAdapter }
+export { SubsonicAdapter, JellyfinAdapter, EmbyAdapter, WebDavAdapter }

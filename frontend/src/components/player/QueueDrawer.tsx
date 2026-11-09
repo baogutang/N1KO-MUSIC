@@ -211,7 +211,14 @@ export function QueueDrawer() {
               >
                 {/* 封面：当前曲在播放时盖一层暗幕，上面跳 EQ */}
                 <span className="cover-frame h-11 w-11 flex-none rounded-[9px] shadow-sm">
-                  <ImageWithFallback src={cover} alt="" fallbackType="album" className="h-full w-full" />
+                  <ImageWithFallback
+                    src={cover}
+                    alt=""
+                    fallbackType="album"
+                    className="h-full w-full"
+                    songId={song.id}
+                    customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
+                  />
                   {isCurrent && isPlaying && (
                     <span className="absolute inset-0 z-[1] grid place-items-center bg-stage-deep/55" aria-hidden="true">
                       <span className="playing-bar">

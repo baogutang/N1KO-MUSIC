@@ -74,6 +74,9 @@ interface SettingsState {
   /** 电视模式（遥控器布局）：auto 在电视上自动打开，on / off 强制（lib/tv） */
   tvMode: TvModeSetting
   setTvMode: (mode: TvModeSetting) => void
+  /** 打开软件时是否播放开屏 */
+  splashEnabled: boolean
+  setSplashEnabled: (v: boolean) => void
 
   // --- 歌词设置 ---
   /** 自定义歌词 API 模板，如 https://api.example.com/lyrics?artist={artist}&title={title} */
@@ -198,6 +201,7 @@ export const useSettingsStore = create<SettingsState>()(
       coverShape: 'square',
       playerCardMode: 'auto',
       tvMode: 'auto',
+      splashEnabled: true,
       lyricsRemoteTemplate: '',
       lyricsConfirmTemplate: '',
       lyricsUseRemote: false,
@@ -244,6 +248,7 @@ export const useSettingsStore = create<SettingsState>()(
       setCoverShape: (s) => set({ coverShape: s }),
       setPlayerCardMode: (mode) => set({ playerCardMode: mode }),
       setTvMode: (mode) => set({ tvMode: mode }),
+      setSplashEnabled: (v) => set({ splashEnabled: v }),
       setLyricsRemoteTemplate: (t) => set({ lyricsRemoteTemplate: t }),
       setLyricsConfirmTemplate: (t) => set({ lyricsConfirmTemplate: t }),
       setLyricsUseRemote: (v) => set({ lyricsUseRemote: v }),
@@ -304,4 +309,4 @@ export const useSettingsStore = create<SettingsState>()(
 )
 
 /* 模板填空的唯一实现在 services/customApi（阶段 4.3：全局替换修正多次占位符漏换） */
-export { buildRemoteCoverUrl, buildRemoteLyricsUrl } from '@/services/customApi'
+export { buildRemoteCoverUrl, buildRemoteLyricsUrl, coverUrlFromTemplate } from '@/services/customApi'

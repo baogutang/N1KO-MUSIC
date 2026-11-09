@@ -4,7 +4,7 @@
  * 表单直接落在地面上（不再套一张纸片），服务器类型是 2×2 的抬起面（选中描一圈叶绿 + 强调色图标），
  * 已存服务器与流媒体音源是纸片行；错误直接陈述。
  * 这一页不在主外壳里：自己处理 safe-area，并且整页自己滚动
- * NAS：Subsonic/Navidrome/Jellyfin/Emby；流媒体音源：已安装插件（PLAN 1.6）——
+ * NAS：Subsonic/Navidrome/Jellyfin/Emby，以及直接读文件夹的 WebDAV；流媒体音源：已安装插件（PLAN 1.6）——
  * 后者只在有出网通道的壳里给入口，正式版的纯浏览器换成一句说明加下载链接
  * （见 lib/platform 的 pluginSourcesSupported）
  */
@@ -14,7 +14,7 @@ import { describeError } from '@/services/errors'
 import { pluginErrorCode } from '@/services/errors'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, CircleNotch, Eye, EyeSlash, FilmStrip, HardDrives, MonitorPlay, Plus, Waveform, X,
+  ArrowLeft, CircleNotch, Eye, EyeSlash, FilmStrip, FolderSimple, HardDrives, MonitorPlay, Plus, Waveform, X,
 } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
@@ -44,6 +44,7 @@ const SERVER_TYPES: Array<{ type: ServerType; label: string; descKey: string; ic
   { type: 'subsonic', label: 'Subsonic', descKey: 'login.type.subsonic', icon: Waveform },
   { type: 'jellyfin', label: 'Jellyfin', descKey: 'login.type.jellyfin', icon: FilmStrip },
   { type: 'emby', label: 'Emby', descKey: 'login.type.emby', icon: MonitorPlay },
+  { type: 'webdav', label: 'WebDAV', descKey: 'login.type.webdav', icon: FolderSimple },
 ]
 
 /** 表单字段上方的小标签：正常句式大小写，不拉字距 */
@@ -91,7 +92,7 @@ export default function LoginPage() {
 
   const [step, setStep] = useState<LoginStep>('type')
   const [selectedType, setSelectedType] = useState<ServerType | null>(null)
-  const [form, setForm] = useState({ url: '', username: '', password: '', name: '' })
+  const [form, setForm] = useState({ url: '', username: '', password: '', name: '', musicPaths: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -353,7 +354,7 @@ export default function LoginPage() {
     // 旧版 Jellyfin/Emby 凭据已失效：预填表单引导重新登录
     if (target && target.type !== 'plugin') {
       setSelectedType(target.type)
-      setForm({ url: target.url, username: target.username, password: '', name: target.name })
+      setForm({ url: target.url, username: target.username, password: '', name: target.name, musicPaths: target.musicPaths ?? '' })
       setStep('credentials')
       setError(t('login.errorCredentialsUpgraded'))
       return
@@ -406,6 +407,7 @@ export default function LoginPage() {
         ...(selectedType === 'subsonic' || selectedType === 'navidrome'
           ? { token: result.token, salt: result.salt }
           : { token: result.token, userId: result.userId }),
+        ...(selectedType === 'webdav' ? { musicPaths: form.musicPaths.trim() } : {}),
         isActive: true,
       })
       if (selectedType === 'subsonic' || selectedType === 'navidrome') {
@@ -753,7 +755,7 @@ export default function LoginPage() {
                   </label>
                   <Input
                     id="login-url"
-                    placeholder="https://music.example.com"
+                    placeholder={selectedType === 'webdav' ? 'http://192.168.1.3:5005' : 'https://music.example.com'}
                     value={form.url}
                     onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
                     type="url"
@@ -764,7 +766,30 @@ export default function LoginPage() {
                     autoCorrect="off"
                     spellCheck={false}
                   />
+                  {selectedType === 'webdav' && (
+                    <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{t('login.webdavUrlHint')}</p>
+                  )}
                 </div>
+
+                {selectedType === 'webdav' && (
+                  <div>
+                    <label htmlFor="login-folders" className={FIELD_LABEL_CLS}>
+                      {t('login.webdavFolders')}
+                    </label>
+                    <textarea
+                      id="login-folders"
+                      rows={3}
+                      placeholder={'/音乐/流行\n/音乐/古典'}
+                      value={form.musicPaths}
+                      onChange={e => setForm(current => ({ ...current, musicPaths: e.target.value }))}
+                      className="flex min-h-[88px] w-full rounded-md border border-edge/80 bg-surface px-3.5 py-2 text-base text-ink transition-colors duration-2 regular:text-[15px] placeholder:text-ink-3 hover:border-edge"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                    <p className="mt-2 text-[13px] leading-relaxed text-ink-3">{t('login.webdavFoldersHint')}</p>
+                  </div>
+                )}
 
                 {/* 用户名 */}
                 <div>

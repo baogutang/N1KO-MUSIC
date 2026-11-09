@@ -98,7 +98,14 @@ export function UpNextList({ count, className, onOpenQueue }: { count: number; c
                   className="press-pop flex w-full items-center gap-3 rounded-[12px] px-2 py-2 text-left hover:bg-ink/[0.06]"
                 >
                   <span className="cover-frame h-11 w-11 flex-none rounded-[9px] shadow-sm">
-                    <ImageWithFallback src={cover} alt="" fallbackType="album" className="h-full w-full" />
+                    <ImageWithFallback
+                      src={cover}
+                      alt=""
+                      fallbackType="album"
+                      className="h-full w-full"
+                      songId={song.id}
+                      customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
+                    />
                   </span>
                   <span className="flex min-w-0 flex-col leading-tight">
                     <span className="truncate text-[14.5px] font-semibold text-ink">{spaceCJK(song.title)}</span>

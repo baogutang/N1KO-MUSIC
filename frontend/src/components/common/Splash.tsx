@@ -17,6 +17,7 @@ import type { CSSProperties } from 'react'
 import { MusicNote, MusicNotes, Sparkle } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { prefersReducedMotion } from '@/lib/motion'
+import { useSettingsStore } from '@/store/settingsStore'
 
 const SEEN_KEY = 'n1ko-splash-seen'
 const WORD = ['N', '1', 'K', 'O']
@@ -57,6 +58,8 @@ function shouldShow(): boolean {
   if (typeof window === 'undefined') return false
   if (import.meta.env.MODE === 'test') return false
   if (navigator.webdriver) return false
+  // 设置里关掉了开屏
+  if (!useSettingsStore.getState().splashEnabled) return false
   try {
     if (sessionStorage.getItem(SEEN_KEY)) return false
     sessionStorage.setItem(SEEN_KEY, '1')

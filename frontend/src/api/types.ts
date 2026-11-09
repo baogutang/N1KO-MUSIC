@@ -11,7 +11,7 @@
  * 支持的服务器类型。
  * `plugin` 是插件音源：同一个插件可以登录两个账号，产生两个 ServerConfig。
  */
-export type ServerType = 'subsonic' | 'navidrome' | 'jellyfin' | 'emby' | 'plugin'
+export type ServerType = 'subsonic' | 'navidrome' | 'jellyfin' | 'emby' | 'webdav' | 'plugin'
 
 /** 服务器连接配置 */
 export interface ServerConfig {
@@ -45,6 +45,11 @@ export interface ServerConfig {
   createdAt: number
   /** 服务器版本信息 */
   version?: string
+  /**
+   * WebDAV 只扫描这些目录，多个用换行或逗号分隔。
+   * 留空则从 url 整棵往下扫。
+   */
+  musicPaths?: string
 }
 
 /** 认证结果 */

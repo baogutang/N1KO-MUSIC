@@ -32,3 +32,22 @@ export function buildRemoteLyricsUrl(template: string, song: TemplateSong): stri
 export function buildRemoteCoverUrl(template: string, song: TemplateSong): string {
   return fillTemplate(template, song, ['artist', 'album', 'title', 'id'])
 }
+
+/** LrcApi 公开实例。没自建接口时用它补歌词和封面。 */
+export const LRCAPI_LYRICS_URL = 'https://api.lrc.cx/lyrics'
+export const LRCAPI_COVER_URL = 'https://api.lrc.cx/cover'
+
+/**
+ * 封面地址。模板里有 {artist} 这类占位符就按占位符替换；
+ * 否则当成 LrcApi 这种基地址，把歌手、专辑、歌名补进查询参数。
+ */
+export function coverUrlFromTemplate(template: string, song: TemplateSong & { path?: string }): string {
+  if (!template) return ''
+  if (template.includes('{')) return buildRemoteCoverUrl(template, song)
+  const url = new URL(template)
+  if (song.title) url.searchParams.set('title', song.title)
+  if (song.artist) url.searchParams.set('artist', song.artist)
+  if (song.album) url.searchParams.set('album', song.album)
+  if (song.path) url.searchParams.set('path', song.path)
+  return url.toString()
+}

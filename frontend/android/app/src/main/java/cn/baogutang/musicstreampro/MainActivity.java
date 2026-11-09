@@ -16,6 +16,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // 应用内的插件要在 super.onCreate 建桥之前注册
         registerPlugin(TvModePlugin.class);
+        registerPlugin(WebDavPlugin.class);
         super.onCreate(savedInstanceState);
 
         // 局域网 http://IP 上的封面和音频由原生代取（见 LanMediaProxy）；其余请求照旧交给 Capacitor

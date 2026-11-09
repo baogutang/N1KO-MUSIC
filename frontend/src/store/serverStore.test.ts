@@ -10,7 +10,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { MusicServerAdapter, ServerConfig, Song } from '@/api/types'
-import { clearAdapter, hasAdapterFor, registerAdapter, setPrimary } from '@/api'
+import { clearAdapter, hasAdapter, hasAdapterFor, registerAdapter, setPrimary } from '@/api'
 import { usePlayerStore } from '@/store/playerStore'
 import { useServerStore } from '@/store/serverStore'
 
@@ -126,6 +126,97 @@ describe('removeServer', () => {
 
     expect(usePlayerStore.getState().queue.map(s => s.id)).toEqual(['b', 'd'])
     expect(useServerStore.getState().activeServerId).toBeNull()
+  })
+})
+
+describe('updateServerUrl', () => {
+  const OLD = 'http://192.168.1.3:5005'
+  const NEXT = 'http://192.168.1.150:5005'
+  const FILE = `${OLD}/sata/音乐/a.flac`
+  const COVER = `${OLD}/sata/cover.jpg`
+
+  function webdavReady() {
+    const config = server(NAS, 'webdav')
+    config.url = OLD
+    config.name = 'WebDAV - 192.168.1.3'
+    config.token = 'secret'
+    registerAdapter(NAS, stubAdapter())
+    registerAdapter(WY, stubAdapter())
+    setPrimary(NAS)
+    useServerStore.setState({
+      servers: [config, server(WY, 'plugin')],
+      connectedServerIds: [NAS, WY],
+      compromisedServerIds: [],
+      activeServerId: NAS,
+      isConnected: true,
+    })
+    usePlayerStore.setState({
+      queue: [
+        { ...song(FILE, NAS), path: FILE, coverArt: COVER },
+        song('b', WY),
+      ],
+      queueIndex: 0,
+      currentSong: { ...song(FILE, NAS), path: FILE, coverArt: COVER },
+      history: [song(`${OLD}/old.mp3`, NAS)],
+      isPlaying: true,
+    })
+  }
+
+  it('改 WebDAV 地址时换掉队列里的文件地址，并保持主库连着', () => {
+    webdavReady()
+
+    expect(useServerStore.getState().updateServerUrl(NAS, `${NEXT}/`)).toBe(true)
+
+    const saved = useServerStore.getState().servers.find(item => item.id === NAS)
+    expect(saved?.url).toBe(NEXT)
+    expect(saved?.name).toBe('WebDAV - 192.168.1.150')
+    expect(usePlayerStore.getState().currentSong?.id).toBe(`${NEXT}/sata/音乐/a.flac`)
+    expect(usePlayerStore.getState().currentSong?.path).toBe(`${NEXT}/sata/音乐/a.flac`)
+    expect(usePlayerStore.getState().currentSong?.coverArt).toBe(`${NEXT}/sata/cover.jpg`)
+    expect(usePlayerStore.getState().queue.map(item => item.id)).toEqual([
+      `${NEXT}/sata/音乐/a.flac`,
+      'b',
+    ])
+    expect(usePlayerStore.getState().history[0]?.id).toBe(`${NEXT}/old.mp3`)
+    expect(useServerStore.getState().activeServerId).toBe(NAS)
+    expect(hasAdapter()).toBe(true)
+    expect(hasAdapterFor(WY)).toBe(true)
+  })
+
+  it('自己起的名字不跟着主机名改', () => {
+    webdavReady()
+    useServerStore.setState({
+      servers: useServerStore.getState().servers.map(item => (
+        item.id === NAS ? { ...item, name: '家里的盘' } : item
+      )),
+    })
+
+    useServerStore.getState().updateServerUrl(NAS, NEXT)
+
+    expect(useServerStore.getState().servers.find(item => item.id === NAS)?.name).toBe('家里的盘')
+  })
+
+  it('Subsonic 的曲目 id 不是地址，改服务器地址时不动它', () => {
+    connectBothWithMixedQueue(0)
+    useServerStore.setState({
+      servers: useServerStore.getState().servers.map(item => (
+        item.id === NAS ? { ...item, url: 'http://nas.local', name: 'Subsonic - nas.local' } : item
+      )),
+    })
+
+    expect(useServerStore.getState().updateServerUrl(NAS, 'http://nas.home')).toBe(true)
+
+    expect(usePlayerStore.getState().queue.map(item => item.id)).toEqual(['a', 'b', 'c', 'd'])
+    expect(useServerStore.getState().servers.find(item => item.id === NAS)?.name).toBe('Subsonic - nas.home')
+  })
+
+  it('无效地址和插件音源不改任何东西', () => {
+    webdavReady()
+
+    expect(useServerStore.getState().updateServerUrl(NAS, 'ftp://192.168.1.150')).toBe(false)
+    expect(useServerStore.getState().updateServerUrl(WY, NEXT)).toBe(false)
+    expect(useServerStore.getState().servers.find(item => item.id === NAS)?.url).toBe(OLD)
+    expect(usePlayerStore.getState().currentSong?.id).toBe(FILE)
   })
 })
 
