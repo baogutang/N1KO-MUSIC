@@ -19,6 +19,7 @@ import { t } from '@/i18n'
 import { usePlayerStore } from '@/store/playerStore'
 import { useLyricCacheStore } from '@/store/lyricCacheStore'
 import { clearCacheForServer } from '@/services/libraryCacheDb'
+import { alignWebDavServerData } from '@/services/webdavUrlMigration'
 import { useSettingsStore } from '@/store/settingsStore'
 import { createSecurePersistStorage } from '@/store/securePersistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
@@ -84,6 +85,12 @@ interface ServerState {
   disconnect: () => Promise<void>
   /** 更新服务器认证信息（登录成功后调用）*/
   updateServerAuth: (id: string, token: string, salt?: string, userId?: string) => void
+  /**
+   * 改已有音源的地址，账号和凭据不动。
+   * 地址没变返回 true；插件音源、空地址、非 http(s) 返回 false。
+   * WebDAV 的曲目 id 就是文件地址，改主机后队列里的旧地址一并换成新的。
+   */
+  updateServerUrl: (id: string, url: string) => boolean
   /** 插件音源凭据回写（env.setCredentials / 重新登录产生新串时）*/
   updateServerCredentials: (id: string, credentials: string | null) => void
   /** 插件音源重复登录时原地更新账号身份与凭据，避免同一插件堆出多行 */
@@ -93,6 +100,25 @@ interface ServerState {
   ) => void
   /** 获取主库配置 */
   getActiveServer: () => ServerConfig | null
+}
+
+/** 收成适配器真正使用的地址：只要 http(s)，去掉查询、片段和结尾斜杠。 */
+function canonicalServerUrl(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    return null
+  }
+  if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) return null
+  url.hash = ''
+  url.search = ''
+  if (url.pathname !== '/' && url.pathname.endsWith('/')) {
+    url.pathname = url.pathname.replace(/\/+$/, '')
+  }
+  return url.toString().replace(/\/$/, '')
 }
 
 export const useServerStore = create<ServerState>()(
@@ -309,6 +335,68 @@ export const useServerStore = create<ServerState>()(
         }))
       },
 
+      updateServerUrl: (id, rawUrl) => {
+        const server = get().servers.find(s => s.id === id)
+        if (!server || server.type === 'plugin') return false
+        const next = canonicalServerUrl(rawUrl)
+        if (!next) return false
+        const previous = canonicalServerUrl(server.url)
+        if (previous === next && server.url === next) return true
+
+        let nextHost = ''
+        try {
+          nextHost = new URL(next).hostname
+        } catch {
+          return false
+        }
+        let previousHost = ''
+        try {
+          previousHost = new URL(server.url).hostname
+        } catch {
+          previousHost = ''
+        }
+        const autoName = previousHost ? `${getServerTypeLabel(server.type)} - ${previousHost}` : ''
+        const name = autoName && server.name === autoName
+          ? `${getServerTypeLabel(server.type)} - ${nextHost}`
+          : server.name
+
+        const wasConnected = get().connectedServerIds.includes(id)
+        const wasPrimary = get().activeServerId === id
+        let nextAdapter: ReturnType<typeof createAdapter> | null = null
+        if (wasConnected) {
+          try {
+            nextAdapter = createAdapter({ ...server, url: next, name })
+          } catch (err) {
+            console.error('Failed to rebuild server adapter:', err)
+            return false
+          }
+        }
+
+        set(state => ({
+          servers: state.servers.map(s => (s.id === id ? { ...s, url: next, name } : s)),
+        }))
+
+        const addressChanged = previous !== next
+        if (addressChanged && server.type === 'webdav') {
+          // 队列、曲库缓存、推荐、历史、歌单、歌词和封面键里都存着文件地址。
+          // 只改服务器配置的话，点开旧列表仍会去请求旧 IP。
+          void alignWebDavServerData(id, next)
+        } else if (addressChanged) {
+          void clearCacheForServer(id)
+        }
+        if (addressChanged) {
+          // 内存里的列表还是改地址之前取回来的那一份。
+          queryClient.clear()
+        }
+
+        if (wasConnected && nextAdapter) {
+          unregisterAdapter(id)
+          registerAdapter(id, nextAdapter)
+          if (wasPrimary) setPrimary(id)
+        }
+        return true
+      },
+
       updateServerCredentials: (id, credentials) => {
         set(state => ({
           servers: state.servers.map(s => (s.id === id ? { ...s, credentials: credentials ?? undefined } : s)),
@@ -390,6 +478,13 @@ export const useServerStore = create<ServerState>()(
              */
             if (state.activeServerId) {
               usePlayerStore.getState().adoptLegacySongSource(state.activeServerId)
+            }
+            // 换过地址之后，盘上的曲目列表可能还指着旧 IP。连上之前先对齐，
+            // 免得首页先把旧地址摆出来。
+            for (const server of state.servers) {
+              if (server.type !== 'webdav') continue
+              const base = canonicalServerUrl(server.url)
+              if (base) await alignWebDavServerData(server.id, base)
             }
             /*
              * 插件清单要在连接**之前**载入（顺带跑首启种子与内置更新）。

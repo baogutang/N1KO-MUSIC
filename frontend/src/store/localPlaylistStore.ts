@@ -9,6 +9,7 @@
 
 import { create } from 'zustand'
 import type { Song } from '@/api/types'
+import { alignWebDavSong } from '@/api/adapters/webdavLibrary'
 import { IDB_NAMES } from '@/services/storageKeys'
 
 const DB_NAME = IDB_NAMES.localPlaylists
@@ -39,6 +40,8 @@ interface LocalPlaylistState {
   removeSongs: (id: string, songIds: string[]) => Promise<void>
   rename: (id: string, name: string) => Promise<void>
   remove: (id: string) => Promise<void>
+  /** 把这个源的曲目快照改到新的文件地址 */
+  retargetServer: (serverId: string, base: string) => Promise<void>
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null
@@ -160,5 +163,26 @@ export const useLocalPlaylistStore = create<LocalPlaylistState>()((set, get) => 
   remove: async id => {
     await removeById(id)
     set({ playlists: get().playlists.filter(p => p.id !== id) })
+  },
+
+  retargetServer: async (serverId, base) => {
+    if (!get().loaded) {
+      try { await get().load() } catch { return }
+    }
+    const next = get().playlists.map(playlist => {
+      let changed = false
+      const items = playlist.items.map(item => {
+        if (item.serverId !== serverId) return item
+        const song = alignWebDavSong(item.song, base)
+        if (song === item.song && item.songId === song.id) return item
+        changed = true
+        return { ...item, songId: song.id, song }
+      })
+      return changed ? { ...playlist, items } : playlist
+    })
+    const changed = next.filter((playlist, index) => playlist !== get().playlists[index])
+    if (!changed.length) return
+    await Promise.all(changed.map(playlist => write(playlist)))
+    set({ playlists: next })
   },
 }))

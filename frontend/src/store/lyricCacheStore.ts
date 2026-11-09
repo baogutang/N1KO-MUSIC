@@ -17,6 +17,7 @@ import {
   STORAGE_PRESSURE_EVENT,
 } from '@/services/storageKeys'
 import { capByBytes, capByRecency } from '@/utils/boundedCache'
+import { retargetFileUrl } from '@/api/adapters/webdavLibrary'
 
 interface LyricCache {
   /** 歌词文本（LRC 格式） */
@@ -59,6 +60,9 @@ interface LyricCacheState {
 
   /** 裁剪到指定条数（保留最近保存的），用于响应存储配额压力 */
   trimTo: (limit: number) => void
+
+  /** 服务器换地址后，把这个源的曲目键从旧文件地址改到新地址，歌词正文保留 */
+  retargetFileUrls: (serverId: string, base: string) => void
 }
 
 export const useLyricCacheStore = create<LyricCacheState>()(
@@ -117,6 +121,27 @@ export const useLyricCacheStore = create<LyricCacheState>()(
         set(state => {
           const cache = capByRecency(state.cache, Math.max(0, limit))
           return cache === state.cache ? state : { cache }
+        })
+      },
+
+      retargetFileUrls: (serverId, base) => {
+        const prefix = `${serverId}:`
+        set(state => {
+          let changed = false
+          const next: typeof state.cache = {}
+          for (const [key, value] of Object.entries(state.cache)) {
+            if (!key.startsWith(prefix)) {
+              next[key] = value
+              continue
+            }
+            const songId = key.slice(prefix.length)
+            const mapped = songId.startsWith('http://') || songId.startsWith('https://')
+              ? retargetFileUrl(songId, base)
+              : songId
+            if (mapped !== songId) changed = true
+            next[prefix + mapped] = value
+          }
+          return changed ? { cache: next } : state
         })
       },
     }),

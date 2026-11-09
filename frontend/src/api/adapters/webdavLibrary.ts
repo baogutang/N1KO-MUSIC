@@ -78,6 +78,54 @@ export function directoryUrl(baseOrDir: string): string {
   return baseOrDir.endsWith('/') ? baseOrDir : `${baseOrDir}/`
 }
 
+/**
+ * 曲目 id 就是文件地址。服务器换了 IP 之后，队列和缓存里还会留着旧主机。
+ * 路径不动，只把主机换成当前这台，否则原生播放器会当成「不是这台服务器的文件」拒绝。
+ */
+export function retargetFileUrl(fileUrl: string, base: string): string {
+  if (!fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) return fileUrl
+  let file: URL
+  let root: URL
+  try {
+    file = new URL(fileUrl)
+    root = new URL(base)
+  } catch {
+    return fileUrl
+  }
+  if (file.origin === root.origin) return fileUrl
+  // 只换主机，路径原样留下。URL.toString() 会把「音乐」重新编码，
+  // 同一首歌就会变成另一个 id。
+  if (fileUrl.startsWith(file.origin)) return root.origin + fileUrl.slice(file.origin.length)
+  return fileUrl
+}
+
+/** 只替换指定旧基址，避免把别的网站的链接也改掉。 */
+export function rewriteFileBase(value: string, from: string, to: string): string {
+  if (!from || from === to || !value.startsWith(from)) return value
+  if (value === from) return to
+  const boundary = value.charAt(from.length)
+  if (boundary === '/' || boundary === '?' || boundary === '#') return to + value.slice(from.length)
+  return value
+}
+
+type WebDavSongFields = { id: string; path?: string; coverArt?: string }
+
+/** 这首歌属于这台 WebDAV 时，把文件地址对齐到当前服务器。封面若在别的网站上则不动。 */
+export function alignWebDavSong<T extends WebDavSongFields>(song: T, base: string): T {
+  if (!song.id.startsWith('http://') && !song.id.startsWith('https://')) return song
+  let oldOrigin = ''
+  try {
+    oldOrigin = new URL(song.id).origin
+  } catch {
+    return song
+  }
+  const id = retargetFileUrl(song.id, base)
+  const path = song.path?.startsWith(oldOrigin) ? retargetFileUrl(song.path, base) : song.path
+  const coverArt = song.coverArt?.startsWith(oldOrigin) ? retargetFileUrl(song.coverArt, base) : song.coverArt
+  if (id === song.id && path === song.path && coverArt === song.coverArt) return song
+  return { ...song, id, path, coverArt }
+}
+
 function pathKey(url: URL): string {
   const raw = url.pathname.replace(/\/+$/, '') || '/'
   try {

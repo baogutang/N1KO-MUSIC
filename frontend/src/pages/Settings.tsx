@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Trash, CheckCircle, ArrowsClockwise,
-  SignOut, CaretRight, WifiHigh,
+  SignOut, CaretRight, WifiHigh, PencilSimple,
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { SourcesSettings } from '@/components/settings/SourcesSettings'
@@ -26,6 +26,8 @@ import {
   type CardMode,
 } from '@/store/settingsStore'
 import { createAdapter, getAdapter, hasAdapter } from '@/api'
+import type { ServerConfig } from '@/api/types'
+import { WebDavNative, webDavNativeAvailable } from '@/api/adapters/webdavNative'
 import { useLibraryScan } from '@/hooks/useServerQueries'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -296,7 +298,7 @@ function DataExportSection() {
 
 export default function Settings() {
   const navigate = useNavigate()
-  const { servers, activeServerId, activateServer, removeServer, disconnect } = useServerStore()
+  const { servers, activeServerId, activateServer, removeServer, disconnect, updateServerUrl } = useServerStore()
   const { theme, setTheme } = useThemeStore()
   const { t, locale } = useT()
   const visibleName = useAppName()
@@ -329,6 +331,10 @@ export default function Settings() {
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
   // 删除服务器会连同 URL、用户名与令牌一起永久抹掉且无法撤销，必须二次确认
   const [pendingRemove, setPendingRemove] = useState<string | null>(null)
+  const [editingServerId, setEditingServerId] = useState<string | null>(null)
+  const [editUrl, setEditUrl] = useState('')
+  const [editError, setEditError] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
   // 换主库会清空播放队列并清缓存——同样是不可撤销的代价，先说清楚
   const [pendingPrimary, setPendingPrimary] = useState<string | null>(null)
   const scan = useLibraryScan()
@@ -380,6 +386,61 @@ export default function Settings() {
   function handleDisconnect() {
     disconnect()
     navigate('/login')
+  }
+
+  function openAddressEditor(server: ServerConfig) {
+    setEditingServerId(server.id)
+    setEditUrl(server.url)
+    setEditError('')
+  }
+
+  /** 试连会改掉原生 WebDAV 的当前地址；失败时要拨回去，否则正在用的那台跟着偏掉。 */
+  async function restoreWebDavNative(server: ServerConfig) {
+    if (server.type !== 'webdav' || !webDavNativeAvailable()) return
+    await WebDavNative.configure({
+      baseUrl: server.url,
+      username: server.username,
+      password: server.token,
+    }).catch(() => {})
+  }
+
+  async function handleSaveAddress() {
+    const server = servers.find(s => s.id === editingServerId)
+    if (!server || editSaving) return
+    const next = editUrl.trim()
+    let parsed: URL
+    try {
+      parsed = new URL(next)
+    } catch {
+      setEditError(t('settings.addressDialog.invalid'))
+      return
+    }
+    if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) {
+      setEditError(t('settings.addressDialog.invalid'))
+      return
+    }
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const reachable = await createAdapter({ ...server, url: next }).ping()
+      if (!reachable) {
+        await restoreWebDavNative(server)
+        setEditError(t('settings.addressDialog.fail'))
+        return
+      }
+      if (!updateServerUrl(server.id, next)) {
+        await restoreWebDavNative(server)
+        setEditError(t('settings.addressDialog.invalid'))
+        return
+      }
+      toast({ title: t('settings.addressDialog.saved') })
+      setEditingServerId(null)
+    } catch {
+      await restoreWebDavNative(server)
+      setEditError(t('settings.addressDialog.fail'))
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   return (
@@ -440,6 +501,20 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="-mr-2 flex flex-shrink-0 items-center">
+                  {/* 插件的地址是它自己写死的，没有可改的服务器地址 */}
+                  {!isPlugin && (
+                    <Button
+                      type="button"
+                      variant="icon"
+                      size="icon"
+                      onClick={() => openAddressEditor(server)}
+                      className="h-11 w-11"
+                      title={t('settings.source.edit')}
+                      aria-label={t('settings.source.editAria', { name: server.name })}
+                    >
+                      <PencilSimple className="h-[18px] w-[18px]" />
+                    </Button>
+                  )}
                   {/* 测试连接只对 NAS 成立：它按 ServerConfig 造一个适配器去 ping，
                       插件音源根本没有可 ping 的地址，这个按钮此前点了必然报错 */}
                   {!isPlugin && (
@@ -1029,6 +1104,57 @@ export default function Settings() {
               }}
             >
               {t('settings.primaryDialog.confirm')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={editingServerId !== null}
+        onOpenChange={open => {
+          if (open || editSaving) return
+          setEditingServerId(null)
+          setEditError('')
+        }}
+      >
+        <DialogContent className="regular:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('settings.addressDialog.title')}</DialogTitle>
+            <DialogDescription>{t('settings.addressDialog.desc')}</DialogDescription>
+          </DialogHeader>
+          <div className="pt-2">
+            <label htmlFor="server-address" className="mb-2 block text-[13px] font-medium text-ink-2">
+              {t('settings.addressDialog.url')}
+            </label>
+            <Input
+              id="server-address"
+              value={editUrl}
+              onChange={event => {
+                setEditUrl(event.target.value)
+                if (editError) setEditError('')
+              }}
+              type="url"
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              disabled={editSaving}
+              aria-invalid={editError ? true : undefined}
+            />
+            {editError && (
+              <p className="mt-2 text-[13px] leading-relaxed text-destructive" role="alert">{editError}</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => { setEditingServerId(null); setEditError('') }}
+              disabled={editSaving}
+            >
+              {t('action.cancel')}
+            </Button>
+            <Button onClick={() => { void handleSaveAddress() }} disabled={editSaving || !editUrl.trim()}>
+              {editSaving ? t('settings.addressDialog.saving') : t('action.save')}
             </Button>
           </div>
         </DialogContent>

@@ -33,11 +33,13 @@ import {
   isLrcName,
   normalizeBase,
   parsePropfind,
+  retargetFileUrl,
   type WebDavFile,
   type WebDavLibrary,
 } from './webdavLibrary'
 import { readAudioTags } from './audioTags'
 import { Capacitor } from '@capacitor/core'
+import { queryClient } from '@/lib/queryClient'
 import { WebDavNative, webDavNativeAvailable, NATIVE_FLAC_PREFIX } from './webdavNative'
 
 const PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8"?>
@@ -71,6 +73,12 @@ export class WebDavAdapter implements MusicServerAdapter {
   private musicPaths: string
   private nativeReady: Promise<void> | null = null
   private indexPromise: Promise<WebDavLibrary> | null = null
+  /** 已经能拿来显示的曲库。目录还在往下扫时，这里是已经扫到的那一部分。 */
+  private published: WebDavLibrary | null = null
+  private firstReady: Promise<WebDavLibrary> | null = null
+  private resolveFirst: ((library: WebDavLibrary) => void) | null = null
+  private rejectFirst: ((err: unknown) => void) | null = null
+  private lastRefresh = 0
 
   constructor(options: WebDavOptions) {
     this.base = normalizeBase(options.url)
@@ -87,7 +95,7 @@ export class WebDavAdapter implements MusicServerAdapter {
       this.username = username
       this.password = password
       this.nativeReady = null
-      this.indexPromise = null
+      this.resetIndex()
       await this.ensureNative()
       await this.propfind(directoryUrl(this.base), 0)
       return { success: true, token: password, username }
@@ -157,20 +165,21 @@ export class WebDavAdapter implements MusicServerAdapter {
 
   getStreamUrl(songId: string): string {
     void this.ensureNative()
-    return songId
+    return retargetFileUrl(songId, this.base)
   }
 
   async resolveStreamUrl(songId: string): Promise<{ url: string; mimeType?: string }> {
     await this.ensureNative()
+    const target = retargetFileUrl(songId, this.base)
     if (Capacitor.isNativePlatform()) {
-      const path = songId.split(/[?#]/, 1)[0] ?? songId
+      const path = target.split(/[?#]/, 1)[0] ?? target
       if (Capacitor.getPlatform() === 'android' && path.toLowerCase().endsWith('.flac')) {
-        return { url: NATIVE_FLAC_PREFIX + songId, mimeType: 'audio/flac' }
+        return { url: NATIVE_FLAC_PREFIX + target, mimeType: 'audio/flac' }
       }
-      const streamed = await WebDavNative.streamUrl({ target: songId })
+      const streamed = await WebDavNative.streamUrl({ target })
       return { url: streamed.url }
     }
-    return { url: songId }
+    return { url: target }
   }
 
   async getLyrics(songId: string): Promise<Lyrics | null> {
@@ -266,15 +275,34 @@ export class WebDavAdapter implements MusicServerAdapter {
 
   private library(signal?: AbortSignal): Promise<WebDavLibrary> {
     if (signal?.aborted) return Promise.reject(abortError())
-    if (!this.indexPromise) {
-      // 不把某一次页面请求的 signal 传进去：离开页面会 abort，
-      // 整库扫描不该因此作废，下次进来还得从头列目录。
-      this.indexPromise = this.scan().catch(err => {
-        this.indexPromise = null
-        throw err
-      })
-    }
-    return this.indexPromise
+    if (this.published) return Promise.resolve(this.published)
+    this.ensureScan()
+    return this.firstReady ?? this.indexPromise ?? Promise.reject(new Error('曲库还没开始扫描'))
+  }
+
+  private resetIndex(): void {
+    this.indexPromise = null
+    this.published = null
+    this.firstReady = null
+    this.resolveFirst = null
+    this.rejectFirst = null
+  }
+
+  private ensureScan(): void {
+    if (this.indexPromise) return
+    this.firstReady = new Promise((resolve, reject) => {
+      this.resolveFirst = resolve
+      this.rejectFirst = reject
+    })
+    // 不把某一次页面请求的 signal 传进去：离开页面会 abort，
+    // 整库扫描不该因此作废，下次进来还得从头列目录。
+    this.indexPromise = this.scan().catch(err => {
+      this.indexPromise = null
+      this.rejectFirst?.(err)
+      this.resolveFirst = null
+      this.rejectFirst = null
+      throw err
+    })
   }
 
   private async scan(): Promise<WebDavLibrary> {
@@ -284,17 +312,59 @@ export class WebDavAdapter implements MusicServerAdapter {
     const seen = new Set<string>()
     for (const root of this.scanRoots()) {
       const listed = await this.tryInfinity(root)
-      if (listed) this.ingest(listed, files, covers, lrcs)
-      else await this.walk(root, 0, files, covers, lrcs, seen)
+      if (listed) {
+        this.ingest(listed, files, covers, lrcs)
+        this.publish(files, covers, lrcs, false)
+      } else {
+        await this.walk(root, 0, files, covers, lrcs, seen)
+      }
     }
-    await this.enrichTags(files)
-    return buildLibrary({
+    const listed = this.publish(files, covers, lrcs, true)
+    // 标签要逐首读文件头。隔着 Tailscale 这会比列目录还久，
+    // 不能挡着全部歌曲先出来。读完再换上带标签的那一版。
+    void this.enrichTags(files).then(() => {
+      this.publish(files, covers, lrcs, true)
+    }).catch(() => {
+      // 标签读不完也还有文件名和文件夹
+    })
+    return listed
+  }
+
+  /** 把目前扫到的文件收成曲库。第一批立刻交给正在等的页面，之后节流刷新。 */
+  private publish(
+    files: WebDavFile[],
+    covers: Map<string, string>,
+    lrcs: Map<string, string>,
+    final: boolean,
+  ): WebDavLibrary {
+    const library = buildLibrary({
       serverId: this.serverId,
       root: this.base,
       files,
       covers,
       lrcs,
     })
+    const first = this.published == null
+    this.published = library
+    if (first && this.resolveFirst) {
+      this.resolveFirst(library)
+      this.resolveFirst = null
+      this.rejectFirst = null
+      return library
+    }
+    const now = Date.now()
+    if (!final && now - this.lastRefresh < 1200) return library
+    this.lastRefresh = now
+    queryClient.invalidateQueries({
+      predicate: query => {
+        const key = query.queryKey
+        if (!Array.isArray(key) || typeof key[0] !== 'string') return false
+        const owner = key[0].split('@', 1)[0]
+        if (owner !== this.serverId) return false
+        return key[1] === 'songs' || key[1] === 'albums' || key[1] === 'artists'
+      },
+    })
+    return library
   }
 
   /** 留空就扫连接地址；填了就只扫这几处，避免把照片和下载目录也走一遍。 */
@@ -377,6 +447,7 @@ export class WebDavAdapter implements MusicServerAdapter {
       const lrc = folderLrc.get(basenameKey(file.name))
       if (lrc) lrcs.set(file.url, lrc)
     }
+    if (folderFiles.length) this.publish(files, covers, lrcs, false)
     await mapPool(subdirs, 8, dir => this.walk(dir, depth + 1, files, covers, lrcs, seen))
   }
 

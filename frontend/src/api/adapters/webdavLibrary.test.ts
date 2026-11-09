@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildLibrary, parsePropfind, sameResource } from './webdavLibrary'
+import { alignWebDavSong, buildLibrary, parsePropfind, retargetFileUrl, sameResource } from './webdavLibrary'
 
 const ROOT = 'http://192.168.1.3:5005'
 
@@ -126,5 +126,35 @@ describe('buildLibrary', () => {
       lrcs: new Map(),
     })
     expect(library.songs[0]).toMatchObject({ title: 'a', album: '全部音乐', artist: '未知歌手' })
+  })
+})
+
+describe('retargetFileUrl', () => {
+  const next = 'http://192.168.1.150:5005'
+  const file = `${ROOT}/sata11/%E8%AE%B8%E5%B5%A9%20-%20%E5%AE%87%E5%AE%99%E4%B9%8B%E5%A4%A7.mp3`
+
+  it('换 IP 之后只改主机，路径原样留下', () => {
+    expect(retargetFileUrl(file, next)).toBe(
+      `${next}/sata11/%E8%AE%B8%E5%B5%A9%20-%20%E5%AE%87%E5%AE%99%E4%B9%8B%E5%A4%A7.mp3`,
+    )
+  })
+
+  it('已经是当前主机就不动', () => {
+    const current = `${next}/sata11/a.mp3`
+    expect(retargetFileUrl(current, next)).toBe(current)
+  })
+
+  it('不是文件地址就原样返回', () => {
+    expect(retargetFileUrl('webdav-artist:许嵩', next)).toBe('webdav-artist:许嵩')
+  })
+
+  it('对齐曲目时只改这台服务器上的文件，外站封面留下', () => {
+    const song = alignWebDavSong({
+      id: file,
+      path: file,
+      coverArt: 'https://api.lrc.cx/cover.jpg',
+    }, next)
+    expect(song.id).toBe(`${next}/sata11/%E8%AE%B8%E5%B5%A9%20-%20%E5%AE%87%E5%AE%99%E4%B9%8B%E5%A4%A7.mp3`)
+    expect(song.coverArt).toBe('https://api.lrc.cx/cover.jpg')
   })
 })

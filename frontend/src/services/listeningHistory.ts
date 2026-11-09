@@ -1,4 +1,5 @@
 import type { Song } from '@/api/types'
+import { alignWebDavSong } from '@/api/adapters/webdavLibrary'
 import { HISTORY_BYTE_BUDGET, STORAGE_KEYS, HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import { reclaimStorage } from '@/services/storageMaintenance'
 import {
@@ -267,6 +268,25 @@ export function upsertListeningEvent(event: ListeningEvent): void {
   } catch (error) {
     console.error('[History] failed to persist listening event:', error)
   }
+}
+
+/** 把这个源的收听记录里的文件地址改到当前服务器，记录本身保留。 */
+export async function retargetListeningSongs(serverId: string, base: string): Promise<void> {
+  const events = memoryCache ?? await readAllEvents<ListeningEvent>() ?? []
+  let changed = false
+  const next = events.map(event => {
+    if (event.serverId !== serverId || !event.song) return event
+    const song = alignWebDavSong(event.song, base)
+    if (song === event.song) return event
+    changed = true
+    return { ...event, song }
+  })
+  if (!changed) return
+  memoryCache = next
+  const owned = next.filter(event => event.serverId === serverId)
+  if (usingLocalStorageFallback || !isHistoryDbAvailable()) writeAll(memoryCache)
+  else await putEvents(owned)
+  notifyHistoryUpdated(serverId)
 }
 
 export function clearListeningEvents(serverId: string): void {
