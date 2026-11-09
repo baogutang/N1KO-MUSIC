@@ -60,7 +60,9 @@ export async function fetchExternalText(url: string, headers?: Record<string, st
       connectTimeout: 12000,
       readTimeout: 20000,
     })
-    const text = typeof res.data === 'string' ? res.data : ''
+    // 响应头是 application/json 时，iOS 和安卓的原生实现都不管 responseType、先解析成对象交回来：
+    // 序列化回文本，调用方照旧自己按 content-type 解析（只认字符串的话 JSON 歌词接口永远是空的）
+    const text = typeof res.data === 'string' ? res.data : res.data == null ? '' : JSON.stringify(res.data)
     return {
       ok: res.status >= 200 && res.status < 300,
       status: res.status,
