@@ -794,7 +794,7 @@ export function useAudioEngine() {
         toast({ title: t('player.sourceDisconnected'), variant: 'destructive' })
       }
       // auto:true：到队尾就停下（那是「放完了」），不要在死队列上空转
-      usePlayerStore.getState().next({ auto: true })
+      usePlayerStore.getState().next({ auto: true, skipping: activeSong })
       return
     }
     disconnectedNoticeKey = null
@@ -983,7 +983,8 @@ export function useAudioEngine() {
           // 稍等片刻给失败提示留出可读时间；期间用户手动切了歌就不抢方向盘。
           // 判据连来源一起比（stillCurrent）：只比 id 的话，用户切到「同名同 id
           // 的另一个音源版本」时会被误判成没动过，于是照样被自动跳走。
-          if (stillCurrent()) usePlayerStore.getState().advanceOnEnded()
+          // skipping：单曲循环也往下走——倒带的话，元素里握着的还是上一首的流
+          if (stillCurrent()) usePlayerStore.getState().advanceOnEnded({ skipping: capturedSong })
         }, 900)
         return
       }
@@ -1341,6 +1342,8 @@ export function useAudioEngine() {
         listenedPrevT = -1
         scrobbleAttempts = 0
         scrobbleRetryAt = 0
+        // 放完那一下（ended / 结尾停滞）把看门狗摘了；同一首不再走 doLoad，得在这里挂回去
+        startStallWatch()
       }
 
       const clearStallWatch = () => {
@@ -1385,7 +1388,7 @@ export function useAudioEngine() {
         persistSessionSnapshot(endedSnapshot, 'completed')
       }
 
-      stallWatchInterval = setInterval(() => {
+      const stallTick = () => {
         const st = usePlayerStore.getState()
         if (!st.isPlaying || audio.paused || audio.ended) {
           stallPrevT = -1
@@ -1470,7 +1473,11 @@ export function useAudioEngine() {
           0,
           `Mid-song stall at buffer tail (t=${Math.round(t)}s)`
         )
-      }, 900)
+      }
+      const startStallWatch = () => {
+        if (stallWatchInterval === null) stallWatchInterval = setInterval(stallTick, 900)
+      }
+      startStallWatch()
 
       /*
        * 断网恢复（阶段 3.11；复核 F5 修三处）：离线期间的失败不是流坏了——
@@ -1654,6 +1661,8 @@ export function useAudioEngine() {
         })
         usePlayerStore.getState().setStreamBuffering(false)
         persistListeningSession()
+        // 元素已经错死：用户再按播放得重新取流，否则按钮翻成「播放中」却没声音
+        needsReloadOnPlay = true
         notePauseReason('error', `media error ${rawCode}`)
         usePlayerStore.getState().pause()
       }
@@ -1874,7 +1883,7 @@ export function useAudioEngine() {
       if (cleanupPrev) { cleanupPrev(false); cleanupPrev = null }
     }
 
-    // 依赖歌曲 id 而非对象引用：updateCurrentSong（如收藏切换）只替换引用不换歌，
+    // 依赖歌曲 id 而非对象引用：patchSong（如收藏切换）只替换引用不换歌，
     // 不应触发本 effect，否则会 cleanup 后重载导致从头重播
   }, [currentSongId, playVersion, isConnected, activeServerId, startupConnectSettled, effectiveQuality, queryClient, targetVolume])
 
@@ -1913,10 +1922,11 @@ export function useAudioEngine() {
       cancelRamp()
       audioEl.volume = targetVolume()
       if (!audioEl.paused) return
-      // readyState < 2（HAVE_CURRENT_DATA）说明还没有足够数据，等 canplay 事件
-      if (audioEl.readyState < 2) {
+      // readyState < 2（HAVE_CURRENT_DATA）说明还没有足够数据，等 canplay 事件；
+      // 报过错的元素数据再够也放不出来，同样交给下面的重载判断
+      if (audioEl.readyState < 2 || audioEl.error) {
         /*
-         * 复审 A9：只有 halt / 音质切换失败置过 needsReloadOnPlay 才重载。
+         * 复审 A9：只有 halt / 音质切换失败 / 恢复次数用完置过 needsReloadOnPlay 才重载。
          * 原先只看「无 src / 错误态」太宽——暂停态点歌、冷启动首播时
          * load effect 刚清空 src，这里也命中，多 bump 一次 playVersion、
          * 重复取流（插件源多撞一次限频）。

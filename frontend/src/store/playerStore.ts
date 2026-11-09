@@ -94,14 +94,21 @@ function persistableQueueWindow(state: PlayerState): {
   return lastWindowResult
 }
 
-/** 切歌防抖：记录上次切歌时间，50ms 内重复调用忽略 */
+/**
+ * 切歌防抖：记录上次切歌时间，50ms 内重复调用忽略。
+ * vouched：调用方已确认要跳的就是眼下这首（引擎跳过放不了的歌），不受防抖拦——
+ * 连着两首都放不了时，第二次跳歌就落在 50ms 内。
+ */
 let lastSwitchTime = 0
-function canSwitch(): boolean {
+function canSwitch(vouched = false): boolean {
   const now = Date.now()
-  if (now - lastSwitchTime < 50) return false
+  if (!vouched && now - lastSwitchTime < 50) return false
   lastSwitchTime = now
   return true
 }
+
+const isSameSong = (a: Song | null | undefined, b: Song | null | undefined) =>
+  !!a && !!b && a.id === b.id && a.serverId === b.serverId
 
 
 interface PlayerState {
@@ -121,7 +128,11 @@ interface PlayerState {
 
   queue: Song[]
   queueIndex: number
-  /** 跨列表播放历史（上一首回退）*/
+  /**
+   * 跨列表播放历史：只在换列表（playSong / playQueue）时记下换走的那首，
+   * 队首按「上一首」时回到上一个列表。队列里前后切不记——那些歌本来就在队列里，
+   * 记进来会在队首被当成「上一个列表的歌」拽到最前，把队列顺序改掉。
+   */
   history: Song[]
 
   volume: number
@@ -170,10 +181,16 @@ interface PlayerState {
    * `auto` 区分意图：曲子自然播完时到队尾应当停下（那是「放完了」）；
    * 用户主动按「下一首」到队尾则应当**原地不动**——把音乐停掉不是他要的，
    * 他要的是「还有吗」，答案是没有，那就继续放着当前这首。
+   *
+   * `skipping`：引擎跳过一首放不了的歌，传的是它判过的那首。还是当前这首才跳，
+   * 而且不受切歌防抖拦（见 canSwitch）；单曲循环也照样往下走。
    */
-  next: (options?: { auto?: boolean }) => void
-  /** 自然播放结束时前进；单曲循环只在此路径生效 */
-  advanceOnEnded: () => void
+  next: (options?: { auto?: boolean; skipping?: Song }) => void
+  /**
+   * 自然播放结束时前进；单曲循环只在此路径生效。
+   * `skipping`：这首放不了、被引擎跳过——单曲循环也往下走（倒带重来还是放不了）。
+   */
+  advanceOnEnded: (options?: { skipping?: Song }) => void
   /**
    * 跨源降级用的原位替换：队列位置与播放状态不变，只换 queue[queueIndex]
    * 与 currentSong。引擎随后按新歌（不同 serverId/id）重新取流。
@@ -215,7 +232,12 @@ interface PlayerState {
   setCarMode: (open: boolean) => void
   setQueueOpen: (open: boolean) => void
   setStreamBuffering: (buffering: boolean) => void
-  updateCurrentSong: (song: Partial<Song>) => void
+  /**
+   * 改某一首（按 id + 来源认）：当前曲和队列里的同一首一起改。
+   * 给收藏这类异步结果用——请求回来时当前曲可能早换了，「改当前曲」会改错歌。
+   * serverId 缺省时只按 id 认。
+   */
+  patchSong: (id: string, serverId: string | undefined, patch: Partial<Song>) => void
   /** 切换/断开服务器时清空所有与旧服务器绑定的播放状态 */
   resetForServerChange: () => void
 }
@@ -250,7 +272,8 @@ export const usePlayerStore = create<PlayerState>()(
       playSong: (song, queue) => {
         const state = get()
         const provided = queue ?? [song]
-        const found = provided.findIndex(s => s.id === song.id)
+        // 连来源一起比：混源队列里两个源的同一首 id 可能一样
+        const found = provided.findIndex(s => isSameSong(s, song))
         // 歌曲不在传入队列里时把它插到队首，否则 currentSong 与 queue[queueIndex]
         // 不一致，首次 next() 会跳过队列第一首。
         const newQueue = found >= 0 ? provided : [song, ...provided]
@@ -308,8 +331,9 @@ export const usePlayerStore = create<PlayerState>()(
         if (get().currentSong) set(state => ({ playVersion: state.playVersion + 1 }))
       },
 
-      next: (options?: { auto?: boolean }) => {
-        if (!canSwitch()) return
+      next: (options?: { auto?: boolean; skipping?: Song }) => {
+        if (options?.skipping && !isSameSong(options.skipping, get().currentSong)) return
+        if (!canSwitch(!!options?.skipping)) return
         const state = get()
         const { queue, queueIndex, repeatMode, shuffle, shuffledIndexes, currentSong } = state
         if (!queue.length) return
@@ -362,7 +386,6 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         set({
-          history: appendHistory(state.history, currentSong),
           currentSong: queue[nextIndex],
           queueIndex: nextIndex,
           isPlaying: true,
@@ -373,7 +396,7 @@ export const usePlayerStore = create<PlayerState>()(
         })
       },
 
-      advanceOnEnded: () => {
+      advanceOnEnded: (options) => {
         const state = get()
         // 「这首放完」的睡眠定时只在自然播完这条路径上生效。
         // 若改成监听曲目变化，用户手动按「下一首」也会被当成播完而静默停止。
@@ -382,8 +405,8 @@ export const usePlayerStore = create<PlayerState>()(
           set({ isPlaying: false, sleepTimerAt: null, sleepFadeScalar: 1 })
           return
         }
-        if (state.repeatMode !== 'one') {
-          state.next({ auto: true })
+        if (state.repeatMode !== 'one' || options?.skipping) {
+          state.next({ auto: true, skipping: options?.skipping })
           return
         }
         if (!canSwitch() || !state.currentSong) return
@@ -423,12 +446,13 @@ export const usePlayerStore = create<PlayerState>()(
         const { queue, queueIndex, shuffle, shuffledIndexes, history, currentSong } = state
         if (!queue.length) return
 
-        if (!shuffle && queueIndex === 0 && history.length > 0) {
+        // 列表循环没有「队首」：绕回第一首后按上一首该回到刚听完的最后一首，不跳出这个列表
+        if (!shuffle && queueIndex === 0 && history.length > 0 && state.repeatMode !== 'all') {
           const prevSong = history[0]
           const newHistory = history.slice(1)
           // 按下标去重而不是按 id 过滤：同一首歌在队列里出现多次时（合辑、手动加了两遍）
           // 按 id 过滤会把它的每一次出现都抹掉。只摘掉队首那一次即可。
-          const duplicateAt = queue.findIndex(s => s.id === prevSong.id)
+          const duplicateAt = queue.findIndex(s => isSameSong(s, prevSong))
           const rest = duplicateAt >= 0
             ? [...queue.slice(0, duplicateAt), ...queue.slice(duplicateAt + 1)]
             : queue
@@ -467,14 +491,13 @@ export const usePlayerStore = create<PlayerState>()(
           prevIndex = shuffledIndexes[prevShufflePos]
           prevCursor = prevShufflePos
         } else if (queueIndex === 0 && state.repeatMode === 'all') {
-          // 列表循环模式下（且无历史可回退）从第一首回绕到最后一首
+          // 列表循环：从第一首回绕到最后一首（不走跨列表历史，见上）
           prevIndex = queue.length - 1
         } else {
           prevIndex = Math.max(0, queueIndex - 1)
         }
 
         set({
-          history: appendHistory(state.history, currentSong),
           currentSong: queue[prevIndex],
           queueIndex: prevIndex,
           isPlaying: true,
@@ -870,7 +893,6 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         set({
-          history: appendHistory(state.history, state.currentSong),
           currentSong: queue[index],
           queueIndex: index,
           isPlaying: true,
@@ -886,10 +908,17 @@ export const usePlayerStore = create<PlayerState>()(
       setQueueOpen: (open) => set({ isQueueOpen: open }),
       setStreamBuffering: (buffering) => set({ streamBuffering: buffering }),
 
-      updateCurrentSong: (songPatch) => {
-        set(state => ({
-          currentSong: state.currentSong ? { ...state.currentSong, ...songPatch } : null,
-        }))
+      patchSong: (id, serverId, patch) => {
+        const hit = (s: Song) => s.id === id && (!serverId || s.serverId === serverId)
+        set(state => {
+          const current = state.currentSong && hit(state.currentSong) ? { ...state.currentSong, ...patch } : null
+          const inQueue = state.queue.some(hit)
+          if (!current && !inQueue) return {}
+          return {
+            ...(current ? { currentSong: current } : null),
+            ...(inQueue ? { queue: state.queue.map(s => (hit(s) ? { ...s, ...patch } : s)) } : null),
+          }
+        })
       },
 
       resetForServerChange: () => {

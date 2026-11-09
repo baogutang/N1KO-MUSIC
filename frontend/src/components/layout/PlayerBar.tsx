@@ -308,7 +308,6 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
   const toggleFullscreen = usePlayerStore(s => s.toggleFullscreen)
   const setFullscreen = usePlayerStore(s => s.setFullscreen)
   const setQueueOpen = usePlayerStore(s => s.setQueueOpen)
-  const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
 
   const toggleStar = useToggleStar()
   /* B4：心形按 favorites 能力出现（与 SongList 一致），插件源没声明就不给入口 */
@@ -353,11 +352,8 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
   const handleToggleStar = useCallback(() => {
     if (!currentSong) return
     if (!currentSong.starred) haptic('light')
-    toggleStar.mutate(
-      { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong },
-      { onSuccess: () => updateCurrentSong({ starred: !currentSong.starred }) }
-    )
-  }, [currentSong, toggleStar, updateCurrentSong])
+    toggleStar.mutate({ id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong })
+  }, [currentSong, toggleStar])
 
   const swipe = useMiniSwipe(() => next(), handlePrev, () => setFullscreen(true))
   // 甩的时候封面跟着手指，曲名多走一点，像被带着往前翻

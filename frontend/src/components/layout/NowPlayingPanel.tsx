@@ -34,7 +34,6 @@ export function NowPlayingPanel() {
   const currentSong = usePlayerStore(s => s.currentSong)
   const setFullscreen = usePlayerStore(s => s.setFullscreen)
   const setQueueOpen = usePlayerStore(s => s.setQueueOpen)
-  const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
   const setNowPlayingPanel = useThemeStore(s => s.setNowPlayingPanel)
   const toggleStar = useToggleStar()
   const caps = useSourceCapabilities()
@@ -122,8 +121,7 @@ export function NowPlayingPanel() {
           {canFavorite && (
             <button
               onClick={() => toggleStar.mutate(
-                { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong },
-                { onSuccess: () => updateCurrentSong({ starred: !currentSong.starred }) }
+                { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong }
               )}
               disabled={toggleStar.isPending}
               className="press-pop -mt-1 grid h-11 w-11 flex-none place-items-center rounded-pill text-ink-3 hover:bg-ink/[0.06] hover:text-ink aria-pressed:text-ink disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"

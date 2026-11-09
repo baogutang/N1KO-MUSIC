@@ -326,7 +326,6 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const setFullscreen = usePlayerStore(s => s.setFullscreen)
   const setQueueOpen = usePlayerStore(s => s.setQueueOpen)
   const setCarMode = usePlayerStore(s => s.setCarMode)
-  const updateCurrentSong = usePlayerStore(s => s.updateCurrentSong)
 
   const [showVolumePanel, setShowVolumePanel] = useState(false)
   // 两个对话框都要把「打开那一刻的歌」钉住：填写的这几秒里上一首可能已经播完切走了
@@ -452,10 +451,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const handleToggleStar = () => {
     if (!currentSong) return
     if (!currentSong.starred) haptic('light')
-    toggleStar.mutate(
-      { id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong },
-      { onSuccess: () => updateCurrentSong({ starred: !currentSong.starred }) }
-    )
+    toggleStar.mutate({ id: currentSong.id, type: 'song', isStarred: !!currentSong.starred, song: currentSong })
   }
 
   const handleNavigateArtist = () => {

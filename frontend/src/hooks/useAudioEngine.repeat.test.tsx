@@ -247,3 +247,44 @@ describe('清空队列时关掉 Jellyfin 会话（复审 D5）', () => {
     expect(stopsAfter).toBe(stopsBefore + 1)
   })
 })
+
+describe('单曲循环第 2 遍起断流看门狗照常值守', () => {
+  /** 停滞看门狗是 900ms 一次的 setInterval：数一数还挂着的那几个 */
+  function trackStallWatch() {
+    const live = new Set<unknown>()
+    const realSet = window.setInterval
+    const realClear = window.clearInterval
+    const setSpy = vi.spyOn(window, 'setInterval').mockImplementation(((fn: TimerHandler, ms?: number, ...rest: unknown[]) => {
+      const id = realSet(fn, ms, ...rest)
+      if (ms === 900) live.add(id)
+      return id
+    }) as typeof window.setInterval)
+    const clearSpy = vi.spyOn(window, 'clearInterval').mockImplementation(((id?: number) => {
+      live.delete(id)
+      realClear(id)
+    }) as typeof window.clearInterval)
+    return { live, restore: () => { setSpy.mockRestore(); clearSpy.mockRestore() } }
+  }
+
+  it('第一遍放完倒带：看门狗还在（原来 ended 清掉后再也不挂，第二遍断流就静音卡住）', async () => {
+    const watch = trackStallWatch()
+    try {
+      act(() => { root!.render(<ProbeTree />) })
+      const el = await untilAudioAttached()
+      await act(async () => { for (let i = 0; i < 50; i++) await Promise.resolve() })
+      expect(watch.live.size).toBe(1)
+
+      // 切歌防抖是 50ms 真实时间：上一条用例刚放完一遍，等出窗口，不然这次 ended 会被当成过期的
+      await new Promise(r => setTimeout(r, 60))
+      act(() => { el.dispatchEvent(new Event('play')) })
+      listenSeconds(el, 118)
+      fireEnded(el)
+      await act(async () => { await Promise.resolve() })
+      expect(usePlayerStore.getState().repeatSeekToken).toBe(1)
+
+      expect(watch.live.size).toBe(1)
+    } finally {
+      watch.restore()
+    }
+  })
+})

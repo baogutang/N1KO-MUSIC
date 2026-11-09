@@ -21,6 +21,7 @@ import { useSettingsStore } from '@/store/settingsStore'
 import { useServerStore } from '@/store/serverStore'
 import { useLibraryScopeStore } from '@/store/libraryScopeStore'
 import { useLyricCacheStore } from '@/store/lyricCacheStore'
+import { usePlayerStore } from '@/store/playerStore'
 import { parseLrc } from '@/hooks/useLyrics'
 import { mirrorFavorite } from '@/services/historySync'
 import type { ListParams, Lyrics, Song } from '@/api/types'
@@ -731,6 +732,11 @@ export function useToggleStar() {
        * 收藏成功了，列表却不动。谓词一次认两种。
        */
       const sid = bareServerId(variables.serverId ?? variables.song?.serverId ?? serverKey())
+      /* 播放器里的那一首（当前曲 / 队列）按 id + 来源改，不是「改当前曲」：
+         请求在路上时换了歌，原来会把新歌标成已收藏 */
+      if (variables.type === 'song') {
+        usePlayerStore.getState().patchSong(variables.id, variables.serverId ?? variables.song?.serverId, { starred: !variables.isStarred })
+      }
       // 收藏汇总页本身必须重取（条目会进出列表，不是就地改标记）
       queryClient.invalidateQueries({ predicate: sourceFamilyFilter(sid, 'starred') })
       // 其余家族标记为过期，但不立即重取：下次真正用到时才刷新

@@ -169,8 +169,11 @@ export function useRemoteQueueOffer() {
     // 所以这里等 canplay 而不是拍一个固定延时。
     const seconds = offer.positionMs / 1000
     if (seconds > 1) {
+      // 重试的这两秒里用户换了歌（或重新加载）：位置是上一首的，别定到新歌上
+      const version = usePlayerStore.getState().playVersion
       let attempts = 0
       const trySeek = () => {
+        if (usePlayerStore.getState().playVersion !== version) return
         attempts += 1
         seekHowl(seconds)
         // 转码流的 seekable 随缓冲增长，一次不一定落得到位，最多重试约 2 秒

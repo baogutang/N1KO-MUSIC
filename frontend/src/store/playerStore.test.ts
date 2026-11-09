@@ -411,6 +411,37 @@ describe('prev', () => {
     expect(state().history.map(item => item.id)).toEqual(['oldest'])
   })
 
+  it('队列里往前听几首再退回队首，prev 回到上一个列表，不把队列里的歌拽到最前', () => {
+    seedQueue(3, 0, { history: [song('from-previous-list')] })
+    passSwitchDebounce()
+
+    state().next()
+    passSwitchDebounce()
+    state().next()
+    passSwitchDebounce()
+    state().jumpToIndex(1)
+    passSwitchDebounce()
+    state().prev()
+    passSwitchDebounce()
+    state().prev()
+
+    expect(currentId()).toBe('from-previous-list')
+    expect(queueIds()).toEqual(['from-previous-list', 's0', 's1', 's2'])
+  })
+
+  it('列表循环：绕回队首后 prev 回到最后一首，不跳出这个列表', () => {
+    seedQueue(3, 2, { repeatMode: 'all', history: [song('from-previous-list')] })
+    passSwitchDebounce()
+
+    state().next()
+    expect(currentId()).toBe('s0')
+    passSwitchDebounce()
+    state().prev()
+
+    expect(currentId()).toBe('s2')
+    expect(queueIds()).toEqual(['s0', 's1', 's2'])
+  })
+
   it('列表循环且无历史时，队首 prev 回绕到最后一首', () => {
     seedQueue(3, 0, { repeatMode: 'all', history: [] })
     passSwitchDebounce()
@@ -715,6 +746,38 @@ describe('切歌防抖', () => {
     state().prev()
 
     expect(state().queueIndex).toBe(3)
+  })
+
+  it('引擎跳过放不了的歌（skipping）：连着两首都跳，不被防抖吞掉', () => {
+    const queue = seedQueue(4, 0)
+    passSwitchDebounce()
+
+    state().next({ auto: true, skipping: queue[0] })
+    state().next({ auto: true, skipping: queue[1] })
+
+    expect(state().queueIndex).toBe(2)
+  })
+
+  it('skipping 指的已经不是当前这首（用户刚切走）：不动', () => {
+    const queue = seedQueue(4, 0)
+    passSwitchDebounce()
+
+    state().next()
+    passSwitchDebounce()
+    state().next({ auto: true, skipping: queue[0] })
+
+    expect(state().queueIndex).toBe(1)
+  })
+
+  it('单曲循环下跳过放不了的歌：往下走，不倒带', () => {
+    const queue = seedQueue(3, 0, { repeatMode: 'one' })
+    passSwitchDebounce()
+    const tokenBefore = state().repeatSeekToken
+
+    state().advanceOnEnded({ skipping: queue[0] })
+
+    expect(state().queueIndex).toBe(1)
+    expect(state().repeatSeekToken).toBe(tokenBefore)
   })
 })
 
@@ -1107,5 +1170,24 @@ describe('随机模式三条（阶段 6.12）', () => {
     state().prev()
 
     expect(state().queueIndex).toBe(0) // shuffledIndexes 最后一项
+  })
+})
+
+describe('patchSong', () => {
+  it('收藏回来时已经换了歌：改的是收藏的那首（队列里），不是新的当前曲', () => {
+    const queue = seedQueue(3, 1)
+    state().patchSong(queue[0].id, queue[0].serverId, { starred: '2030-01-01' })
+
+    expect(state().currentSong?.starred).toBeUndefined()
+    expect(state().queue[0].starred).toBe('2030-01-01')
+  })
+
+  it('当前曲和队列里的同一首一起改；来源不同的同 id 不动', () => {
+    const queue = seedQueue(2, 0)
+    usePlayerStore.setState({ queue: [...queue, { ...queue[0], serverId: 'other' }] })
+    state().patchSong(queue[0].id, queue[0].serverId, { starred: '2030-01-01' })
+
+    expect(state().currentSong?.starred).toBe('2030-01-01')
+    expect(state().queue.map(s => s.starred)).toEqual(['2030-01-01', undefined, undefined])
   })
 })
