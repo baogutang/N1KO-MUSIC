@@ -18,6 +18,7 @@ import type {
   Playlist,
   PlaylistDetail,
   SearchResult,
+  SearchSection,
   Lyrics,
   ListParams,
   PageResult,
@@ -313,40 +314,69 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
+  /**
+   * 搜索各分区：条目类型、要的字段、每批大小。首批（searchAll）与「加载更多」
+   * （searchSection）同大——返回满一页就当后面还有。
+   */
+  private static readonly SEARCH_SPEC = {
+    songs: { type: 'Audio', fields: 'MediaStreams,RunTimeTicks,UserData,ImageTags', size: 20 },
+    albums: { type: 'MusicAlbum', fields: 'RunTimeTicks,UserData,Genres', size: 10 },
+    artists: { type: 'MusicArtist', fields: 'UserData', size: 10 },
+  } as const
+
+  private async searchItems(
+    query: string,
+    section: SearchSection,
+    offset: number,
+    signal?: AbortSignal
+  ): Promise<Record<string, unknown>[]> {
+    const spec = JellyfinAdapter.SEARCH_SPEC[section]
+    const resp = await this.client.get('/Items', {
+      params: this.itemsParams({
+        SearchTerm: query,
+        IncludeItemTypes: spec.type,
+        Fields: spec.fields,
+        Limit: spec.size,
+        StartIndex: offset,
+      }),
+      signal,
+    })
+    return (resp.data.Items ?? []) as Record<string, unknown>[]
+  }
+
   async searchAll(query: string, signal?: AbortSignal): Promise<SearchResult> {
     const [songs, albums, artists] = await Promise.all([
-      this.client.get('/Items', {
-        params: this.itemsParams({
-          SearchTerm: query,
-          IncludeItemTypes: 'Audio',
-          Fields: 'MediaStreams,RunTimeTicks,UserData,ImageTags',
-          Limit: 20,
-        }),
-        signal,
-      }),
-      this.client.get('/Items', {
-        params: this.itemsParams({
-          SearchTerm: query,
-          IncludeItemTypes: 'MusicAlbum',
-          Fields: 'RunTimeTicks,UserData,Genres',
-          Limit: 10,
-        }),
-        signal,
-      }),
-      this.client.get('/Items', {
-        params: this.itemsParams({
-          SearchTerm: query,
-          IncludeItemTypes: 'MusicArtist',
-          Fields: 'UserData',
-          Limit: 10,
-        }),
-        signal,
-      }),
+      this.searchItems(query, 'songs', 0, signal),
+      this.searchItems(query, 'albums', 0, signal),
+      this.searchItems(query, 'artists', 0, signal),
     ])
+    const spec = JellyfinAdapter.SEARCH_SPEC
     return {
-      songs: ((songs.data.Items ?? []) as Record<string, unknown>[]).map(this.mapSong.bind(this)),
-      albums: ((albums.data.Items ?? []) as Record<string, unknown>[]).map(this.mapAlbum.bind(this)),
-      artists: ((artists.data.Items ?? []) as Record<string, unknown>[]).map(this.mapArtist.bind(this)),
+      songs: songs.map(this.mapSong.bind(this)),
+      albums: albums.map(this.mapAlbum.bind(this)),
+      artists: artists.map(this.mapArtist.bind(this)),
+      sectionHasMore: {
+        songs: songs.length >= spec.songs.size,
+        albums: albums.length >= spec.albums.size,
+        artists: artists.length >= spec.artists.size,
+      },
+    }
+  }
+
+  async searchSection<S extends SearchSection>(
+    query: string,
+    section: S,
+    offset: number,
+    signal?: AbortSignal
+  ): Promise<{ items: SearchResult[S]; hasMore: boolean }> {
+    const raw = await this.searchItems(query, section, offset, signal)
+    const items =
+      section === 'songs' ? raw.map(this.mapSong.bind(this))
+        : section === 'albums' ? raw.map(this.mapAlbum.bind(this))
+          : raw.map(this.mapArtist.bind(this))
+    return {
+      items: items as SearchResult[S],
+      hasMore: raw.length >= JellyfinAdapter.SEARCH_SPEC[section].size,
     }
   }
 

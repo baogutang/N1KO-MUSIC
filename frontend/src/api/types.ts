@@ -345,11 +345,19 @@ export interface PageResult<T> {
 // 搜索
 // ===================================================
 
+/** 可单独分页的搜索分区 */
+export type SearchSection = 'songs' | 'albums' | 'artists'
+
 export interface SearchResult {
   songs: Song[]
   albums: Album[]
   artists: Artist[]
   playlists?: Playlist[]
+  /**
+   * 各分区后面是否可能还有（首批满一页就是「可能」）。只有实现了 searchSection 的适配器填；
+   * 缺省 = 这个音源搜索不支持加载更多，页面不画按钮。
+   */
+  sectionHasMore?: Partial<Record<SearchSection, boolean>>
   /** 歌曲结果是否已到尾页（插件音源分页搜索填；缺省视为是） */
   songsIsEnd?: boolean
   /**
@@ -376,6 +384,17 @@ export interface MusicServerAdapter {
   getSong(songId: string): Promise<Song | null>
   /** signal 由 React Query 的 queryFn 提供，用于取消在途搜索 */
   searchAll(query: string, signal?: AbortSignal): Promise<SearchResult>
+  /**
+   * 单音源搜索页的「加载更多」：取某一分区从 offset 起的下一批（批量与首批同大）。
+   * 可选——服务端没有按分区偏移的搜索（WebDAV 本地过滤、插件按页码）就不实现，页面不画按钮。
+   * hasMore：这一批满一页，后面可能还有。
+   */
+  searchSection?<S extends SearchSection>(
+    query: string,
+    section: S,
+    offset: number,
+    signal?: AbortSignal
+  ): Promise<{ items: SearchResult[S]; hasMore: boolean }>
   /** 分页歌曲搜索（插件音源实现）；聚合「全部」视图的加载更多用 */
   searchSongsPage?(query: string, page: number): Promise<{ songs: Song[]; isEnd: boolean }>
   /** path / suffix 用于识别 DSF/DSD（Navidrome 常缺准确 MIME，但会有 suffix）*/

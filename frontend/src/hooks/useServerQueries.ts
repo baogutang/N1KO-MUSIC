@@ -5,7 +5,7 @@
  * 提供缓存、加载状态、错误处理
  */
 
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchExternalImage, fetchExternalText } from '@/services/externalFetch'
 import { mayReceivePath } from '@/services/customApi'
 import {
@@ -24,7 +24,7 @@ import { useLyricCacheStore } from '@/store/lyricCacheStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { parseLrc } from '@/hooks/useLyrics'
 import { mirrorFavorite } from '@/services/historySync'
-import type { ListParams, Lyrics, Song } from '@/api/types'
+import type { ListParams, Lyrics, SearchResult, SearchSection, Song } from '@/api/types'
 import { t } from '@/i18n'
 
 // ===================================================
@@ -166,6 +166,61 @@ export function useSearch(query: string, options: { enabled?: boolean } = {}) {
     staleTime: 2 * 60 * 1000,
     placeholderData: keepPreviousData,
   })
+}
+
+/**
+ * 单源搜索的「加载更多」：向主库适配器要某分区的下一批，并进这条搜索自己的缓存。
+ *
+ * 并进缓存而不是页面 state：收藏的乐观更新就地改缓存里的行，额外加载的行也跟着变；
+ * 点进一条结果再返回，已加载的还在。offset 取缓存里该分区当前的条数，并入时再核一遍——
+ * 这期间查询被重取回首批（条数变了），这一批就丢掉，不会错位拼接。
+ *
+ * data 传当前真正属于 query 的结果（占位的旧词结果别传）；适配器没实现 searchSection，
+ * 或这一批已经没有后文，canLoadMore 都是 false，页面据此不画按钮。
+ */
+export function useSearchLoadMore(query: string, data: SearchResult | undefined) {
+  const queryClient = useQueryClient()
+  const [loading, setLoading] = useState<ReadonlySet<SearchSection>>(() => new Set())
+  // 连点防抖用 ref：setState 要到下一次渲染才可见
+  const inFlight = useRef(new Set<SearchSection>())
+
+  const supported = hasAdapter() && typeof getAdapter().searchSection === 'function'
+  const canLoadMore = (section: SearchSection) => supported && data?.sectionHasMore?.[section] === true
+
+  /** 成功 true；失败 false（调用方提示，列表与按钮原样保留，可以再点） */
+  const loadMore = useCallback(async (section: SearchSection): Promise<boolean> => {
+    if (inFlight.current.has(section)) return true
+    const adapter = getAdapter()
+    const key = queryKeys.search(query)
+    const current = queryClient.getQueryData<SearchResult>(key)
+    if (!adapter.searchSection || !current) return false
+    const offset = current[section].length
+    inFlight.current.add(section)
+    setLoading(prev => new Set(prev).add(section))
+    try {
+      const { items, hasMore } = await adapter.searchSection(query, section, offset)
+      queryClient.setQueryData<SearchResult>(key, old => {
+        if (!old || old[section].length !== offset) return old
+        return {
+          ...old,
+          [section]: [...old[section], ...items],
+          sectionHasMore: { ...old.sectionHasMore, [section]: hasMore },
+        }
+      })
+      return true
+    } catch {
+      return false
+    } finally {
+      inFlight.current.delete(section)
+      setLoading(prev => {
+        const next = new Set(prev)
+        next.delete(section)
+        return next
+      })
+    }
+  }, [query, queryClient])
+
+  return { loadMore, loading, canLoadMore }
 }
 
 /** 获取歌词（优先本地缓存 > 远程歌词 > 服务器歌词）*/

@@ -26,6 +26,8 @@ import { cn } from '@/lib/utils'
 import { SPRING_SNAPPY } from '@/lib/motion'
 import { spaceCJK } from '@/utils/cjkTypography'
 import { EmptyState } from '@/components/common/EmptyState'
+import { ErrorState } from '@/components/common/ErrorState'
+import { isNotFoundError } from '@/services/errors'
 import { MarginNote } from '@/components/music/MarginNote'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
@@ -58,7 +60,7 @@ export default function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { data: album, isLoading } = useAlbumDetail(id ?? '', sourceParam(searchParams))
+  const { data: album, isLoading, error, refetch } = useAlbumDetail(id ?? '', sourceParam(searchParams))
   const toggleStar = useToggleStar()
   const reduce = useReducedMotion()
   /* B4：专辑收藏只在源声明 favorites 时给入口 */
@@ -81,6 +83,15 @@ export default function AlbumDetailPage() {
   }
 
   if (!album) {
+    /* 出错与「真的不存在」是两件事（同歌曲详情页）：断网 / 500 / 凭据过期说「专辑不存在」是在撒谎，
+       还让人无从重试；只有服务端明确说没有（not-found / 404）才是不存在。 */
+    if (error && !isNotFoundError(error)) {
+      return (
+        <div className="mx-auto max-w-[560px] pt-6">
+          <ErrorState ruled={false} retry={() => { void refetch() }} />
+        </div>
+      )
+    }
     return (
       <EmptyState
         title={t('empty.album.title')}

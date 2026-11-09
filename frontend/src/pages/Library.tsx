@@ -31,6 +31,13 @@ const SEG_OPTION =
 /** 当前格底下托起的那块片。暗色下 surface 与轨道（ink 6%）几乎同亮（对比 1.03:1），改用 fill-2 才托得起来 */
 const SEG_PILL = 'absolute inset-0 -z-10 rounded-pill bg-surface shadow-sm dark:bg-fill-2'
 
+/**
+ * 「播放全部」最多取多少首。曲库是分页加载的（首屏只有 100 首），而页头写的是全库总数，
+ * 所以点击时要把剩下的页取完再播；但几十万首的库全取下来会吃光内存、也要翻几千次请求，
+ * 到 5000 首就封顶（50 页 × 100）——一个队列里放这么多已经远超一次听歌的量。
+ */
+const PLAY_ALL_LIMIT = 5000
+
 export default function Library() {
   const { t } = useT()
   const navigate = useNavigate()
@@ -79,6 +86,29 @@ export default function Library() {
   } = useSongsInfinite(100, { enabled: canBrowse })
 
   const songs = songsData?.pages.flatMap(p => p.items) ?? []
+
+  /**
+   * 播放全部：先把没加载的分页取完（复用列表自己的 infinite query，取到的页也留在缓存里），再起播。
+   * 取页期间按钮忙碌并禁用，防连点重复起播；某页失败就用已取到的开播，总比一首都不放强。
+   */
+  const [playingAll, setPlayingAll] = useState(false)
+  async function handlePlayAll() {
+    if (playingAll) return
+    setPlayingAll(true)
+    try {
+      let all = songs
+      let more = hasNextPage
+      while (more && all.length < PLAY_ALL_LIMIT) {
+        const res = await fetchNextPage()
+        if (res.isError) break
+        all = res.data?.pages.flatMap(p => p.items) ?? all
+        more = res.hasNextPage
+      }
+      playAllInOrder(all.slice(0, PLAY_ALL_LIMIT), 0)
+    } finally {
+      setPlayingAll(false)
+    }
+  }
 
   const [shufflingAll, setShufflingAll] = useState(false)
   async function handleShuffleAll() {
@@ -147,9 +177,9 @@ export default function Library() {
         </div>
         {loaded && (
           <div className="flex flex-shrink-0 flex-wrap items-center gap-3">
-            <Button onClick={() => playAllInOrder(songs, 0)}>
-              <Play size={18} weight="fill" />
-              {t('player.playAll')}
+            <Button onClick={handlePlayAll} disabled={playingAll}>
+              <Play size={18} weight="fill" className={playingAll ? 'animate-pulse motion-reduce:animate-none' : undefined} />
+              {playingAll ? t('library.playingAll') : t('player.playAll')}
             </Button>
             {/*
               全库随机：向服务端要一批随机取样，而不是对已加载的这一页洗牌。
@@ -208,7 +238,7 @@ export default function Library() {
             {isFetchingNextPage && <SongRowsSkeleton rows={3} />}
             {hasNextPage && !isFetchingNextPage && (
               <div className="mt-8 flex justify-center">
-                <Button variant="secondary" onClick={() => fetchNextPage()}>
+                <Button variant="secondary" disabled={playingAll} onClick={() => fetchNextPage()}>
                   {t('library.loadMoreSongs')}
                 </Button>
               </div>

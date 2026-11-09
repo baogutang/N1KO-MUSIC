@@ -22,6 +22,7 @@ import type {
   Playlist,
   PlaylistDetail,
   SearchResult,
+  SearchSection,
   Lyrics,
   LyricLine,
   ListParams,
@@ -122,8 +123,15 @@ export function mapSongExtras(s: Record<string, unknown>): SongExtras | undefine
   return Object.keys(ext).length ? ext : undefined
 }
 
-/** 歌手详情里最多预取多少张专辑的曲目，其余留给专辑页按需加载 */
-const MAX_ARTIST_ALBUM_FETCH = 40
+/**
+ * 歌手详情里最多预取多少张专辑的曲目，其余留给专辑页按需加载。
+ *
+ * 「全部歌曲」与页头曲目数、「播放全部」都是由这些专辑聚合出来的，上限太低就是残的
+ * （此前 40，专辑多一点的歌手就缺一截）。Subsonic 没有「按歌手列全部曲目」的接口，
+ * 只能逐张 /getAlbum；300 张覆盖绝大多数歌手（并发 4，局域网内几秒），
+ * 封顶只防「Various Artists」这类几千张专辑的条目一打开页面就打出几千个请求。
+ */
+export const MAX_ARTIST_ALBUM_FETCH = 300
 /** 并发上限。浏览器同源连接只有 6 条，超出只会排队并挤掉封面请求。 */
 const ARTIST_ALBUM_CONCURRENCY = 4
 
@@ -401,7 +409,16 @@ export class SubsonicAdapter implements MusicServerAdapter {
     }
   }
 
-  async searchAll(query: string, signal?: AbortSignal): Promise<SearchResult> {
+  /**
+   * 搜索每批的大小。首批（searchAll）与「加载更多」（searchSection）同大：
+   * 返回满一页就当后面还有，Subsonic 的 search3 不给总数。
+   */
+  private static readonly SEARCH_PAGE = { songs: 20, albums: 10, artists: 10 } as const
+
+  /** search3 的原始分区；section 只取一个时其余分区 count=0（不白拉） */
+  private async search3(query: string, offsets: Record<SearchSection, number>, only?: SearchSection, signal?: AbortSignal) {
+    const page = SubsonicAdapter.SEARCH_PAGE
+    const count = (s: SearchSection) => (only && only !== s ? 0 : page[s])
     const data = await this.request<{
       searchResult3?: {
         song?: unknown[]
@@ -410,22 +427,52 @@ export class SubsonicAdapter implements MusicServerAdapter {
       }
     }>('/search3', {
       query,
-      songCount: 20,
-      albumCount: 10,
-      artistCount: 10,
-      songOffset: 0,
-      albumOffset: 0,
-      artistOffset: 0,
+      songCount: count('songs'),
+      albumCount: count('albums'),
+      artistCount: count('artists'),
+      songOffset: offsets.songs,
+      albumOffset: offsets.albums,
+      artistOffset: offsets.artists,
     }, signal)
-    const result = (data.searchResult3 ?? {}) as {
+    return (data.searchResult3 ?? {}) as {
       song?: Record<string, unknown>[]
       album?: Record<string, unknown>[]
       artist?: Record<string, unknown>[]
     }
+  }
+
+  async searchAll(query: string, signal?: AbortSignal): Promise<SearchResult> {
+    const result = await this.search3(query, { songs: 0, albums: 0, artists: 0 }, undefined, signal)
+    const page = SubsonicAdapter.SEARCH_PAGE
+    const songs = (result.song ?? []).map(this.mapSong.bind(this))
+    const albums = (result.album ?? []).map(this.mapAlbum.bind(this))
+    const artists = (result.artist ?? []).map(this.mapArtist.bind(this))
     return {
-      songs: (result.song ?? []).map(this.mapSong.bind(this)),
-      albums: (result.album ?? []).map(this.mapAlbum.bind(this)),
-      artists: (result.artist ?? []).map(this.mapArtist.bind(this)),
+      songs,
+      albums,
+      artists,
+      sectionHasMore: {
+        songs: songs.length >= page.songs,
+        albums: albums.length >= page.albums,
+        artists: artists.length >= page.artists,
+      },
+    }
+  }
+
+  async searchSection<S extends SearchSection>(
+    query: string,
+    section: S,
+    offset: number,
+    signal?: AbortSignal
+  ): Promise<{ items: SearchResult[S]; hasMore: boolean }> {
+    const result = await this.search3(query, { songs: 0, albums: 0, artists: 0, [section]: offset }, section, signal)
+    const items =
+      section === 'songs' ? (result.song ?? []).map(this.mapSong.bind(this))
+        : section === 'albums' ? (result.album ?? []).map(this.mapAlbum.bind(this))
+          : (result.artist ?? []).map(this.mapArtist.bind(this))
+    return {
+      items: items as SearchResult[S],
+      hasMore: items.length >= SubsonicAdapter.SEARCH_PAGE[section],
     }
   }
 
@@ -698,7 +745,7 @@ export class SubsonicAdapter implements MusicServerAdapter {
       : Promise.resolve(null)
     // 每张专辑一次 /getAlbum。多产歌手会一次打出几十个请求，
     // 而浏览器同源连接只有 6 条——请求排队反而拖慢首屏，也会挤掉封面。
-    // 这里用并发池限流；专辑很多时只取前若干张，其余按需在专辑页加载。
+    // 这里用并发池限流；专辑超过 MAX_ARTIST_ALBUM_FETCH 时只取前若干张，其余按需在专辑页加载。
     const [topSongsResult, albumResults] = await Promise.all([
       topSongsPromise,
       mapWithConcurrency(

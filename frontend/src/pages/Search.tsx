@@ -22,7 +22,7 @@ import { CoverShelf } from '@/components/common/CoverCard'
 import { ImageWithFallback } from '@/components/common/ImageWithFallback'
 import { SegmentedPill } from '@/components/settings/primitives'
 import { SourceBadge } from '@/components/sources/SourceBadge'
-import { useSearch } from '@/hooks/useServerQueries'
+import { useSearch, useSearchLoadMore } from '@/hooks/useServerQueries'
 import {
   useConnectedSources,
   usePlaybackPriorityOrder,
@@ -30,9 +30,10 @@ import {
   useSourceSearch,
 } from '@/hooks/useSourceQueries'
 import { mergeSongs, normalizeText } from '@/plugins/match'
-import type { Album, Artist, Song } from '@/api/types'
+import type { Album, Artist, SearchSection, Song } from '@/api/types'
 import { findAdapterFor } from '@/api'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { toast } from '@/components/ui/use-toast'
 import { EmptyState } from '@/components/common/EmptyState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { SongRowsSkeleton } from '@/components/common/SongRowsSkeleton'
@@ -84,6 +85,18 @@ function ArtistPills({ artists, withSource }: { artists: Artist[]; withSource: b
           {withSource && <SourceBadge serverId={artist.serverId} className="flex-none" />}
         </button>
       ))}
+    </div>
+  )
+}
+
+/** 单源分区底部的「加载更多」：取的过程中禁用并换成进行时文案（与多源「全部」视图的按钮同款） */
+function LoadMoreRow({ busy, onClick }: { busy: boolean; onClick: () => void }) {
+  const { t } = useT()
+  return (
+    <div className="mt-6 text-center">
+      <Button variant="secondary" disabled={busy} onClick={onClick}>
+        {busy ? t('search.loadingMore') : t('search.loadMore')}
+      </Button>
     </div>
   )
 }
@@ -462,6 +475,11 @@ export default function SearchPage() {
   const handleClear = useCallback(() => setQuery(''), [])
 
   const singleResults = single.data
+  // 占位的旧词结果（keepPreviousData）不属于当前查询：不给它画「加载更多」，缓存里还没有这一条
+  const more = useSearchLoadMore(debouncedQuery, single.isPlaceholderData ? undefined : singleResults)
+  async function handleLoadMore(section: SearchSection) {
+    if (!(await more.loadMore(section))) toast({ title: t('search.sourceError'), variant: 'destructive' })
+  }
   const hasResults = multi
     ? !!(merged?.length || mergedArtists.length || mergedAlbums.length)
     : singleResults && (
@@ -781,6 +799,9 @@ export default function SearchPage() {
                 <SectionCount>{t('search.artistCount', { count: singleResults.artists.length })}</SectionCount>
               </div>
               <ArtistPills artists={singleResults.artists} withSource={false} />
+              {more.canLoadMore('artists') && (
+                <LoadMoreRow busy={more.loading.has('artists')} onClick={() => void handleLoadMore('artists')} />
+              )}
             </section>
           )}
 
@@ -796,6 +817,9 @@ export default function SearchPage() {
                   <AlbumCard key={album.id} album={album} />
                 ))}
               </CoverShelf>
+              {more.canLoadMore('albums') && (
+                <LoadMoreRow busy={more.loading.has('albums')} onClick={() => void handleLoadMore('albums')} />
+              )}
             </section>
           )}
 
@@ -807,6 +831,9 @@ export default function SearchPage() {
                 <SectionCount>{t('song.trackCount', { count: singleResults.songs.length })}</SectionCount>
               </div>
               <SongList songs={singleResults.songs} showCover showAlbum showIndex />
+              {more.canLoadMore('songs') && (
+                <LoadMoreRow busy={more.loading.has('songs')} onClick={() => void handleLoadMore('songs')} />
+              )}
             </section>
           )}
         </>

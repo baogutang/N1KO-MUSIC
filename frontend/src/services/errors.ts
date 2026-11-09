@@ -26,6 +26,14 @@ export function httpStatus(error: unknown): number | undefined {
   return typeof status === 'number' ? status : undefined
 }
 
+/**
+ * 服务端明确说「没有这个东西」：协议码 not-found（Subsonic 70 / 插件）或 HTTP 404（Jellyfin / Emby）。
+ * 断网、401、500 都不算——详情页据此区分「真的不存在」与「这次没读到」（后者重试就可能好）。
+ */
+export function isNotFoundError(error: unknown): boolean {
+  return pluginErrorCode(error) === 'not-found' || httpStatus(error) === 404
+}
+
 /** PluginErrorCode → i18n key（services/errors.ts 的唯一词表） */
 const CODE_MESSAGE_KEYS: Record<string, string> = {
   unauthorized: 'sources.authExpired',

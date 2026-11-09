@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { describeError } from '@/services/errors'
+import { describeError, isNotFoundError } from '@/services/errors'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Play, Shuffle, MusicNote, DownloadSimple } from '@phosphor-icons/react'
 import {
@@ -82,7 +82,7 @@ export default function PlaylistDetail() {
   const [searchParams] = useSearchParams()
   const srcServerId = sourceParam(searchParams)
   const navigate = useNavigate()
-  const { data: playlist, isLoading, error } = usePlaylistDetail(id!, srcServerId)
+  const { data: playlist, isLoading, error, refetch } = usePlaylistDetail(id!, srcServerId)
   const sourceCaps = useSourceCapabilities()
   const editable = canEditPlaylist(playlist, sourceCaps)
 
@@ -114,10 +114,26 @@ export default function PlaylistDetail() {
     return <PlaylistSkeleton />
   }
 
-  if (error || !playlist) {
+  /* 出错（断网 / 500 / 凭据过期）给重试；服务端明确说没有（not-found / 404）才是「不存在」，
+     重试没有意义，给返回。此前两种都是同一块只有「返回」的出错牌。 */
+  if (error && !isNotFoundError(error)) {
     return (
       <div className="pt-2 regular:pt-4">
-        <ErrorState onBack={() => navigate(-1)} />
+        <ErrorState retry={() => { void refetch() }} />
+      </div>
+    )
+  }
+
+  if (!playlist) {
+    return (
+      <div className="pt-2 regular:pt-4">
+        <EmptyState
+          ruled
+          mascot="maodou-surprised"
+          title={t('empty.playlistGone.title')}
+          description={t('empty.playlistGone.description')}
+          action={{ label: t('action.back'), onClick: () => navigate(-1) }}
+        />
       </div>
     )
   }

@@ -4,7 +4,6 @@
  * 版式：大标题 + 体量说明 + 播放全部（青柠）；一枚分段控件切歌曲 / 专辑；专辑是封面网格。
  */
 
-import { useState } from 'react'
 import { Play } from '@phosphor-icons/react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
@@ -39,9 +38,23 @@ const SEG_PILL = 'absolute inset-0 -z-10 rounded-pill seg-pill'
 export default function Favorites() {
   const { t } = useT()
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<FavTab>('songs')
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const srcFilter = sourceParam(searchParams)
+  /**
+   * 当前标签记在 `?tab=` 里，不放组件 state：点进一张专辑再返回，页面是重新挂载的，
+   * state 里的「专辑」会被打回默认的「歌曲」。写地址栏用 replace——切标签是修正当前位置，
+   * 不是新去处，不该让返回键在两个标签之间来回；其余参数（`?src=`）原样带着。
+   * 默认的「歌曲」不写参数，地址栏保持干净。
+   */
+  const tab: FavTab = searchParams.get('tab') === 'albums' ? 'albums' : 'songs'
+  const setTab = (next: FavTab) => {
+    setSearchParams(prev => {
+      const updated = new URLSearchParams(prev)
+      if (next === 'songs') updated.delete('tab')
+      else updated.set('tab', next)
+      return updated
+    }, { replace: true })
+  }
 
   const sources = useConnectedSources()
   const multi = sources.length > 1 && !srcFilter

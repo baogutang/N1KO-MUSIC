@@ -1,10 +1,10 @@
 /**
  * 歌手详情页
  * 头部是 DetailHero（圆形头像带着自己的光，往下滚时收小），简介在头部下面（限宽、可展开/收起）。
- * 分区：热门歌曲 Top5 / 全部歌曲（默认 20，可展开）/ 唱片目录书架 / 档案 / 边注 / 相似歌手
+ * 分区：热门歌曲 Top5（服务端给了才显示）/ 全部歌曲（默认 20，可展开）/ 唱片目录书架 / 档案 / 边注 / 相似歌手
  */
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { detailPath } from '@/utils/detailPath'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Play, Shuffle, MicrophoneStage } from '@phosphor-icons/react'
@@ -23,6 +23,7 @@ import { useServerStore } from '@/store/serverStore'
 import { isQualifiedListeningEvent, readListeningEvents } from '@/services/listeningHistory'
 import { cn } from '@/lib/utils'
 import { spaceCJK } from '@/utils/cjkTypography'
+import { htmlToPlainText } from '@/utils/plainText'
 import { useT } from '@/i18n'
 import { sourceParam } from '@/lib/sourceParam'
 
@@ -60,10 +61,34 @@ export default function ArtistDetailPage() {
   const [bioExpanded, setBioExpanded] = useState(false)
   const [imgError, setImgError] = useState(false)
 
-  // 相似歌手跳转是同路由组件复用：切歌手时重置头像失败态，否则新歌手永远显示占位符
+  // 相似歌手跳转是同路由组件复用：切歌手时重置头像失败态，否则新歌手永远显示占位符；
+  // 简介的展开态同理——上一位展开了，这一位不该带着「收起」进来
   useEffect(() => {
     setImgError(false)
+    setBioExpanded(false)
   }, [artist?.id])
+
+  /**
+   * 简介：服务端给的常是带标签的 HTML（Last.fm 原文），转成纯文本再显示。
+   *
+   * 「展开」只在文字真的被三行截断时才出现，靠量排版结果：折叠时 scrollHeight > clientHeight。
+   * 没有按字数判断——同样的字数，CJK 与拉丁字母、窄屏与宽屏，占的行数差很多，字数阈值要么漏要么多。
+   * 展开后内容撑满框，scrollHeight === clientHeight，量不出来，所以展开期间沿用折叠时的结论
+   * （「收起」键必须留着）。框宽变了（旋转、分栏）要重量，故挂 ResizeObserver。
+   */
+  const bio = useMemo(() => htmlToPlainText(artist?.biography), [artist?.biography])
+  const bioRef = useRef<HTMLParagraphElement>(null)
+  const [bioClamped, setBioClamped] = useState(false)
+  useLayoutEffect(() => {
+    const el = bioRef.current
+    if (!el || bioExpanded) return
+    const measure = () => setBioClamped(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [bio, bioExpanded])
 
   /**
    * 页边注：你自己与这位歌手的关系。
@@ -106,10 +131,9 @@ export default function ArtistDetailPage() {
 
   // 优先使用 songs（全部歌曲），其次 topSongs
   const allSongs = artist?.songs ?? []
-  const rawTopSongs = artist?.topSongs ?? []
-  // Navidrome 的 /getTopSongs 需要 Last.fm 集成，未配置时为空
-  // 兜底策略：topSongs 为空时取 allSongs 前 10 首展示
-  const topSongs = rawTopSongs.length > 0 ? rawTopSongs : allSongs.slice(0, 10)
+  // Navidrome 的 /getTopSongs 需要 Last.fm 集成，未配置时为空。
+  // 没有就整节不显示：拿全部歌曲的前几首顶上，只是把下面「全部歌曲」的开头再列一遍。
+  const topSongs = artist?.topSongs ?? []
   const playableSongs = allSongs.length > 0 ? allSongs : topSongs
 
   if (isLoading) {
@@ -175,19 +199,24 @@ export default function ArtistDetailPage() {
       />
 
       {/* 简介：限宽的正文，三行折叠，可展开 */}
-      {artist.biography && (
+      {bio && (
         <div className="mt-6 max-w-[65ch]">
-          <p className={cn('text-[15px] leading-[1.75] text-ink-2', !bioExpanded && 'line-clamp-3')}>
-            {artist.biography}
-          </p>
-          <button
-            type="button"
-            onClick={() => setBioExpanded(v => !v)}
-            aria-expanded={bioExpanded}
-            className="inline-flex min-h-11 items-center text-[14px] font-semibold text-leaf underline-offset-4 hover:underline"
+          <p
+            ref={bioRef}
+            className={cn('whitespace-pre-line text-[15px] leading-[1.75] text-ink-2', !bioExpanded && 'line-clamp-3')}
           >
-            {bioExpanded ? t('action.collapse') : t('action.expand')}
-          </button>
+            {bio}
+          </p>
+          {(bioClamped || bioExpanded) && (
+            <button
+              type="button"
+              onClick={() => setBioExpanded(v => !v)}
+              aria-expanded={bioExpanded}
+              className="inline-flex min-h-11 items-center text-[14px] font-semibold text-leaf underline-offset-4 hover:underline"
+            >
+              {bioExpanded ? t('action.collapse') : t('action.expand')}
+            </button>
+          )}
         </div>
       )}
 
