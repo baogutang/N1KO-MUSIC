@@ -73,6 +73,9 @@
   --stage-2: 22% min(var(--art-c2), 0.08) var(--art-h2);
   --stage-deep: 14% 0.02 var(--art-h);
   --stage-ink: 97% 0.006 var(--art-h);
+  /* 沉浸样式（大封面融进背景）的色场底色：比舞台亮一档，白字仍在 7:1 以上。
+     与 StageField 的 paletteToUniform（tone: 'mid'）同一个数 */
+  --stage-mid: 40% min(var(--art-c), 0.06) var(--art-h);
 
   /* ----- 投影：带偏移与模糊，墨色 ----- */
   --shade: 22% 0.02 262;
@@ -1037,6 +1040,57 @@ body {
     radial-gradient(70% 60% at 20% 15%, oklch(46% min(var(--art-c), 0.14) var(--art-h) / 0.7), transparent 70%),
     radial-gradient(60% 55% at 85% 30%, oklch(42% min(var(--art-c2), 0.13) var(--art-h2) / 0.6), transparent 70%),
     oklch(17% 0.03 var(--art-h));
+}
+
+.stage-fallback[data-tone='mid'] {
+  background:
+    radial-gradient(70% 60% at 20% 15%, oklch(60% min(var(--art-c), 0.14) var(--art-h) / 0.7), transparent 70%),
+    radial-gradient(60% 55% at 85% 30%, oklch(56% min(var(--art-c2), 0.13) var(--art-h2) / 0.6), transparent 70%),
+    oklch(var(--stage-mid));
+}
+
+/* 沉浸样式（FullscreenPlayer + ImmersiveArt）：色场亮一档，次要文字跟着提一点，
+   没唱到的歌词行不能淡到读不出（压在中间档的底上，不透明度要比暗场高） */
+.stage.stage-mid {
+  --ink-2: 91% 0.01 var(--art-h);
+  --ink-3: 84% 0.014 var(--art-h);
+  --lyric-past: 0.54;
+  --lyric-next: 0.66;
+}
+
+/* 大封面：渐隐用遮罩，不用模糊（WebKit 上大面积模糊每一帧都重画）。
+   side 横屏贴左：右缘先半透明再渐隐，下缘渐隐；top 竖屏贴顶：下缘渐隐 */
+.immersive-art {
+  transition: opacity var(--dur-5) var(--ease-smooth);
+}
+
+.immersive-art[data-placement='side'] {
+  -webkit-mask-image:
+    linear-gradient(90deg, #000 0%, #000 44%, rgb(0 0 0 / 0.5) 64%, transparent 84%),
+    linear-gradient(180deg, #000 0%, #000 56%, transparent 90%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(90deg, #000 0%, #000 44%, rgb(0 0 0 / 0.5) 64%, transparent 84%),
+    linear-gradient(180deg, #000 0%, #000 56%, transparent 90%);
+  mask-composite: intersect;
+}
+
+.immersive-art[data-placement='top'] {
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
+}
+
+/* 竖屏看歌词 / 接下来：封面退成一层淡淡的底，字浮在上面 */
+.immersive-art[data-placement='top'][data-dim] {
+  opacity: 0.3;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .immersive-art {
+    transition: none;
+  }
 }
 
 /* ===================================================

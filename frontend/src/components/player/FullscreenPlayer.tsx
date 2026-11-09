@@ -15,6 +15,11 @@
  * 封面区只放正在放的这一张（甩封面切歌）。挑下一首是另一件事：横过来就是卡片叠（接下来 / 推荐 / 专辑 / 歌单 / 收藏），
  * 竖着的正在播放不挂任何「去挑歌」的按钮。
  * 想要唱片感时用设置里的圆形封面（随播放慢慢转），不做拟物的 3D 黑胶。
+ * 沉浸（设置里的第三种封面样式，参考 QQ 音乐）：封面不再是卡片而是画面本身（ImmersiveArt）——
+ *   横屏贴左、高度等于整屏，右边是歌名和左对齐的歌词，底下整宽一条进度和控制；
+ *   竖屏顶满屏宽、贴到最上面，看歌词时退成淡淡的底。色场抬亮一档（StageField tone="mid"）。
+ *   只在 stack / portrait / landscape 生效，而且要有封面：没有封面、或封面都加载失败，这首歌退回方形。
+ *   选了沉浸，横屏卡片叠的「自动」让位给它（「总是」照旧是卡片叠）。
  * 开合：打开时舞台淡入、封面从迷你条的位置飞过来，其余内容错开升起；收起原路飞回（共享元素，FLIP）。
  * 只动 opacity / transform；光场的 WebGL 等开场落定再点亮，不和动画抢主线程。
  *
@@ -47,11 +52,12 @@ import { seekHowl } from '@/hooks/useAudioEngine'
 import { useLyricsQuery, useToggleStar } from '@/hooks/useServerQueries'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import { sourceSupportsFavorites } from '@/services/heartCapability'
-import { useCoverUrl } from '@/hooks/useCoverUrl'
+import { useCoverUrl, usePinnedCover } from '@/hooks/useCoverUrl'
 import { LyricDisplay } from './LyricDisplay'
 import { UpNextList } from './UpNextList'
 import { StageField } from './StageField'
 import { CurrentCover } from './CurrentCover'
+import { ImmersiveArt, artKey } from './ImmersiveArt'
 import { CardStage, CardTabs, type CardTab } from './CardStage'
 import { HeartGlyph, PlayPauseGlyph } from './glyphs'
 import { CoverImage } from '@/components/common/CoverImage'
@@ -88,6 +94,8 @@ const LANDSCAPE_QUERY = '(orientation: landscape)'
 const CARDS_TALL_QUERY = '(min-height: 560px)'
 /** 主要靠手指操作的设备：原生壳，或者主指针是粗的（平板 / 手机浏览器） */
 const TOUCH_QUERY = '(pointer: coarse)'
+/** 矮窗口（手机横过来）：沉浸横屏的歌名、控制收小一档，歌词才留得下几行 */
+const SHORT_QUERY = '(max-height: 519px)'
 function useMedia(query: string) {
   return useSyncExternalStore(
     cb => {
@@ -336,9 +344,16 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const landscape = useMedia(LANDSCAPE_QUERY)
   const tallEnough = useMedia(CARDS_TALL_QUERY)
   const coarse = useMedia(TOUCH_QUERY)
+  const short = useMedia(SHORT_QUERY)
   const cardMode = useSettingsStore(s => s.playerCardMode)
-  // 横过来就是挑歌的姿势：iPad / 手机横屏自动换成卡片叠；设置里可以关掉，或者让电脑上的横屏窗口也用
-  const cards = landscape && tallEnough && (cardMode === 'always' || (cardMode === 'auto' && (isNativePlatform || coarse)))
+  const coverShape = useSettingsStore(s => s.coverShape)
+  const isCircle = coverShape === 'circle'
+  const wantsImmersive = coverShape === 'immersive'
+  // 横过来就是挑歌的姿势：iPad / 手机横屏自动换成卡片叠；设置里可以关掉，或者让电脑上的横屏窗口也用。
+  // 选了沉浸样式时「自动」让位给沉浸（按设置判断、不看这首有没有封面：不然有图没图的歌之间排法来回跳）
+  const cards = landscape && tallEnough && (
+    cardMode === 'always' || (cardMode === 'auto' && (isNativePlatform || coarse) && !wantsImmersive)
+  )
   const tv = useTvMode()
   const layout: Layout = tv ? 'tv'
     : posture === 'tabletop' ? 'tabletop'
@@ -372,10 +387,17 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const setMobileView = useSettingsStore(s => s.setPlayerMobileView)
   const paneView: PaneView = mobileView === 'queue' ? 'queue' : 'lyrics'
 
-  const coverShape = useSettingsStore(s => s.coverShape)
-  const isCircle = coverShape === 'circle'
-
-  const { primary: coverUrl } = useCoverUrl(currentSong ?? undefined, { size: 640 })
+  /* 沉浸：要有能试的封面（服务器 / 自定义来源 / 钉住的），而且这首的封面没有全部加载失败 */
+  const coverCandidates = useCoverUrl(currentSong ?? undefined, { size: 64 })
+  const pinnedCover = usePinnedCover(currentSong?.id)
+  const coverRemoteTemplate = useSettingsStore(s => s.coverRemoteTemplate)
+  const hasArt = !!(coverCandidates.primary || coverCandidates.fallback || pinnedCover || coverRemoteTemplate)
+  const [failedArt, setFailedArt] = useState<ReadonlySet<string>>(() => new Set())
+  const handleArtFailed = useCallback((key: string) => {
+    setFailedArt(prev => (prev.has(key) ? prev : new Set(prev).add(key)))
+  }, [])
+  const immersive = wantsImmersive && hasArt && !!currentSong && !failedArt.has(artKey(currentSong))
+    && (layout === 'stack' || layout === 'portrait' || layout === 'landscape')
   const toggleStar = useToggleStar()
   const caps = useSourceCapabilities()
   const canFavoriteCurrent = sourceSupportsFavorites(caps, currentSong?.serverId)
@@ -526,16 +548,18 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   }, [isOpen, onExited])
 
   /* 下拉收起：从顶栏或封面往下拖，整页跟手；过 120px 或甩得够快就收起，不够就弹回 */
-  const dragStart = useRef<{ y: number; t: number; id: number; axis: 'x' | 'y' | null } | null>(null)
+  const dragStart = useRef<{ x: number; y: number; t: number; id: number; axis: 'x' | 'y' | null } | null>(null)
   const onDragDown = (e: PointerEvent<HTMLElement>) => {
     if (e.pointerType === 'mouse' || (layout !== 'stack' && layout !== 'portrait')) return
-    dragStart.current = { y: e.clientY, t: performance.now(), id: e.pointerId, axis: null }
+    dragStart.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId, axis: null }
   }
   const onDragMove = (e: PointerEvent<HTMLElement>) => {
     const s = dragStart.current
     if (!s || s.id !== e.pointerId) return
+    const dx = e.clientX - s.x
     const dy = e.clientY - s.y
-    if (!s.axis && Math.abs(dy) > 8) s.axis = 'y'
+    // 先认方向：横着甩是切歌（封面那边管），不该顺带把整页往下拖
+    if (!s.axis && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) s.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
     if (s.axis !== 'y') return
     dragY.set(dy > 0 ? dy : dy * 0.15)
   }
@@ -553,6 +577,40 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     animate(dragY, 0, SPRING_PRESS)
   }
   const dragHandlers = { onPointerDown: onDragDown, onPointerMove: onDragMove, onPointerUp: onDragEnd, onPointerCancel: onDragEnd }
+
+  /* 沉浸的大封面没有卡片可甩：封面那块地方左右甩切歌（鼠标也行），竖屏往下拖照样收起 */
+  const swipeStart = useRef<{ x: number; y: number; t: number; id: number } | null>(null)
+  const artSwipeHandlers = {
+    onPointerDown: (e: PointerEvent<HTMLElement>) => {
+      swipeStart.current = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId }
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+      onDragDown(e)
+    },
+    onPointerMove: onDragMove,
+    onPointerUp: (e: PointerEvent<HTMLElement>) => {
+      const s = swipeStart.current
+      swipeStart.current = null
+      if (s && s.id === e.pointerId) {
+        const dx = e.clientX - s.x
+        const dy = e.clientY - s.y
+        const v = (Math.abs(dx) / Math.max(1, performance.now() - s.t)) * 1000
+        if (Math.abs(dx) > Math.abs(dy) * 1.5 && (Math.abs(dx) > 80 || (Math.abs(dx) > 30 && v > 700))) {
+          dragStart.current = null
+          if (dx < 0) handleNext()
+          else {
+            haptic('light')
+            handlePrev()
+          }
+          return
+        }
+      }
+      onDragEnd(e)
+    },
+    onPointerCancel: (e: PointerEvent<HTMLElement>) => {
+      swipeStart.current = null
+      onDragEnd(e)
+    },
+  }
 
   /* 悬停排法的封面带：横滑切歌 */
   const carouselStart = useRef<{ x: number; id: number } | null>(null)
@@ -693,8 +751,9 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     </div>
   )
 
-  const transport = (withVolume: boolean) => (
-    <div className="mx-auto flex w-full max-w-[460px] items-center justify-between gap-1" data-fs-reveal="">
+  /** compact：矮窗口（手机横屏）收小一档 */
+  const transport = (withVolume: boolean, compact = false) => (
+    <div className={cn('mx-auto flex w-full items-center justify-between gap-1', compact ? 'max-w-[400px]' : 'max-w-[460px]')} data-fs-reveal="">
       <Tooltip>
         <TooltipTrigger asChild>
           <button onClick={toggleShuffle} className={cn(softBtn, 'h-11 w-11')} aria-label={t('player.shuffle')} aria-pressed={shuffle}>
@@ -703,20 +762,20 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         </TooltipTrigger>
         <TooltipContent side="top">{shuffle ? t('player.shuffle') : t('player.inOrder')}</TooltipContent>
       </Tooltip>
-      <button onClick={handlePrev} className={cn(softBtn, 'h-16 w-16 text-ink')} aria-label={t('player.previous')}>
-        <SkipBack size={32} weight="fill" />
+      <button onClick={handlePrev} className={cn(softBtn, compact ? 'h-12 w-12' : 'h-16 w-16', 'text-ink')} aria-label={t('player.previous')}>
+        <SkipBack size={compact ? 26 : 32} weight="fill" />
       </button>
       {/* 签名部件：青柠播放键 */}
       <button
         onClick={handleTogglePlay}
-        className={cn('play-key mx-2 h-[78px] w-[78px] shadow-lg', isPlaying && streamBuffering && 'animate-buffering')}
+        className={cn('play-key mx-2 shadow-lg', compact ? 'h-[60px] w-[60px]' : 'h-[78px] w-[78px]', isPlaying && streamBuffering && 'animate-buffering')}
         aria-label={playLabel}
         aria-busy={isPlaying && streamBuffering}
       >
-        <PlayPauseGlyph playing={isPlaying} size={32} />
+        <PlayPauseGlyph playing={isPlaying} size={compact ? 26 : 32} />
       </button>
-      <button onClick={handleNext} className={cn(softBtn, 'h-16 w-16 text-ink')} aria-label={t('player.next')}>
-        <SkipForward size={32} weight="fill" />
+      <button onClick={handleNext} className={cn(softBtn, compact ? 'h-12 w-12' : 'h-16 w-16', 'text-ink')} aria-label={t('player.next')}>
+        <SkipForward size={compact ? 26 : 32} weight="fill" />
       </button>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -735,10 +794,10 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     </div>
   )
 
-  const lyricsSheet = (className?: string) => (
+  const lyricsSheet = (className?: string, fontScale?: number) => (
     <div className={cn('relative flex min-h-0 flex-col overflow-hidden', className)}>
       {lyrics ? (
-        <LyricDisplay lines={lyrics.lines} variant="fullscreen" className="min-h-0 flex-1" />
+        <LyricDisplay lines={lyrics.lines} variant="fullscreen" fontScale={fontScale} className="min-h-0 flex-1" />
       ) : (
         <p
           className={cn(
@@ -757,7 +816,12 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     <div
       role="tablist"
       aria-label={t('player.nowPlaying')}
-      className={cn('inline-flex flex-none gap-0.5 rounded-pill bg-ink/[0.1] p-1 shadow-hair', centered ? 'self-center' : 'self-start')}
+      className={cn(
+        'inline-flex flex-none gap-0.5 rounded-pill bg-ink/[0.1] p-1 shadow-hair',
+        // 压在大封面上：白底的封面上白色的薄片看不见，垫一层暗的
+        immersive && 'bg-stage-deep/[0.3]',
+        centered ? 'self-center' : 'self-start'
+      )}
     >
       {views.map(view => {
         const on = views.includes('cover') ? mobileView === view : paneView === view
@@ -869,6 +933,9 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     </DropdownMenuContent>
   )
 
+  /** 顶栏的圆钮：压在沉浸的大封面上时同样垫一层暗的 */
+  const chip = cn(chipBtn, immersive && 'bg-stage-deep/[0.3] hover:bg-stage-deep/[0.42]')
+
   const header = (
     <header
       className="relative z-10 flex flex-none items-center gap-2 px-4 pb-2 regular:px-6"
@@ -882,7 +949,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
       )}
       <Tooltip>
         <TooltipTrigger asChild>
-          <button onClick={toggleFullscreen} aria-label={t('player.collapse')} className={chipBtn}>
+          <button onClick={toggleFullscreen} aria-label={t('player.collapse')} className={chip}>
             <CaretDown size={20} weight="bold" />
           </button>
         </TooltipTrigger>
@@ -898,7 +965,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button aria-label={t('action.more')} className={chipBtn}>
+          <button aria-label={t('action.more')} className={chip}>
             <DotsThree size={22} weight="bold" />
           </button>
         </DropdownMenuTrigger>
@@ -922,7 +989,10 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         {/* 封面在剩下的空间里居中（最多 88cqh，上下留一口气）；
             歌名贴着进度条，不在封面和进度条之间悬一大块空 */}
         <div className="flex min-h-0 flex-1 flex-col [container-type:size]">
-          {mobileView === 'cover' ? (
+          {mobileView === 'cover' && immersive ? (
+            /* 沉浸：大封面铺在顶上（画在 body 外面那一层），这里只是它露出来的那块地方：左右甩切歌、往下拖收起 */
+            <div className="flex-1 touch-none select-none" {...artSwipeHandlers} />
+          ) : mobileView === 'cover' ? (
             <div className="flex flex-1 items-center justify-center" {...dragHandlers}>
               {coverStage('', { width: 'min(100%, 88cqh)' })}
             </div>
@@ -981,6 +1051,64 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
             <FSProgressBar />
           </div>
           <div className="flex justify-end">{songActions}</div>
+        </div>
+      </div>
+    )
+  } else if (layout === 'landscape' && immersive) {
+    /* 沉浸横屏：左边就是封面本身（甩它切歌），右栏是歌名和左对齐的歌词，底下整宽一条进度、一排控制。
+       右栏从封面宽度的 77% 处开始，压在封面渐隐的那一截上（--imm-col，见下面根节点） */
+    body = (
+      <div
+        className="relative z-10 flex min-h-0 flex-1 flex-col"
+        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${short ? 8 : 22}px)` }}
+      >
+        <div className="flex min-h-0 flex-1">
+          <div className="flex-none touch-none select-none" style={{ width: 'var(--imm-col)' }} {...artSwipeHandlers} />
+          <div className={cn('flex min-h-0 min-w-0 max-w-[760px] flex-1 flex-col pr-10 wide:pr-16', short ? 'gap-1' : 'gap-5')}>
+            {titleBlock(short ? 'md' : wc === 'wide' ? 'xl' : 'lg')}
+            <div className="flex min-h-0 flex-1 flex-col" data-fs-reveal="">
+              {paneView === 'queue' ? queueList : lyricsSheet('flex-1', short ? 1.1 : undefined)}
+            </div>
+          </div>
+        </div>
+        <div className={cn('flex flex-none flex-col px-10 wide:px-16', short ? 'pt-1' : 'gap-1 pt-3')} data-fs-reveal="">
+          <FSProgressBar />
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,440px)_minmax(0,1fr)] items-center gap-4">
+            <p className="flex min-w-0 gap-3 truncate text-[12.5px] font-medium text-ink-3">
+              {fileType && <span>{fileType}</span>}
+              {currentSong.bitRate && <span className="num">{currentSong.bitRate} kbps</span>}
+            </p>
+            {transport(false, short)}
+            <div className="flex items-center justify-end gap-1">
+              {wc === 'wide' && volumeControl}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => { haptic('selection'); setMobileView(paneView === 'queue' ? 'lyrics' : 'queue') }}
+                    aria-label={t('shell.upNext')}
+                    aria-pressed={paneView === 'queue'}
+                    className={cn(softBtn, 'h-11 w-11')}
+                  >
+                    <Queue size={21} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{t('shell.upNext')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setSleepOpen(true)}
+                    aria-label={t('player.sleepTimer')}
+                    aria-pressed={sleepTimerAt !== null}
+                    className={cn(softBtn, 'h-11 w-11')}
+                  >
+                    <Moon size={20} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{t('player.sleepTimer')}</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -1169,26 +1297,67 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     )
   }
 
+  /* 沉浸的大封面：画在内容这一层的最底下（顶栏、歌词压在它上面），也是开合时从迷你条飞过来的那一块。
+     横屏贴左、宽度 = 整屏高（窄而高的窗口最多 72% 宽）；竖屏顶满屏宽，高度最多 125% 屏宽、64% 屏高 */
+  const side = layout === 'landscape'
+  const artDim = !side && mobileView !== 'cover'
+  const immersiveArt = immersive && (
+    <>
+      <div
+        ref={morphRef}
+        className={cn('pointer-events-none absolute left-0 top-0 origin-center', side ? 'h-full' : 'right-0')}
+        style={side ? { width: 'var(--imm-art)' } : { height: 'min(125cqw, 64cqh)' }}
+      >
+        <div ref={coverBoxRef} className="absolute inset-0">
+          <ImmersiveArt song={currentSong} placement={side ? 'side' : 'top'} dim={artDim} onFailed={handleArtFailed} />
+        </div>
+      </div>
+      {/* 右栏底下压一层色场的底色：歌词那一侧不管封面多亮都读得清 */}
+      {side && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{ background: 'linear-gradient(90deg, transparent calc(var(--imm-col) * 0.75), oklch(var(--stage-mid) / 0.84) calc(var(--imm-col) * 1.23))' }}
+        />
+      )}
+      {/* 竖屏看歌词 / 接下来：淡下去的封面上再罩一层底色，白字不靠封面的颜色 */}
+      {!side && (
+        <div
+          aria-hidden="true"
+          className={cn('pointer-events-none absolute inset-0 bg-stage-mid/70 transition-opacity duration-5 ease-smooth', artDim ? 'opacity-100' : 'opacity-0')}
+        />
+      )}
+      {/* 顶栏的圆钮压在封面上：上沿压暗一档 */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-stage-deep/40 to-stage-deep/0" />
+    </>
+  )
+
   return (
     <motion.div
       ref={rootRef}
-      className="stage fixed inset-0 z-50 flex flex-col overflow-hidden"
+      className={cn('stage fixed inset-0 z-50 flex flex-col overflow-hidden', immersive && 'stage-mid')}
       style={{ y: dragY }}
+      data-immersive={immersive ? (side ? 'side' : 'top') : undefined}
     >
       {/* 背景单独一层：开合时只有它淡入淡出，封面和文字各走各的 */}
       <div ref={bgRef} className="pointer-events-none absolute inset-0">
-        <StageField originRef={coverBoxRef} active={settled} />
+        <StageField originRef={coverBoxRef} active={settled} tone={immersive ? 'mid' : 'deep'} />
       </div>
 
-      {/* 正在播放这一层；转屏换排法时淡进来（打开那一下由开场动画管） */}
+      {/* 正在播放这一层；转屏换排法（或这首没有封面、沉浸退回方形）时淡进来（打开那一下由开场动画管）。
+          沉浸时它是尺寸容器：大封面和右栏都按这一层的宽高（cqw / cqh）排 */}
       <motion.div
-        key={layout}
+        key={`${layout}:${immersive}`}
         ref={contentRef}
-        className="relative flex min-h-0 flex-1 flex-col"
+        className={cn('relative flex min-h-0 flex-1 flex-col', immersive && '[container-type:size]')}
+        style={immersive && side
+          ? ({ '--imm-art': 'min(100cqh, 72cqw)', '--imm-col': 'calc(min(100cqh, 72cqw) * 0.767)' } as CSSProperties)
+          : undefined}
         initial={settled && !reduceMotion ? { opacity: 0 } : false}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.24, ease: EASE_OUT }}
       >
+        {immersiveArt}
         {layout !== 'tabletop' && layout !== 'tv' && header}
         {body}
       </motion.div>

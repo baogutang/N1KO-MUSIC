@@ -97,6 +97,7 @@ export default {
           DEFAULT: c('stage'),
           2: c('stage-2'),
           deep: c('stage-deep'),
+          mid: c('stage-mid'),
           ink: c('stage-ink'),
         },
 

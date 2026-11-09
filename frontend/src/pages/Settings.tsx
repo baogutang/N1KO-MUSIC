@@ -630,6 +630,7 @@ export default function Settings() {
               options={[
                 { value: 'square', label: t('settings.coverShape.square') },
                 { value: 'circle', label: t('settings.coverShape.circle') },
+                { value: 'immersive', label: t('settings.coverShape.immersive') },
               ]}
             />
           </Row>

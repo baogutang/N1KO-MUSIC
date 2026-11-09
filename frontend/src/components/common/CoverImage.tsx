@@ -36,6 +36,10 @@ interface CoverImageProps {
   eager?: boolean
   /** 歌曲 id；传入后会优先使用用户在详情页手动钉住的本地封面 */
   songId?: string
+  /** 不画占位（加载中、全部失败时什么都不显示）：沉浸样式的大封面底下是色场，不该铺一块灰底和音符 */
+  bare?: boolean
+  /** 所有来源都试过、一张也没加载出来（只在 eager 模式下报）：沉浸样式据此退回方形封面 */
+  onExhausted?: () => void
 }
 
 /** 这次会话里已经加载成功的封面地址（浏览器缓存里有、解码过）：再出现时直接显示，不放占位、不淡入。
@@ -73,6 +77,8 @@ export function CoverImage({
   onImageResolved,
   eager = false,
   songId,
+  bare = false,
+  onExhausted,
 }: CoverImageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // eager 模式初始即可见，lazy 模式需等待 IntersectionObserver
@@ -108,7 +114,7 @@ export function CoverImage({
 
   // 只在进入视口后才请求自定义封面
   const hasCustomConfig = !!coverRemoteTemplate && !!customCoverParams
-  const { data: customCoverDataUrl } = useCustomCoverUrl(
+  const { data: customCoverDataUrl, fetchStatus: customFetchStatus } = useCustomCoverUrl(
     hasCustomConfig && isVisible ? customCoverParams : null
   )
   const pinnedCover = usePinnedCover(songId)
@@ -168,6 +174,12 @@ export function CoverImage({
     if (!eager && displaySrc && onImageResolved) onImageResolved(displaySrc)
   }, [eager, displaySrc, onImageResolved])
 
+  // 没得可试了：服务器来源都失败（或本来就没有），自定义封面也问完了（没配、或者拿回来是空的）
+  const exhausted = eager && !displaySrc && (!hasCustomConfig || customFetchStatus === 'idle')
+  useEffect(() => {
+    if (exhausted) onExhausted?.()
+  }, [exhausted, onExhausted])
+
 
 
   // ─── eager 模式渲染 ────────────────────────────────────────────────────────
@@ -179,7 +191,7 @@ export function CoverImage({
     const showPlaceholder = !src || (!isLoaded && !known)
     return (
       <div ref={containerRef} className={cn('relative', className)}>
-        {showPlaceholder && (
+        {showPlaceholder && !bare && (
           // loading 骨架：纸面占位闪烁（不用 spinner，DESIGN §4.5）
           <CoverPlaceholder className="absolute inset-0 animate-pulse motion-reduce:animate-none" artist={type === 'artist'} />
         )}

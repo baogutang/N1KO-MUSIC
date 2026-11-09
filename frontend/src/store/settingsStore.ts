@@ -14,7 +14,8 @@ import { t } from '@/i18n'
 export type CoverSource = 'server_first' | 'remote_first' | 'remote_only' | 'server_only'
 
 /** 播放详情页封面样式 */
-export type CoverShape = 'square' | 'circle'
+/** square 方形；circle 黑胶（随播放转）；immersive 沉浸（大封面融进背景，没有封面时用方形） */
+export type CoverShape = 'square' | 'circle' | 'immersive'
 /** 横屏卡片模式：auto = iPad / 手机横过来时；always = 电脑上的横屏窗口也用；off = 不用 */
 export type CardMode = 'auto' | 'always' | 'off'
 

@@ -64,13 +64,21 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`
 
+/** deep：舞台本来的暗场；mid：沉浸样式（大封面融进背景）用的中间一档，更像封面颜色的延续 */
+export type StageTone = 'deep' | 'mid'
+
 /** 调色板 → 5 个 vec3：底色 + 四盏光（亮度压暗、饱和封顶，白字在上面始终读得清）。
  *  光的亮度封在 0.36–0.5：再亮，顶上的分段标签和歌手行就掉到 4.5:1 以下——
- *  要保住对比，降的是光的亮度，不是颜色的饱和 */
-function paletteToUniform(p: ArtPalette): Float32Array {
+ *  要保住对比，降的是光的亮度，不是颜色的饱和。
+ *  中间档整体抬亮：底色 0.40（index.css 的 --stage-mid，白字 7:1 以上），光封在 0.5–0.64、增益收一点，
+ *  最亮处压过色调映射后仍在 0.55 上下 */
+export function paletteToUniform(p: ArtPalette, tone: StageTone = 'deep'): Float32Array {
   const out = new Float32Array(15)
+  const mid = tone === 'mid'
   // 底色压到很暗、带一点主色相：光打在上面才通透，不发闷
-  const base = oklchToRgb(0.13, Math.min(p.c * 0.4, 0.04), p.h)
+  const base = mid
+    ? oklchToRgb(0.4, Math.min(p.c * 0.5, 0.06), p.h)
+    : oklchToRgb(0.13, Math.min(p.c * 0.4, 0.04), p.h)
   out.set(base, 0)
   const lights = [...p.swatches]
   // 单色封面只有一两个色相：补一盏更亮的同色高光、一盏更深的邻近色，让光有层次
@@ -82,9 +90,10 @@ function paletteToUniform(p: ArtPalette): Float32Array {
         : { l: 0.44, c: p.c2 * 0.9, h: (p.h2 + 360 - 14) % 360 }
     )
   }
-  const gains = [0.74, 0.58, 0.48, 0.4]
+  const gains = mid ? [0.6, 0.48, 0.4, 0.34] : [0.74, 0.58, 0.48, 0.4]
+  const [lo, hi] = mid ? [0.5, 0.64] : [0.36, 0.5]
   lights.slice(0, 4).forEach((sw, i) => {
-    const rgb = oklchToRgb(Math.min(0.5, Math.max(0.36, sw.l)), Math.min(0.19, sw.c * 1.2), sw.h)
+    const rgb = oklchToRgb(Math.min(hi, Math.max(lo, sw.l)), Math.min(0.19, sw.c * 1.2), sw.h)
     out.set(rgb.map(v => v * gains[i]), 3 + i * 3)
   })
   return out
@@ -107,9 +116,21 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
  *   全屏播放器打开的那半秒里传 false：建上下文、编译着色器、上传第一帧都在主线程上，
  *   正好撞在开场动画里，iPad 上就是掉帧。动画落定再打开，画好第一帧后淡入盖上去。
  */
-export function StageField({ className, originRef, active = true }: { className?: string; originRef?: RefObject<HTMLElement>; active?: boolean }) {
+export function StageField({
+  className,
+  originRef,
+  active = true,
+  tone = 'deep',
+}: {
+  className?: string
+  originRef?: RefObject<HTMLElement>
+  active?: boolean
+  tone?: StageTone
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const palette = useArtLightStore(s => s.palette)
+  const toneRef = useRef(tone)
+  toneRef.current = tone
   const [failed, setFailed] = useState(false)
   const [painted, setPainted] = useState(false)
   const stateRef = useRef<{
@@ -161,7 +182,7 @@ export function StageField({ className, originRef, active = true }: { className?
       uReveal: gl.getUniformLocation(prog, 'uReveal'),
       uOrigin: gl.getUniformLocation(prog, 'uOrigin'),
     }
-    const initial = paletteToUniform(useArtLightStore.getState().palette)
+    const initial = paletteToUniform(useArtLightStore.getState().palette, toneRef.current)
     const reduce = prefersReducedMotion()
     const start = performance.now()
     let frame = 0
@@ -247,11 +268,11 @@ export function StageField({ className, originRef, active = true }: { className?
     }
   }, [active])
 
-  /* 换歌：旧颜色留在外面，新颜色从封面的位置向外漫开 */
+  /* 换歌（或换了亮度档）：旧颜色留在外面，新颜色从封面的位置向外漫开 */
   useEffect(() => {
     const state = stateRef.current
     if (!state) return
-    const next = paletteToUniform(palette)
+    const next = paletteToUniform(palette, tone)
     state.b = state.a
     state.a = next
     const canvas = canvasRef.current
@@ -270,21 +291,21 @@ export function StageField({ className, originRef, active = true }: { className?
       return
     }
     state.revealFrom = performance.now()
-  }, [palette, originRef])
+  }, [palette, tone, originRef])
 
   return (
     <div aria-hidden="true" className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)}>
       {/* 底下一直铺着 CSS 渐变：WebGL 还没开（开场动画期间）或拿不到时就是它 */}
-      <div className="stage-fallback absolute inset-0" />
+      <div className="stage-fallback absolute inset-0" data-tone={tone} />
       {!failed && (
         <canvas
           ref={canvasRef}
           className={cn('absolute inset-0 h-full w-full transition-opacity duration-5 ease-out motion-reduce:transition-none', active && painted ? 'opacity-100' : 'opacity-0')}
         />
       )}
-      {/* 顶上、底部各压暗一档：分段标签、控制区的白字始终站得住 */}
-      <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-stage-deep/45 to-stage-deep/0" />
-      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-stage-deep/55 to-stage-deep/0" />
+      {/* 顶上、底部各压暗一档：分段标签、控制区的白字始终站得住（中间档压得轻一些，不然又回到暗场） */}
+      <div className={cn('absolute inset-x-0 top-0 h-48 bg-gradient-to-b to-stage-deep/0', tone === 'mid' ? 'from-stage-deep/30' : 'from-stage-deep/45')} />
+      <div className={cn('absolute inset-x-0 bottom-0 bg-gradient-to-t to-stage-deep/0', tone === 'mid' ? 'h-2/5 from-stage-deep/45' : 'h-1/2 from-stage-deep/55')} />
     </div>
   )
 }

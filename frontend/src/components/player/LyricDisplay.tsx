@@ -253,12 +253,13 @@ const LyricRow = memo(function LyricRow({
         stage
           ? 'origin-left font-bold leading-[1.28] tracking-[-0.02em] transition-[opacity,transform] duration-5 ease-smooth'
           : 'font-semibold leading-[1.4] transition-opacity duration-300 ease-out',
-        // 字重恒定、只换透明度与一点点缩放：换行时不重排。唱过的最淡，当前行全亮，未唱的在中间
+        // 字重恒定、只换透明度与一点点缩放：换行时不重排。唱过的最淡，当前行全亮，未唱的在中间。
+        // 两档透明度可由外层改（沉浸样式的色场亮一档，见 index.css 的 .stage-mid）
         isActive
           ? 'is-active scale-100 opacity-100'
           : isPast
-            ? cn(stage && 'scale-[0.97]', 'opacity-[0.36]')
-            : cn(stage && 'scale-[0.97]', 'opacity-[0.52]'),
+            ? cn(stage && 'scale-[0.97]', 'opacity-[var(--lyric-past,0.36)]')
+            : cn(stage && 'scale-[0.97]', 'opacity-[var(--lyric-next,0.52)]'),
         isClickable ? 'cursor-pointer select-none' : 'select-none',
         isClickable && !isActive && 'hover:opacity-70',
       )}
