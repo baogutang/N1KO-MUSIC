@@ -59,6 +59,8 @@ vi.mock('@/api', () => ({
   hasAdapter: vi.fn(() => false), hasAdapterFor: vi.fn(() => false),
   findAdapterFor: vi.fn(() => null), adapterForSource: vi.fn(),
   setPrimary: vi.fn(), listAdapters: vi.fn(() => []),
+  // useCoverUrl 订阅注册表版本号（useSyncExternalStore）
+  subscribeAdapterRegistry: vi.fn(() => () => undefined), getAdapterRegistryVersion: vi.fn(() => 0),
 }))
 
 import RecommendationsPage from './Recommendations'

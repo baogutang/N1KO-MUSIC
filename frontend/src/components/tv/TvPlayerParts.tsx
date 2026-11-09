@@ -70,7 +70,7 @@ function UpNextCard({ song, first, onPick }: { song: Song; first: boolean; onPic
       className="w-[120px] flex-none cursor-pointer snap-start rounded-md"
     >
       <div className="cover-frame aspect-square w-full shadow-md">
-        <CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" songId={song.id} />
+        <CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" songId={song.id} songServerId={song.serverId} />
       </div>
       <p className="mt-2.5 truncate text-[13px] font-semibold text-ink-2">{spaceCJK(song.title)}</p>
       <p className="truncate text-[11.5px] text-ink-3">{spaceCJK(song.artist)}</p>

@@ -803,6 +803,7 @@ const SongRow = React.memo(function SongRow({
             fallbackType="album"
             className="w-full h-full"
             songId={song.id}
+            songServerId={song.serverId}
             customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
           />
         </div>

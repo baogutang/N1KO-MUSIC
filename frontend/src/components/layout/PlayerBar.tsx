@@ -400,6 +400,7 @@ export function PlayerBar({ wc }: { wc: WindowClass }) {
         className="h-full w-full"
         eager
         songId={currentSong.id}
+        songServerId={currentSong.serverId}
         customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
       />
     </span>

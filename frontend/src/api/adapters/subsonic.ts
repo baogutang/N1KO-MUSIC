@@ -252,10 +252,27 @@ export class SubsonicAdapter implements MusicServerAdapter {
 
   /** 响应体里的失败 → 带协议错误码的 Error（message 保持原样，只加 code） */
   private static subsonicFailure(error: { code?: number; message?: string } | undefined): Error {
-    const err = new Error(error?.message || 'Subsonic API error') as Error & { code?: string }
+    const err = new Error(error?.message || 'Subsonic API error') as Error & { code?: string; subsonic?: true }
     const mapped = SubsonicAdapter.mapErrorCode(error?.code)
     if (mapped) err.code = mapped
+    // 标记「这是服务器在响应体里给的答复」，与断网 / 解析异常区分（取歌词要用）
+    err.subsonic = true
     return err
+  }
+
+  /**
+   * 取歌词失败时，这算不算服务器的一个明确答复（「没有歌词 / 没这个接口」）。
+   *
+   * 只有「问到了、服务器说没有」才该落成 null——它会被 react-query 当成功结果缓存 30 分钟。
+   * 断网、超时、401/403、429、5xx、认证类错误码（40–44）都是「没问到」，必须抛出去，
+   * 让界面进 error 态（「歌词加载失败」）、之后还能重试。
+   */
+  private static isLyricsAnswer(err: unknown): boolean {
+    const status = httpStatus(err)
+    if (status !== undefined) return status === 404 || status === 501
+    // HTTP 200 + failed：服务器活着、凭据也对（认证类除外），70 不存在 / 30 未实现都是它的答复
+    return (err as { subsonic?: boolean } | null)?.subsonic === true
+      && pluginErrorCode(err) !== 'unauthorized'
   }
 
   async login(url: string, username: string, password: string): Promise<AuthResult> {
@@ -603,8 +620,10 @@ export class SubsonicAdapter implements MusicServerAdapter {
           synced: preferred.synced ?? lines.some(l => l.time > 0),
         }
       }
-    } catch {
-      // 服务器不支持 OpenSubsonic 扩展，降级到旧接口
+    } catch (err) {
+      // 服务器不支持 OpenSubsonic 扩展（404 / Subsonic 层面的错误）才降级到旧接口；
+      // 没问到服务器（断网 / 401 / 5xx）就别再往下撞，直接让调用方看见
+      if (!SubsonicAdapter.isLyricsAnswer(err)) throw err
     }
 
     // 降级：使用旧版 getLyrics（返回纯文本，无时间戳）
@@ -622,8 +641,9 @@ export class SubsonicAdapter implements MusicServerAdapter {
         lines,
         synced: lines.some(l => l.time > 0),
       }
-    } catch {
-      return null
+    } catch (err) {
+      if (SubsonicAdapter.isLyricsAnswer(err)) return null
+      throw err
     }
   }
 
@@ -727,9 +747,13 @@ export class SubsonicAdapter implements MusicServerAdapter {
       this.request<{ artist?: Record<string, unknown> }>('/getArtist', { id: artistId }, signal),
       this.request<{ artistInfo2?: Record<string, unknown> }>('/getArtistInfo2', { id: artistId }, signal),
     ])
-    const artist = artistData.status === 'fulfilled'
-      ? (artistData.value.artist ?? {}) as Record<string, unknown>
-      : {}
+    // 歌手本身取不到就是取不到：此前落成空壳（id 为 'undefined'）被当成功结果缓存 10 分钟。
+    // 只有附加信息（getArtistInfo2）允许缺。
+    if (artistData.status === 'rejected') throw artistData.reason
+    if (!artistData.value.artist) {
+      throw Object.assign(new Error(`Artist not found: ${artistId}`), { code: 'not-found' })
+    }
+    const artist = artistData.value.artist as Record<string, unknown>
     const info = infoData.status === 'fulfilled'
       ? ((infoData.value.artistInfo2 ?? {}) as Record<string, unknown>)
       : {}

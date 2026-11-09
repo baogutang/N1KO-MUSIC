@@ -36,6 +36,8 @@ interface CoverImageProps {
   eager?: boolean
   /** 歌曲 id；传入后会优先使用用户在详情页手动钉住的本地封面 */
   songId?: string
+  /** 歌曲自己的来源：钉住的封面按（来源, 歌曲 id）取，多音源下同 id 不串 */
+  songServerId?: string
   /** 不画占位（加载中、全部失败时什么都不显示）：沉浸样式的大封面底下是色场，不该铺一块灰底和音符 */
   bare?: boolean
   /** 所有来源都试过、一张也没加载出来（只在 eager 模式下报）：沉浸样式据此退回方形封面 */
@@ -77,6 +79,7 @@ export function CoverImage({
   onImageResolved,
   eager = false,
   songId,
+  songServerId,
   bare = false,
   onExhausted,
 }: CoverImageProps) {
@@ -117,7 +120,7 @@ export function CoverImage({
   const { data: customCoverDataUrl, fetchStatus: customFetchStatus } = useCustomCoverUrl(
     hasCustomConfig && isVisible ? customCoverParams : null
   )
-  const pinnedCover = usePinnedCover(songId)
+  const pinnedCover = usePinnedCover(songId, songServerId)
   // 钉住的地址可能失效（远端删图/断网），失败后必须让位给服务器与自定义来源
   const pinnedSrc = pinnedFailed ? null : pinnedCover
 

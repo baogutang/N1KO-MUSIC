@@ -25,6 +25,8 @@ vi.mock('@/api', () => ({
   adapterForSource: vi.fn(),
   setPrimary: vi.fn(),
   listAdapters: vi.fn(() => []),
+  subscribeAdapterRegistry: () => () => undefined,
+  getAdapterRegistryVersion: () => 0,
 }))
 vi.mock('@/hooks/useServerQueries', async importOriginal => ({
   ...(await importOriginal<typeof import('@/hooks/useServerQueries')>()),

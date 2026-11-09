@@ -19,6 +19,33 @@ const adapters = new Map<string, MusicServerAdapter>()
 let primaryServerId: string | null = null
 
 /**
+ * 注册表版本号：注册 / 注销 / 切主库 / 清空时 +1。
+ *
+ * 注册表是模块级的普通 Map，不是 React 状态——冷启动时界面先渲染出来，
+ * 服务器还在后台连接；渲染期同步读 findAdapterFor 的 hook（useCoverUrl）
+ * 若没有任何「适配器变了」的信号，首次拿到 null 就再也不会重算。
+ * 它们用 useSyncExternalStore 订阅这个版本号即可（不要轮询）。
+ */
+let registryVersion = 0
+const registryListeners = new Set<() => void>()
+
+function bumpRegistry(): void {
+  registryVersion++
+  registryListeners.forEach(listener => listener())
+}
+
+/** 订阅注册表变化（useSyncExternalStore 的 subscribe） */
+export function subscribeAdapterRegistry(listener: () => void): () => void {
+  registryListeners.add(listener)
+  return () => { registryListeners.delete(listener) }
+}
+
+/** 注册表当前版本（useSyncExternalStore 的 getSnapshot） */
+export function getAdapterRegistryVersion(): number {
+  return registryVersion
+}
+
+/**
  * 根据服务器配置创建适配器实例
  */
 export function createAdapter(config: ServerConfig): MusicServerAdapter {
@@ -68,12 +95,14 @@ export function createAdapter(config: ServerConfig): MusicServerAdapter {
 /** 注册一个已连接音源的适配器 */
 export function registerAdapter(serverId: string, adapter: MusicServerAdapter): void {
   adapters.set(serverId, adapter)
+  bumpRegistry()
 }
 
 /** 注销音源适配器；若它正是主库，主库一并清空 */
 export function unregisterAdapter(serverId: string): void {
   adapters.delete(serverId)
   if (primaryServerId === serverId) primaryServerId = null
+  bumpRegistry()
 }
 
 /**
@@ -131,6 +160,7 @@ export function setPrimary(serverId: string): void {
     throw new Error(`Cannot set primary: server not registered: ${serverId}`)
   }
   primaryServerId = serverId
+  bumpRegistry()
 }
 
 /** 获取主库适配器，不存在时抛出异常 */
@@ -151,6 +181,7 @@ export function hasAdapter(): boolean {
 export function clearAdapter(): void {
   adapters.clear()
   primaryServerId = null
+  bumpRegistry()
 }
 
 // 重导出类型和适配器类，方便外部使用

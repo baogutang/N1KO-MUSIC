@@ -6,8 +6,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchExternalImage, fetchExternalText } from '@/services/externalFetch'
-import { mayReceivePath } from '@/services/customApi'
+import {
+  ExternalHttpError,
+  fetchExternalImage,
+  fetchExternalText,
+  isUnansweredStatus,
+  shouldRetryExternal,
+} from '@/services/externalFetch'
+import { buildRemoteCoverUrl, buildRemoteLyricsUrl, mayReceivePath } from '@/services/customApi'
 import {
   useQuery,
   useMutation,
@@ -268,22 +274,12 @@ export function useLyricsQuery(
     staleTime: 30 * 60 * 1000,
   })
 
-  // 按文档格式组装自定义歌词接口 URL
-  const buildRemoteUrl = () => {
-    if (!lyricsRemoteTemplate) return ''
-    const url = new URL(lyricsRemoteTemplate)
-    if (title)    url.searchParams.set('title', title)
-    if (artist)   url.searchParams.set('artist', artist)
-    if (album)    url.searchParams.set('album', album)
-    if (path && mayReceivePath(url)) url.searchParams.set('path', path)
-    if (duration) url.searchParams.set('duration', String(Math.round(duration)))
-    url.searchParams.set('offset', '0')
-    url.searchParams.set('limit', '10')
-    return url.toString()
-  }
-
   let remoteUrl = ''
-  try { if (hasRemoteTemplate) remoteUrl = buildRemoteUrl() } catch { /* invalid URL */ }
+  try {
+    if (hasRemoteTemplate) {
+      remoteUrl = buildLyricsUrl(lyricsRemoteTemplate, { id: songId, title, artist, album, path, duration })
+    }
+  } catch { /* invalid URL */ }
 
   // 远程歌词（需要启用远程歌词源 + 配置模板）
   const remoteQuery = useQuery({
@@ -293,7 +289,12 @@ export function useLyricsQuery(
       const headers: Record<string, string> = {}
       if (apiAuthToken) headers['Authorization'] = apiAuthToken
       const res = await fetchExternalText(remoteUrl, headers)
-      if (!res.ok) return null
+      if (!res.ok) {
+        // 限流 / 鉴权失败 / 5xx 是「没问到」：抛出去，别缓存成 30 分钟的「暂无歌词」；
+        // 404 等确定答复才是「没有」
+        if (isUnansweredStatus(res.status)) throw new ExternalHttpError(res.status)
+        return null
+      }
       const contentType = res.contentType
       const text = res.text
       // content-type 为 application/json 时解析为列表格式
@@ -317,6 +318,7 @@ export function useLyricsQuery(
     enabled: fetchEnabled && hasRemoteTemplate && !!remoteUrl,
     staleTime: 30 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
+    retry: shouldRetryExternal,
   })
 
   if (cachedLyricsData) {
@@ -338,6 +340,15 @@ export function useLyricsQuery(
     return serverQuery
   }
 
+  // 两路都没拿到词时，任何一路出错都要让界面说「加载失败」而不是「暂无歌词」——
+  // 否则一路成功回空、另一路 429/断网，错误被合并结果悄悄吞掉。
+  // 有词就显示词（data 优先于 isError），所以只在 !data 时才把错误带出来。
+  const surfaceFailure = <T extends { data: Lyrics | null | undefined }>(base: T): T => {
+    const failure = serverQuery.error ?? remoteQuery.error
+    if (base.data || !(serverQuery.isError || remoteQuery.isError) || !failure) return base
+    return { ...base, isError: true, isSuccess: false, status: 'error', error: failure }
+  }
+
   // lyricsPreferRemote=true：远程有内容就用远程，否则用服务器
   // lyricsPreferRemote=false：服务器有内容就用服务器，否则用远程
   // 加载态合并两路（复核 F18）：旧实现只继承单边的 isLoading——服务器已回
@@ -349,7 +360,7 @@ export function useLyricsQuery(
     if (stillLoading) {
       return { ...serverQuery, data, isPending: true, isLoading: true, isFetching: true, fetchStatus: 'fetching' as const }
     }
-    return { ...serverQuery, data }
+    return surfaceFailure({ ...serverQuery, data })
   } else {
     const remoteHasData = remoteQuery.data && (remoteQuery.data as Lyrics).lines.length > 0
     const data = remoteHasData ? remoteQuery.data : serverQuery.data
@@ -357,8 +368,30 @@ export function useLyricsQuery(
     if (stillLoading) {
       return { ...remoteQuery, data, isPending: true, isLoading: true, isFetching: true, fetchStatus: 'fetching' as const }
     }
-    return { ...remoteQuery, data }
+    return surfaceFailure({ ...remoteQuery, data })
   }
+}
+
+/**
+ * 组装自定义歌词接口 URL（宿主不关心接口细节，按文档格式给参数）：
+ * - 模板里的 `{title}` `{artist}` `{album}` `{id}` 先全部填掉，空值换成空串——
+ *   不能留着 `{album}` 原样发给服务器（它会把占位符当专辑名去搜）；
+ * - 再按旧规则追加 title / artist / album / path / duration / offset / limit 查询参数
+ *   （已经由占位符填了的同名参数被覆盖成同一个值，基地址式模板照旧）。
+ */
+export function buildLyricsUrl(
+  base: string,
+  params: { id?: string; title?: string; artist?: string; album?: string; path?: string; duration?: number }
+): string {
+  const url = new URL(buildRemoteLyricsUrl(base, params))
+  if (params.title)    url.searchParams.set('title', params.title)
+  if (params.artist)   url.searchParams.set('artist', params.artist)
+  if (params.album)    url.searchParams.set('album', params.album)
+  if (params.path && mayReceivePath(url)) url.searchParams.set('path', params.path)
+  if (params.duration) url.searchParams.set('duration', String(Math.round(params.duration)))
+  url.searchParams.set('offset', '0')
+  url.searchParams.set('limit', '10')
+  return url.toString()
 }
 
 // ===================================================
@@ -383,7 +416,15 @@ interface CustomCoverParams {
  * - artist: 只传 artist
  */
 export function buildCoverUrl(base: string, params: CustomCoverParams): string {
-  const url = new URL(base)
+  // 模板里的 `{artist}` `{album}` `{title}` 先按本类型该带的字段填掉，空值换成空串：
+  // 不填的话 `?album={album}` 在没有专辑时原样发给服务器，拿回的错误封面还会被永久缓存。
+  // 不含占位符的基地址（LrcApi 式）原样通过，走下面追加查询参数的老路。
+  const isSong = params.type === 'song'
+  const url = new URL(buildRemoteCoverUrl(base, {
+    title: isSong ? params.title : undefined,
+    artist: params.artist,
+    album: params.type === 'artist' ? undefined : params.album,
+  }))
   if (params.type === 'song') {
     if (params.title)  url.searchParams.set('title', params.title)
     if (params.artist) url.searchParams.set('artist', params.artist)
@@ -402,7 +443,8 @@ export function buildCoverUrl(base: string, params: CustomCoverParams): string {
 /**
  * 请求自定义封面 API，返回 ObjectURL。
  * - 使用 URL.createObjectURL(blob) 替代 base64 DataURL：零转换开销，无 localStorage 5MB 限制
- * - TanStack Query staleTime=Infinity 保证同一 key 在会话内只请求一次
+ * - TanStack Query staleTime=Infinity 保证同一 key 在会话内只请求一次（仅限成功的结果：
+ *   404 / 内容为空 = 明确的「没有」，缓存成 null；429 / 5xx / 断网会抛错，进 error 态，之后还能再试）
  * - gcTime=24h 确保导航离开再返回时仍可从内存缓存命中
  */
 export function useCustomCoverUrl(params: CustomCoverParams | null) {
@@ -439,7 +481,9 @@ export function useCustomCoverUrl(params: CustomCoverParams | null) {
     enabled: enabled && !!remoteUrl,
     staleTime: Infinity,
     gcTime: 1000 * 60 * 60 * 24, // 24h — 会话期间基本不会过期
-    retry: 1,
+    // 失败（429 / 5xx / 断网）现在会抛出来、不再缓存成「没有」。重试要克制：
+    // 网络错误与 5xx 重试一次；429 / 401 / 403 不重试，免得对限流中的接口连环追发
+    retry: shouldRetryExternal,
   })
 }
 

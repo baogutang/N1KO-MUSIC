@@ -210,6 +210,7 @@ export default function History() {
                           fallbackType="album"
                           className="h-full w-full"
                           songId={entry.song.id}
+                          songServerId={entry.song.serverId}
                           customCoverParams={{ type: 'song', title: entry.song.title, artist: entry.song.artist, album: entry.song.album, path: entry.song.path }}
                         />
                       </span>

@@ -25,6 +25,9 @@ vi.mock('@/api', () => ({
   adapterForSource: vi.fn(),
   setPrimary: vi.fn(),
   listAdapters: vi.fn(() => []),
+  // useCoverUrl 订阅注册表版本号（useSyncExternalStore）
+  subscribeAdapterRegistry: vi.fn(() => () => undefined),
+  getAdapterRegistryVersion: vi.fn(() => 0),
 }))
 vi.mock('@/hooks/useServerQueries', async importOriginal => ({
   ...(await importOriginal<typeof import('@/hooks/useServerQueries')>()),

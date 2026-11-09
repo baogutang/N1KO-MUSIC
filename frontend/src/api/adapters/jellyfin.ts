@@ -28,6 +28,15 @@ import type {
 } from '../types'
 import { parseLrc } from '@/utils/lrc'
 import { lanMediaUrl } from '@/lib/lanMedia'
+import { httpStatus } from '@/services/errors'
+
+/**
+ * 歌手列表分页：每页条数与总上限。
+ * 总上限只是防护栏——服务器不报 TotalRecordCount 又一直吐满页时不至于死循环；
+ * 2 万个歌手远超任何个人曲库，真到了这个数再说。
+ */
+const ARTISTS_PAGE_SIZE = 500
+const ARTISTS_MAX_TOTAL = 20_000
 
 export class JellyfinAdapter implements MusicServerAdapter {
   readonly type: ServerType = 'jellyfin'
@@ -404,6 +413,9 @@ export class JellyfinAdapter implements MusicServerAdapter {
   }
 
   async getLyrics(songId: string): Promise<Lyrics | null> {
+    /* 只有服务器明确回 404（没有歌词）才算「没有」：此前一个裸 catch 把断网、401、
+     * 5xx 全吞成 null，被 react-query 当成功结果缓存 30 分钟——NAS 刚唤醒就
+     * 显示半小时「暂无歌词」。其余失败原样抛出，界面走「歌词加载失败」并允许重试。 */
     try {
       const resp = await this.client.get(`/Audio/${songId}/Lyrics`)
       const lyrics = resp.data
@@ -415,8 +427,9 @@ export class JellyfinAdapter implements MusicServerAdapter {
         text: l.Text,
       }))
       return { songId, lines, synced: lines.some(l => l.time > 0) }
-    } catch {
-      // 尝试从内嵌 LRC 获取
+    } catch (err) {
+      if (httpStatus(err) !== 404) throw err
+      // 主端点说没有，尝试从内嵌 LRC 获取
       try {
         const resp = await this.client.get(`/Items/${songId}/Lyrics`)
         const rawLrc = typeof resp.data === 'string' ? resp.data : ''
@@ -424,8 +437,8 @@ export class JellyfinAdapter implements MusicServerAdapter {
           const lines = parseLrc(rawLrc)
           return { songId, lines, synced: lines.some(l => l.time > 0) }
         }
-      } catch {
-        // ignore
+      } catch (err2) {
+        if (httpStatus(err2) !== 404) throw err2
       }
       return null
     }
@@ -668,17 +681,30 @@ export class JellyfinAdapter implements MusicServerAdapter {
     }
   }
 
-  async getArtists(musicFolderId?: string, _signal?: AbortSignal): Promise<Artist[]> {
-    const resp = await this.client.get('/Artists', {
-      params: {
-        UserId: this.userId,
-        Fields: 'UserData',
-        Recursive: true,
-        Limit: 500,
-        ...this.folderParams(musicFolderId),
-      },
-    })
-    return ((resp.data.Items ?? []) as Record<string, unknown>[]).map(this.mapArtist.bind(this))
+  async getArtists(musicFolderId?: string, signal?: AbortSignal): Promise<Artist[]> {
+    // 分页取全：此前写死 Limit 500，超出的歌手静默丢失。
+    // 任何一页失败都整体抛出——返回截断的列表比报错更糟（看起来像「库里就这些」）。
+    const artists: Artist[] = []
+    while (artists.length < ARTISTS_MAX_TOTAL) {
+      const resp = await this.client.get('/Artists', {
+        params: {
+          UserId: this.userId,
+          Fields: 'UserData',
+          Recursive: true,
+          StartIndex: artists.length,
+          Limit: ARTISTS_PAGE_SIZE,
+          ...this.folderParams(musicFolderId),
+        },
+        signal,
+      })
+      const items = (resp.data.Items ?? []) as Record<string, unknown>[]
+      artists.push(...items.map(this.mapArtist.bind(this)))
+      const total = resp.data.TotalRecordCount
+      // 不满一页 = 到头了；服务器报了总数的话，取够即停（刚好整页收尾时不多发一个空页）
+      if (items.length < ARTISTS_PAGE_SIZE) break
+      if (typeof total === 'number' && artists.length >= total) break
+    }
+    return artists
   }
 
   async getArtistDetail(artistId: string): Promise<ArtistDetail> {
@@ -706,6 +732,10 @@ export class JellyfinAdapter implements MusicServerAdapter {
         }),
       }),
     ])
+    // 服务器 200 却没带歌手本体：不造 id 为 'undefined' 的空壳（会被缓存 10 分钟）
+    if (!(artistResp.data as Record<string, unknown> | null)?.Id) {
+      throw Object.assign(new Error(`Artist not found: ${artistId}`), { code: 'not-found' })
+    }
     const artist = this.mapArtist(artistResp.data as Record<string, unknown>)
     const albums = ((albumsResp.data.Items ?? []) as Record<string, unknown>[]).map(
       this.mapAlbum.bind(this)

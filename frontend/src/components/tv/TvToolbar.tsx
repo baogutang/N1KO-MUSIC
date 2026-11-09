@@ -33,7 +33,7 @@ function NowPlayingChip() {
     >
       {/* 播放页的大封面从这里飞出去、收起时飞回来（FullscreenPlayer 的 anchorRects） */}
       <span className="cover-frame h-6 w-6 flex-none rounded-pill" data-np-anchor="">
-        <CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" songId={song.id} />
+        <CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" songId={song.id} songServerId={song.serverId} />
       </span>
       {isPlaying && (
         <span className="playing-bar flex-none" style={{ height: 11 }} aria-hidden="true">

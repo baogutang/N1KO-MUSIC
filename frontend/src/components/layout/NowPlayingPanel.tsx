@@ -92,6 +92,7 @@ export function NowPlayingPanel() {
             fallbackType="album"
             className="h-full w-full"
             songId={currentSong.id}
+            songServerId={currentSong.serverId}
             customCoverParams={{ type: 'song', title: currentSong.title, artist: currentSong.artist, album: currentSong.album, path: currentSong.path }}
           />
         </button>

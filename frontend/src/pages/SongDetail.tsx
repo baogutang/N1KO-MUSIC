@@ -36,7 +36,7 @@ import { buildSpecLine } from '@/utils/audioSpec'
 import { useCoverCacheStore } from '@/store/coverCacheStore'
 import { usePinnedCover } from '@/hooks/useCoverUrl'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
-import { useLyricsQuery } from '@/hooks/useServerQueries'
+import { buildLyricsUrl, useLyricsQuery } from '@/hooks/useServerQueries'
 import { fetchExternalText } from '@/services/externalFetch'
 import { useServerStore } from '@/store/serverStore'
 import { SourceBadge } from '@/components/sources/SourceBadge'
@@ -275,17 +275,15 @@ function LyricsSearchDialog({ open, onClose, song, onSave }: LyricsSearchDialogP
     setPreviewLrc(null)
 
     try {
-      const url = new URL(lyricsRemoteTemplate)
-      if (searchTitle)  url.searchParams.set('title', searchTitle)
-      if (searchArtist) url.searchParams.set('artist', searchArtist)
-      if (searchAlbum)  url.searchParams.set('album', searchAlbum)
-      url.searchParams.set('offset', '0')
-      url.searchParams.set('limit', '10')
+      // 与自动取词同一个组装函数：模板里的 {album} 等占位符空值换成空串，不原样发出去
+      const url = buildLyricsUrl(lyricsRemoteTemplate, {
+        title: searchTitle, artist: searchArtist, album: searchAlbum,
+      })
 
       const headers: Record<string, string> = {}
       if (apiAuthToken) headers['Authorization'] = apiAuthToken
 
-      const res = await fetchExternalText(url.toString(), headers)
+      const res = await fetchExternalText(url, headers)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
       const text = res.text
@@ -700,7 +698,7 @@ export default function SongDetailPage() {
   const { saveLyrics } = useLyricCacheStore()
   const saveCover = useCoverCacheStore(s => s.saveCover)
   const removeCover = useCoverCacheStore(s => s.removeCover)
-  const pinnedCover = usePinnedCover(song?.id)
+  const pinnedCover = usePinnedCover(song?.id, song?.serverId)
 
   const [lyricsSearchOpen, setLyricsSearchOpen] = useState(false)
   /* 本曲歌词预览（阶段 1.8）：非正在播放的歌不再「后退再开别人的全屏」 */
@@ -803,12 +801,12 @@ export default function SongDetailPage() {
   }
 
   const handleCoverSave = (url: string) => {
-    saveCover(song.id, url)
+    saveCover(song.id, url, song.serverId)
     toast({ title: t('song.cover.pinned') })
   }
 
   const handleCoverClear = () => {
-    removeCover(song.id)
+    removeCover(song.id, song.serverId)
     toast({ title: t('song.cover.removed') })
   }
 
@@ -843,6 +841,7 @@ export default function SongDetailPage() {
             fallbackType="album"
             className="h-full w-full"
             songId={song.id}
+            songServerId={song.serverId}
             customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
           />
         }

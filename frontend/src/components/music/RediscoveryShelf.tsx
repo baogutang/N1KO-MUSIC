@@ -122,6 +122,7 @@ function RediscoveryRow({
           alt=""
           className="h-full w-full"
           songId={entry.song.id}
+          songServerId={entry.song.serverId}
           customCoverParams={{
             type: 'song',
             title: entry.song.title,

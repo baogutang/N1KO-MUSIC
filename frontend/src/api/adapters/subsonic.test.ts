@@ -113,7 +113,8 @@ describe('取消信号的透传', () => {
     ;(adapter as unknown as { client: unknown }).client = {
       get: async (url: string, config: { signal?: AbortSignal }) => {
         calls.push({ url, config })
-        return { data: { 'subsonic-response': { status: 'ok' } } }
+        // 带一个歌手：getArtistDetail 在服务器没返回歌手时会抛错，这里要走完整条路径
+        return { data: { 'subsonic-response': { status: 'ok', artist: { id: 'x', name: 'n' } } } }
       },
     }
     return { adapter, calls }
@@ -329,5 +330,149 @@ describe('OpenSubsonic structured lyrics 的 offset 符号（B16）', () => {
     })
     const lyrics = await adapter.getLyrics('s1')
     expect(lyrics?.lines[0].time).toBe(10_000)
+  })
+})
+
+/**
+ * 取歌词：「没问到服务器」不能当成「没有歌词」。
+ *
+ * react-query 会把 resolve 出来的 null 当成功结果缓存 30 分钟——NAS 刚唤醒、
+ * 隧道还没通、令牌过期这类瞬时故障，此前都被两层 catch 吞成 null，
+ * 界面就会老实地显示半小时「暂无歌词」。只有服务器明确答复了才算「没有」。
+ */
+describe('取歌词：失败与「没有」要分清', () => {
+  const httpError = (status: number) =>
+    Object.assign(new Error(`Request failed with status code ${status}`), {
+      isAxiosError: true,
+      response: { status },
+    })
+  const networkError = () =>
+    Object.assign(new Error('Network Error'), { isAxiosError: true })
+  const ok = (body: Record<string, unknown>) => ({
+    status: 200,
+    data: { 'subsonic-response': { status: 'ok', ...body } },
+  })
+  const failed = (code: number) => ({
+    status: 200,
+    data: { 'subsonic-response': { status: 'failed', error: { code, message: 'x' } } },
+  })
+
+  /** respond 按端点返回结果；返回 Error 则抛出（模拟 axios 对非 2xx 与断网的行为） */
+  function makeAdapter(respond: (url: string) => unknown) {
+    const calls: string[] = []
+    const adapter = new SubsonicAdapter({
+      url: 'https://example.test', username: 'u', token: 't', salt: 's', serverId: 'srv-a',
+    })
+    ;(adapter as unknown as { client: unknown }).client = {
+      get: async (url: string) => {
+        calls.push(url)
+        const result = respond(url)
+        if (result instanceof Error) throw result
+        return result
+      },
+    }
+    return { adapter, calls }
+  }
+
+  it('断网要抛出去，而不是返回 null 让界面缓存「暂无歌词」', async () => {
+    const { adapter } = makeAdapter(() => networkError())
+    await expect(adapter.getLyrics('s1')).rejects.toThrow('Network Error')
+  })
+
+  it('401 / 403 / 429 / 5xx 同样抛出去', async () => {
+    for (const status of [401, 403, 429, 500, 502, 503]) {
+      const { adapter } = makeAdapter(() => httpError(status))
+      await expect(adapter.getLyrics('s1')).rejects.toThrow(String(status))
+    }
+  })
+
+  it('200 + 认证类错误码（40-44）抛出去——那是登录的问题，不是没有歌词', async () => {
+    for (const code of [40, 41, 42, 43, 44]) {
+      const { adapter } = makeAdapter(() => failed(code))
+      await expect(adapter.getLyrics('s1')).rejects.toThrow()
+    }
+  })
+
+  it('扩展接口断网时不降级去撞旧接口：直接抛', async () => {
+    const { adapter, calls } = makeAdapter(url =>
+      url.includes('/getLyricsBySongId') ? networkError() : ok({ lyrics: { value: '[00:01.00]词' } }))
+    await expect(adapter.getLyrics('s1')).rejects.toThrow('Network Error')
+    expect(calls).toEqual(['/getLyricsBySongId'])
+  })
+
+  it('服务器不认扩展接口（404）时降级到旧接口，旧接口有词就用旧接口的', async () => {
+    const { adapter, calls } = makeAdapter(url =>
+      url.includes('/getLyricsBySongId')
+        ? httpError(404)
+        : ok({ lyrics: { value: '[00:01.00]词' } }))
+    const lyrics = await adapter.getLyrics('s1')
+    expect(calls).toEqual(['/getLyricsBySongId', '/getLyrics'])
+    expect(lyrics?.lines[0].text).toBe('词')
+  })
+
+  it('服务器明确回「没有」（旧接口空词 / 不存在 / 404）才返回 null', async () => {
+    // 扩展接口无歌词列表 + 旧接口空词
+    const empty = makeAdapter(url =>
+      url.includes('/getLyricsBySongId') ? ok({ lyricsList: {} }) : ok({ lyrics: {} }))
+    expect(await empty.adapter.getLyrics('s1')).toBeNull()
+
+    // 两个接口都回 Subsonic「70 数据不存在」
+    const notFound = makeAdapter(() => failed(70))
+    expect(await notFound.adapter.getLyrics('s1')).toBeNull()
+
+    // 旧服务器两个端点都没有（HTTP 404）
+    const noEndpoint = makeAdapter(() => httpError(404))
+    expect(await noEndpoint.adapter.getLyrics('s1')).toBeNull()
+  })
+
+  it('扩展接口没有、旧接口断网：抛，不是 null', async () => {
+    const { adapter } = makeAdapter(url =>
+      url.includes('/getLyricsBySongId') ? ok({ lyricsList: {} }) : networkError())
+    await expect(adapter.getLyrics('s1')).rejects.toThrow('Network Error')
+  })
+})
+
+/**
+ * 歌手页：断网不能返回一个 id 为 'undefined' 的空壳——
+ * 它会被当成功结果缓存 10 分钟，歌手页显示一个空白歌手。
+ */
+describe('getArtistDetail：失败要抛', () => {
+  function makeAdapter(respond: (url: string) => unknown) {
+    const adapter = new SubsonicAdapter({
+      url: 'https://example.test', username: 'u', token: 't', salt: 's', serverId: 'srv-a',
+    })
+    ;(adapter as unknown as { client: unknown }).client = {
+      get: async (url: string) => {
+        const result = respond(url)
+        if (result instanceof Error) throw result
+        return result
+      },
+    }
+    return adapter
+  }
+  const ok = (body: Record<string, unknown>) => ({
+    status: 200,
+    data: { 'subsonic-response': { status: 'ok', ...body } },
+  })
+
+  it('/getArtist 断网时抛错，而不是返回空歌手', async () => {
+    const adapter = makeAdapter(() => new Error('Network Error'))
+    await expect(adapter.getArtistDetail('ar1')).rejects.toThrow('Network Error')
+  })
+
+  it('/getArtist 成功但没带歌手对象时抛错', async () => {
+    const adapter = makeAdapter(() => ok({}))
+    await expect(adapter.getArtistDetail('ar1')).rejects.toThrow()
+  })
+
+  it('/getArtist 成功时照常返回；附加信息（getArtistInfo2）失败不影响', async () => {
+    const adapter = makeAdapter(url => {
+      if (url.includes('/getArtistInfo2')) return new Error('Network Error')
+      if (url.includes('/getArtist')) return ok({ artist: { id: 'ar1', name: '赵雷', album: [] } })
+      return ok({})
+    })
+    const detail = await adapter.getArtistDetail('ar1')
+    expect(detail.id).toBe('ar1')
+    expect(detail.name).toBe('赵雷')
   })
 })

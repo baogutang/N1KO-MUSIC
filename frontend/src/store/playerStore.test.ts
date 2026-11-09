@@ -1176,18 +1176,18 @@ describe('随机模式三条（阶段 6.12）', () => {
 describe('patchSong', () => {
   it('收藏回来时已经换了歌：改的是收藏的那首（队列里），不是新的当前曲', () => {
     const queue = seedQueue(3, 1)
-    state().patchSong(queue[0].id, queue[0].serverId, { starred: '2030-01-01' })
+    state().patchSong(queue[0].id, queue[0].serverId, { starred: true })
 
     expect(state().currentSong?.starred).toBeUndefined()
-    expect(state().queue[0].starred).toBe('2030-01-01')
+    expect(state().queue[0].starred).toBe(true)
   })
 
   it('当前曲和队列里的同一首一起改；来源不同的同 id 不动', () => {
     const queue = seedQueue(2, 0)
     usePlayerStore.setState({ queue: [...queue, { ...queue[0], serverId: 'other' }] })
-    state().patchSong(queue[0].id, queue[0].serverId, { starred: '2030-01-01' })
+    state().patchSong(queue[0].id, queue[0].serverId, { starred: true })
 
-    expect(state().currentSong?.starred).toBe('2030-01-01')
-    expect(state().queue.map(s => s.starred)).toEqual(['2030-01-01', undefined, undefined])
+    expect(state().currentSong?.starred).toBe(true)
+    expect(state().queue.map(s => s.starred)).toEqual([true, undefined, undefined])
   })
 })

@@ -72,7 +72,7 @@ export function TvHero({ album, albumCoverUrl, albumMeta }: { album?: Album; alb
   if (song) {
     return (
       <HeroFrame
-        cover={<CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" eager songId={song.id} />}
+        cover={<CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" eager songId={song.id} songServerId={song.serverId} />}
         title={song.title}
         sub={
           <>

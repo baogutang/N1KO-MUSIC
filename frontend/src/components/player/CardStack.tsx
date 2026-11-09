@@ -115,7 +115,7 @@ export function springOmega(distance: number, velocity: number): number {
 
 function SongArt({ song }: { song: Song }) {
   const { primary, fallback } = useCoverUrl(song, { size: 640 })
-  return <CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" eager songId={song.id} />
+  return <CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" eager songId={song.id} songServerId={song.serverId} />
 }
 
 function CardArt({ card }: { card: StackCard }) {

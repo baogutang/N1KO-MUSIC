@@ -225,6 +225,7 @@ export function SongCover({ song, size = 400 }: { song: Song; size?: number }) {
       alt=""
       className="h-full w-full"
       songId={song.id}
+      songServerId={song.serverId}
       customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
     />
   )

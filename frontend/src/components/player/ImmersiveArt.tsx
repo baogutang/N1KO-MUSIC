@@ -65,6 +65,7 @@ function ArtLayer({ song, artId, onFailed }: { song: Song; artId: string; onFail
       eager
       bare
       songId={song.id}
+      songServerId={song.serverId}
       customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
       onExhausted={handleExhausted}
     />

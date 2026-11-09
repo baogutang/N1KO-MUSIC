@@ -77,6 +77,7 @@ function SwipeCover({
           className={cn('h-full w-full', round && 'rounded-full')}
           eager
           songId={song.id}
+          songServerId={song.serverId}
           customCoverParams={{ type: 'song', title: song.title, artist: song.artist, album: song.album, path: song.path }}
         />
       </div>

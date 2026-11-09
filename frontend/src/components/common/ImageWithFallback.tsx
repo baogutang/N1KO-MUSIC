@@ -34,6 +34,8 @@ interface ImageWithFallbackProps extends React.ImgHTMLAttributes<HTMLImageElemen
   eager?: boolean
   /** 歌曲 id；传入后会优先使用用户在详情页手动钉住的本地封面 */
   songId?: string
+  /** 歌曲自己的来源：钉住的封面按（来源, 歌曲 id）取，多音源下同 id 不串 */
+  songServerId?: string
 }
 
 /** 占位：下沉一档的底 + 居中的浅墨图标，圆角继承父级（由消费方控制） */
@@ -61,6 +63,7 @@ export function ImageWithFallback({
   customCoverParams,
   eager = false,
   songId,
+  songServerId,
   ...props
 }: ImageWithFallbackProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -125,7 +128,7 @@ export function ImageWithFallback({
   const { data: customCoverDataUrl } = useCustomCoverUrl(
     hasCustomConfig && isVisible ? customCoverParams : null
   )
-  const pinnedCover = usePinnedCover(songId)
+  const pinnedCover = usePinnedCover(songId, songServerId)
   // 钉住的地址可能失效（远端删图/断网），失败后必须让位给服务器与自定义来源
   const pinnedSrc = pinnedFailed ? null : pinnedCover
   // 接口若只回了跳转，下载结果是空的。播放页用图片地址自己跳转，所以里面看得到；

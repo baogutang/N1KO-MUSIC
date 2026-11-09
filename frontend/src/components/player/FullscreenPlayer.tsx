@@ -388,7 +388,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
 
   /* 沉浸：要有能试的封面（服务器 / 自定义来源 / 钉住的），而且这首的封面没有全部加载失败 */
   const coverCandidates = useCoverUrl(currentSong ?? undefined, { size: 64 })
-  const pinnedCover = usePinnedCover(currentSong?.id)
+  const pinnedCover = usePinnedCover(currentSong?.id, currentSong?.serverId)
   const coverRemoteTemplate = useSettingsStore(s => s.coverRemoteTemplate)
   const hasArt = !!(coverCandidates.primary || coverCandidates.fallback || pinnedCover || coverRemoteTemplate)
   const [failedArt, setFailedArt] = useState<ReadonlySet<string>>(() => new Set())
@@ -1411,5 +1411,5 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
 /** 小封面（窄窗口的歌词 / 队列页头、悬停排法的封面带） */
 function CoverThumb({ song, size = 160 }: { song: Song; size?: number }) {
   const { primary, fallback } = useCoverUrl(song, { size })
-  return <CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" eager songId={song.id} />
+  return <CoverImage primary={primary} fallback={fallback} alt="" className="h-full w-full" eager songId={song.id} songServerId={song.serverId} />
 }

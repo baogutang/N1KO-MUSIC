@@ -4,10 +4,10 @@
  * 优先级：本地缓存（用户手动搜索保存的） > 用户配置的封面来源 > 服务器封面
  */
 
-import { useMemo } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { useSettingsStore, coverUrlFromTemplate, type CoverSource } from '@/store/settingsStore'
-import { findAdapterFor } from '@/api'
-import { useCoverCacheStore } from '@/store/coverCacheStore'
+import { findAdapterFor, getAdapterRegistryVersion, subscribeAdapterRegistry } from '@/api'
+import { lookupPinnedCover, useCoverCacheStore } from '@/store/coverCacheStore'
 
 interface CoverTarget {
   coverArt?: string
@@ -67,10 +67,17 @@ export function pickMergedCoverDisplaySrc({
   }
 }
 
-/** 读取该歌曲手动钉住的本地封面；未传 songId 时恒为 null */
-export function usePinnedCover(songId: string | undefined): string | null {
-  const getCover = useCoverCacheStore(s => s.getCover)
-  return useMemo(() => (songId ? getCover(songId) : null), [songId, getCover])
+/**
+ * 读取该歌曲手动钉住的本地封面；未传 songId 时恒为 null。
+ *
+ * 直接订阅 store 里「这首歌对应的那一项」：钉住 / 移除立刻反映到所有用到它的封面，
+ * 别的歌被钉住时这一张不重渲染（selector 返回字符串，值不变就不触发）。
+ * 此前订阅的是 getCover——函数引用永远不变，store 更新时 useMemo 不重算，界面纹丝不动。
+ *
+ * serverId 是歌曲自己的来源（钉住的键带音源，多音源下同 id 不串）；缺省按主库。
+ */
+export function usePinnedCover(songId: string | undefined, serverId?: string): string | null {
+  return useCoverCacheStore(s => (songId ? lookupPinnedCover(s.cache, songId, serverId) : null))
 }
 
 /**
@@ -87,6 +94,10 @@ export function useCoverUrl(
 ): { primary: string | undefined; fallback: string | undefined } {
   const { coverSource, coverRemoteTemplate } = useSettingsStore()
   const { size = 300 } = options
+  // 适配器注册表不是 React 状态：冷启动时界面先渲染、服务器还在后台连接，
+  // 此刻 findAdapterFor 返回 null。订阅注册表版本号，适配器注册 / 更换 / 断开后重算，
+  // 否则服务器封面会一直空到换歌
+  const adapterRegistryVersion = useSyncExternalStore(subscribeAdapterRegistry, getAdapterRegistryVersion)
 
   return useMemo(() => {
     if (!target) return { primary: undefined, fallback: undefined }
@@ -126,5 +137,7 @@ export function useCoverUrl(
     }
 
     return { primary, fallback }
-  }, [target, coverSource, coverRemoteTemplate, size])
+    // adapterRegistryVersion 不在回调里用到，它只是「注册表变了」的重算信号
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, coverSource, coverRemoteTemplate, size, adapterRegistryVersion])
 }
