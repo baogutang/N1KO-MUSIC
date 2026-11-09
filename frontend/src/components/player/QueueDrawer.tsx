@@ -1,12 +1,16 @@
 /**
  * 播放队列面板（v6）
  * 一张浮起的面：宽窗口贴右侧浮着（避开底部播放区），窄窗口是从底部升起的弹层（顶上一条把手）。
+ * 窄窗口的弹层是模态对话框（Radix Dialog：role=dialog、焦点圈在里面、Esc 关闭、
+ * 关闭后焦点回到打开它的按钮），把手可以往下拖收起；宽窗口的面板不是模态，不抢全局快捷键。
  * 行与「接下来」列表同一个样子：44px 封面 + 曲名 / 歌手，行与行之间不画线，
  * hover 铺一层墨色淡底，当前行是青柠淡底 + 叶绿曲名，正在播放时封面上跳 EQ。
- * 支持拖拽排序、删除、清空（二次确认）。
+ * 支持排序（鼠标拖拽；有手指的设备是每行的上移 / 下移键）、删除、清空（二次确认）。
  */
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type PointerEvent as ReactPointerEvent } from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { animate, motion, useMotionValue } from 'motion/react'
 import { describeError } from '@/services/errors'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { X, Play, CaretUp, CaretDown, Shuffle, BookmarkSimple } from '@phosphor-icons/react'
@@ -25,7 +29,10 @@ import { useCreatePlaylist } from '@/hooks/useServerQueries'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import { toast } from '@/components/ui/use-toast'
 import { Input } from '@/components/ui/input'
-import { useWindowClass } from '@/lib/platform'
+import { useCoarsePointer, useWindowClass } from '@/lib/platform'
+import { haptic } from '@/lib/haptics'
+import { EASE_OUT, SPRING_PRESS, prefersReducedMotion } from '@/lib/motion'
+import { sheetDragOffset, shouldDismissSheet } from '@/lib/sheetDrag'
 import { formatDuration } from '@/utils/formatters'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -58,6 +65,13 @@ export function QueueDrawer() {
   const reorderPlayOrder = usePlayerStore(s => s.reorderPlayOrder)
   const clearQueue      = usePlayerStore(s => s.clearQueue)
   const isMobile        = useWindowClass() === 'compact'
+  /**
+   * 排序控件按「输入方式」选，不看窗口宽度：iPad 竖屏（宽 ≥ 600）是 regular，
+   * 可操作它的却是手指——HTML5 拖拽在触屏上不触发，没有上移 / 下移键就没法排序。
+   * 窄窗口也一并走这套（窄窗口的鼠标用户拖拽仍然可用，行本身一直是 draggable）。
+   */
+  const hasFinger       = useCoarsePointer()
+  const stepButtons     = isMobile || hasFinger
 
   /**
    * 队列可以很长——按一次「全库随机」就是几百上千首。
@@ -86,9 +100,10 @@ export function QueueDrawer() {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
 
-  // ESC 关闭；模态对话框（如清空确认）打开时让位给对话框自身的 ESC 处理
+  // ESC 关闭；模态对话框（如清空确认）打开时让位给对话框自身的 ESC 处理。
+  // 窄屏的弹层自己就是 Radix 对话框，Esc 归它（这里的 role=dialog 探测会把弹层自己也算进去）
   useEffect(() => {
-    if (!isQueueOpen) return
+    if (!isQueueOpen || isMobile) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       // 全屏播放器（页面级）不算模态，ESC 仍归队列抽屉（A1 同款排除）
@@ -97,7 +112,47 @@ export function QueueDrawer() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isQueueOpen, setQueueOpen])
+  }, [isQueueOpen, isMobile, setQueueOpen])
+
+  /*
+   * 把手下拉收起（窄窗口的底部弹层）：跟手；过阈值或甩得够快就收起，不够就弹回。
+   * 只动 transform，位移放在 MotionValue 里——不为每个 pointermove 重渲染整张队列。
+   * 手势只挂在把手那条带上：队列自己要滚动，行上还有按钮，整张弹层都当手柄会互相抢。
+   */
+  const sheetRef = useRef<HTMLDivElement>(null)
+  /** 打开弹层那一刻持有焦点的元素（队列键）：关闭后焦点还给它 */
+  const openerRef = useRef<HTMLElement | null>(null)
+  const dragY = useMotionValue(0)
+  const dragStart = useRef<{ y: number; t: number; id: number } | null>(null)
+  const onHandleDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    dragStart.current = { y: e.clientY, t: performance.now(), id: e.pointerId }
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* 无妨：没有捕获也能拖 */ }
+    // 入场动画是 fill: both，会一直压着 transform——手指一碰就让位，否则拖不动
+    if (sheetRef.current) sheetRef.current.style.animation = 'none'
+    dragY.stop()
+  }
+  const onHandleMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const s = dragStart.current
+    if (!s || s.id !== e.pointerId) return
+    dragY.set(sheetDragOffset(e.clientY - s.y))
+  }
+  const onHandleUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const s = dragStart.current
+    dragStart.current = null
+    if (!s || s.id !== e.pointerId) return
+    // 被系统打断（pointercancel）不是用户想收起，一律弹回
+    if (e.type !== 'pointercancel' && shouldDismissSheet(e.clientY - s.y, performance.now() - s.t)) {
+      haptic('light')
+      const close = () => setQueueOpen(false)
+      // 减弱动态：不演滑出，直接收
+      if (prefersReducedMotion()) close()
+      else animate(dragY, sheetRef.current?.offsetHeight ?? window.innerHeight, { duration: 0.2, ease: EASE_OUT }).then(close)
+      return
+    }
+    if (prefersReducedMotion()) dragY.set(0)
+    else animate(dragY, 0, SPRING_PRESS)
+  }
 
   /**
    * 面板必须按「接下来会怎么播」渲染，而不是按数组存储顺序。
@@ -245,8 +300,8 @@ export function QueueDrawer() {
                   </span>
                 </span>
 
-                {/* 触屏上 HTML5 拖拽事件不触发，用上移/下移按钮兜底 */}
-                {isMobile ? (
+                {/* 有手指的设备上 HTML5 拖拽事件不触发，用上移/下移按钮兜底 */}
+                {stepButtons ? (
                   <span className="-mr-1 flex flex-none items-center">
                     <button
                       onClick={(e) => { e.stopPropagation(); moveByPosition(pos, pos - 1) }}
@@ -295,113 +350,169 @@ export function QueueDrawer() {
     // 依赖必须是 order 本身而不是 order.length：拖拽重排后长度不变、内容变了，
     // 只盯长度的话 renderRow 不会重建，行上的操作会作用在**旧顺序**上——
     // 于是「上移」挪的是另一首歌。order 是 useMemo 出来的，引用稳定，不会多余重建。
-  }, [queue, queueIndex, isPlaying, isMobile, multiSource, order, dragIndex, overIndex, handleDragStart, handleDragOver, handleDrop, jumpToIndex, moveByPosition, removeFromQueue, t])
+  }, [queue, queueIndex, isPlaying, stepButtons, multiSource, order, dragIndex, overIndex, handleDragStart, handleDragOver, handleDrop, jumpToIndex, moveByPosition, removeFromQueue, t])
 
   if (!isQueueOpen) return null
 
+  /* 标题：窄屏弹层里它同时是对话框的名字（套 Radix 的 Title），宽屏面板就是个普通 h3 */
+  const title = (
+    <h3 className="flex min-w-0 items-baseline gap-2.5 font-display text-[22px] font-semibold leading-tight tracking-[-0.02em] text-ink">
+      {t('player.queue')}
+      {/* 面板此时显示的是随机顺序而非原始曲序，必须说明，否则用户会以为随机没生效 */}
+      {shuffle && (
+        <span className="inline-flex items-center gap-1 font-sans text-[12.5px] font-semibold tracking-normal text-leaf">
+          <Shuffle size={12} weight="bold" aria-hidden="true" />
+          {t('queue.shuffledOrder')}
+        </span>
+      )}
+    </h3>
+  )
+
+  /* 面板里的东西：窄窗口的底部弹层与宽窗口的浮动面板共用 */
+  const panelBody = (
+    <>
+      {/* 把手：只在底部弹层上有，提示它是从下面升起来的，也真能往下拖收起。
+          热区是一条 24px 高的横带（手指好按），touch-none 不让浏览器把这次按压当成滚动；
+          读屏用户有「关闭」键和 Esc，这里只是给手指的 */}
+      {isMobile && (
+        <div
+          data-sheet-handle=""
+          aria-hidden="true"
+          className="flex h-6 flex-none cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+          onPointerDown={onHandleDown}
+          onPointerMove={onHandleMove}
+          onPointerUp={onHandleUp}
+          onPointerCancel={onHandleUp}
+        >
+          <div className="h-1 w-10 rounded-pill bg-ink/20" />
+        </div>
+      )}
+
+      {/* 头部：标题 + 关闭；下一行是存为歌单 / 清空 */}
+      <div className={cn('flex-none px-5 pb-1', isMobile ? 'pt-0' : 'pt-5')}>
+        <div className="flex items-center justify-between gap-3">
+          {isMobile ? <DialogPrimitive.Title asChild>{title}</DialogPrimitive.Title> : title}
+          <Button
+            variant="icon"
+            size="icon-sm"
+            onClick={() => setQueueOpen(false)}
+            aria-label={t('queue.close')}
+            className="-mr-2 h-11 w-11 flex-none bg-ink/[0.05] hover:bg-ink/[0.09] regular:h-9 regular:w-9"
+          >
+            <X size={17} />
+          </Button>
+        </div>
+        <div className="-ml-3 mt-1 flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setSaveName(''); setSaveOpen(true) }}
+            className="h-11 gap-1.5 text-[13.5px] regular:h-9"
+          >
+            <BookmarkSimple size={15} aria-hidden="true" />
+            {t('queue.saveAsPlaylist')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setConfirmClear(true)}
+            className="h-11 text-[13.5px] regular:h-9"
+          >
+            {t('queue.clear')}
+          </Button>
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1" viewportRef={viewportRef}>
+        {queue.length === 0 ? (
+          <EmptyState mascot="nuomi-sleep"
+            title={t('empty.queue.title')}
+            description={t('empty.queue.description')}
+            className="py-12"
+          />
+        ) : (
+          <QueueList
+            order={order}
+            renderRow={renderRow}
+            viewportRef={viewportRef}
+            scrollToPosition={position}
+          />
+        )}
+      </ScrollArea>
+
+      {queue.length > 0 && (
+        <div className="flex-none px-5 py-3">
+          {/* 计数按播放位置算：随机时数组下标毫无意义（会显示成「17 / 40」而实际在第 3 首） */}
+          <p className="flex flex-wrap justify-center gap-x-3 text-[12.5px] text-ink-3">
+            {/* 数字留在 .num 里（等宽 tabular），单位词跟着语言走 */}
+            <span>
+              <span className="num">{queue.length}</span>{' '}
+              {queue.length === 1 ? t('queue.trackUnit') : t('queue.tracksUnit')}
+            </span>
+            <span className="num">{position >= 0 ? position + 1 : '–'} / {order.length}</span>
+            {shuffle && <span>{t('queue.shuffledOrderNote')}</span>}
+          </p>
+        </div>
+      )}
+    </>
+  )
+
   return (
     <>
-      {/* 点击面板外区域关闭：宽窗口是透明遮罩（只覆盖内容区，不遮挡播放条）；窄窗口是模态弹层，压暗它后面的一切 */}
-      <div
-        className={cn(
-          'absolute inset-0',
-          isMobile ? 'z-[45] bg-ink/25 animate-overlay-in motion-reduce:animate-none' : 'z-20'
-        )}
-        aria-hidden="true"
-        onClick={() => setQueueOpen(false)}
-      />
-
-      {/* 面板：宽窗口贴右侧浮起（底边让开底部播放区）；窄窗口是底部弹层（含底部安全区，盖过标签栏） */}
-      <div
-        className={cn(
-          'absolute flex flex-col overflow-hidden bg-surface shadow-lg motion-reduce:animate-none',
-          isMobile
-            ? 'inset-x-0 bottom-0 z-50 max-h-[85%] rounded-t-xl animate-sheet-in'
-            : 'right-2.5 top-2.5 z-30 w-[360px] max-w-[calc(100%-20px)] rounded-xl animate-slide-in-right'
-        )}
-        style={isMobile
-          ? { paddingBottom: 'env(safe-area-inset-bottom)' }
-          : { bottom: 'calc(var(--dock-h, 96px) + 10px)' }}
-      >
-        {/* 把手：只在底部弹层上有，提示它是从下面升起来的 */}
-        {isMobile && <div className="mx-auto mt-2.5 h-1 w-10 flex-none rounded-pill bg-ink/20" aria-hidden="true" />}
-
-        {/* 头部：标题 + 关闭；下一行是存为歌单 / 清空 */}
-        <div className={cn('flex-none px-5 pb-1', isMobile ? 'pt-2' : 'pt-5')}>
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="flex min-w-0 items-baseline gap-2.5 font-display text-[22px] font-semibold leading-tight tracking-[-0.02em] text-ink">
-              {t('player.queue')}
-              {/* 面板此时显示的是随机顺序而非原始曲序，必须说明，否则用户会以为随机没生效 */}
-              {shuffle && (
-                <span className="inline-flex items-center gap-1 font-sans text-[12.5px] font-semibold tracking-normal text-leaf">
-                  <Shuffle size={12} weight="bold" aria-hidden="true" />
-                  {t('queue.shuffledOrder')}
-                </span>
-              )}
-            </h3>
-            <Button
-              variant="icon"
-              size="icon-sm"
-              onClick={() => setQueueOpen(false)}
-              aria-label={t('queue.close')}
-              className="-mr-2 h-11 w-11 flex-none bg-ink/[0.05] hover:bg-ink/[0.09] regular:h-9 regular:w-9"
+      {isMobile ? (
+        /* 窄窗口：模态弹层 = Radix 对话框（role=dialog、焦点圈在里面、Esc 与点遮罩关闭、
+           背景对读屏 aria-hidden、关闭后焦点回到打开它的按钮）。写法与全屏播放器一致 */
+        <DialogPrimitive.Root open onOpenChange={open => { if (!open) setQueueOpen(false) }}>
+          <DialogPrimitive.Portal>
+            {/* 遮罩压暗弹层后面的一切；点它就是 Radix 的「点外面」，会关 */}
+            <DialogPrimitive.Overlay className="fixed inset-0 z-[45] bg-ink/25 animate-overlay-in motion-reduce:animate-none" />
+            <DialogPrimitive.Content
+              asChild
+              aria-modal="true"
+              /* 名字取自里面的 Title；没有 Description，显式置空，免得开发态报缺失 */
+              aria-describedby={undefined}
+              /* 打开时焦点落在弹层本身，而不是第一个按钮：读屏先念出对话框的名字，
+                 Tab 照常进入按钮（与全屏播放器同一做法）。落进去之前先记下是谁拿着焦点 */
+              onOpenAutoFocus={e => {
+                e.preventDefault()
+                openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+                sheetRef.current?.focus({ preventScroll: true })
+              }}
+              /* 这个对话框没有 Radix 的 Trigger，默认的「关闭后还焦点给触发器」是空操作，
+                 得自己还：回到打开它的按钮（它可能已经卸了——全屏播放器里的「接下来」就是） */
+              onCloseAutoFocus={e => {
+                e.preventDefault()
+                const opener = openerRef.current
+                openerRef.current = null
+                if (opener?.isConnected && opener !== document.body) opener.focus({ preventScroll: true })
+              }}
             >
-              <X size={17} />
-            </Button>
-          </div>
-          <div className="-ml-3 mt-1 flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setSaveName(''); setSaveOpen(true) }}
-              className="h-11 gap-1.5 text-[13.5px] regular:h-9"
-            >
-              <BookmarkSimple size={15} aria-hidden="true" />
-              {t('queue.saveAsPlaylist')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setConfirmClear(true)}
-              className="h-11 text-[13.5px] regular:h-9"
-            >
-              {t('queue.clear')}
-            </Button>
-          </div>
-        </div>
+              {/* 底部弹层（含底部安全区，盖过标签栏）；位移 y 由把手的拖动驱动 */}
+              <motion.div
+                ref={sheetRef}
+                tabIndex={-1}
+                className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85%] flex-col overflow-hidden rounded-t-xl bg-surface shadow-lg outline-none animate-sheet-in motion-reduce:animate-none"
+                style={{ y: dragY, paddingBottom: 'env(safe-area-inset-bottom)' }}
+              >
+                {panelBody}
+              </motion.div>
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
+      ) : (
+        <>
+          {/* 点击面板外区域关闭：透明遮罩，只覆盖内容区，不遮挡播放条 */}
+          <div className="absolute inset-0 z-20" aria-hidden="true" onClick={() => setQueueOpen(false)} />
 
-        <ScrollArea className="flex-1" viewportRef={viewportRef}>
-          {queue.length === 0 ? (
-            <EmptyState mascot="nuomi-sleep"
-              title={t('empty.queue.title')}
-              description={t('empty.queue.description')}
-              className="py-12"
-            />
-          ) : (
-            <QueueList
-              order={order}
-              renderRow={renderRow}
-              viewportRef={viewportRef}
-              scrollToPosition={position}
-            />
-          )}
-        </ScrollArea>
-
-        {queue.length > 0 && (
-          <div className="flex-none px-5 py-3">
-            {/* 计数按播放位置算：随机时数组下标毫无意义（会显示成「17 / 40」而实际在第 3 首） */}
-            <p className="flex flex-wrap justify-center gap-x-3 text-[12.5px] text-ink-3">
-              {/* 数字留在 .num 里（等宽 tabular），单位词跟着语言走 */}
-              <span>
-                <span className="num">{queue.length}</span>{' '}
-                {queue.length === 1 ? t('queue.trackUnit') : t('queue.tracksUnit')}
-              </span>
-              <span className="num">{position >= 0 ? position + 1 : '–'} / {order.length}</span>
-              {shuffle && <span>{t('queue.shuffledOrderNote')}</span>}
-            </p>
+          {/* 面板：贴右侧浮起（底边让开底部播放区）。不是模态：旁边的播放条照常能用 */}
+          <div
+            className="absolute right-2.5 top-2.5 z-30 flex w-[360px] max-w-[calc(100%-20px)] flex-col overflow-hidden rounded-xl bg-surface shadow-lg animate-slide-in-right motion-reduce:animate-none"
+            style={{ bottom: 'calc(var(--dock-h, 96px) + 10px)' }}
+          >
+            {panelBody}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
         <DialogContent className="regular:max-w-sm">

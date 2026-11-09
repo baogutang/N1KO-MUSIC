@@ -3,6 +3,7 @@
  * - isNativePlatform: 是否运行在 Android/iOS 原生 WebView 内
  * - isTauriShell: 是否运行在 Tauri 桌面壳内（判定与 useDeepLinks 共用）
  * - useWindowClass: 窗口尺寸档位（compact / regular / wide），外壳按它切换布局
+ * - useCoarsePointer: 有没有手指（按输入方式选控件，不看窗口宽度）
  * - pluginSourcesSupported: 插件音源（网易云 / QQ）能不能在当前壳里工作
  */
 
@@ -62,4 +63,28 @@ function subscribeWindowClass(callback: () => void) {
 
 export function useWindowClass(): WindowClass {
   return useSyncExternalStore(subscribeWindowClass, getWindowClass)
+}
+
+/**
+ * 这台设备有没有手指（触屏 / 手写笔）。
+ *
+ * 排序键、拖动收起这类控件按「怎么操作」选，而不是按窗口宽度：iPad 竖屏宽 ≥ 600
+ * 也只是 regular，可操作它的是手指，HTML5 拖拽在上面不触发。
+ * 用 any-pointer 而不是 pointer：接了触控板的 iPad、带触屏的笔记本，
+ * 主指针可能是精的，手指照样会来；手指够得着的控件鼠标也够得着，所以宁多勿少。
+ */
+const COARSE_QUERY = '(any-pointer: coarse)'
+
+function getCoarsePointer(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia(COARSE_QUERY).matches
+}
+
+function subscribeCoarsePointer(callback: () => void) {
+  const mql = window.matchMedia(COARSE_QUERY)
+  mql.addEventListener('change', callback)
+  return () => mql.removeEventListener('change', callback)
+}
+
+export function useCoarsePointer(): boolean {
+  return useSyncExternalStore(subscribeCoarsePointer, getCoarsePointer)
 }

@@ -3,7 +3,8 @@
  * - 全屏（舞台）：大字，当前行全亮、其余行退到四成；换行时当前行从 97% 轻轻放大到 100%
  *   （只动 transform / opacity，字重不变，不重排）
  * - 面板：外壳里的小字版本，墨色分层
- * - 自动滚动、高亮当前行；手动滚动后暂停自动滚动 3 秒，然后恢复
+ * - 自动滚动、高亮当前行；手动滚动后暂停自动滚动，停手满 8 秒自己滚回当前行
+ *   （回到第一句之前——重播、拖回 0:00——则滚回顶部）
  * - 高亮色统一跟随 accent（DESIGN §1.3 单一强调色）：
  *   settingsStore 的 lyricsHighlightColor 自定义字段按重构约定忽略
  * - 点击歌词行跳转到对应时间
@@ -22,8 +23,17 @@ import { useLyrics } from '@/hooks/useLyrics'
 import { seekHowl } from '@/hooks/useAudioEngine'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePlayerStore } from '@/store/playerStore'
+import { prefersReducedMotion } from '@/lib/motion'
 import type { LyricLine } from '@/api/types'
 import { useT } from '@/i18n'
+
+/**
+ * 手动滚开后多久恢复自动跟随。
+ *
+ * 3 秒太短：想往回看几句歌词，还没读完就被拽回当前行，只能一遍遍地滚。
+ * 8 秒够读完一小段，又不至于让人以为自动跟随坏了。
+ */
+const AUTO_SCROLL_RESUME_DELAY = 8000
 
 /**
  * 清洗歌词行文本：剥离增强 LRC（A2 逐字时间戳）残留。
@@ -80,14 +90,14 @@ export const LyricDisplay = memo(function LyricDisplay({
   // 手动滚动锁定：记录最后一次手动滚动时间
   const lastManualScrollRef = useRef<number>(0)
   /**
-   * 手动滚开后多久恢复自动跟随。
-   *
-   * 3 秒太短：想往回看几句歌词，还没读完就被拽回当前行，只能一遍遍地滚。
-   * 8 秒够读完一小段，又不至于让人以为自动跟随坏了。
+   * 锁定到期的恢复计时器。scrollToActive 只在换行时跑，光靠「锁过期了」
+   * 不会有人再叫它——慢歌里一句能唱十几秒，用户滚开后要干等到下一句才被拽回来，
+   * 而且看不出怎么回去。所以最后一次手动滚动后起一个计时器，到点主动滚回当前行。
    */
-  const AUTO_SCROLL_RESUME_DELAY = 8000
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scrollToActiveRef = useRef<() => void>(() => {})
   // 程序化滚动标志：scrollToActive 的平滑滚动同样会触发 scroll 事件，
-  // 必须与用户手动滚动区分，否则每次自动滚动都会把自己锁定 3 秒
+  // 必须与用户手动滚动区分，否则每次自动滚动都会把自己锁定 8 秒
   const isProgrammaticScrollRef = useRef(false)
   const programmaticSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -112,23 +122,47 @@ export const LyricDisplay = memo(function LyricDisplay({
         return
       }
       lastManualScrollRef.current = Date.now()
+      // 每次滚动都重新计时：从「最后一次」手动滚动起算满 8 秒才回去
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current)
+      resumeTimerRef.current = setTimeout(() => {
+        resumeTimerRef.current = null
+        // 先解锁：计时器可能比 Date.now() 的差值早到 1ms，scrollToActive 里的锁判断会把自己挡掉
+        lastManualScrollRef.current = 0
+        scrollToActiveRef.current()
+      }, AUTO_SCROLL_RESUME_DELAY)
     }
     container.addEventListener('scroll', handleScroll, { passive: true })
     return () => {
       container.removeEventListener('scroll', handleScroll)
       if (programmaticSettleTimerRef.current) clearTimeout(programmaticSettleTimerRef.current)
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current)
+      resumeTimerRef.current = null
     }
-  }, [armProgrammaticSettle])
+    // hasLyrics：没歌词时容器不渲染，歌词后到时要重新挂上监听，否则手动滚动永远检测不到
+  }, [armProgrammaticSettle, hasLyrics])
 
   // 自动滚动到当前歌词行（高亮行始终居中于容器可视区域）
   const scrollToActive = useCallback(() => {
-    if (!isSynced || currentIndex < 0) return
-    // 如果最近 3 秒内有手动滚动，跳过自动滚动
+    if (!isSynced) return
+    // 如果最近 8 秒内有手动滚动，跳过自动滚动
     if (Date.now() - lastManualScrollRef.current < AUTO_SCROLL_RESUME_DELAY) return
 
     const container = containerRef.current
+    if (!container) return
+    /* 前庭安全（阶段 7.6）：系统开了「减少动态」就直跳，不做平滑滚动 */
+    const behavior = prefersReducedMotion() ? 'auto' : 'smooth'
+
+    // 第一句之前（单曲循环重新开始、拖回 0:00）：没有当前行，滚回顶部。
+    // 此前直接 return，视图就停在上一遍的末尾
+    if (currentIndex < 0) {
+      isProgrammaticScrollRef.current = true
+      armProgrammaticSettle()
+      container.scrollTo({ top: 0, behavior })
+      return
+    }
+
     const activeLine = activeLineRef.current
-    if (!container || !activeLine) return
+    if (!activeLine) return
 
     // 使用 getBoundingClientRect 而非 offsetTop，避免 offsetParent 差异导致计算不准
     const containerRect = container.getBoundingClientRect()
@@ -141,14 +175,10 @@ export const LyricDisplay = memo(function LyricDisplay({
     // 标记程序化滚动；即使滚动距离为 0 不触发 scroll 事件，计时器也会兜底清除标志
     isProgrammaticScrollRef.current = true
     armProgrammaticSettle()
-    container.scrollTo({
-      top: Math.max(0, targetScrollTop),
-      /* 前庭安全（阶段 7.6）：系统开了「减少动态」就直跳，不做平滑滚动 */
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        ? 'auto'
-        : 'smooth',
-    })
+    container.scrollTo({ top: Math.max(0, targetScrollTop), behavior })
   }, [currentIndex, isSynced, armProgrammaticSettle, variant])
+  // 恢复计时器到点时要调的是「最新」的 scrollToActive（拿的是当时的 currentIndex）
+  scrollToActiveRef.current = scrollToActive
 
   useEffect(() => {
     scrollToActive()
@@ -166,8 +196,10 @@ export const LyricDisplay = memo(function LyricDisplay({
   const handleLineClick = useCallback((line: LyricLine) => {
     if (!isSyncedRef.current || line.time < 0) return
     seekHowl(line.time / 1000)
-    // 点击跳转后立刻取消手动滚动锁，允许自动滚动跟随
+    // 点击跳转后立刻取消手动滚动锁，允许自动滚动跟随（等着恢复的计时器也不用留了）
     lastManualScrollRef.current = 0
+    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current)
+    resumeTimerRef.current = null
   }, [])
 
   if (!hasLyrics) {
@@ -188,7 +220,9 @@ export const LyricDisplay = memo(function LyricDisplay({
         variant === 'fullscreen' ? 'h-full pb-[48vh] pt-[7vh] lyric-fade-top' : 'h-64 py-12 lyric-fade',
         className
       )}
-      style={{ scrollBehavior: 'smooth' }}
+      /* 开了「减少动态」不能再设 smooth：CSS 的 scroll-behavior 会盖过 scrollTo 的 behavior: 'auto'，
+         歌词照样平滑地滚 */
+      style={prefersReducedMotion() ? undefined : { scrollBehavior: 'smooth' }}
     >
       <div className={cn(
         variant === 'fullscreen' ? 'flex flex-col gap-[0.55em] px-2' : 'space-y-3 px-4'
