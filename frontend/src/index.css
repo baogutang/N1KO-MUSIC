@@ -1059,25 +1059,26 @@ body {
 }
 
 /* 大封面：渐隐用遮罩，不用模糊（WebKit 上大面积模糊每一帧都重画）。
-   side 横屏贴左：右缘先半透明再渐隐，下缘渐隐；top 竖屏贴顶：下缘渐隐 */
+   框是正方形、封面整张都在里面；渐隐只吃边上一小截，封面上的字和图都要看得见。
+   side 横屏贴左上：右缘、下缘渐隐；top 竖屏贴顶：下缘渐隐（窗口宽到封面顶不满屏宽时两侧也渐隐） */
 .immersive-art {
   transition: opacity var(--dur-5) var(--ease-smooth);
 }
 
 .immersive-art[data-placement='side'] {
   -webkit-mask-image:
-    linear-gradient(90deg, #000 0%, #000 44%, rgb(0 0 0 / 0.5) 64%, transparent 84%),
-    linear-gradient(180deg, #000 0%, #000 56%, transparent 90%);
+    linear-gradient(90deg, #000 0%, #000 76%, transparent 100%),
+    linear-gradient(180deg, #000 0%, #000 80%, transparent 100%);
   -webkit-mask-composite: source-in;
   mask-image:
-    linear-gradient(90deg, #000 0%, #000 44%, rgb(0 0 0 / 0.5) 64%, transparent 84%),
-    linear-gradient(180deg, #000 0%, #000 56%, transparent 90%);
+    linear-gradient(90deg, #000 0%, #000 76%, transparent 100%),
+    linear-gradient(180deg, #000 0%, #000 80%, transparent 100%);
   mask-composite: intersect;
 }
 
 .immersive-art[data-placement='top'] {
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 80%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 80%, transparent 100%);
 }
 
 /* 竖屏看歌词 / 接下来：封面退成一层淡淡的底，字浮在上面 */
@@ -1085,6 +1086,29 @@ body {
   opacity: 0.3;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
   mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+}
+
+/* 边长 min(100cqw, 75cqh)：宽高比过了 3:4 封面就顶不满屏宽，两侧硬边也要渐隐（容器是正在播放那一层） */
+@container (min-aspect-ratio: 751/1000) {
+  .immersive-art[data-placement='top'] {
+    -webkit-mask-image:
+      linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%),
+      linear-gradient(180deg, #000 0%, #000 80%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%),
+      linear-gradient(180deg, #000 0%, #000 80%, transparent 100%);
+    mask-composite: intersect;
+  }
+
+  .immersive-art[data-placement='top'][data-dim] {
+    -webkit-mask-image:
+      linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%),
+      linear-gradient(180deg, #000 0%, transparent 100%);
+    mask-image:
+      linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%),
+      linear-gradient(180deg, #000 0%, transparent 100%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

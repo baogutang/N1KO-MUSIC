@@ -1052,7 +1052,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     )
   } else if (layout === 'landscape' && immersive) {
     /* 沉浸横屏：左边就是封面本身（甩它切歌），右栏是歌名和左对齐的歌词，底下整宽一条进度、一排控制。
-       右栏从封面宽度的 77% 处开始，压在封面渐隐的那一截上（--imm-col，见下面根节点） */
+       右栏从封面边长的 94% 处开始，只压住封面渐隐的最后一截（--imm-col，见下面根节点） */
     body = (
       <div
         className="relative z-10 flex min-h-0 flex-1 flex-col"
@@ -1294,15 +1294,17 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   }
 
   /* 沉浸的大封面：画在内容这一层的最底下（顶栏、歌词压在它上面），也是开合时从迷你条飞过来的那一块。
-     横屏贴左、宽度 = 整屏高（窄而高的窗口最多 72% 宽）；竖屏顶满屏宽，高度最多 125% 屏宽、64% 屏高 */
+     永远是正方形（边长 --imm-art）：框不方的话 object-cover 会把封面裁掉一截。
+     横屏贴左上、底边停在底下那排控制上面（最多 62% 屏宽）；竖屏贴顶、顶满屏宽（最多 75% 屏高，再宽就居中、两侧也渐隐） */
   const side = layout === 'landscape'
+  const sideArt = `min(100cqh - ${short ? 7 : 9}rem, 62cqw)`
   const artDim = !side && mobileView !== 'cover'
   const immersiveArt = immersive && (
     <>
       <div
         ref={morphRef}
-        className={cn('pointer-events-none absolute left-0 top-0 origin-center', side ? 'h-full' : 'right-0')}
-        style={side ? { width: 'var(--imm-art)' } : { height: 'min(125cqw, 64cqh)' }}
+        className={cn('pointer-events-none absolute top-0 origin-center', side ? 'left-0' : 'inset-x-0 mx-auto')}
+        style={{ width: 'var(--imm-art)', height: 'var(--imm-art)' }}
       >
         <div ref={coverBoxRef} className="absolute inset-0">
           <ImmersiveArt song={currentSong} placement={side ? 'side' : 'top'} dim={artDim} onFailed={handleArtFailed} />
@@ -1313,7 +1315,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
-          style={{ background: 'linear-gradient(90deg, transparent calc(var(--imm-col) * 0.75), oklch(var(--stage-mid) / 0.84) calc(var(--imm-col) * 1.23))' }}
+          style={{ background: 'linear-gradient(90deg, transparent calc(var(--imm-art) * 0.8), oklch(var(--stage-mid) / 0.84) var(--imm-art))' }}
         />
       )}
       {/* 竖屏看歌词 / 接下来：淡下去的封面上再罩一层底色，白字不靠封面的颜色 */}
@@ -1346,9 +1348,9 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
         key={`${layout}:${immersive}`}
         ref={contentRef}
         className={cn('relative flex min-h-0 flex-1 flex-col', immersive && '[container-type:size]')}
-        style={immersive && side
-          ? ({ '--imm-art': 'min(100cqh, 72cqw)', '--imm-col': 'calc(min(100cqh, 72cqw) * 0.767)' } as CSSProperties)
-          : undefined}
+        style={!immersive ? undefined
+          : side ? ({ '--imm-art': sideArt, '--imm-col': `calc(${sideArt} * 0.94)` } as CSSProperties)
+            : ({ '--imm-art': 'min(100cqw, 75cqh)' } as CSSProperties)}
         initial={settled && !reduceMotion ? { opacity: 0 } : false}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.24, ease: EASE_OUT }}
