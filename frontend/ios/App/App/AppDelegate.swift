@@ -38,6 +38,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
 
+    // 已经改走场景生命周期（SceneDelegate）：链接打开、通用链接由 SceneDelegate 转给 Capacitor，
+    // 下面这两个在场景化的 App 里系统不会再调，留着只是和 Capacitor 模板保持一致
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         // Called when the app was launched with a url. Feel free to add additional processing here,
         // but if you want the App API to support tracking app url opens, make sure to keep this call
