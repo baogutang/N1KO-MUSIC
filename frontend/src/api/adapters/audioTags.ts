@@ -28,6 +28,7 @@ const FRAME_PROBE = 4096
 export function readAudioTags(data: Uint8Array, options: AudioTagOptions = {}): AudioTags {
   if (data.length >= 10 && ascii(data, 0, 3) === 'ID3') return readId3v2(data, options)
   if (data.length >= 4 && ascii(data, 0, 4) === 'fLaC') return readFlac(data)
+  if (data.length >= 4 && ascii(data, 0, 4) === 'OggS') return readOgg(data)
   if (data.length >= 12 && ascii(data, 0, 4) === 'RIFF' && ascii(data, 8, 4) === 'WAVE') return readWav(data)
   if (data.length >= 8 && ascii(data, 4, 4) === 'ftyp') return readMp4(data)
   // 没有 ID3 的 MP3 开头直接就是帧。别的格式不去猜，免得把随机字节当成帧头。
@@ -74,6 +75,14 @@ function readId3v2(data: Uint8Array, options: AudioTagOptions): AudioTags {
   const tags = readId3Frames(frames, version)
   // 时长要看标签后面的第一帧，所以多要一点。标签太大（内嵌了大封面）读不到也没关系，TLEN 或播放器会补上。
   if (data.length < total) return { ...tags, bytesNeeded: Math.min(total + FRAME_PROBE, MAX_TAG_BYTES) }
+  // 有的转换工具会在 FLAC 前面挂一段 ID3。真正的标签和时长在后面的 FLAC 元数据里，以它为准。
+  if (data.length >= total + 4 && ascii(data, total, 4) === 'fLaC') {
+    const { bytesNeeded, ...flac } = readFlac(data.subarray(total))
+    const merged: AudioTags = { ...tags, ...flac }
+    const need = bytesNeeded ? Math.min(total + bytesNeeded, MAX_TAG_BYTES) : 0
+    if (need > data.length) merged.bytesNeeded = need
+    return merged
+  }
   if (tags.duration === undefined) {
     const audioBytes = options.fileSize ? options.fileSize - total : undefined
     const duration = mp3Duration(data, total, audioBytes)
@@ -241,6 +250,87 @@ function readVorbisComment(data: Uint8Array): AudioTags {
   return tags
 }
 
+/**
+ * Ogg Vorbis / Opus：标签在这条流的第二个包里（Vorbis 的「\x03vorbis」注释包、Opus 的「OpusTags」），
+ * 内容和 FLAC 的 VORBIS_COMMENT 同一个格式。包按每页的分段表拼：分段长 255 表示包还没完，可能接到下一页。
+ * 时长要看最后一页的 granule position，在文件末尾，只读开头拿不到，留给播放器补。
+ */
+function readOgg(data: Uint8Array): AudioTags {
+  const packets: Uint8Array[] = []
+  let pending: Uint8Array[] = []
+  let serial: number | undefined
+  let codec: 'vorbis' | 'opus' | undefined
+  let truncated = false
+  let offset = 0
+  while (packets.length < 2) {
+    if (offset + 27 > data.length) {
+      truncated = true
+      break
+    }
+    if (ascii(data, offset, 4) !== 'OggS') break
+    const segments = data[offset + 26]
+    const bodyStart = offset + 27 + segments
+    if (bodyStart > data.length) {
+      truncated = true
+      break
+    }
+    let bodyLength = 0
+    for (let i = 0; i < segments; i++) bodyLength += data[offset + 27 + i]
+    const pageSerial = u32le(data, offset + 14)
+    // 认准第一条 Vorbis / Opus 流：前面可能还有 Skeleton 之类别的流，它们的页跳过
+    if (serial === undefined && !(data[offset + 5] & 0x01)) {
+      codec = oggCodec(data.subarray(bodyStart, Math.min(bodyStart + 8, data.length)))
+      if (codec) serial = pageSerial
+    }
+    if (serial !== undefined && pageSerial === serial) {
+      let at = bodyStart
+      for (let i = 0; i < segments && packets.length < 2; i++) {
+        const lace = data[offset + 27 + i]
+        if (at + lace > data.length) {
+          pending.push(data.subarray(at))
+          truncated = true
+          break
+        }
+        pending.push(data.subarray(at, at + lace))
+        at += lace
+        if (lace < 255) {
+          packets.push(concatBytes(pending))
+          pending = []
+        }
+      }
+      if (truncated) break
+    }
+    // 每页至少 27 字节，offset 一定往前走
+    offset = bodyStart + bodyLength
+  }
+  if (!codec) return {}
+  // 注释包没读全（多半是里面塞了封面图）：先解出读到的那部分，再告诉调用方多读一些
+  const comment = packets[1] ?? (packets.length === 1 && pending.length ? concatBytes(pending) : undefined)
+  const prefix = codec === 'vorbis' ? '\x03vorbis' : 'OpusTags'
+  const tags = comment && ascii(comment, 0, prefix.length) === prefix
+    ? readVorbisComment(comment.subarray(prefix.length))
+    : {}
+  if (!packets[1] && truncated && data.length < MAX_TAG_BYTES) return { ...tags, bytesNeeded: MAX_TAG_BYTES }
+  return tags
+}
+
+function oggCodec(head: Uint8Array): 'vorbis' | 'opus' | undefined {
+  if (ascii(head, 0, 7) === '\x01vorbis') return 'vorbis'
+  if (ascii(head, 0, 8) === 'OpusHead') return 'opus'
+  return undefined
+}
+
+function concatBytes(chunks: Uint8Array[]): Uint8Array {
+  if (chunks.length === 1) return chunks[0]
+  const out = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0))
+  let at = 0
+  for (const chunk of chunks) {
+    out.set(chunk, at)
+    at += chunk.length
+  }
+  return out
+}
+
 function readWav(data: Uint8Array): AudioTags {
   const tags: AudioTags = {}
   let offset = 12
@@ -381,14 +471,82 @@ function decodeUtf16(bytes: Uint8Array, preferBe: boolean): string {
   return new TextDecoder(preferBe ? 'utf-16be' : 'utf-16le').decode(bytes)
 }
 
+/**
+ * ID3 编码 0 按规范是 ISO-8859-1，可不少中文 MP3 里写的其实是 GBK，也有工具写成 UTF-8。
+ * 以前带高位字节的一律按 GBK 解，西文的 Björk、Café 就成了乱码。现在依次看：
+ * 1. 合法的 UTF-8，而且读出来像真文字 → UTF-8。只看合不合法不够：GBK 的「小」(D0 A1) 恰好也是
+ *    合法的 UTF-8（西里尔字母 С），所以两字节的只认夹在 ASCII 字母里的拉丁字母。
+ * 2. 按 GBK 两个字节一组走一遍，比高位字节的形态：汉字是成对的高位字节；拉丁文的重音字母是夹在
+ *    ASCII 字母中间的单个高位字节，按 GBK 读会和后面的 ASCII 凑成一个字（Björk 的 ö+r），
+ *    或在结尾、空格前凑不成字（Café）。凑不成 GBK 的直接按拉丁文，拉丁文的迹象比汉字多也按拉丁文。
+ */
 function decodeLatinOrGbk(bytes: Uint8Array): string {
-  const hasHigh = bytes.some(byte => byte >= 0x80)
-  if (!hasHigh) return new TextDecoder('iso-8859-1').decode(bytes)
+  const latin1 = () => new TextDecoder('iso-8859-1').decode(bytes)
+  if (!bytes.some(byte => byte >= 0x80)) return latin1()
+  const utf8 = strictUtf8(bytes)
+  if (utf8 !== null && looksLikeUtf8Text(utf8)) return utf8
+  if (gbkOrLatin(bytes) === 'latin1') return latin1()
   try {
     return new TextDecoder('gb18030').decode(bytes)
   } catch {
-    return new TextDecoder('iso-8859-1').decode(bytes)
+    return latin1()
   }
+}
+
+function strictUtf8(bytes: Uint8Array): string | null {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return null
+  }
+}
+
+function looksLikeUtf8Text(text: string): boolean {
+  let latinLetter = false
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    if (code < 0x80) continue
+    // 三字节以上（中日韩文字之类）：GBK 几乎凑不出这么规整的序列
+    if (code >= 0x800) return true
+    // À–ɏ 里的字母（去掉 × ÷）
+    if (code >= 0xc0 && code <= 0x24f && code !== 0xd7 && code !== 0xf7) {
+      latinLetter = true
+      continue
+    }
+    // 0x80–0xBF 的符号、西里尔 / 希腊 / 阿拉伯字母：多半是 GBK 汉字碰巧撞成的
+    return false
+  }
+  return latinLetter && /[A-Za-z]/.test(text)
+}
+
+function gbkOrLatin(bytes: Uint8Array): 'gbk' | 'latin1' {
+  const isLetter = (byte: number | undefined) =>
+    byte !== undefined && ((byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a))
+  let gbk = 0
+  let latin = 0
+  for (let i = 0; i < bytes.length;) {
+    const lead = bytes[i]
+    if (lead < 0x80) {
+      i += 1
+      continue
+    }
+    const trail = bytes[i + 1]
+    // 0x80 / 0xFF 当不了首字节；落在结尾，或后面跟空格、标点、数字的，凑不成 GBK 的字
+    // （GB18030 的四字节字在 GBK 年代写的标签里见不到）
+    if (lead === 0x80 || lead === 0xff || trail === undefined || trail < 0x40 || trail === 0x7f || trail === 0xff) {
+      return 'latin1'
+    }
+    if (trail < 0x80) {
+      // 吞掉了后面的 ASCII（ö+r）：GBK 的扩展区确实有这种字，但远不如拉丁文常见
+      latin += 1
+    } else if (lead >= 0xa1 && trail >= 0xa1) {
+      // 两个字节都在 GB2312 区：像汉字；可被 ASCII 字母前后夹着的一对更像两个连着的重音字母（Größe 的 öß）
+      if (isLetter(bytes[i - 1]) && isLetter(bytes[i + 2])) latin += 1
+      else gbk += 1
+    }
+    i += 2
+  }
+  return latin > gbk ? 'latin1' : 'gbk'
 }
 
 function decodeTagBytes(bytes: Uint8Array): string {
@@ -419,6 +577,10 @@ function synchsafe(b0: number, b1: number, b2: number, b3: number): number {
 
 function u32(data: Uint8Array, offset: number): number {
   return (data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]
+}
+
+function u32le(data: Uint8Array, offset: number): number {
+  return (data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | (data[offset + 3] << 24)) >>> 0
 }
 
 function ascii(data: Uint8Array, offset: number, length: number): string {

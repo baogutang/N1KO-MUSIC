@@ -12,6 +12,7 @@
  * 之后每次打开先把上次的曲库摆出来，再在后台重新列目录，只给新增和改过的文件读标签。
  */
 
+import { log } from '@/lib/log'
 import type {
   Album,
   AlbumDetail,
@@ -48,6 +49,7 @@ import {
 } from './webdavLibrary'
 import { readAudioTags } from './audioTags'
 import { queryClient } from '@/lib/queryClient'
+import { toast } from '@/components/ui/use-toast'
 import { readCacheEntry, writeCacheEntry } from '@/services/libraryCacheDb'
 import { WebDavNative, webDavNativeAvailable, NATIVE_FLAC_PREFIX } from './webdavNative'
 
@@ -64,7 +66,21 @@ const PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8"?>
 </d:propfind>`
 
 const MAX_DEPTH = 8
+/** 曲库最多收这么多首。超了按路径挑排在前面的（见 finishListing），并提示一次。 */
 const MAX_FILES = 10000
+/**
+ * 不进曲库的系统目录：「.」「#」开头的（.Trash、#recycle、#snapshot）之外，
+ * 还有群晖的缩略图目录 @eaDir、威联通的回收站 @Recycle / 快照 @Recently-Snapshot、
+ * 插在 NAS 上的 Windows 移动硬盘的回收站 $RECYCLE.BIN（里面是改了名的被删的歌）。
+ */
+const HIDDEN_DIRS = new Set(['@eadir', '@recycle', '@recently-snapshot', '$recycle.bin'])
+/**
+ * 读文件头时服务器明确说「这个文件读不了」的状态：当它没有标签，文件没变就不再读。
+ * 其余失败（5xx、429、408、401/403、断网）都可能是临时的，留到下次扫描再读。
+ */
+const UNREADABLE_STATUS = new Set([404, 405, 410, 415, 416])
+/** 已经提示过「曲库超过上限」的音源（本次运行内） */
+const truncationNotified = new Set<string>()
 /** 第一次扫描最多等这么久才摆出第一版曲库（整库读完就不用等） */
 const FIRST_PUBLISH_WAIT_MS = 8000
 /** 读标签时每读完这么多首，换上一版曲库 */
@@ -93,6 +109,20 @@ interface ScanState {
   files: WebDavFile[]
   covers: Map<string, string>
   lrcs: Map<string, string>
+}
+
+/** 一次扫描过程中的东西，不存盘 */
+interface ScanRun {
+  state: ScanState
+  /** 第一次扫描边列目录边读标签；重扫时为 null */
+  tags: TagQueue | null
+  seen: Set<string>
+  /** 找到的音频文件总数，含超出上限、没收录的 */
+  found: number
+  /** 列不出来、跳过了的子文件夹 */
+  skippedDirs: number
+  /** 已经排进读标签队列的文件 */
+  queued: Set<WebDavFile>
 }
 
 export class WebDavAdapter implements MusicServerAdapter {
@@ -415,17 +445,13 @@ export class WebDavAdapter implements MusicServerAdapter {
       if (tags) {
         firstPublish = setTimeout(() => { if (!this.published) this.publish(state, false, true) }, FIRST_PUBLISH_WAIT_MS)
       }
-      const seen = new Set<string>()
+      const run: ScanRun = { state, tags, seen: new Set(), found: 0, skippedDirs: 0, queued: new Set() }
       for (const root of this.scanRoots()) {
-        const before = state.files.length
         const listed = await this.tryInfinity(root)
-        if (listed) {
-          this.ingest(listed, state)
-          tags?.push(state.files.slice(before))
-        } else {
-          await this.walk(root, 0, state, seen, tags)
-        }
+        if (listed) this.ingest(root, listed, run)
+        else await this.walk(root, 0, run)
       }
+      this.finishListing(run)
       if (tags) {
         await tags.drain()
         this.lastScan = state
@@ -525,12 +551,17 @@ export class WebDavAdapter implements MusicServerAdapter {
     }
   }
 
-  private ingest(entries: DavEntry[], state: ScanState): void {
+  private ingest(root: string, entries: DavEntry[], run: ScanRun): void {
+    const { state } = run
     const lrcByDir = new Map<string, Map<string, string>>()
     const added: WebDavFile[] = []
     for (const entry of entries) {
-      if (entry.name.startsWith('.') || entry.name.startsWith('#')) continue
       if (entry.collection) continue
+      // 逐层走时，回收站、@eaDir 这类目录整个不进去；一次拿整棵树时只看文件自己的名字不够，
+      // 要看它相对扫描根的每一段路径，层数也按逐层走的上限算，两条路收出来的才一样
+      const segments = relativeSegments(root, entry.url) ?? [entry.name]
+      if (segments.length - 1 > MAX_DEPTH) continue
+      if (isHiddenName(entry.name) || segments.some(isHiddenName)) continue
       const dir = parentDir(entry.url)
       if (isCoverName(entry.name)) {
         if (!state.covers.has(dir)) state.covers.set(dir, entry.url)
@@ -538,32 +569,46 @@ export class WebDavAdapter implements MusicServerAdapter {
         const bucket = lrcByDir.get(dir) ?? new Map<string, string>()
         bucket.set(basenameKey(entry.name), entry.url)
         lrcByDir.set(dir, bucket)
-      } else if (isAudioName(entry.name) && state.files.length + added.length < MAX_FILES) {
+      } else if (isAudioName(entry.name)) {
         added.push(fileOf(entry, dir))
       }
     }
     for (const file of added) {
-      state.files.push(file)
       const lrc = lrcByDir.get(file.directory)?.get(basenameKey(file.name))
       if (lrc) state.lrcs.set(file.url, lrc)
     }
+    this.addFiles(run, added)
   }
 
-  private async walk(
-    dirUrl: string,
-    depth: number,
-    state: ScanState,
-    seen: Set<string>,
-    tags: TagQueue | null,
-  ): Promise<void> {
-    if (depth > MAX_DEPTH || state.files.length >= MAX_FILES || seen.has(dirUrl)) return
+  private async walk(dirUrl: string, depth: number, run: ScanRun): Promise<void> {
+    const { state, seen } = run
+    if (depth > MAX_DEPTH || seen.has(dirUrl)) return
     seen.add(dirUrl)
-    const entries = parsePropfind(await this.propfind(dirUrl, 1), dirUrl)
+    let body: string
+    try {
+      body = await this.propfind(dirUrl, 1)
+    } catch (err) {
+      // 扫描根列不出来（账号不对、路径填错）要原样报给用户。
+      // 子文件夹没权限（403）或服务器在这一处出错（500）只跳过它，别让一个文件夹拖垮整次扫描。
+      // 连不上（network）是 NAS 整个掉线了：接着扫只会拿一份残缺的曲库覆盖上次的，照旧上抛。
+      if (depth === 0 || !(err instanceof WebDavFailure) || err.kind === 'network') throw err
+      run.skippedDirs += 1
+      return
+    }
+    let entries: DavEntry[]
+    try {
+      entries = parsePropfind(body, dirUrl)
+    } catch (err) {
+      // 服务器回来的这一份列表解析不了（畸形的 href、越界的字符实体）：同样只跳过这个子文件夹
+      if (depth === 0) throw err
+      run.skippedDirs += 1
+      return
+    }
     const subdirs: string[] = []
     const folderFiles: WebDavFile[] = []
     const folderLrc = new Map<string, string>()
     for (const entry of entries) {
-      if (entry.name.startsWith('.') || entry.name.startsWith('#')) continue
+      if (isHiddenName(entry.name)) continue
       if (entry.collection) {
         subdirs.push(entry.url)
         continue
@@ -576,15 +621,54 @@ export class WebDavAdapter implements MusicServerAdapter {
         folderFiles.push(fileOf(entry, dirUrl))
       }
     }
-    const before = state.files.length
     for (const file of folderFiles) {
-      if (state.files.length >= MAX_FILES) break
-      state.files.push(file)
       const lrc = folderLrc.get(basenameKey(file.name))
       if (lrc) state.lrcs.set(file.url, lrc)
     }
-    tags?.push(state.files.slice(before))
-    await mapPool(subdirs, 6, dir => this.walk(dir, depth + 1, state, seen, tags))
+    this.addFiles(run, folderFiles)
+    await mapPool(subdirs, 6, dir => this.walk(dir, depth + 1, run))
+  }
+
+  /**
+   * 收下列出来的音频文件。超过 MAX_FILES 时不在半路停：6 路并发下哪个文件夹先回来不一定，
+   * 停在半路，每次扫描留下的就是不同的一万首。先都记着，列完再按路径挑（finishListing）。
+   */
+  private addFiles(run: ScanRun, files: WebDavFile[]): void {
+    const { state, tags } = run
+    run.found += files.length
+    const toRead: WebDavFile[] = []
+    for (const file of files) {
+      state.files.push(file)
+      // 超出上限的先不读标签，列完挑定了再补读，免得白读一堆最后不收的
+      if (tags && run.queued.size < MAX_FILES) {
+        run.queued.add(file)
+        toRead.push(file)
+      }
+    }
+    if (toRead.length) tags?.push(toRead)
+    // 远超上限的大库：排在后面的已经不可能入选，先扔掉，内存不跟着库一起涨
+    if (state.files.length > MAX_FILES * 2) state.files = firstByPath(state.files)
+  }
+
+  /** 列完目录：超了上限就按路径挑出排在前面的那些，并告诉用户一次 */
+  private finishListing(run: ScanRun): void {
+    const { state, tags } = run
+    if (run.skippedDirs) {
+      log.warn('webdav', `有 ${run.skippedDirs} 个子文件夹列不出来（没权限或服务器出错），这次跳过`)
+    }
+    if (run.found <= MAX_FILES) return
+    state.files = firstByPath(state.files)
+    const kept = new Set(state.files.map(file => file.url))
+    for (const url of [...state.lrcs.keys()]) {
+      if (!kept.has(url)) state.lrcs.delete(url)
+    }
+    if (tags) tags.push(state.files.filter(file => !run.queued.has(file)))
+    // 每个音源每次运行只说一次：之后的每次重扫结果都一样，再弹就成了打扰
+    if (truncationNotified.has(this.serverId)) return
+    truncationNotified.add(this.serverId)
+    toast({
+      title: t('webdav.scan.truncated', { found: run.found, count: state.files.length, limit: MAX_FILES }),
+    })
   }
 
   /** 重扫时给新增和改过的文件读标签。读一批换一版、存一次盘。 */
@@ -605,16 +689,22 @@ export class WebDavAdapter implements MusicServerAdapter {
     try {
       let bytes = await this.readHeader(file.url, 65536)
       if (!bytes) {
-        // 服务器回了 4xx（读不了这个文件），当它没有标签
+        // 服务器明确说读不了这个文件（404 / 416 之类），当它没有标签
         file.tagsRead = true
         return
       }
       let tags = readAudioTags(bytes, { fileSize: file.size })
+      let complete = true
       if (tags.bytesNeeded && tags.bytesNeeded > bytes.length && (!file.size || bytes.length < file.size)) {
-        const more = await this.readHeader(file.url, tags.bytesNeeded)
-        if (more) {
-          bytes = more
-          tags = readAudioTags(bytes, { fileSize: file.size })
+        try {
+          const more = await this.readHeader(file.url, tags.bytesNeeded)
+          if (more) {
+            bytes = more
+            tags = readAudioTags(bytes, { fileSize: file.size })
+          }
+        } catch {
+          // 补读那一下碰上临时错误：先用第一次读到的，不标已读，下次扫描再补全
+          complete = false
         }
       }
       file.tagTitle = tags.title
@@ -623,18 +713,22 @@ export class WebDavAdapter implements MusicServerAdapter {
       file.tagAlbum = tags.album
       file.tagTrack = tags.track
       file.tagDuration = tags.duration
-      file.tagsRead = true
+      if (complete) file.tagsRead = true
     } catch {
-      // 这一首这次没读到（断网之类），下次扫描再试；文件名和文件夹还能用
+      // 这一首这次没读到（NAS 忙得回 503 / 429、断网之类），不标已读，下次扫描再试；文件名和文件夹还能用
     }
   }
 
+  /**
+   * 读文件开头 length 个字节。
+   * 返回 null：服务器明确说这个文件读不了（UNREADABLE_STATUS）。其余失败都抛出，留到下次扫描再读。
+   */
   private async readHeader(url: string, length: number): Promise<Uint8Array | null> {
     const want = Math.min(Math.max(length, 1), 262144)
     await this.ensureNative()
     if (webDavNativeAvailable()) {
       const result = await WebDavNative.getRange({ url, length: want })
-      if (result.status !== 200 && result.status !== 206) return null
+      if (result.status !== 200 && result.status !== 206) return headerFailure(result.status)
       if (!result.body) return null
       return decodeBase64(result.body)
     }
@@ -644,8 +738,11 @@ export class WebDavAdapter implements MusicServerAdapter {
         Range: `bytes=0-${want - 1}`,
       },
     })
-    if (!response.ok && response.status !== 206) return null
-    return new Uint8Array(await response.arrayBuffer())
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => {})
+      return headerFailure(response.status)
+    }
+    return readPrefix(response, want)
   }
 
   private indexKey(): string {
@@ -887,6 +984,68 @@ function parentDir(fileUrl: string): string {
   const slash = path.lastIndexOf('/')
   url.pathname = slash <= 0 ? '/' : path.slice(0, slash + 1)
   return url.toString()
+}
+
+/** 隐藏文件、回收站、NAS 的系统目录 */
+function isHiddenName(name: string): boolean {
+  return name.startsWith('.') || name.startsWith('#') || HIDDEN_DIRS.has(name.toLowerCase())
+}
+
+/**
+ * 文件相对扫描根的各段路径（解码后，最后一段是文件名）。不在根下面时返回 null。
+ * 按段解码后再比：服务器回的编码（大小写、哪些字符编码）不一定和填的地址一样。
+ */
+function relativeSegments(root: string, entryUrl: string): string[] | null {
+  const decoded = (pathname: string) => pathname.split('/').filter(Boolean).map(part => {
+    try {
+      return decodeURIComponent(part)
+    } catch {
+      return part
+    }
+  })
+  const base = decoded(new URL(directoryUrl(root)).pathname)
+  const parts = decoded(new URL(entryUrl).pathname)
+  if (parts.length <= base.length || base.some((part, i) => part !== parts[i])) return null
+  return parts.slice(base.length)
+}
+
+/** 按地址排序后留前 MAX_FILES 首：同一个库每次挑出来的是同一批，而且是整个文件夹整个文件夹地留 */
+function firstByPath(files: WebDavFile[]): WebDavFile[] {
+  return files
+    .slice()
+    .sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0))
+    .slice(0, MAX_FILES)
+}
+
+function headerFailure(status: number): null {
+  if (UNREADABLE_STATUS.has(status)) return null
+  throw new WebDavFailure(t('webdav.error.status', { status }), 'http')
+}
+
+/**
+ * 只读响应开头 want 个字节就停。
+ * 有的服务器不认 Range，照样回 200 和整首歌：arrayBuffer() 会把几十 MB 的 FLAC 整个下载下来，
+ * 6 路并发读标签时带宽和内存一起被吃光。读够了就 cancel，连接随之断开。
+ */
+async function readPrefix(response: Response, want: number): Promise<Uint8Array> {
+  const reader = response.body?.getReader()
+  // 有的壳把 fetch 换成了自己的实现，响应没有可读流：退回整块读再截。
+  // 不能当成「读到 0 个字节」——那会被记成「这首歌没有标签」，文件不变就再也不读了
+  if (!reader) return new Uint8Array(await response.arrayBuffer()).subarray(0, want)
+  const out = new Uint8Array(want)
+  let filled = 0
+  try {
+    while (filled < want) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const take = Math.min(value.length, want - filled)
+      out.set(value.subarray(0, take), filled)
+      filled += take
+    }
+  } finally {
+    void reader.cancel().catch(() => {})
+  }
+  return out.subarray(0, filled)
 }
 
 function nestedUnder(root: string, entryUrl: string): boolean {

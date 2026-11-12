@@ -149,6 +149,169 @@ describe('readAudioTags', () => {
   })
 })
 
+const hex = (text: string) => (text.match(/../g) ?? []).map(byte => parseInt(byte, 16))
+const bytesOf = (text: string) => [...text].map(char => char.charCodeAt(0))
+
+describe('ID3 编码 0：真的 Latin-1、其实是 GBK，还是 UTF-8', () => {
+  const artist = (bytes: number[]) => readAudioTags(id3(id3Frame('TPE1', 0, bytes))).artist
+
+  // 字节都是 iconv 转出来的真实编码
+  it.each([
+    ['Björk', '426af6726b'],
+    ['Café', '436166e9'],
+    ['Sigur Rós', '53696775722052f373'],
+    ['Mötley Crüe', '4df6746c6579204372fc65'],
+    ['Größe', '4772f6df65'],
+  ])('西文 Latin-1 不当成 GBK：%s', (expected, bytes) => {
+    expect(artist(hex(bytes))).toBe(expected)
+  })
+
+  it.each([
+    ['周杰伦', 'd6dcbddcc2d7'],
+    ['陈奕迅 - K歌之王', 'b3c2dec8d1b8202d204bb8e8d6aecdf5'],
+    // D0 A1 恰好也是合法的 UTF-8（西里尔字母 С），不能只看合不合法
+    ['小S', 'd0a153'],
+    ['王菲', 'cdf5b7c6'],
+  ])('GBK 的中文照样读出来：%s', (expected, bytes) => {
+    expect(artist(hex(bytes))).toBe(expected)
+  })
+
+  it('纯 ASCII', () => {
+    expect(artist(bytesOf('Radiohead'))).toBe('Radiohead')
+  })
+
+  it.each(['Björk', 'Sigur Rós', '周杰伦'])('标成编码 0 的 UTF-8：%s', text => {
+    expect(artist([...new TextEncoder().encode(text)])).toBe(text)
+  })
+})
+
+describe('开头挂了 ID3 的 FLAC', () => {
+  function flacFile(comments: string[], seconds: number): number[] {
+    const rate = 44100
+    const samples = rate * seconds
+    const info = new Array(34).fill(0)
+    info[10] = (rate >> 12) & 0xff
+    info[11] = (rate >> 4) & 0xff
+    info[12] = ((rate & 0x0f) << 4) | 0x02
+    info[13] = 0xf0
+    info[14] = (samples >>> 24) & 0xff
+    info[15] = (samples >>> 16) & 0xff
+    info[16] = (samples >>> 8) & 0xff
+    info[17] = samples & 0xff
+    return [0x66, 0x4c, 0x61, 0x43, 0x00, 0, 0, 34, ...info, ...flac(comments).subarray(4)]
+  }
+  const tag = id3([
+    ...id3Frame('TIT2', 3, bytesOf('from id3')),
+    ...id3Frame('TALB', 3, bytesOf('only in id3')),
+  ])
+
+  it('跳过 ID3 按 FLAC 读：FLAC 的标签为准，时长取 STREAMINFO', () => {
+    const data = Uint8Array.from([...tag, ...flacFile(['TITLE=七里香', 'ARTIST=周杰伦'], 180)])
+    expect(readAudioTags(data)).toEqual({ title: '七里香', artist: '周杰伦', album: 'only in id3', duration: 180 })
+  })
+
+  it('FLAC 的注释块没读全时，按整个文件的偏移要更多字节', () => {
+    const full = [...tag, ...flacFile(['TITLE=七里香', 'ARTIST=周杰伦'], 180)]
+    const tags = readAudioTags(Uint8Array.from(full.slice(0, tag.length + 4 + 38 + 4 + 5)))
+    expect(tags.duration).toBe(180)
+    expect(tags.bytesNeeded).toBe(full.length)
+  })
+})
+
+describe('Ogg Vorbis / Opus', () => {
+  function oggPage(serial: number, flags: number, laces: number[], body: number[]): number[] {
+    return [
+      ...bytesOf('OggS'), 0, flags, ...new Array(8).fill(0), ...u32le(serial), ...u32le(0), 0, 0, 0, 0,
+      laces.length, ...laces, ...body,
+    ]
+  }
+  /** 一个完整包的分段表：255 表示没完，最后一段小于 255 */
+  function lacesOf(length: number): number[] {
+    return [...new Array(Math.floor(length / 255)).fill(255), length % 255]
+  }
+  function commentBody(comments: string[]): number[] {
+    const encoder = new TextEncoder()
+    const out = [...u32le(4), ...bytesOf('test'), ...u32le(comments.length)]
+    for (const comment of comments) {
+      const bytes = encoder.encode(comment)
+      out.push(...u32le(bytes.length), ...bytes)
+    }
+    return out
+  }
+  const vorbisId = [0x01, ...bytesOf('vorbis'), ...new Array(23).fill(0)]
+  const vorbisComment = (comments: string[]) => [0x03, ...bytesOf('vorbis'), ...commentBody(comments), 0x01]
+
+  it('Vorbis 注释包跨了两页也拼得起来', () => {
+    const comment = vorbisComment([
+      'TITLE=Hoppípolla',
+      'ARTIST=Sigur Rós',
+      'ALBUM=Takk...',
+      'ALBUMARTIST=Sigur Rós',
+      'TRACKNUMBER=2/11',
+      `DESCRIPTION=${'x'.repeat(600)}`,
+    ])
+    const laces = lacesOf(comment.length)
+    const data = Uint8Array.from([
+      ...oggPage(7, 0x02, lacesOf(vorbisId.length), vorbisId),
+      ...oggPage(7, 0, laces.slice(0, 2), comment.slice(0, 510)),
+      ...oggPage(7, 0x01, laces.slice(2), comment.slice(510)),
+    ])
+    // 时长在文件末尾，只读开头不给
+    expect(readAudioTags(data)).toEqual({
+      title: 'Hoppípolla',
+      artist: 'Sigur Rós',
+      album: 'Takk...',
+      albumArtist: 'Sigur Rós',
+      track: 2,
+    })
+  })
+
+  it('Opus 的 OpusTags；前面别的流（Skeleton）的页跳过', () => {
+    const head = [...bytesOf('OpusHead'), 1, 2, 0x38, 0x01, ...u32le(48000), 0, 0, 0]
+    const tags = [...bytesOf('OpusTags'), ...commentBody(['title=夜曲', 'artist=周杰伦', 'album=十一月的萧邦', 'tracknumber=1'])]
+    const skeleton = [...bytesOf('fishead\0'), ...new Array(56).fill(0)]
+    const data = Uint8Array.from([
+      ...oggPage(99, 0x02, lacesOf(skeleton.length), skeleton),
+      ...oggPage(5, 0x02, lacesOf(head.length), head),
+      ...oggPage(99, 0x04, [0], []),
+      ...oggPage(5, 0, lacesOf(tags.length), tags),
+    ])
+    expect(readAudioTags(data)).toEqual({ title: '夜曲', artist: '周杰伦', album: '十一月的萧邦', track: 1 })
+  })
+
+  it('注释包里塞了大封面、没读全：先给读到的，再要更多字节', () => {
+    const comment = vorbisComment(['TITLE=Alpha', 'ARTIST=Beta', `METADATA_BLOCK_PICTURE=${'A'.repeat(3000)}`])
+    const full = [
+      ...oggPage(7, 0x02, lacesOf(vorbisId.length), vorbisId),
+      ...oggPage(7, 0, lacesOf(comment.length), comment),
+    ]
+    expect(readAudioTags(Uint8Array.from(full.slice(0, 200)))).toEqual({
+      title: 'Alpha',
+      artist: 'Beta',
+      bytesNeeded: 256 * 1024,
+    })
+  })
+
+  it('长度字段越界、页不前进的坏文件：直接停，不抛', () => {
+    const page1 = oggPage(7, 0x02, lacesOf(vorbisId.length), vorbisId)
+    const hugeVendor = [0x03, ...bytesOf('vorbis'), 0xff, 0xff, 0xff, 0xff, 0x01]
+    const hugeCount = [0x03, ...bytesOf('vorbis'), ...u32le(0), 0xff, 0xff, 0xff, 0xff]
+    const hugeField = [0x03, ...bytesOf('vorbis'), ...u32le(0), ...u32le(1), 0xf0, 0xff, 0xff, 0xff, ...bytesOf('TITLE=x')]
+    for (const packet of [hugeVendor, hugeCount, hugeField]) {
+      const data = Uint8Array.from([...page1, ...oggPage(7, 0, lacesOf(packet.length), packet)])
+      expect(readAudioTags(data)).toEqual({})
+    }
+    // 分段表说有 255 段，缓冲区在表中间就完了
+    expect(readAudioTags(Uint8Array.from([...bytesOf('OggS'), 0, 2, ...new Array(20).fill(0), 255, 255, 255]))).toEqual({})
+    // 一串空页，没有一条认得的流
+    const empty = new Array(500).fill(oggPage(1, 0, [], [])).flat()
+    expect(readAudioTags(Uint8Array.from(empty))).toEqual({})
+    // 分段长度指到缓冲区外面
+    const lying = [...page1, ...bytesOf('OggS'), 0, 0, ...new Array(8).fill(0), ...u32le(7), ...new Array(8).fill(0), 1, 200, 0x03]
+    expect(() => readAudioTags(Uint8Array.from(lying))).not.toThrow()
+  })
+})
+
 describe('parseAudioFilename', () => {
   it('从「歌手 - 歌名」拆开', () => {
     expect(parseAudioFilename('陈小熊 - 你有多久没有看过星星.mp3')).toEqual({
