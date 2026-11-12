@@ -9,6 +9,7 @@
  * - hostname 大小写不敏感（DNS 本身如此，URL 解析已归一化为小写，双保险）；
  * - `*.example.com` 通配**一级**子域：a.example.com 匹配，example.com 不匹配，
  *   a.b.example.com 不匹配；
+ * - 基底过宽的通配（`*.com`、`*.com.cn`，见 isWildcardBaseTooBroad）不放行任何主机；
  * - 非 http(s) 协议一律拒绝；
  * - 私网 / 回环 / 链路本地主机一律拒绝（SSRF 防线：即使 manifest 写了
  *   localhost 也不放行——插件音源全部是公网 API，本地测试走 Mock 插件的数据 URL）。
@@ -72,6 +73,38 @@ export function isPrivateHost(hostname: string): boolean {
   return mapped !== null && PRIVATE_HOST_PATTERNS.some(re => re.test(mapped))
 }
 
+/**
+ * 通配基底过宽的两段公共后缀（与托管平台的公共子域）。
+ *
+ * `*.com.cn` 与 `*.com` 是一回事：放行的是「任何人都能注册的一整片域名」，
+ * 白名单等于没有。这里不引公共后缀库（PSL 几百 KB、还得跟着上游更新），
+ * 只列最常见的一批；清单外的仍会漏，这是有意的取舍——目标是把明摆着的
+ * 写法拦在安装门口，不是穷举。
+ */
+const BROAD_WILDCARD_BASES = new Set([
+  'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn', 'ac.cn',
+  'co.uk', 'org.uk', 'ac.uk', 'gov.uk',
+  'co.jp', 'ne.jp', 'or.jp', 'ac.jp',
+  'com.hk', 'com.tw', 'org.tw', 'com.mo',
+  'com.au', 'net.au', 'org.au',
+  'co.kr', 'co.nz', 'co.in', 'com.sg', 'com.my', 'com.br',
+  // 托管平台的公共子域：任何人都能在下面开站，`*.github.io` 等于放行全部 Pages 站点
+  'github.io', 'gitlab.io', 'pages.dev', 'workers.dev', 'vercel.app', 'netlify.app',
+  'herokuapp.com', 'appspot.com', 'web.app', 'firebaseapp.com',
+])
+
+/**
+ * `*.<base>` 的基底是不是宽到「谁都能在下面注册」：空 / 裸 `*`、单段
+ * （`*.com`、`*.cn`），以及上面小清单里的公共后缀（`*.com.cn`）。
+ * manifest 安装校验（catalog.ts 的 validateManifest）与 isHostAllowed 共用。
+ */
+export function isWildcardBaseTooBroad(base: string): boolean {
+  const b = base.trim().toLowerCase().replace(/\.$/, '')
+  if (!b || b.includes('*')) return true
+  if (!b.includes('.')) return true
+  return BROAD_WILDCARD_BASES.has(b)
+}
+
 export function isHostAllowed(rawUrl: string, hosts: readonly string[]): boolean {
   let parsed: URL
   try {
@@ -88,6 +121,8 @@ export function isHostAllowed(rawUrl: string, hosts: readonly string[]): boolean
     if (!p) return false
     if (p.startsWith('*.')) {
       const base = p.slice(2)
+      // 安装时已拒过一次；这里再兜一道（开发代理按盘上 manifest 直接判，不经安装校验）
+      if (isWildcardBaseTooBroad(base)) return false
       // 一级子域：hostname 去掉最后一段 base 后必须恰好剩一段
       if (hostname.endsWith('.' + base)) {
         const head = hostname.slice(0, -(base.length + 1))

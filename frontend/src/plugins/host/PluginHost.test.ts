@@ -19,6 +19,7 @@ import {
   isValidCredentialsValue,
   logSafeUrl,
   resolveFetchTimeout,
+  sanitizeFetchRequest,
   type PluginHostOptions,
 } from './PluginHost'
 
@@ -245,5 +246,74 @@ describe('init 失败时的回收', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+// ===================================================
+// 代发请求的入口形状校验（2026-11-12 加固）
+// ===================================================
+
+describe('代发请求入口：形状不对的不触达任何通道', () => {
+  /** 以沙箱身份发一条 fetch，收集宿主回给沙箱的 fetch:result */
+  async function sendFetch(request: unknown) {
+    const { host, iframe } = await bootHost()
+    const replies: unknown[] = []
+    const post = vi.spyOn(iframe.contentWindow as Window, 'postMessage').mockImplementation((msg: unknown) => {
+      replies.push(msg)
+    })
+    postFromSandbox(iframe, { type: 'fetch', id: 7, request })
+    await new Promise(r => setTimeout(r, 0))
+    post.mockRestore()
+    return { host, replies }
+  }
+
+  it.each([
+    ['request 不是对象', 'https://music.163.com/api'],
+    ['url 不是字符串', { url: 42, method: 'GET', responseType: 'json' }],
+    ['method 不是字符串', { url: 'https://music.163.com/api', method: ['GET'], responseType: 'json' }],
+    ['method 不在允许集合内', { url: 'https://music.163.com/api', method: 'TRACE', responseType: 'json' }],
+    ['method 里塞了换行', { url: 'https://music.163.com/api', method: 'GET\r\nX-Evil: 1', responseType: 'json' }],
+    ['headers 是数组', { url: 'https://music.163.com/api', method: 'GET', headers: [['Cookie', 'a']], responseType: 'json' }],
+    ['headers 值不是字符串', { url: 'https://music.163.com/api', method: 'GET', headers: { Cookie: { a: 1 } }, responseType: 'json' }],
+    ['headers 值里有换行', { url: 'https://music.163.com/api', method: 'GET', headers: { Referer: 'x\r\nHost: evil' }, responseType: 'json' }],
+    ['headers 名不是 token', { url: 'https://music.163.com/api', method: 'GET', headers: { 'Bad Name': 'x' }, responseType: 'json' }],
+    ['body 是数组', { url: 'https://music.163.com/api', method: 'POST', body: [1, 2, 3], responseType: 'json' }],
+    ['responseType 不认识', { url: 'https://music.163.com/api', method: 'GET', responseType: 'blob' }],
+  ])('%s → 回 unsupported，hostFetch 不被调用', async (_why, request) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { host, replies } = await sendFetch(request)
+    expect(fetchCalls.list).toHaveLength(0)
+    expect(replies).toEqual([
+      expect.objectContaining({ type: 'fetch:result', id: 7, ok: false, error: expect.objectContaining({ code: 'unsupported' }) }),
+    ])
+    expect(warn).toHaveBeenCalled()
+    host.dispose()
+  })
+
+  it('合法请求只把已知字段交下去：method 归一成大写、timeoutMs 夹进区间、多余字段丢弃', async () => {
+    const { host } = await sendFetch({
+      url: 'https://music.163.com/api', method: 'post', headers: { Cookie: 'MUSIC_U=x' },
+      body: 'a=1', responseType: 'json', timeoutMs: 10 ** 9, redirect: 'manual', extra: { evil: true },
+    })
+    expect(fetchCalls.list).toHaveLength(1)
+    expect(fetchCalls.list[0].request).toEqual({
+      url: 'https://music.163.com/api', method: 'POST', headers: { Cookie: 'MUSIC_U=x' },
+      body: 'a=1', responseType: 'json', timeoutMs: 120_000, redirect: 'manual',
+    })
+    host.dispose()
+  })
+
+  it('sanitizeFetchRequest：请求头里的空值丢弃、数字和布尔转成字符串（没登录时的 Cookie: undefined 不该让整条请求被拒）', () => {
+    const r = sanitizeFetchRequest({
+      url: 'https://music.163.com/a', method: 'GET', responseType: 'json',
+      headers: { Cookie: undefined, Referer: null, 'X-Page': 2, 'X-Flag': true, 'User-Agent': 'ua' },
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.request.headers).toEqual({ 'X-Page': '2', 'X-Flag': 'true', 'User-Agent': 'ua' })
+  })
+
+  it('sanitizeFetchRequest：body 为空 / null、headers 缺省都算合法', () => {
+    const r = sanitizeFetchRequest({ url: 'https://music.163.com/a', method: 'GET', body: null, headers: null, responseType: 'text' })
+    expect(r.ok && r.request).toEqual({ url: 'https://music.163.com/a', method: 'GET', responseType: 'text' })
   })
 })

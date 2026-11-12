@@ -5,8 +5,9 @@
 
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { usePluginStore } from './pluginStore'
-import { resetPluginDbForTests } from './pluginStorage'
+import { isSameInstallSource, usePluginStore } from './pluginStore'
+import { pluginStorageGet, pluginStorageSet, resetPluginDbForTests, writePlugin } from './pluginStorage'
+import { useServerStore } from '@/store/serverStore'
 import type { PluginManifest } from '../types'
 
 function makeManifest(overrides: Partial<PluginManifest> = {}): PluginManifest {
@@ -68,12 +69,19 @@ describe('从 URL 安装', () => {
     stubFetch({
       'https://p.test/m/manifest.json': makeManifest(),
       'https://p.test/m/index.js': 'code-v1',
-      'https://p.test/m2/manifest.json': makeManifest({ hosts: ['mock.test', 'extra.test'] }),
-      'https://p.test/m2/index.js': 'code-v2',
     })
     const first = await STORE().install('https://p.test/m/manifest.json')
     expect(first.ok && first.hostsAdded).toBe(false) // 首装没有上一版可比
-    const second = await STORE().install('https://p.test/m2/manifest.json')
+    const again = await STORE().install('https://p.test/m/manifest.json')
+    expect(again.ok && again.hostsAdded).toBe(false)
+    /* 同一个来源发了新版、多要了域名。（此前这里用的是另一个地址 m2/——
+       那是「换来源」，一步装完的 install 现在不再替换，见下面「换来源」一组） */
+    vi.restoreAllMocks()
+    stubFetch({
+      'https://p.test/m/manifest.json': makeManifest({ version: '0.2.0', hosts: ['mock.test', 'extra.test'] }),
+      'https://p.test/m/index.js': 'code-v2',
+    })
+    const second = await STORE().install('https://p.test/m/manifest.json')
     expect(second.ok && second.hostsAdded).toBe(true)
     // 清单里仍只有一条（同 id 覆盖）
     expect(STORE().plugins).toHaveLength(1)
@@ -295,5 +303,270 @@ describe('内置音源静默更新只认出厂目录', () => {
     await STORE().setCatalogUrl(OTHER)
     await STORE().autoUpdateBuiltins()
     expect(STORE().plugins[0].version).toBe('0.1.0')
+  })
+})
+
+// ===================================================
+// 换来源：同 id、来源不同的安装（2026-11-12 加固）
+// ===================================================
+
+/** 一个挂在某插件上的音源（带登录凭据） */
+function pluginServer(id: string, pluginId: string, credentials: string) {
+  return {
+    id, pluginId, type: 'plugin' as const, name: id,
+    url: '', username: '', token: '', credentials, isActive: false, createdAt: 0,
+  }
+}
+
+describe('换来源：同 id、来源不同', () => {
+  const A = 'https://a.example.test/netease/manifest.json'
+  const B = 'https://b.example.test/netease/manifest.json'
+
+  async function installFromA() {
+    stubFetch({
+      [A]: makeManifest({ id: 'netease', platform: 'netease' }),
+      'https://a.example.test/netease/index.js': 'code-a',
+    })
+    const r = await STORE().install(A)
+    expect(r.ok).toBe(true)
+    vi.restoreAllMocks()
+  }
+
+  beforeEach(() => {
+    useServerStore.setState({
+      servers: [pluginServer('srv-ne', 'netease', 'MUSIC_U=old'), pluginServer('srv-qq', 'qqmusic', 'qq=keep')],
+      connectedServerIds: [], compromisedServerIds: [], activeServerId: null,
+    } as never)
+  })
+
+  it('prepareInstall 报出「来源变了」与原来的来源；hosts 没新增也照样报', async () => {
+    await installFromA()
+    stubFetch({
+      [B]: makeManifest({ id: 'netease', platform: 'netease', version: '0.2.0' }),
+      'https://b.example.test/netease/index.js': 'code-b',
+    })
+    const prepared = await STORE().prepareInstall(B)
+    expect(prepared.ok).toBe(true)
+    if (!prepared.ok) return
+    expect(prepared.pending.addedHosts).toEqual([])
+    expect(prepared.pending.sourceChanged).toBe(true)
+    expect(prepared.pending.previousSourceUrl).toBe(A)
+  })
+
+  it('一步装完的 install 不替换换了来源的插件：代码与凭据都不动', async () => {
+    await installFromA()
+    stubFetch({
+      [B]: makeManifest({ id: 'netease', platform: 'netease', version: '0.2.0' }),
+      'https://b.example.test/netease/index.js': 'code-b',
+    })
+    const r = await STORE().install(B)
+    expect(r.ok).toBe(false)
+    expect((await STORE().getInstalled('netease'))?.code).toBe('code-a')
+    expect(useServerStore.getState().servers.find(s => s.id === 'srv-ne')?.credentials).toBe('MUSIC_U=old')
+  })
+
+  it('确认后提交：清掉该插件音源的登录与私有存储，别的插件不受影响', async () => {
+    await installFromA()
+    await pluginStorageSet('netease', 'anonymous-cookie', 'NMTID=old')
+    await pluginStorageSet('qqmusic', 'guid', 'keep-me')
+    stubFetch({
+      [B]: makeManifest({ id: 'netease', platform: 'netease', version: '0.2.0' }),
+      'https://b.example.test/netease/index.js': 'code-b',
+    })
+    const prepared = await STORE().prepareInstall(B)
+    if (!prepared.ok) throw new Error(prepared.error)
+    const committed = await STORE().commitInstall(prepared.pending)
+    expect(committed.ok).toBe(true)
+
+    const installed = await STORE().getInstalled('netease')
+    expect(installed?.code).toBe('code-b')
+    expect(installed?.sourceUrl).toBe(B)
+    const servers = useServerStore.getState().servers
+    // 音源行留着（原地重新登录），凭据没了
+    expect(servers.find(s => s.id === 'srv-ne')).toBeDefined()
+    expect(servers.find(s => s.id === 'srv-ne')?.credentials).toBeUndefined()
+    expect(servers.find(s => s.id === 'srv-qq')?.credentials).toBe('qq=keep')
+    expect(await pluginStorageGet('netease', 'anonymous-cookie')).toBeNull()
+    expect(await pluginStorageGet('qqmusic', 'guid')).toBe('keep-me')
+  })
+
+  it('同一来源的升级不算换来源：凭据与私有存储都保留', async () => {
+    await installFromA()
+    await pluginStorageSet('netease', 'device-id', 'dev-1')
+    stubFetch({
+      [A]: makeManifest({ id: 'netease', platform: 'netease', version: '0.2.0' }),
+      'https://a.example.test/netease/index.js': 'code-a2',
+    })
+    const prepared = await STORE().prepareInstall(A)
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.pending.sourceChanged).toBe(false)
+    await STORE().commitInstall(prepared.pending)
+    expect(useServerStore.getState().servers.find(s => s.id === 'srv-ne')?.credentials).toBe('MUSIC_U=old')
+    expect(await pluginStorageGet('netease', 'device-id')).toBe('dev-1')
+  })
+
+  it('粘贴安装不能覆盖来自别处的同 id 插件；覆盖粘贴装的照旧可以', async () => {
+    await installFromA()
+    const refused = await STORE().installPasted(JSON.stringify(makeManifest({ id: 'netease', platform: 'netease' })), 'pasted')
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.error).toContain(A)
+    expect((await STORE().getInstalled('netease'))?.code).toBe('code-a')
+    expect(useServerStore.getState().servers.find(s => s.id === 'srv-ne')?.credentials).toBe('MUSIC_U=old')
+
+    await STORE().installPasted(JSON.stringify(makeManifest()), 'p1')
+    const again = await STORE().installPasted(JSON.stringify(makeManifest()), 'p2')
+    expect(again.ok).toBe(true)
+    expect((await STORE().getInstalled('mock'))?.code).toBe('p2')
+  })
+})
+
+describe('内置升级不算换来源（不同壳、不同版本的应用源各不相同）', () => {
+  /** 开发态出厂目录（defaultCatalogUrl 的目录树） */
+  const FACTORY = 'http://localhost:5173/__n1ko_plugins/catalog.json'
+  const FACTORY_MANIFEST = 'http://localhost:5173/__n1ko_plugins/netease/manifest.json'
+
+  beforeEach(() => {
+    useServerStore.setState({
+      servers: [pluginServer('srv-ne', 'netease', 'MUSIC_U=keep')],
+      connectedServerIds: [], compromisedServerIds: [], activeServerId: null,
+    } as never)
+  })
+
+  it('isSameInstallSource：各壳的随包目录互相算同一个来源', () => {
+    const bundled = [
+      'tauri://localhost/plugins/netease/manifest.json',
+      'http://tauri.localhost/plugins/netease/manifest.json',
+      'https://tauri.localhost/plugins/netease/manifest.json',
+      'capacitor://localhost/plugins/netease/manifest.json',
+      'https://localhost/plugins/netease/manifest.json',
+      'http://localhost:5173/__n1ko_plugins/netease/manifest.json',
+      'http://localhost:5173/plugins/netease/manifest.json',
+      '/plugins/netease/manifest.json',
+    ]
+    for (const a of bundled) {
+      for (const b of bundled) expect(isSameInstallSource(a, b), `${a} vs ${b}`).toBe(true)
+    }
+  })
+
+  it('isSameInstallSource：随包与第三方、粘贴与任何地址都不是同一个', () => {
+    const builtin = 'tauri://localhost/plugins/netease/manifest.json'
+    expect(isSameInstallSource(builtin, 'https://evil.example.test/plugins/netease/manifest.json')).toBe(false)
+    // 主机名只是长得像 localhost 的公网域名不算壳
+    expect(isSameInstallSource(builtin, 'https://localhost.evil.test/plugins/netease/manifest.json')).toBe(false)
+    // 壳的源、但不在随包目录里
+    expect(isSameInstallSource(builtin, 'https://localhost/other/netease/manifest.json')).toBe(false)
+    expect(isSameInstallSource(undefined, builtin)).toBe(false)
+    expect(isSameInstallSource(undefined, undefined)).toBe(true)
+    // 第三方按完整地址比：同址（#片段不算）相同，换路径即不同
+    expect(isSameInstallSource('https://x.test/p/m.json', 'https://x.test/p/m.json#v2')).toBe(true)
+    expect(isSameInstallSource('https://x.test/p/m.json', 'https://x.test/q/m.json')).toBe(false)
+  })
+
+  it('盘上记的是另一个壳的随包地址（tauri://localhost/plugins/），这次从出厂目录升级：不算换来源', async () => {
+    await writePlugin({
+      manifest: makeManifest({ id: 'netease', platform: 'netease' }) as never,
+      code: 'code-v1', codeHash: 'h1', installedAt: 0,
+      sourceUrl: 'tauri://localhost/plugins/netease/manifest.json',
+    })
+    stubFetch({
+      [FACTORY_MANIFEST]: makeManifest({ id: 'netease', platform: 'netease', version: '0.2.0' }),
+      'http://localhost:5173/__n1ko_plugins/netease/index.js': 'code-v2',
+    })
+    const prepared = await STORE().prepareInstall(FACTORY_MANIFEST)
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.pending.sourceChanged).toBe(false)
+    await STORE().commitInstall(prepared.pending)
+    expect(useServerStore.getState().servers[0].credentials).toBe('MUSIC_U=keep')
+  })
+
+  it('autoUpdateBuiltins 走完一次内置升级：不扣下、不清登录、不清私有存储', async () => {
+    stubFetch({
+      [FACTORY]: [{ id: 'netease', name: '网易云音乐', version: '0.1.0', manifest: 'netease/manifest.json' }],
+      [FACTORY_MANIFEST]: makeManifest({ id: 'netease', platform: 'netease' }),
+      'http://localhost:5173/__n1ko_plugins/netease/index.js': 'code-v1',
+    })
+    await STORE().setCatalogUrl(FACTORY)
+    expect((await STORE().installFromCatalog('netease')).ok).toBe(true)
+    await pluginStorageSet('netease', 'device-id', 'dev-1')
+    vi.restoreAllMocks()
+    stubFetch({
+      [FACTORY]: [{ id: 'netease', name: '网易云音乐', version: '0.2.0', manifest: 'netease/manifest.json' }],
+      [FACTORY_MANIFEST]: makeManifest({ id: 'netease', platform: 'netease', version: '0.2.0' }),
+      'http://localhost:5173/__n1ko_plugins/netease/index.js': 'code-v2',
+    })
+    await STORE().autoUpdateBuiltins()
+
+    expect((await STORE().getInstalled('netease'))?.code).toBe('code-v2')
+    expect(STORE().heldUpdates).toEqual([])
+    expect(useServerStore.getState().servers[0].credentials).toBe('MUSIC_U=keep')
+    expect(await pluginStorageGet('netease', 'device-id')).toBe('dev-1')
+  })
+})
+
+// ===================================================
+// 读盘复验：IndexedDB 里的 manifest 不当可信输入
+// ===================================================
+
+describe('读盘复验', () => {
+  it('不合格的记录：getInstalled 抛出说得清的错，load 照样列出它（留着卸载入口）', async () => {
+    // load 会顺手跑内置自动更新、去拉出厂目录：挂一个全 404 的桩，不发真实请求
+    stubFetch({})
+    await writePlugin({
+      manifest: { ...makeManifest({ id: 'broken' }), hosts: ['*.com'] } as never,
+      code: 'x', codeHash: 'h', installedAt: 0,
+    })
+    await expect(STORE().getInstalled('broken')).rejects.toThrow(/broken.*不合法.*重新安装/)
+    usePluginStore.setState({ plugins: [], loaded: false })
+    await STORE().load()
+    expect(STORE().plugins.map(p => p.id)).toEqual(['broken'])
+  })
+
+  it('形状坏到字段都不是字符串：清单照样生成，不抛', async () => {
+    stubFetch({})
+    await writePlugin({
+      manifest: { id: 'weird', name: 42, version: null, hosts: 'music.163.com', color: 'red;x' } as never,
+      code: 'x', codeHash: 'h', installedAt: 0,
+    })
+    await STORE().load()
+    expect(STORE().plugins[0]).toMatchObject({ id: 'weird', name: 'weird', version: '' })
+    expect(STORE().plugins[0].color).toBeUndefined()
+    await expect(STORE().getInstalled('weird')).rejects.toThrow(/weird/)
+  })
+
+  it('v1.11 之前出厂的网易云 0.1.0 / QQ 0.1.0（MusicFree 的能力名）读盘仍能通过', async () => {
+    // 原样取自 git 历史里两个插件的首版 manifest（只省略了 disclaimer 正文）
+    const netease010 = {
+      id: 'netease', name: '网易云音乐', version: '0.1.0', protocol: 1, platform: 'netease', entry: 'index.js',
+      author: 'N1KO', auth: { kind: 'qr', allowAnonymous: true },
+      hosts: ['music.163.com', '*.music.126.net'],
+      capabilities: ['search', 'musicUrl', 'lyric', 'album', 'artist', 'musicSheet', 'importMusicSheet', 'importMusicItem', 'topLists', 'recommendSheets', 'userPlaylists', 'playlistWrite'],
+      qualities: ['low', 'medium', 'high', 'lossless'], disclaimer: '本插件使用你自己的网易云账号……', color: '#c20c0c',
+    }
+    const qqmusic010 = {
+      id: 'qqmusic', name: 'QQ 音乐', version: '0.1.0', protocol: 1, platform: 'qqmusic', entry: 'index.js',
+      author: 'N1KO', auth: { kind: 'qr', allowAnonymous: true },
+      hosts: ['y.qq.com', 'u.y.qq.com', 'graph.qq.com', 'ssl.ptlogin2.qq.com', 'ssl.ptlogin2.graph.qq.com'],
+      capabilities: ['search', 'musicUrl', 'lyric', 'album', 'artist', 'musicSheet', 'importMusicSheet', 'importMusicItem', 'topLists', 'recommendSheets', 'userPlaylists'],
+      qualities: ['low', 'medium', 'high', 'lossless'], disclaimer: '本插件使用你自己的 QQ 音乐账号……', color: '#31c27c',
+    }
+    for (const manifest of [netease010, qqmusic010]) {
+      await writePlugin({ manifest: manifest as never, code: 'code', codeHash: 'h', installedAt: 0, sourceUrl: '/plugins/x/manifest.json' })
+      const installed = await STORE().getInstalled(manifest.id)
+      expect(installed?.manifest.id).toBe(manifest.id)
+    }
+  })
+
+  it('上一版记录坏了也能覆盖安装：这次的 hosts 全部算新增，交给确认', async () => {
+    await writePlugin({
+      manifest: { ...makeManifest(), hosts: 'not-an-array' } as never,
+      code: 'old', codeHash: 'h', installedAt: 0, sourceUrl: 'https://p.test/m/manifest.json',
+    })
+    stubFetch({
+      'https://p.test/m/manifest.json': makeManifest({ version: '0.2.0' }),
+      'https://p.test/m/index.js': 'new',
+    })
+    const prepared = await STORE().prepareInstall('https://p.test/m/manifest.json')
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.pending.addedHosts).toEqual(['mock.test'])
   })
 })

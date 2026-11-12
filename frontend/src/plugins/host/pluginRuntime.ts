@@ -14,6 +14,7 @@ import type { ServerConfig } from '@/api/types'
 import type { PluginManifest } from '../types'
 import { PluginAdapter } from '@/api/adapters/plugin'
 import { usePluginStore } from './pluginStore'
+import { loadableManifest } from './catalog'
 import { pluginStorageGet, pluginStorageSet } from './pluginStorage'
 import { useServerStore } from '@/store/serverStore'
 import { PluginHost } from './PluginHost'
@@ -108,7 +109,9 @@ async function buildPluginHost(config: ServerConfig): Promise<PluginHost> {
 
   const installed = await usePluginStore.getState().getInstalled(config.pluginId)
   if (!installed) throw new Error(`插件未安装或已卸载：${config.pluginId}`)
-  const manifest = installed.manifest as unknown as PluginManifest
+  /* 装载前复验盘上的 manifest：它的 hosts 就是这个沙箱的出网白名单，不能凭
+     「装的时候校验过」就直接强转着用。不合格抛错 → connectServer 按连接失败处理 */
+  const manifest = loadableManifest(config.pluginId, installed.manifest)
 
   const host = new PluginHost(manifest, {
     serverId: config.id,
@@ -161,7 +164,8 @@ export async function openAuthHost(pluginId: string): Promise<PluginHost> {
   if (existing) return existing
   const installed = await usePluginStore.getState().getInstalled(pluginId)
   if (!installed) throw new Error(`插件未安装或已卸载：${pluginId}`)
-  const manifest = installed.manifest as unknown as PluginManifest
+  // 同 buildPluginHost：预登录沙箱一样按盘上 manifest 的 hosts 代发请求，先复验
+  const manifest = loadableManifest(pluginId, installed.manifest)
   const host = new PluginHost(manifest, {
     env: {
       appVersion: pkg.version,

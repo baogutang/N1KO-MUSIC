@@ -298,8 +298,24 @@ type PluginErrorCode =
 
 开发态浏览器通道走 Vite 的 `/__n1ko_proxy`：白名单按 `pluginId` 从仓库 `plugins/<id>/manifest.json` 读盘，不信请求体；请求必须同源、带 `X-N1KO-Proxy: 1` 自定义头且为 JSON，任一不满足 403；目标域名先做 DNS 解析，解到私网即拒。
 
+### 8.1 安全加固补充（2026-11-12）
+
+**`hosts` 条目的形状。** 每一条只能是域名：可选的 `*.` 前缀 + 字母、数字、`-`、`_` 组成的点分标签（允许一个结尾的点）。带协议（`https://a.com`）、路径（`a.com/x`）、端口（`a.com:443`）、userinfo、空白或中间位置的 `*` 的条目，安装时直接报错。通配的基底不能宽到「谁都能在下面注册」：裸 `*`、`*.<单段>`（`*.com`、`*.cn`）、常见的两段公共后缀（`*.com.cn`、`*.net.cn`、`*.org.cn`、`*.co.uk`、`*.co.jp`、`*.com.hk`、`*.com.tw` 等）以及托管平台的公共子域（`*.github.io`、`*.pages.dev`、`*.vercel.app` 等）一律拒绝；这份清单是有意保持很小的手写名单，不引公共后缀库，清单外的仍可能漏过。宿主在匹配时也不认这些过宽通配（开发代理按盘上 manifest 直接判，不经安装校验，这里再兜一道）。
+
+**盘上的 manifest 每次装载前复验。** 装载沙箱、打开登录页的预登录沙箱之前，宿主把 IndexedDB 里读回的 manifest 再过一遍与安装时相同的规则，不合格就不装载，报「插件 X 的安装记录不合法，已停止装载；请卸载后重新安装」，该音源按连接失败处理。唯一的放宽：不认识的 capability 名不报错（v1.11 之前出厂的网易云 / QQ 写的是 MusicFree 的 `lyric` / `musicUrl`，宿主本来就按「没声明」处理）。
+
+**`fetch` 请求的入口形状。** 沙箱发来的 `request` 先按形状复验，不合格回 `ok: false, error: { code: 'unsupported' }`，不触达任何通道：`url` 是非空字符串；`method` 是字符串、大写后属于 `GET / POST / PUT / DELETE / HEAD / PATCH`；`headers` 缺省或是「字符串 → 字符串」的普通对象，头名是 RFC 9110 的 token、值里没有 CR / LF / NUL；`body` 是字符串或空；`responseType` 缺省或属于 `json / text / arraybuffer`；`redirect` 缺省或属于 `follow / manual`；`timeoutMs` 夹进 (0, 120s]。交给通道的是只含这些已知字段的新对象。
+
+**响应体上限 32 MiB**（按解码后的字节数）。插件经宿主取的只有接口 JSON / 文本与登录二维码这类小图，音频与封面由主窗口按地址直接加载、不经宿主代发；网易云整张歌单的 trackIds 响应在几百 KB 量级，32 MiB 留了一个数量级以上的余量。能流式读的通道（浏览器 fetch、Tauri）先看 `Content-Length`，声明就超的一个字节不读；再边读边计数，超了立即取消读取。只能整块返回的通道（CapacitorHttp、开发代理）在结果交给沙箱之前按体积拦。超限回 `ok: false, error: { code: 'network' }`。
+
+**沙箱里没有 WebRTC。** CSP 的 `connect-src 'none'` 管不到 WebRTC（ICE 收集与数据通道能绕开 `hosts` 白名单往外发数据），沙箱运行时在任何插件代码执行之前把 `RTCPeerConnection`、`webkitRTCPeerConnection`、`RTCDataChannel`、`RTCSessionDescription`、`RTCIceCandidate` 从全局上删掉（删不掉的覆盖成 `undefined`）。
+
+**已知局限：内网判定只看主机名字面。** 私网 / 回环拒绝（§2 `hosts` 一行）按 URL 里的主机名字面判断；Tauri 与 Capacitor 的原生通道拿不到、也不复查解析后的实际连接 IP。一个公网域名的 DNS 记录指向内网地址（包括解析之间被换掉的 DNS rebinding）这种情况目前挡不住——前提是插件把这个域名写进了 `hosts`。只有开发代理会在转发前做一次 DNS 解析复查。
+
 ## 9. 版本与兼容
 
 - `protocol` 升版只在破坏兼容时进行。宿主按 manifest 的 `protocol` 选择加载器。
 - 插件通过 `sourceUrl` 更新：宿主重新拉取 manifest 与代码，比对 `version` 与代码哈希；`hosts` 有新增时重新弹一次确认。**随包目录除外**——那份目录在安装包里、与 App 一起分发，用户装这个版本时就已经同意了它的 hosts，再确认一次只是白挡一道（自托管覆盖 `VITE_PLUGIN_CATALOG_URL` 与任何远端目录仍要确认）。
 - 卸载插件时删除它的代码、凭据、私有存储与请求日志。
+- **换来源**（2026-11-12）：同 id 的插件已装、这次的 manifest 地址与它记录的来源不是同一个时，宿主不会一步替换。来源按「身份」比：随包内置（任一壳的随包目录 `/plugins/`、开发态 `/__n1ko_plugins/`、出厂目录树）统一算一个来源，内置之间的升级永远不算换来源；粘贴安装算一类；其余按完整的 manifest 地址比（不只比 origin）。设置页在该插件的行里单独一行写明「已装的来自哪里、这次来自哪里」，用户确认后才落库；确认替换时先断开该插件的音源、清掉它们保存的凭据与该插件的私有存储，再写新代码，用户需要重新登录。粘贴安装没有确认环节，遇到来自别处的同 id 插件直接拒绝（先卸载再粘贴）。内置自动更新若意外判出换来源，宁可这次不更，也不在后台替换。
+- 安装取数（目录、manifest、代码）一律 `cache: 'no-cache'`：用 HTTP 缓存前先向服务器复验，静态部署给 `.js` 设了长缓存时不会把上一版代码当新版本装进去。

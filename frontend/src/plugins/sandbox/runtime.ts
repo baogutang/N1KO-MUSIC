@@ -7,7 +7,8 @@
  *  - 单测直接 import `createSandboxRuntime`，注入假的 postMessage 通道。
  *
  * 沙箱里插件只能做三件事：执行 CommonJS 代码、经宿主发请求（require('axios')）、
- * 读写宿主托管的凭据与私有存储。CSP 把直连网络整个拦掉。
+ * 读写宿主托管的凭据与私有存储。CSP 把直连网络整个拦掉；CSP 管不到的 WebRTC
+ * 在入口处从全局上拿掉（disableWebRTC）。
  */
 
 import CryptoJS from 'crypto-js'
@@ -332,11 +333,57 @@ export function createSandboxRuntime(
 }
 
 // ===================================================
+// WebRTC：沙箱里拿掉
+// ===================================================
+
+/** 沙箱全局上要拿掉的 WebRTC 构造器 */
+export const WEBRTC_GLOBALS = [
+  'RTCPeerConnection',
+  'webkitRTCPeerConnection',
+  'RTCDataChannel',
+  'RTCSessionDescription',
+  'RTCIceCandidate',
+] as const
+
+/**
+ * 把 WebRTC 从沙箱全局上拿掉，必须在任何插件代码执行之前调用。
+ *
+ * 沙箱文档的 CSP `connect-src 'none'` 管得住 fetch / XHR / WebSocket，管不到 WebRTC：
+ * ICE 收集会去连插件指定的 STUN / TURN 服务器，数据通道更能把 env.credentials
+ * 直接送到任意对端——一条绕开宿主 hosts 白名单的出网通道。浏览器没有按文档
+ * 关掉 WebRTC 的通用开关（CSP 的 webrtc 指令没有普遍实现），只能在全局上动手。
+ *
+ * 存在才删；删不掉（不可配置）就覆盖成 undefined；连覆盖都不行的只能作罢。
+ */
+export function disableWebRTC(scope: Record<string, unknown>): void {
+  for (const name of WEBRTC_GLOBALS) {
+    if (!(name in scope)) continue
+    try {
+      delete scope[name]
+    } catch {
+      // 模块是严格模式：删不可配置属性会抛，落到下面覆盖
+    }
+    if (scope[name] === undefined) continue
+    try {
+      Object.defineProperty(scope, name, { value: undefined, writable: false, configurable: false })
+    } catch {
+      try {
+        scope[name] = undefined
+      } catch {
+        // 只读且不可配置：已尽力
+      }
+    }
+  }
+}
+
+// ===================================================
 // 浏览器入口：接到 window.message（仅当真的运行在 iframe 里）
 // ===================================================
 
 export function startWindowRuntime(): void {
   const win = window
+  // 第一件事：插件代码只会在之后的 init 里执行，这里拿掉 WebRTC 赶在它前面
+  disableWebRTC(win as unknown as Record<string, unknown>)
   const transport: SandboxTransport = {
     // opaque origin 只能用 '*'；宿主侧校验 event.source
     send: msg => { win.parent.postMessage(msg, '*') },

@@ -8,7 +8,15 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { followRedirects, hostFetch, MAX_REDIRECT_HOPS, rebuildAllowedUrl, normalizeFetchResponse } from './hostFetch'
+import {
+  capWholeBody,
+  followRedirects,
+  hostFetch,
+  MAX_REDIRECT_HOPS,
+  MAX_RESPONSE_BODY_BYTES,
+  rebuildAllowedUrl,
+  normalizeFetchResponse,
+} from './hostFetch'
 import type { HostFetchRequest, HostFetchResult } from '../types'
 
 const ALLOW = ['music.163.com', '*.music.126.net']
@@ -279,5 +287,88 @@ describe('重定向协议降级剥凭据（B16）', () => {
     const r = req16({ url: 'http://music.163.com/w', headers })
     await followRedirects(r, ALLOW, up.send)
     expect(up.sent[1].headers ?? {}).not.toHaveProperty('Cookie')
+  })
+})
+
+// ===================================================
+// 响应体上限（2026-11-12 加固）
+// ===================================================
+
+describe('响应体上限', () => {
+  const MiB = 1024 * 1024
+
+  it('上限是 32 MiB（对歌单 / 歌词 / 搜索 JSON 绰绰有余）', () => {
+    expect(MAX_RESPONSE_BODY_BYTES).toBe(32 * MiB)
+  })
+
+  it('Content-Length 声明就超：一个字节都不读，直接拒', async () => {
+    let pulled = false
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      pull() { pulled = true },
+      cancel() { cancelled = true },
+    })
+    const res = new Response(body, { headers: { 'content-length': String(MAX_RESPONSE_BODY_BYTES + 1) } })
+    const out = await normalizeFetchResponse(res, 'text')
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.error.message).toMatch(/exceeds/)
+    expect(pulled).toBe(false)
+    expect(cancelled).toBe(true)
+  })
+
+  it('没声明长度：边读边计数，超了立即 cancel，不会把整条流读完', async () => {
+    const chunk = new Uint8Array(MiB)
+    let sent = 0
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        sent += chunk.byteLength
+        controller.enqueue(chunk)
+        // 一条「永远读不完」的流：只有宿主主动 cancel 才会停
+      },
+      cancel() { cancelled = true },
+    })
+    const out = await normalizeFetchResponse(new Response(body), 'arraybuffer')
+    expect(out.ok).toBe(false)
+    expect(cancelled).toBe(true)
+    // 读到刚过上限就停（流的预读最多多拉几块）
+    expect(sent).toBeLessThan(MAX_RESPONSE_BODY_BYTES + 4 * MiB)
+  })
+
+  it('上限以内照常返回（文本与 base64 两种）', async () => {
+    const text = await normalizeFetchResponse(new Response('{"ok":1}'), 'json')
+    expect(text).toMatchObject({ ok: true, body: '{"ok":1}', bodyEncoding: 'text' })
+    const bin = await normalizeFetchResponse(new Response(new Uint8Array([1, 2, 3])), 'arraybuffer')
+    expect(bin).toMatchObject({ ok: true, body: 'AQID', bodyEncoding: 'base64' })
+  })
+
+  it('整块返回的通道（开发代理）：hostFetch 在交给沙箱之前按解码后的体积拦', async () => {
+    // 开发态 hostFetch 走 /__n1ko_proxy；代理回一个解码后刚过上限的 base64 体
+    const overBase64 = 'A'.repeat(Math.ceil((MAX_RESPONSE_BODY_BYTES + 3) / 3) * 4)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ status: 200, headers: {}, bodyBase64: overBase64 }), { status: 200 })
+    )
+    try {
+      const out = await hostFetch(
+        { url: 'https://music.163.com/api/big', method: 'GET', responseType: 'arraybuffer' },
+        ALLOW,
+      )
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      expect(out.ok).toBe(false)
+      if (!out.ok) expect(out.error.message).toMatch(/exceeds/)
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('capWholeBody：文本按 UTF-8 字节数算（中文 3 字节一个）', () => {
+    const limit = 9
+    const ok: HostFetchResult = { ok: true, status: 200, headers: {}, body: '中文中', bodyEncoding: 'text' }
+    const over: HostFetchResult = { ok: true, status: 200, headers: {}, body: '中文中文', bodyEncoding: 'text' }
+    expect(capWholeBody(ok, limit).ok).toBe(true)
+    expect(capWholeBody(over, limit).ok).toBe(false)
+    // 失败结果原样透传
+    const failed: HostFetchResult = { ok: false, error: { code: 'forbidden', message: 'x' } }
+    expect(capWholeBody(failed, limit)).toBe(failed)
   })
 })

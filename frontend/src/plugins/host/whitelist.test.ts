@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { isHostAllowed, isPrivateHost, safeResourceUrl, SMALL_DATA_IMAGE_MAX_CHARS } from './whitelist'
+import { isHostAllowed, isPrivateHost, isWildcardBaseTooBroad, safeResourceUrl, SMALL_DATA_IMAGE_MAX_CHARS } from './whitelist'
 
 const NETEASE = [
   'music.163.com',
@@ -183,5 +183,26 @@ describe('通配 IP 域名与降级判定（阶段 6.6）', () => {
     expect(isHostAllowed('https://sub.localtest.me/x', hosts)).toBe(false)
     // 正常域名不受影响
     expect(isHostAllowed('https://example.com/x', hosts)).toBe(true)
+  })
+})
+
+describe('过宽通配不放行任何主机（2026-11-12 加固）', () => {
+  it('*.com / *.com.cn / *.github.io 写进 hosts 也匹配不上', () => {
+    expect(isHostAllowed('https://evil.com/x', ['*.com'])).toBe(false)
+    expect(isHostAllowed('https://evil.com.cn/x', ['*.com.cn'])).toBe(false)
+    expect(isHostAllowed('https://anyone.github.io/x', ['*.github.io'])).toBe(false)
+    expect(isHostAllowed('https://evil.com/x', ['*'])).toBe(false)
+    // 具体站点的一级通配照旧
+    expect(isHostAllowed('https://y.gtimg.cn/x', ['*.gtimg.cn'])).toBe(true)
+  })
+
+  it('isWildcardBaseTooBroad 的边界', () => {
+    expect(isWildcardBaseTooBroad('com')).toBe(true)
+    expect(isWildcardBaseTooBroad('CO.UK')).toBe(true)
+    expect(isWildcardBaseTooBroad('com.cn.')).toBe(true)
+    expect(isWildcardBaseTooBroad('')).toBe(true)
+    expect(isWildcardBaseTooBroad('*')).toBe(true)
+    expect(isWildcardBaseTooBroad('music.126.net')).toBe(false)
+    expect(isWildcardBaseTooBroad('gtimg.cn')).toBe(false)
   })
 })

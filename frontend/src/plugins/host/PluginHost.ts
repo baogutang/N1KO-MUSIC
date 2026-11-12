@@ -24,6 +24,7 @@ import type {
 } from '../types'
 import { createSandboxDocumentUrl } from './sandboxDocument'
 import { hostFetch } from './hostFetch'
+import { log } from '@/lib/log'
 
 const READY_TIMEOUT_MS = 10_000
 const CALL_TIMEOUT_MS = 30_000
@@ -104,6 +105,83 @@ export function isMethodList(value: unknown): value is string[] {
 export function resolveFetchTimeout(timeoutMs: unknown): number {
   if (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs <= 0) return FETCH_TIMEOUT_MS
   return Math.min(timeoutMs, FETCH_TIMEOUT_MAX_MS)
+}
+
+/** 宿主代发允许的 HTTP 方法（与各通道实际支持的一致：CapacitorHttp 的方法类型就是这几个） */
+const ALLOWED_FETCH_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'PATCH'])
+const RESPONSE_TYPES = new Set(['json', 'text', 'arraybuffer'])
+/** RFC 9110 的 token：请求头名只能由这些字符组成 */
+const HEADER_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
+/** 请求头值里不能有 CR / LF / NUL：原生通道未必替你拦，拼进报文就是头注入 */
+const HEADER_VALUE_FORBIDDEN = /[\r\n\0]/
+
+/** 普通对象（字面量 / 无原型）：结构化克隆过来的 Map、数组、Date 都不算 */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const proto = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null
+}
+
+/**
+ * 沙箱发来的 fetch 请求按形状复验，过了才交给 hostFetch。
+ * 通过时返回一份**只含已知字段**的新请求（method 归一成大写、timeoutMs 夹进合法区间），
+ * 不通过返回原因。
+ *
+ * 不能信 axios shim 给的形状：插件代码拿得到 window.parent，完全可以绕过 shim
+ * 直接 postMessage 一条手搓的 fetch——headers 塞一个嵌套对象、method 写成
+ * `GET\r\nX-Evil: 1`、body 给一个几 MB 的数组。后面四条通道各自怎么处理这些
+ * 没人保证，统一在入口挡掉。
+ */
+export function sanitizeFetchRequest(raw: unknown): { ok: true; request: HostFetchRequest } | { ok: false; why: string } {
+  if (!isPlainObject(raw)) return { ok: false, why: 'request 不是对象' }
+  if (typeof raw.url !== 'string' || !raw.url) return { ok: false, why: 'url 必须是非空字符串' }
+  if (typeof raw.method !== 'string') return { ok: false, why: 'method 必须是字符串' }
+  const method = raw.method.toUpperCase()
+  if (!ALLOWED_FETCH_METHODS.has(method)) {
+    return { ok: false, why: `method 只能是 ${[...ALLOWED_FETCH_METHODS].join(' / ')}` }
+  }
+  let headers: Record<string, string> | undefined
+  if (raw.headers !== undefined && raw.headers !== null) {
+    if (!isPlainObject(raw.headers)) return { ok: false, why: 'headers 必须是普通对象' }
+    headers = {}
+    for (const [name, rawValue] of Object.entries(raw.headers)) {
+      /*
+       * 插件是没有类型约束的 JS：`Cookie: creds.cookie`（没登录时是 undefined）、
+       * `'X-Page': 2` 这类写法很常见，此前也一直能发出去。空值当成「没写这个头」，
+       * 数字 / 布尔转成字符串；只有对象、数组这类真正拼不进报文的才拒。
+       */
+      if (rawValue === undefined || rawValue === null) continue
+      if (typeof rawValue !== 'string' && typeof rawValue !== 'number' && typeof rawValue !== 'boolean') {
+        return { ok: false, why: `headers.${name} 不是字符串` }
+      }
+      const value = String(rawValue)
+      if (!HEADER_NAME_PATTERN.test(name)) return { ok: false, why: `headers 里有非法的头名：${JSON.stringify(name)}` }
+      if (HEADER_VALUE_FORBIDDEN.test(value)) return { ok: false, why: `headers.${name} 含换行或 NUL` }
+      headers[name] = value
+    }
+  }
+  if (raw.body !== undefined && raw.body !== null && typeof raw.body !== 'string') {
+    return { ok: false, why: 'body 必须是字符串或空' }
+  }
+  if (raw.responseType !== undefined && !RESPONSE_TYPES.has(String(raw.responseType))) {
+    return { ok: false, why: 'responseType 只能是 json / text / arraybuffer' }
+  }
+  if (raw.redirect !== undefined && raw.redirect !== 'follow' && raw.redirect !== 'manual') {
+    return { ok: false, why: 'redirect 只能是 follow / manual' }
+  }
+  const request: HostFetchRequest = {
+    url: raw.url,
+    method,
+    // 缺省按 text 读：与此前「不是 arraybuffer 就当文本」的行为一致
+    responseType: (raw.responseType ?? 'text') as HostFetchRequest['responseType'],
+    ...(headers ? { headers } : {}),
+    ...(typeof raw.body === 'string' ? { body: raw.body } : {}),
+    ...(raw.bodyEncoding === 'text' || raw.bodyEncoding === 'base64' ? { bodyEncoding: raw.bodyEncoding } : {}),
+    // 原生通道直接拿 timeoutMs 当连接 / 读超时：夹进 (0, 120s]，不让负数、字符串、天文数字下去
+    ...(raw.timeoutMs !== undefined ? { timeoutMs: resolveFetchTimeout(raw.timeoutMs) } : {}),
+    ...(raw.redirect !== undefined ? { redirect: raw.redirect as 'follow' | 'manual' } : {}),
+  }
+  return { ok: true, request }
 }
 
 /** 插件私有存储后端（pluginStore 用 IndexedDB 落地） */
@@ -249,7 +327,7 @@ export class PluginHost {
   /** 沙箱越界：拆掉并记一条 error，调用方（pluginRuntime / 音源设置）可读 compromised */
   private markCompromised(reason: string): void {
     this.compromised = true
-    console.error(`[plugin:${this.manifest.id}] 沙箱越界，已拆除：${reason}`)
+    log.error(`plugin:${this.manifest.id}`, `沙箱越界，已拆除：${reason}`)
     this.options.onCompromised?.(reason)
     this.dispose()
   }
@@ -330,7 +408,7 @@ export class PluginHost {
 
   /** 畸形消息不处理，只留一条 warn（沙箱来的东西一律当不可信输入） */
   private warnMalformed(what: string): void {
-    console.warn(`[plugin:${this.manifest.id}] 忽略畸形沙箱消息：${what}`)
+    log.warn(`plugin:${this.manifest.id}`, `忽略畸形沙箱消息：${what}`)
   }
 
   private handleSandboxMessage(msg: SandboxToHostMessage): void {
@@ -355,7 +433,8 @@ export class PluginHost {
         break
       }
       case 'fetch':
-        void this.handleSandboxFetch(msg.id, msg.request)
+        // request 来自沙箱，按 unknown 交进去复验（类型上的 HostFetchRequest 只是约定）
+        void this.handleSandboxFetch(msg.id, msg.request as unknown)
         break
       case 'storage:get':
         // .catch 必须有：宿主 storage 抛错时若不回包，沙箱侧只能等超时
@@ -388,10 +467,11 @@ export class PluginHost {
         if (this.options.onConsoleLog) {
           this.options.onConsoleLog(entry)
         } else {
-          const line = `[plugin:${this.manifest.id}] ${msg.args.join(' ')}`
-          if (msg.level === 'error') console.error(line)
-          else if (msg.level === 'warn') console.warn(line)
-          else console.info(line)
+          const tag = `plugin:${this.manifest.id}`
+          const line = msg.args.join(' ')
+          if (msg.level === 'error') log.error(tag, line)
+          else if (msg.level === 'warn') log.warn(tag, line)
+          else log.info(tag, line)
         }
         break
       }
@@ -418,7 +498,18 @@ export class PluginHost {
     return () => clearTimeout(timer)
   }
 
-  private async handleSandboxFetch(id: number, request: HostFetchRequest): Promise<void> {
+  private async handleSandboxFetch(id: number, rawRequest: unknown): Promise<void> {
+    // 入口先复验形状（见 sanitizeFetchRequest）：不合格的不触达任何通道，直接回错
+    const checked = sanitizeFetchRequest(rawRequest)
+    if (!checked.ok) {
+      this.warnMalformed(`fetch.request ${checked.why}`)
+      this.postToSandbox({
+        type: 'fetch:result', id, ok: false,
+        error: { code: 'unsupported', message: `Malformed host fetch request: ${checked.why}` },
+      })
+      return
+    }
+    const request = checked.request
     const startedAt = Date.now()
     // 超时与 dispose 共用一个 controller：任一触发都真正掐断在途请求。
     // （此前 request.timeoutMs 被完全忽略，dispose 之后请求照跑到底。）

@@ -13,9 +13,11 @@ import { create } from 'zustand'
 import type { PluginManifest } from '../types'
 import {
   fetchCatalog,
+  loadableManifest,
   resolveManifestUrl,
   sha256Hex,
   validateManifest,
+  validateStoredManifest,
   type UpdateCandidate,
 } from './catalog'
 import { fetchInstallJson, fetchInstallText } from './installFetch'
@@ -95,6 +97,91 @@ function isFactoryUrl(url: string | undefined): boolean {
   }
 }
 
+// ---------------- 安装来源的身份（换来源判定） ----------------
+
+/** 随包插件目录：开发态 Vite 中间件供给的 `/__n1ko_plugins/` 与正式版打进包里的 `/plugins/` */
+const BUNDLED_PLUGIN_DIRS = ['/plugins/', '/__n1ko_plugins/']
+/**
+ * 各个壳的应用源只会落在这两个主机名上：tauri://localhost、http(s)://tauri.localhost、
+ * capacitor://localhost（iOS）、https://localhost（Android）、http://localhost:5173（开发态）。
+ * 这些主机名在安装源防线里属于内网 / 回环（assertSafeInstallUrl 只放行同源的），
+ * 所以盘上记着它们的来源只可能是当时那个壳自己随包的目录。
+ */
+const APP_SHELL_HOSTNAMES = new Set(['localhost', 'tauri.localhost'])
+
+/** 这个地址是不是某个壳随包的插件目录（不要求与当前壳同源，见 installSourceKey） */
+function isBundledPluginUrl(url: string): boolean {
+  const base = typeof location !== 'undefined' ? location.href : undefined
+  let u: URL
+  try {
+    u = new URL(url, base)
+  } catch {
+    return false
+  }
+  let sameShell = false
+  try {
+    const here = base ? new URL(base) : null
+    // 按 protocol + host 比，不比 origin：自定义 scheme 的 origin 一律序列化成 "null"
+    sameShell = !!here && u.host !== '' && u.protocol === here.protocol && u.host === here.host
+  } catch {
+    sameShell = false
+  }
+  if (!sameShell && !APP_SHELL_HOSTNAMES.has(u.hostname)) return false
+  return BUNDLED_PLUGIN_DIRS.some(dir => u.pathname.startsWith(dir))
+}
+
+/**
+ * 安装来源的「身份」：比较新旧来源时比的是它，不是原始地址串。
+ *
+ * - 随包内置（出厂目录树 / 任一壳的随包目录）统一归成一个：应用源在不同壳、
+ *   不同版本之间并不一样（tauri://localhost、https://localhost、capacitor://localhost、
+ *   开发态 http://localhost:5173 的 `/__n1ko_plugins/` 与正式版的 `/plugins/`），
+ *   按原始地址比会把每一次内置升级都判成「换来源」——自动更新就会去清用户的登录。
+ * - 粘贴安装没有来源地址，单独一类。
+ * - 其余按完整的 manifest 地址（去掉 #片段）比：不能只比 origin——
+ *   raw.githubusercontent.com 一个 origin 下住着 GitHub 上所有仓库（同 isFactoryUrl 的理由）。
+ *   同一作者挪了 manifest 路径也会被判成换来源，代价只是多一次确认与重新登录。
+ */
+function installSourceKey(url: unknown): string {
+  if (typeof url !== 'string' || !url) return '(pasted)'
+  if (isFactoryUrl(url) || isBundledPluginUrl(url)) return '(bundled)'
+  try {
+    const u = new URL(url, typeof location !== 'undefined' ? location.href : undefined)
+    u.hash = ''
+    return u.href
+  } catch {
+    return url
+  }
+}
+
+/** 两个来源是不是同一个（随包内置之间的升级永远算同一个） */
+export function isSameInstallSource(previous: unknown, next: unknown): boolean {
+  return installSourceKey(previous) === installSourceKey(next)
+}
+
+/** 给人看的来源：随包内置 / 手动粘贴说成一句话，其余给出 manifest 地址本身 */
+export function installSourceLabel(url: string | undefined): string {
+  const key = installSourceKey(url)
+  if (key === '(bundled)') return t('sources.settings.sourceBundled')
+  if (key === '(pasted)') return t('sources.settings.sourcePasted')
+  return url ?? ''
+}
+
+/**
+ * 换来源被确认之后：旧来源留下的登录不能交给新代码。
+ *
+ * 先断开（拆掉在跑的旧沙箱——不拆的话旧代码还能经 env.setCredentials 把刚清掉的
+ * 凭据写回来），再把凭据置空；音源行本身留着，用户在原地重新扫码即可。
+ * 用的都是 serverStore 现成的公开 action。
+ */
+function forgetPluginLogins(pluginId: string): void {
+  const serverState = useServerStore.getState()
+  for (const server of serverState.servers.filter(s => s.pluginId === pluginId)) {
+    serverState.disconnectServer(server.id)
+    serverState.updateServerCredentials(server.id, null)
+  }
+}
+
 export interface InstalledPluginSummary {
   id: string
   name: string
@@ -123,6 +210,13 @@ export interface PendingInstall {
   addedHosts: string[]
   /** 已安装的版本（首装时没有） */
   currentVersion?: string
+  /**
+   * 同 id 的插件已装、且这次的来源与它记录的来源不是同一个（isSameInstallSource；
+   * 随包内置之间的升级不算）。为 true 时只能走带确认的路径，提交时清掉旧来源的登录。
+   */
+  sourceChanged: boolean
+  /** 已装版本记录的来源（manifest 地址）；粘贴安装的没有 */
+  previousSourceUrl?: string
 }
 
 /** 自动更新因 hosts 扩容而扣下的一条更新，等用户在音源设置里确认 */
@@ -159,7 +253,7 @@ interface PluginStoreState {
   setCatalogUrl: (url: string) => Promise<void>
   /** 启动时从 IndexedDB 载入清单（幂等） */
   load: () => Promise<void>
-  /** 供 PluginHost 装载沙箱用：读完整安装记录 */
+  /** 供 PluginHost 装载沙箱用：读完整安装记录（manifest 已按读盘规则复验，不合格抛错） */
   getInstalled: (id: string) => Promise<StoredPlugin | undefined>
 }
 
@@ -213,6 +307,9 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
 
         const prepared = await get().prepareInstall(manifestUrl)
         if (!prepared.ok) continue
+        /* 出厂 → 出厂按设计不会走到这里（两头都归「随包内置」，见 installSourceKey）。
+           真走到了说明判定出了岔子：宁可这次不更，也不在后台静默换来源、清用户的登录 */
+        if (prepared.pending.sourceChanged) continue
         if (prepared.pending.addedHosts.length && !isBundledCatalog(catalogUrl)) {
           /* hosts 扩容扣下等人确认（PROTOCOL §9）。静默放行的话，一次自动更新
              就能把插件的可访问域名加到任意主机上，而这条更新链路整个跑在后台、
@@ -260,7 +357,17 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
     await writeMeta(BUILTIN_SEEDED_META_KEY, Date.now())
   },
 
-  getInstalled: (id) => readPlugin(id),
+  getInstalled: async (id) => {
+    const record = await readPlugin(id)
+    if (!record) return undefined
+    /* 读盘复验（沙箱装载、登录页都从这里取）：盘上的记录不是可信输入，
+       不合格就抛一条说得清的错，不带病装载（见 catalog.ts 的 validateStoredManifest） */
+    loadableManifest(id, record.manifest)
+    if (typeof record.code !== 'string') {
+      throw new Error(`插件 ${id} 的安装记录不合法，已停止装载；请卸载后重新安装（代码不是文本）`)
+    }
+    return record
+  },
 
   prepareInstall: async (manifestUrl) => {
     try {
@@ -273,11 +380,25 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
       const codeHash = await sha256Hex(code)
 
       const prev = await readPlugin(manifest.id)
-      const prevManifest = prev ? (prev.manifest as unknown as PluginManifest) : undefined
+      /* 盘上的上一版同样按不可信输入复验：坏掉的记录当作「没有可比的 hosts」，
+         这次的 hosts 全部算新增，交给确认流程，而不是在 .includes 上直接抛 */
+      let prevManifest: PluginManifest | undefined
+      if (prev) {
+        try {
+          prevManifest = validateStoredManifest(prev.manifest)
+        } catch {
+          prevManifest = undefined
+        }
+      }
       // 首装没有「上一版」可比，不算扩容
-      const addedHosts = prevManifest
-        ? manifest.hosts.filter(h => !prevManifest.hosts.includes(h))
-        : []
+      const prevHosts = prevManifest?.hosts
+      const addedHosts = !prev
+        ? []
+        : prevHosts
+          ? manifest.hosts.filter(h => !prevHosts.includes(h))
+          : [...manifest.hosts]
+      const previousSourceUrl = prev && typeof prev.sourceUrl === 'string' && prev.sourceUrl ? prev.sourceUrl : undefined
+      const sourceChanged = !!prev && !isSameInstallSource(previousSourceUrl, manifestUrl)
 
       return {
         ok: true,
@@ -288,6 +409,8 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
           codeHash,
           addedHosts,
           ...(prevManifest ? { currentVersion: prevManifest.version } : {}),
+          sourceChanged,
+          ...(previousSourceUrl ? { previousSourceUrl } : {}),
         },
       }
     } catch (err) {
@@ -299,6 +422,17 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
 
   commitInstall: async (pending) => {
     try {
+      const id = pending.manifest.id
+      /* 提交那一刻再比一次来源：prepare 与 commit 之间隔着用户确认，盘上可能已经换过 */
+      const prev = await readPlugin(id)
+      const sourceChanged = pending.sourceChanged || (!!prev && !isSameInstallSource(prev.sourceUrl, pending.manifestUrl))
+      if (sourceChanged) {
+        /* 换来源 = 当成一个新插件：旧来源留下的登录与私有存储（device-id、匿名
+           cookie 之类）都不交给新代码。先清再写——写盘失败时插件处于未安装状态、
+           需要重装，也不留一个「新代码 + 旧凭据」的组合 */
+        forgetPluginLogins(id)
+        await removePlugin(id)
+      }
       await writePlugin({
         manifest: pending.manifest as unknown as StoredPlugin['manifest'],
         code: pending.code,
@@ -321,6 +455,11 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
   install: async (manifestUrl) => {
     const prepared = await get().prepareInstall(manifestUrl)
     if (!prepared.ok) return prepared
+    /* 一步装完的路径没有确认环节：换来源一律不在这里替换（否则旧来源的登录
+       就无声地交给了新代码），要走 prepareInstall → 设置页确认 → commitInstall */
+    if (prepared.pending.sourceChanged) {
+      return { ok: false, error: t('sources.settings.sourceChangedNeedsConfirm', { id: prepared.pending.manifest.id }) }
+    }
     const committed = await get().commitInstall(prepared.pending)
     if (!committed.ok) return committed
     return { ok: true, hostsAdded: prepared.pending.addedHosts.length > 0 }
@@ -329,6 +468,17 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
   installPasted: async (manifestJson, code) => {
     try {
       const manifest = validateManifest(JSON.parse(manifestJson))
+      /* 粘贴的代码没有来源可言：同 id 的插件若来自别处（目录 / URL / 随包），
+         直接覆盖就等于让一段来历不明的代码接手它的登录。粘贴入口没有确认环节，
+         这里直接拒，请用户先卸载（卸载会连同登录一起清掉）再装 */
+      const prev = await readPlugin(manifest.id)
+      if (prev && !isSameInstallSource(prev.sourceUrl, undefined)) {
+        const name = get().plugins.find(p => p.id === manifest.id)?.name ?? manifest.id
+        return {
+          ok: false,
+          error: t('sources.settings.pasteSourceConflict', { name, from: installSourceLabel(prev.sourceUrl) }),
+        }
+      }
       const codeHash = await sha256Hex(code)
       await writePlugin({
         manifest: manifest as unknown as StoredPlugin['manifest'],
@@ -386,17 +536,23 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
   },
 }))
 
+/**
+ * 清单里的一行，只做展示。盘上的记录不保证合格：字段逐个按字符串取，
+ * 不合格的记录也照样列出来——否则连卸载入口都没有；装载时 getInstalled
+ * 会复验并拒绝它。
+ */
 function toSummary(p: StoredPlugin): InstalledPluginSummary {
-  const m = p.manifest as unknown as PluginManifest
+  const m: Record<string, unknown> = p.manifest
+  const str = (value: unknown, fallback = ''): string => (typeof value === 'string' ? value : fallback)
   return {
-    id: m.id,
-    name: m.name,
-    version: m.version,
-    platform: m.platform,
+    id: str(m.id),
+    name: str(m.name, str(m.id)),
+    version: str(m.version),
+    platform: str(m.platform),
     installedAt: p.installedAt,
-    ...(p.sourceUrl ? { sourceUrl: p.sourceUrl } : {}),
-    ...(m.color ? { color: m.color } : {}),
-    codeHash: p.codeHash,
+    ...(typeof p.sourceUrl === 'string' && p.sourceUrl ? { sourceUrl: p.sourceUrl } : {}),
+    ...(typeof m.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(m.color) ? { color: m.color } : {}),
+    codeHash: str(p.codeHash),
   }
 }
 

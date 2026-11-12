@@ -33,6 +33,7 @@ import {
   useConnectedSources,
 } from '@/hooks/useSourceQueries'
 import {
+  installSourceLabel,
   usePluginStore,
   type InstalledPluginSummary,
   type PendingInstall,
@@ -58,7 +59,6 @@ export function SourcesSettings() {
   const heldUpdates = usePluginStore(s => s.heldUpdates)
   const catalogUrl = usePluginStore(s => s.catalogUrl)
   const load = usePluginStore(s => s.load)
-  const install = usePluginStore(s => s.install)
   const prepareInstall = usePluginStore(s => s.prepareInstall)
   const commitInstall = usePluginStore(s => s.commitInstall)
   const installFromCatalog = usePluginStore(s => s.installFromCatalog)
@@ -77,7 +77,7 @@ export function SourcesSettings() {
   const [pasteCode, setPasteCode] = useState('')
   const [pasteBusy, setPasteBusy] = useState(false)
   const [pendingRemove, setPendingRemove] = useState<string | null>(null)
-  /** hosts 有新增的更新：先摆出新增域名让用户确认，确认后才落库 */
+  /** hosts 有新增 / 来源变了的安装：先摆出来让用户确认，确认后才落库 */
   const [pendingUpdate, setPendingUpdate] = useState<{ pending: PendingInstall; nextVersion: string } | null>(null)
   const [updateBusy, setUpdateBusy] = useState(false)
   const [openLogs, setOpenLogs] = useState<string | null>(null)
@@ -140,11 +140,23 @@ export function SourcesSettings() {
     if (!url || urlBusy) return
     setUrlBusy(true)
     try {
-      const result = await install(url)
+      /* 两段式：同 id 的插件已装、来源又不一样时停在确认这一步（确认块在那个
+         插件的行里）。一步装完的话，旧来源留下的登录就无声地交给了新代码 */
+      const prepared = await prepareInstall(url)
+      if (!prepared.ok) {
+        toast({ title: t('sources.settings.installFailed'), description: prepared.error, variant: 'destructive' })
+        return
+      }
+      if (prepared.pending.sourceChanged) {
+        setPendingUpdate({ pending: prepared.pending, nextVersion: prepared.pending.manifest.version })
+        setUrlInput('')
+        return
+      }
+      const result = await commitInstall(prepared.pending)
       if (result.ok) {
         toast({
           title: t('sources.settings.installed'),
-          description: result.hostsAdded ? t('sources.settings.hostsAdded') : undefined,
+          description: prepared.pending.addedHosts.length > 0 ? t('sources.settings.hostsAdded') : undefined,
         })
         setUrlInput('')
       } else {
@@ -198,7 +210,8 @@ export function SourcesSettings() {
       toast({ title: t('sources.settings.installFailed'), description: prepared.error, variant: 'destructive' })
       return
     }
-    if (prepared.pending.addedHosts.length > 0) {
+    // 来源变了（目录换成了别处的同 id 条目）与 hosts 扩容一样，先停下让人确认
+    if (prepared.pending.addedHosts.length > 0 || prepared.pending.sourceChanged) {
       setPendingUpdate({ pending: prepared.pending, nextVersion: candidate.nextVersion })
       return
     }
@@ -216,7 +229,10 @@ export function SourcesSettings() {
         setPendingUpdate(null)
         toast({
           title: t('sources.settings.updated', { version: nextVersion }),
-          description: pending.addedHosts.length ? t('sources.settings.hostsAdded') : undefined,
+          // 换来源时旧登录已被清掉（pluginStore.commitInstall），要让用户知道得重新登录
+          description: pending.sourceChanged
+            ? t('sources.settings.sourceChangedRelogin')
+            : pending.addedHosts.length ? t('sources.settings.hostsAdded') : undefined,
         })
       } else {
         toast({ title: t('sources.settings.installFailed'), description: result.error, variant: 'destructive' })
@@ -409,13 +425,29 @@ export function SourcesSettings() {
                 </p>
               )}
 
-              {/* 出网范围变更确认：把新增的域名摆出来，确认后才落库（PROTOCOL §9） */}
+              {/* 安装确认：出网范围变更（新增的域名）与换来源，确认后才落库（PROTOCOL §9） */}
               {confirming && (
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-ink-2">
-                    {/* 域名本来就是拉丁串，中英文都用逗号分隔，不必为顿号再开一个词条 */}
-                    {t('sources.settings.hostsConfirm', { hosts: confirming.pending.addedHosts.join(', ') })}
-                  </p>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    {/* 换来源单独一行、用危险色：确认之后旧来源留下的登录会被清掉。
+                        不说清「原来来自哪、这次来自哪」，用户分不出这是更新还是被顶替。
+                        来源可能是很长的 manifest 地址，必须能折行 */}
+                    {confirming.pending.sourceChanged && (
+                      <p className="break-words text-[13px] leading-relaxed text-danger">
+                        {t('sources.settings.sourceChanged', {
+                          name: plugin.name,
+                          from: installSourceLabel(confirming.pending.previousSourceUrl),
+                          to: installSourceLabel(confirming.pending.manifestUrl),
+                        })}
+                      </p>
+                    )}
+                    {confirming.pending.addedHosts.length > 0 && (
+                      <p className="text-[13px] leading-relaxed text-ink-2">
+                        {/* 域名本来就是拉丁串，中英文都用逗号分隔，不必为顿号再开一个词条 */}
+                        {t('sources.settings.hostsConfirm', { hosts: confirming.pending.addedHosts.join(', ') })}
+                      </p>
+                    )}
+                  </div>
                   <div className="flex flex-shrink-0 gap-2">
                     <Button variant="secondary" size="sm" disabled={updateBusy} onClick={() => setPendingUpdate(null)} className="h-11 [@media(hover:hover)]:h-9">
                       {t('action.cancel')}
@@ -426,7 +458,9 @@ export function SourcesSettings() {
                       onClick={() => void applyUpdate(confirming.pending, confirming.nextVersion)}
                       className="h-11 [@media(hover:hover)]:h-9"
                     >
-                      {t('sources.settings.confirmUpdate')}
+                      {confirming.pending.sourceChanged
+                        ? t('sources.settings.confirmReplace')
+                        : t('sources.settings.confirmUpdate')}
                     </Button>
                   </div>
                 </div>

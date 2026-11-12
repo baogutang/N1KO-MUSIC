@@ -18,6 +18,8 @@
  * 每一跳都重走 rebuildAllowedUrl，跨主机时剥掉 Cookie / Authorization。
  *
  * 响应统一为 { ok, status, headers, body, bodyEncoding }，二进制走 base64。
+ * 响应体有上限（MAX_RESPONSE_BODY_BYTES）：能流式读的通道边读边计数，
+ * 只能整块返回的通道在交给沙箱之前拦。
  */
 
 import { isNativePlatform, isTauriShell } from '@/lib/platform'
@@ -32,6 +34,84 @@ export const MAX_REDIRECT_HOPS = 5
 
 /** 跨主机时必须剥掉的请求头（凭据不能跟着跳到别的域名去） */
 const CREDENTIAL_HEADERS = ['cookie', 'authorization']
+
+/**
+ * 宿主代发请求的响应体上限：32 MiB（按解码后的字节数算）。
+ *
+ * 依据：插件经这里取的只有接口 JSON / 文本（搜索、歌单、歌词、榜单）和登录
+ * 二维码这类小图——音频与封面是主窗口按插件返回的地址直接加载的，不经宿主
+ * 代发（见 whitelist.ts 的 safeResourceUrl；三个插件的 arraybuffer 请求只有
+ * QQ / 微信的二维码图）。已知最大的一类是网易云 v6/playlist/detail（n=100000），
+ * 插件注释里记的是「几千首的歌单响应几百 KB」；32 MiB 留了不止一个数量级的余量。
+ *
+ * 防的是失控或恶意的服务端回一个几百 MB 的体：整块读进内存、再 base64（×4/3）、
+ * 再结构化克隆进沙箱，几份副本叠起来足以把移动端 WebView 撑崩。
+ */
+export const MAX_RESPONSE_BODY_BYTES = 32 * 1024 * 1024
+
+const bodyTooLarge = (maxBytes: number): HostFetchResult => ({
+  ok: false,
+  error: { code: 'network', message: `Response body exceeds ${maxBytes} bytes, refused by host` },
+})
+
+/**
+ * 按上限读响应体：先看 Content-Length（声明就超的一个字节都不读），
+ * 再流式计数，超了立即 cancel 掉流（浏览器 / Tauri 会顺带断开连接）。
+ * 返回 null 表示超限。Content-Length 在压缩传输时是压缩后的长度、
+ * 解码后只会更大，所以「声明就超」一定是真超；没声明或声明偏小的靠流式计数兜住。
+ */
+async function readBodyCapped(res: Response, maxBytes: number): Promise<Uint8Array | null> {
+  const declared = Number(res.headers.get('content-length') ?? '')
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => {})
+    return null
+  }
+  const reader = res.body?.getReader()
+  if (!reader) {
+    // 没有可读的流（空体或实现不给流）：只能整块读，至少在转 base64 / 交给沙箱之前拦住
+    const whole = new Uint8Array(await res.arrayBuffer())
+    return whole.byteLength > maxBytes ? null : whole
+  }
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return out
+}
+
+/** 字符串按 UTF-8 编码后的字节数是否超过 limit（UTF-8 字节数恒 ≥ UTF-16 码元数，先短路） */
+function utf8ExceedsLimit(text: string, limit: number): boolean {
+  if (text.length > limit) return true
+  if (text.length * 3 <= limit) return false
+  return new TextEncoder().encode(text).byteLength > limit
+}
+
+/**
+ * 只能整块返回的通道（CapacitorHttp、开发代理）读不了流：在结果交给沙箱之前
+ * 按体积再拦一次。base64 体按解码后的字节数算，文本按 UTF-8 字节数算。
+ * 流式通道已经在 normalizeFetchResponse 里拦过，这里对它们是无害的复核。
+ */
+export function capWholeBody(result: HostFetchResult, maxBytes = MAX_RESPONSE_BODY_BYTES): HostFetchResult {
+  if (!result.ok) return result
+  const tooLarge = result.bodyEncoding === 'base64'
+    ? Math.floor(result.body.length * 3 / 4) > maxBytes
+    : utf8ExceedsLimit(result.body, maxBytes)
+  return tooLarge ? bodyTooLarge(maxBytes) : result
+}
 
 export interface HostFetchOptions {
   /** 插件 id：开发代理据此在服务端按 manifest 取白名单（不再信调用方给的名单） */
@@ -82,7 +162,10 @@ export function rebuildAllowedUrl(rawUrl: string, allow: readonly string[]): str
   return `${scheme}://${host}${port}${u.pathname}${u.search}`
 }
 
-/** fetch 系响应（Tauri / 浏览器）的公共归一化（导出供测试钉住 set-cookie 的合并） */
+/**
+ * fetch 系响应（Tauri / 浏览器）的公共归一化（导出供测试钉住 set-cookie 的合并）。
+ * 响应体按 MAX_RESPONSE_BODY_BYTES 流式限量读取，超限回 network 错误。
+ */
 export async function normalizeFetchResponse(res: Response, responseType: HostFetchRequest['responseType']): Promise<HostFetchResult> {
   const headers: Record<string, string> = {}
   /*
@@ -102,7 +185,8 @@ export async function normalizeFetchResponse(res: Response, responseType: HostFe
     const cookies = getSetCookie.call(res.headers)
     if (cookies.length) headers['set-cookie'] = cookies.join(', ')
   }
-  const buffer = new Uint8Array(await res.arrayBuffer())
+  const buffer = await readBodyCapped(res, MAX_RESPONSE_BODY_BYTES)
+  if (!buffer) return bodyTooLarge(MAX_RESPONSE_BODY_BYTES)
   if (responseType === 'arraybuffer') {
     return { ok: true, status: res.status, headers, body: bytesToBase64(buffer), bodyEncoding: 'base64' }
   }
@@ -259,12 +343,13 @@ export async function hostFetch(
   try {
     return await followRedirects(request, allow, async (hopRequest, target) => {
       if (signal?.aborted) return networkError('Request aborted')
-      if (isNativePlatform) return await capacitorChannel(hopRequest, allow, target, signal)
+      // 整块返回的通道：结果出来就按体积拦一次（见 capWholeBody）
+      if (isNativePlatform) return capWholeBody(await capacitorChannel(hopRequest, allow, target, signal))
       if (isTauriShell) {
         const res = await tauriChannel(hopRequest, allow, target, signal)
         return await normalizeFetchResponse(res, hopRequest.responseType)
       }
-      if (import.meta.env.DEV) return await devProxyChannel(hopRequest, allow, target, options)
+      if (import.meta.env.DEV) return capWholeBody(await devProxyChannel(hopRequest, allow, target, options))
       return await browserChannel(hopRequest, target, signal)
     })
   } catch (err) {

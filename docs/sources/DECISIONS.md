@@ -283,3 +283,13 @@
 - 冲突：阶段 1 提交（b39da73）为迁就 website/ 另一方的未提交改版，删掉了 static.test.ts 的 A10（默认皮肤口径）与 B13（sources.note 整句）两组断言，PROGRESS 写「DECISIONS 已记」但当时并未记。
 - 选择：恢复两组断言，原样不变；核对过已提交的 website/index.html 与 script.js 均满足。门禁改在干净 worktree（`git worktree add ../n1ko-gate fix/audit-2026-10-12`）里跑——那边看到的就是已提交的 website 文件，与对方工作区的未提交改动互不打架；主工作区里对方改动若让这两组断言红，属其改版要处理的口径，不在本分支迁就范围。
 - 影响：frontend/src/website/static.test.ts；门禁流程（见任务书第 0 节复核 F19 后的执行方式）。
+
+## 2026-11-12 · 插件宿主安全加固（换来源、hosts 通配、读盘复验、响应上限、WebRTC）
+- 换来源的判定按「来源身份」比，不按原始地址串：随包内置在不同壳、不同版本下应用源各不相同（tauri://localhost、http(s)://tauri.localhost、capacitor://localhost、https://localhost、开发态 http://localhost:5173 的 `/__n1ko_plugins/` 与正式版的 `/plugins/`），按原串比会把每次内置升级都判成换来源、自动更新就去清用户的登录。所以「出厂目录树 / 任一壳的随包目录」统一归一个身份；壳的主机名只认 `localhost` / `tauri.localhost`（它们在安装源防线里只能同源安装）。第三方按完整 manifest 地址比、不只比 origin（raw.githubusercontent.com 同 origin 下是所有仓库），代价是同一作者挪了路径也要多一次确认与重新登录。
+- 换来源确认后清登录用 serverStore 现成的公开 action：先 `disconnectServer`（拆掉旧沙箱，免得旧代码经 `env.setCredentials` 把凭据写回来），再 `updateServerCredentials(id, null)`；音源行保留，原地重新登录。插件私有存储（device-id、匿名 cookie）一并清掉，按新插件对待。先清再写：写盘失败时插件处于未安装状态，也不留「新代码 + 旧凭据」。
+- 一步装完的路径（`install`、粘贴安装）没有确认环节，遇到换来源直接拒；设置页的 URL 安装改走 prepare → 确认 → commit。
+- hosts 过宽通配用手写小清单（单段 + 常见两段公共后缀 + 几个托管平台公共子域），不引公共后缀库；清单外仍可能漏，接受。
+- 读盘复验与安装同一套规则，只放宽「不认识的 capability 名」：v1.11 之前出厂的网易云 0.1.0–0.1.7 / QQ 0.1.0–0.1.6 写的是 MusicFree 的能力名，为此停掉老用户的音源不值。不合格的记录照样出现在插件列表里（留着卸载入口），装载时报错。
+- 响应体上限 32 MiB：插件经宿主取的只有 JSON / 文本与二维码小图（音频、封面由主窗口直接加载），已知最大的歌单 trackIds 响应在几百 KB 量级。CapacitorHttp 只能整块返回，且 arraybuffer 的 base64 在 capacitorChannel 里就做了——这一步在上限检查之前，本轮不在改动范围内，留作后续。
+- 已知局限照实记：内网判定只看主机名字面，原生通道不复查解析后的 IP，公网域名解析到内网地址（含 DNS rebinding）目前挡不住；沙箱里拿掉了 WebRTC 全局，但同源的 about:blank 子 iframe 能否再取到一份未做验证，留作后续。
+- 影响：frontend/src/plugins/host/{pluginStore,catalog,whitelist,hostFetch,installFetch,pluginRuntime,PluginHost}.ts、frontend/src/plugins/sandbox/runtime.ts、frontend/src/components/settings/SourcesSettings.tsx、两份词表、PROTOCOL.md §8.1 / §9。
