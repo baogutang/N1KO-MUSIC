@@ -79,12 +79,15 @@ export function FullscreenPlayerOverlay() {
   }, [isFullscreen])
 
   // 收起动画播完才卸载；万一动画没回调（比如内容还没懒加载出来就被关了），900ms 兜底
-  const handleExited = useCallback(() => setShouldMount(false), [])
+  // 只在此刻仍是关着的才卸：收起动画途中被重新打开时，旧动画的回调 / 兜底定时器不能把页面卸掉（读 store 最新值，不用闭包）
+  const handleExited = useCallback(() => {
+    if (!usePlayerStore.getState().isFullscreen) setShouldMount(false)
+  }, [])
   useEffect(() => {
     if (isFullscreen || !shouldMount) return
-    const timer = setTimeout(() => setShouldMount(false), 900)
+    const timer = setTimeout(handleExited, 900)
     return () => clearTimeout(timer)
-  }, [isFullscreen, shouldMount])
+  }, [isFullscreen, shouldMount, handleExited])
 
   // 车载模式盖在最上层：它是一个独立的、面向开车场景的完整界面，
   // 不是全屏播放器的一种皮肤，所以不共用那套开合动画。

@@ -477,21 +477,29 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const coverBoxRef = useRef<HTMLDivElement>(null)
   const dragY = useMotionValue(0)
   const closingRef = useRef(false)
+  /** 开合动画的控制柄：收起动画没播完又被打开时，要把还在跑的全部掐掉再重放入场 */
+  const animsRef = useRef<Array<{ stop: () => void }>>([])
+  const track = <T extends { stop: () => void }>(c: T): T => { animsRef.current.push(c); return c }
+  /** 收起 / 重新打开各自 +1：旧一轮收起动画迟到的 onExited 对不上代数，就不再往上报 */
+  const exitGenRef = useRef(0)
+  /** 开合动画的 finished 被 stop 后可能 reject，吞掉免得变成未处理的 rejection */
+  const quiet = (p: Promise<unknown>) => { p.catch(() => {}); return p }
   /** 开场落定：之后才点亮光场的 WebGL（建上下文、编译着色器都在主线程上，别撞在动画里） */
   const [settled, setSettled] = useState(false)
 
-  useLayoutEffect(() => {
+  /** 入场动画：首次挂载和「收起途中又被打开」共用，返回清理函数 */
+  const playOpen = useCallback(() => {
     const root = rootRef.current
     const bg = bgRef.current
-    if (!root || !bg) return
+    if (!root || !bg) return undefined
     let alive = true
     const settle = () => { if (alive) setSettled(true) }
     const reveals = Array.from(root.querySelectorAll<HTMLElement>('[data-fs-reveal]'))
     if (prefersReducedMotion()) {
-      animate(root, { opacity: [0, 1] }, { duration: 0.2 }).finished.then(settle)
+      quiet(track(animate(root, { opacity: [0, 1] }, { duration: 0.2 })).finished).then(settle)
       return () => { alive = false }
     }
-    const jobs: Array<Promise<unknown>> = [animate(bg, { opacity: [0, 1] }, { duration: 0.28, ease: EASE_OUT }).finished]
+    const jobs: Array<Promise<unknown>> = [quiet(track(animate(bg, { opacity: [0, 1] }, { duration: 0.28, ease: EASE_OUT })).finished)]
     const { cover } = anchorRects()
     const morph = morphRef.current
     const target = morph?.getBoundingClientRect()
@@ -500,13 +508,13 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
       const dy = cover.top + cover.height / 2 - (target.top + target.height / 2)
       // 整串 transform 交给浏览器（WAAPI + linear() 弹簧）跑在合成器上：x / y / scale 分开写的话
       // motion 每帧在主线程上拼 transform，播放器刚挂上、主线程正忙的那几帧就会掉
-      jobs.push(animate(morph, { transform: [`translate(${dx}px, ${dy}px) scale(${cover.width / target.width})`, 'translate(0px, 0px) scale(1)'] }, SPRING_MORPH).finished)
+      jobs.push(quiet(track(animate(morph, { transform: [`translate(${dx}px, ${dy}px) scale(${cover.width / target.width})`, 'translate(0px, 0px) scale(1)'] }, SPRING_MORPH)).finished))
     } else if (morph) {
-      jobs.push(animate(morph, { opacity: [0, 1], transform: ['scale(0.94)', 'scale(1)'] }, SPRING_SMOOTH).finished)
+      jobs.push(quiet(track(animate(morph, { opacity: [0, 1], transform: ['scale(0.94)', 'scale(1)'] }, SPRING_SMOOTH)).finished))
     }
     // 文字和控制等背景先暗下来一点再升起：白字不会先压在浅色的页面上
     reveals.forEach((el, i) => {
-      animate(el, { opacity: [0, 1], transform: ['translateY(18px)', 'translateY(0px)'] }, { ...SPRING_SMOOTH, delay: 0.12 + i * 0.035 })
+      track(animate(el, { opacity: [0, 1], transform: ['translateY(18px)', 'translateY(0px)'] }, { ...SPRING_SMOOTH, delay: 0.12 + i * 0.035 }))
     })
     // 弹簧收尾很长：最多等 900ms 就点亮光场
     const timer = setTimeout(settle, 900)
@@ -514,18 +522,41 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     return () => { alive = false; clearTimeout(timer) }
   }, [])
 
+  useLayoutEffect(() => playOpen(), [playOpen])
+
+  // 收起动画没播完又被打开：组件还挂着，不能让旧的收起动画走完把页面卸掉。
+  // 掐掉在跑的动画、清掉收起写下的 opacity / transform，复位 closingRef（之后再收起才还有动画），再重放入场
+  useLayoutEffect(() => {
+    if (!isOpen || !closingRef.current) return
+    closingRef.current = false
+    exitGenRef.current++
+    animsRef.current.forEach(a => a.stop())
+    animsRef.current = []
+    const root = rootRef.current
+    const reset = (el: HTMLElement | null | undefined, ...props: string[]) => { props.forEach(p => el?.style.removeProperty(p)) }
+    reset(root, 'opacity')
+    reset(bgRef.current, 'opacity')
+    reset(contentRef.current, 'opacity')
+    reset(morphRef.current, 'opacity', 'transform')
+    root?.querySelectorAll<HTMLElement>('[data-fs-reveal]').forEach(el => reset(el, 'opacity', 'transform'))
+    dragY.set(0)
+    return playOpen()
+  }, [isOpen, playOpen, dragY])
+
   useEffect(() => {
     if (isOpen || closingRef.current) return
     closingRef.current = true
+    const gen = ++exitGenRef.current
+    const done = () => { if (exitGenRef.current === gen) onExited?.() }
     const root = rootRef.current
     const bg = bgRef.current
     if (!root || !bg || prefersReducedMotion()) {
-      if (root) animate(root, { opacity: 0 }, { duration: 0.15 }).finished.then(() => onExited?.())
-      else onExited?.()
+      if (root) quiet(track(animate(root, { opacity: 0 }, { duration: 0.15 })).finished).then(done)
+      else done()
       return
     }
     const reveals = Array.from(root.querySelectorAll<HTMLElement>('[data-fs-reveal]'))
-    reveals.forEach(el => animate(el, { opacity: 0 }, { duration: 0.12 }))
+    reveals.forEach(el => track(animate(el, { opacity: 0 }, { duration: 0.12 })))
     const { cover } = anchorRects()
     const jobs: Array<Promise<unknown>> = []
     const morph = morphRef.current
@@ -533,14 +564,14 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
     if (morph && cover && from && from.width > 1) {
       const dx = cover.left + cover.width / 2 - (from.left + from.width / 2)
       const dy = cover.top + cover.height / 2 - (from.top + from.height / 2)
-      jobs.push(animate(morph, { transform: `translate(${dx}px, ${dy}px) scale(${cover.width / from.width})` }, SPRING_MORPH).finished)
+      jobs.push(quiet(track(animate(morph, { transform: `translate(${dx}px, ${dy}px) scale(${cover.width / from.width})` }, SPRING_MORPH)).finished))
       // 落到迷你条上那一下淡掉，由迷你条自己的封面接住
-      jobs.push(animate(morph, { opacity: 0 }, { duration: 0.14, delay: 0.28 }).finished)
+      jobs.push(quiet(track(animate(morph, { opacity: 0 }, { duration: 0.14, delay: 0.28 })).finished))
     } else if (contentRef.current) {
-      jobs.push(animate(contentRef.current, { opacity: 0 }, { duration: 0.16 }).finished)
+      jobs.push(quiet(track(animate(contentRef.current, { opacity: 0 }, { duration: 0.16 })).finished))
     }
-    jobs.push(animate(bg, { opacity: 0 }, { duration: 0.3, delay: 0.06, ease: EASE_OUT }).finished)
-    Promise.all(jobs).then(() => onExited?.())
+    jobs.push(quiet(track(animate(bg, { opacity: 0 }, { duration: 0.3, delay: 0.06, ease: EASE_OUT })).finished))
+    Promise.all(jobs).then(done)
   }, [isOpen, onExited])
 
   /* 下拉收起：从顶栏或封面往下拖，整页跟手；过 120px 或甩得够快就收起，不够就弹回 */
