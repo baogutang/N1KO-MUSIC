@@ -93,7 +93,7 @@ jobs:
           rm -f "$KS"
           # 证书指纹打在日志里（公开信息）：应当是 2A:D8:4F:85…2A:C2:2C，见 README「下载」
           "$BT/apksigner" verify --print-certs "$OUT"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: N1KO-MUSIC-android
           path: frontend/android/app/build/outputs/N1KO.MUSIC_*_android.apk
@@ -140,7 +140,7 @@ jobs:
           cp -r build-device/Build/Products/Release-iphoneos/App.app Payload/
           # .ipa 就是一个装着 Payload/ 的 zip；Sideloadly / AltStore 认 .ipa 后缀
           zip -qry "N1KO.MUSIC_$(node -p "require('../../package.json').version")_ios_unsigned.ipa" Payload
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: N1KO-MUSIC-ios-unsigned
           path: frontend/ios/App/N1KO.MUSIC_*_ios_unsigned.ipa
