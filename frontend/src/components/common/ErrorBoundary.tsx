@@ -1,3 +1,4 @@
+import { log } from '@/lib/log'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { t } from '@/i18n'
@@ -19,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[ErrorBoundary]', error, info.componentStack)
+    log.error('ErrorBoundary', error, info.componentStack)
   }
 
   render() {

@@ -14,6 +14,7 @@
  * 3. 写入失败先回收空间重试一次，最终失败只告警，绝不向调用方抛出
  */
 
+import { log } from '@/lib/log'
 import type { PersistStorage, StorageValue } from 'zustand/middleware'
 import { reclaimStorage } from '@/services/storageMaintenance'
 
@@ -91,7 +92,7 @@ function commit(name: string): void {
     // 回收后仍写不进：放弃本次持久化，内存状态照常可用，下次变更再试。
     lastSnapshot.delete(name)
     hopelessSize.set(name, payload.length)
-    console.warn(`[persist] ${name} 写入失败，本次变更仅存在于内存：`, error)
+    log.warn('persist', `${name} 写入失败，本次变更仅存在于内存：`, error)
   }
 }
 
@@ -131,7 +132,7 @@ export function createPersistStorage<T>(
         if (!raw) return null
         return JSON.parse(raw) as StorageValue<T>
       } catch (error) {
-        console.warn(`[persist] ${name} 解析失败，按未持久化处理：`, error)
+        log.warn('persist', `${name} 解析失败，按未持久化处理：`, error)
         return null
       }
     },
@@ -169,7 +170,7 @@ export function createPersistStorage<T>(
       try {
         localStorage.removeItem(name)
       } catch (error) {
-        console.warn(`[persist] ${name} 清除失败：`, error)
+        log.warn('persist', `${name} 清除失败：`, error)
       }
     },
   }

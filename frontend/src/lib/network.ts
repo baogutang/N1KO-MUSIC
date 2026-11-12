@@ -17,6 +17,7 @@
  * 要立刻拿到答案）。因此用一个缓存值：启动时读一次，之后靠监听更新。
  */
 
+import { log } from '@/lib/log'
 import { isNativePlatform } from '@/lib/platform'
 
 type ConnectionType = 'wifi' | 'cellular' | 'unknown'
@@ -54,7 +55,7 @@ export async function initNativeNetwork(): Promise<void> {
     void Network.addListener('networkStatusChange', apply)
   } catch (err) {
     // 插件缺失或调用失败都不该影响播放，维持 Web API 的行为即可
-    console.warn('[network] native status unavailable:', err)
+    log.warn('network', 'native status unavailable:', err)
   }
 }
 

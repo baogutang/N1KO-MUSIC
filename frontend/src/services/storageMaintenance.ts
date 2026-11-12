@@ -5,6 +5,7 @@
  * hydration 之前运行（启动自愈），也不会与 persist 适配器形成循环依赖。
  */
 
+import { log } from '@/lib/log'
 import {
   HISTORY_BYTE_BUDGET,
   LEGACY_COVER_KEY_PREFIX,
@@ -197,10 +198,10 @@ export function runStorageMaintenance(): void {
   try {
     const freed = pruneRecommendationCache() + trimHistoryToBudget()
     if (freed > 0) {
-      console.info(`[storage] 启动清理释放约 ${Math.round(freed / 1024)}KB`)
+      log.info('storage', `启动清理释放约 ${Math.round(freed / 1024)}KB`)
       announcePressure()
     }
   } catch (error) {
-    console.warn('[storage] 启动清理失败：', error)
+    log.warn('storage', '启动清理失败：', error)
   }
 }

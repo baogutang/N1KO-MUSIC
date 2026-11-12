@@ -10,6 +10,7 @@
  * updated_at 更新的那份赢。边注是一个人写给自己的，不存在多人并发编辑。
  */
 
+import { log } from '@/lib/log'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 import { useSyncStore } from '@/store/syncStore'
 import { fetchRemoteNotes, pushNote, removeRemoteNote } from '@/api/syncClient'
@@ -65,7 +66,7 @@ function writeAll(map: NoteMap): void {
   try {
     localStorage.setItem(STORAGE_KEYS.notes, JSON.stringify(map))
   } catch (error) {
-    console.warn('[notes] 写入失败，本次改动只存在于内存：', error)
+    log.warn('notes', '写入失败，本次改动只存在于内存：', error)
   }
 }
 

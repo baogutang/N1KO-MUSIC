@@ -10,6 +10,7 @@
  * 否则会在解密完成前误判成未登录并跳去登录页。
  */
 
+import { log } from '@/lib/log'
 import type { PersistStorage, StorageValue } from 'zustand/middleware'
 import { createPersistStorage } from '@/store/persistStorage'
 import { openText, sealText, type SealedText } from '@/services/deviceKey'
@@ -118,7 +119,7 @@ export function createSecurePersistStorage<T>(
           }
         }
         if (droppedCredentials) {
-          console.warn('[securePersistStorage] deviceKey unavailable: plugin credentials NOT persisted in plaintext fallback')
+          log.warn('securePersistStorage', 'deviceKey unavailable: plugin credentials NOT persisted in plaintext fallback')
         }
         return inner.setItem(name, { ...value, state: sanitized } as StorageValue<Record<string, unknown>>)
       }

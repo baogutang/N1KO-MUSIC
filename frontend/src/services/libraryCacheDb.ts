@@ -1,3 +1,4 @@
+import { log } from '@/lib/log'
 import { IDB_NAMES } from '@/services/storageKeys'
 /**
  * 曲库元数据的离线缓存。
@@ -54,7 +55,7 @@ function openDb(): Promise<IDBDatabase | null> {
       request = indexedDB.open(DB_NAME, DB_VERSION)
     } catch (error) {
       unavailable = true
-      console.warn('[libraryCache] 打开数据库失败，本次会话不使用离线缓存：', error)
+      log.warn('libraryCache', '打开数据库失败，本次会话不使用离线缓存：', error)
       resolve(null)
       return
     }
@@ -68,7 +69,7 @@ function openDb(): Promise<IDBDatabase | null> {
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => {
       unavailable = true
-      console.warn('[libraryCache] 数据库不可用，本次会话不使用离线缓存')
+      log.warn('libraryCache', '数据库不可用，本次会话不使用离线缓存')
       resolve(null)
     }
   })

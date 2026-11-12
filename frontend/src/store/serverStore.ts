@@ -3,6 +3,7 @@
  * 负责管理多服务器配置、当前激活服务器、认证状态
  */
 
+import { log } from '@/lib/log'
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -221,7 +222,7 @@ export const useServerStore = create<ServerState>()(
           }))
           return true
         } catch (err) {
-          console.error('Failed to connect server adapter:', err)
+          log.error('ServerStore', 'Failed to connect server adapter:', err)
           return false
         }
       },
@@ -262,7 +263,7 @@ export const useServerStore = create<ServerState>()(
          * 复用 disconnectServer 而不是自己再写一遍断开逻辑：主库让位、
          * 播放器重置、缓存清理这些副作用只该有一处定义。
          */
-        console.error(`[sources] 插件沙箱越界，已停用音源 ${id}：${reason}`)
+        log.error('sources', `插件沙箱越界，已停用音源 ${id}：${reason}`)
         get().disconnectServer(id)
         set(state => ({
           compromisedServerIds: state.compromisedServerIds.includes(id)
@@ -277,7 +278,7 @@ export const useServerStore = create<ServerState>()(
         try {
           setPrimary(id)
         } catch (err) {
-          console.error('Failed to set primary server:', err)
+          log.error('ServerStore', 'Failed to set primary server:', err)
           return false
         }
         // 切换主库对播放器意味着换库：清队列、清缓存
@@ -365,7 +366,7 @@ export const useServerStore = create<ServerState>()(
           try {
             nextAdapter = createAdapter({ ...server, url: next, name })
           } catch (err) {
-            console.error('Failed to rebuild server adapter:', err)
+            log.error('ServerStore', 'Failed to rebuild server adapter:', err)
             return false
           }
         }

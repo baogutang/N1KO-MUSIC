@@ -1,3 +1,4 @@
+import { log } from '@/lib/log'
 import { IDB_NAMES } from '@/services/storageKeys'
 /**
  * 收听历史的 IndexedDB 存储层。
@@ -42,7 +43,7 @@ function openDb(): Promise<IDBDatabase | null> {
       request = indexedDB.open(DB_NAME, DB_VERSION)
     } catch (error) {
       unavailable = true
-      console.warn('[historyDb] 打开数据库失败，降级到 localStorage：', error)
+      log.warn('historyDb', '打开数据库失败，降级到 localStorage：', error)
       resolve(null)
       return
     }
@@ -65,11 +66,11 @@ function openDb(): Promise<IDBDatabase | null> {
     }
     request.onerror = () => {
       unavailable = true
-      console.warn('[historyDb] 打开数据库失败，降级到 localStorage：', request.error)
+      log.warn('historyDb', '打开数据库失败，降级到 localStorage：', request.error)
       resolve(null)
     }
     request.onblocked = () => {
-      console.warn('[historyDb] 数据库升级被其他标签页阻塞')
+      log.warn('historyDb', '数据库升级被其他标签页阻塞')
       resolve(null)
     }
   })
@@ -116,7 +117,7 @@ async function withStore<T>(
     })
     return result
   } catch (error) {
-    console.warn('[historyDb] 事务失败：', error)
+    log.warn('historyDb', '事务失败：', error)
     return null
   }
 }

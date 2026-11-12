@@ -6,6 +6,7 @@
  * 点亮的随机静默关掉，反过来点过一次「随机播放」之后全站每次起播都变随机。
  * 现在顺序作为一次性参数传给 playQueue，由它同步开关，不再有反向副作用。
  */
+import { log } from '@/lib/log'
 import { usePlayerStore } from '@/store/playerStore'
 import { getAdapter, hasAdapter } from '@/api'
 import type { Song } from '@/api/types'
@@ -93,6 +94,6 @@ export async function playAlbum(album: { id: string; serverId: string }): Promis
     queryClient.setQueryData(cacheKey, detail)
     if (detail.songs.length) playListFrom(detail.songs)
   } catch (err) {
-    console.error('Failed to play album:', err)
+    log.error('PlayActions', 'Failed to play album:', err)
   }
 }

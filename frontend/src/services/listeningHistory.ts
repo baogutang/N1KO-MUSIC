@@ -1,3 +1,4 @@
+import { log } from '@/lib/log'
 import type { Song } from '@/api/types'
 import { HISTORY_BYTE_BUDGET, STORAGE_KEYS, HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import { reclaimStorage } from '@/services/storageMaintenance'
@@ -131,7 +132,7 @@ function writeAll(events: ListeningEvent[]) {
   reclaimStorage(HISTORY_KEY)
   if (persistWithinBudget(bounded)) return
   // 回收后仍写不进：保留磁盘上的旧快照（最多落后一条），不清空用户历史。
-  console.warn('[History] 存储配额不足，本次收听记录仅保留在内存中')
+  log.warn('History', '存储配额不足，本次收听记录仅保留在内存中')
 }
 
 /**
@@ -174,12 +175,12 @@ function persist(event: ListeningEvent, allEvents: ListeningEvent[]): void {
   void putEvent(event)
     .then(persisted => {
       if (!persisted) {
-        console.warn('[History] IndexedDB 写入未成功，回退到 localStorage 快照')
+        log.warn('History', 'IndexedDB 写入未成功，回退到 localStorage 快照')
         fallback()
       }
     })
     .catch(error => {
-      console.warn('[History] IndexedDB 写入失败，回退到 localStorage 快照：', error)
+      log.warn('History', 'IndexedDB 写入失败，回退到 localStorage 快照：', error)
       fallback()
     })
 }
@@ -265,7 +266,7 @@ export function upsertListeningEvent(event: ListeningEvent): void {
     }
     notifyHistoryUpdated(event.serverId, event)
   } catch (error) {
-    console.error('[History] failed to persist listening event:', error)
+    log.error('History', 'failed to persist listening event:', error)
   }
 }
 
@@ -277,7 +278,7 @@ export function clearListeningEvents(serverId: string): void {
     writeAll(memoryCache)
   } else {
     void deleteEventsByServer(serverId).catch(error => {
-      console.warn('[History] 清除历史失败：', error)
+      log.warn('History', '清除历史失败：', error)
     })
   }
   notifyHistoryUpdated(serverId)
@@ -334,7 +335,7 @@ export async function initListeningHistory(): Promise<void> {
         // 删不掉也无妨，下次启动仍会去重
       }
     } else {
-      console.warn('[History] 迁移到 IndexedDB 未成功，保留 localStorage 中的历史以便重试')
+      log.warn('History', '迁移到 IndexedDB 未成功，保留 localStorage 中的历史以便重试')
     }
   }
 
@@ -375,7 +376,7 @@ export async function importListeningEvents(
     writeAll(memoryCache)
   } else if (!(await putEvents(changed))) {
     // IndexedDB 写失败时退回 localStorage 快照，否则刷新后合并结果会凭空消失
-    console.warn('[History] 导入记录未能写入 IndexedDB，回退到 localStorage 快照')
+    log.warn('History', '导入记录未能写入 IndexedDB，回退到 localStorage 快照')
     writeAll(memoryCache)
   }
   notifyHistoryUpdated(fallbackServerId)

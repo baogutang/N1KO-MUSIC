@@ -1,3 +1,4 @@
+import { log } from '@/lib/log'
 import { IDB_NAMES } from '@/services/storageKeys'
 /**
  * 设备密钥：只存在于这台设备上、且**取不出来**的一把 AES-GCM 密钥。
@@ -86,7 +87,7 @@ export function getDeviceKey(): Promise<CryptoKey | null> {
     } catch (error) {
       // 无痕模式、IndexedDB 被禁用、配额耗尽：退回明文并说明原因，
       // 而不是让用户连不上自己的服务器
-      console.warn('[secure] 设备密钥不可用，凭据将以明文保存：', error)
+      log.warn('secure', '设备密钥不可用，凭据将以明文保存：', error)
       return null
     }
   })()

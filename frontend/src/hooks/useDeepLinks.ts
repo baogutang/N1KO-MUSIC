@@ -10,6 +10,7 @@
  * 解析在 services/deepLink.ts 里，是纯函数；这里只负责把三个通道接上。
  */
 
+import { log } from '@/lib/log'
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { App } from '@capacitor/app'
@@ -45,7 +46,7 @@ export function useDeepLinks(): void {
   handleRef.current = (raw: string) => {
     const action = parseDeepLink(raw)
     if (!action) {
-      console.warn('[deeplink] 无法识别，已忽略：', raw)
+      log.warn('deeplink', '无法识别，已忽略：', raw)
       return
     }
     if (action.route) navigate(action.route)

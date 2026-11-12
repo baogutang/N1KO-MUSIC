@@ -8,6 +8,7 @@
  *   不需要在客户端判断一次收听是否已经结束。
  */
 
+import { log } from '@/lib/log'
 import axios from 'axios'
 import { HISTORY_UPDATED_EVENT } from '@/services/storageKeys'
 import {
@@ -109,9 +110,9 @@ export async function flushOutbox(): Promise<void> {
       if (isPermanentReject(error)) {
         // 毒丸：丢弃这一条，继续送上后面的——一条坏记录不该堵住整条队列
         if (outbox.get(event.eventId) === event) outbox.delete(event.eventId)
-        console.warn(
-          '[Sync] 一条收听记录被服务端拒绝，已丢弃（eventId=%s, song=%s）:',
-          event.eventId, event.song.title,
+        log.warn(
+          'Sync',
+          `一条收听记录被服务端拒绝，已丢弃（eventId=${event.eventId}, song=${event.song.title}）:`,
           (error as { response?: { status?: number } }).response?.status, error
         )
         continue
@@ -194,7 +195,7 @@ export async function pullRemoteHistory(): Promise<number> {
     useSyncStore.getState().markSynced()
   } catch (error) {
     if (isUnauthorized(error)) useSyncStore.getState().invalidateToken()
-    else console.warn('[Sync] 拉取远端历史失败：', error)
+    else log.warn('Sync', '拉取远端历史失败：', error)
   }
   return imported
 }
@@ -354,7 +355,7 @@ async function replayFavoriteMirrors(): Promise<void> {
     if (item.attempts >= FAVORITE_RETRY_MAX_ATTEMPTS) {
       pendingFavoriteMirrors.delete(key)
       persistPendingMirrors()
-      console.warn('[Sync] 收藏镜像重试超限，放弃（serverId=%s, songId=%s）', item.serverId, item.songId)
+      log.warn('Sync', `收藏镜像重试超限，放弃（serverId=${item.serverId}, songId=${item.songId}）`)
       continue
     }
     item.attempts += 1

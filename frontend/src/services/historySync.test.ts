@@ -459,8 +459,9 @@ describe('毒丸记录不再卡死队列（阶段 1.9）', () => {
     try {
       await flushOutbox()
       expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining('[Sync]'),
-        expect.anything(), expect.anything(), expect.anything(), expect.anything()
+        '[Sync]',
+        expect.stringContaining('被服务端拒绝'),
+        expect.anything(), expect.anything()
       )
       expect(pendingScrobbleCount()).toBe(0)
     } finally {
@@ -526,7 +527,7 @@ describe('收藏镜像重试队列（F8）', () => {
         for (let i = 0; i < 20; i++) await Promise.resolve()
       }
       expect(pendingFavoriteMirrorCount(), '超限后放弃出队').toBe(0)
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('放弃'), expect.anything(), expect.anything())
+      expect(warn).toHaveBeenCalledWith('[Sync]', expect.stringContaining('放弃'))
     } finally {
       vi.useRealTimers()
       warn.mockRestore()
