@@ -44,7 +44,8 @@ if (TRUST_PROXY_HOPS > 0) {
       xffWarned = true
       console.warn(
         '[config] 已收到 X-Forwarded-For 但 TRUST_PROXY_HOPS=0（本警告每次启动只提示一次）：' +
-        '反代后请设置 TRUST_PROXY_HOPS，否则限流与登录锁按代理地址记账。'
+        '反代后请设置 TRUST_PROXY_HOPS（通常为 1），否则所有用户共用「代理地址」这一个限流桶与登录锁键：' +
+        '任何人连错密码达到上限，就会把所有人锁在外面。'
       )
     }
     next()

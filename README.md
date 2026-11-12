@@ -432,7 +432,9 @@ comma-separated `FRONTEND_URLS`, `TRUST_PROXY_HOPS`, `RATE_LIMIT_MAX`,
 
 > **Running behind a reverse proxy (Nginx / Caddy / traefik)?** You must set
 > `TRUST_PROXY_HOPS` (usually `1`). Without it, rate limiting and login lockout
-> key on the proxy's address — every user shares one bucket.
+> key on the proxy's address — every user shares one bucket, so enough failed
+> logins from anyone can lock everyone out. The server logs a one-time warning when
+> it sees `X-Forwarded-For` while the variable is unset.
 
 A consistent backup is taken in the data directory before any migration runs,
 and a test asserts that a database upgraded from an old release converges —
