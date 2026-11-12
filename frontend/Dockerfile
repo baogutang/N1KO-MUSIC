@@ -20,17 +20,10 @@ RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime
 
-# SPA 路由：任何未命中的路径都回落到 index.html
-RUN printf '%s\n' \
-  'server {' \
-  '  listen 80;' \
-  '  root /usr/share/nginx/html;' \
-  '  index index.html;' \
-  '  location / { try_files $uri $uri/ /index.html; }' \
-  '  location ~* \.(?:woff2|js|css|png|svg)$ { expires 30d; add_header Cache-Control "public, immutable"; }' \
-  '  location = /sw.js { add_header Cache-Control "no-cache"; }' \
-  '  location = /index.html { add_header Cache-Control "no-cache"; }' \
-  '}' > /etc/nginx/conf.d/default.conf
+# nginx 配置放在 docker/ 下的独立文件里（缓存分档与安全头的说明见 docker/nginx.conf）。
+# 不用 heredoc：那要求较新的 BuildKit，老的构建器会直接解析失败。
+COPY docker/security-headers.conf /etc/nginx/n1ko-security-headers.conf
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY docker-entrypoint.sh /docker-entrypoint.d/40-n1ko-runtime-config.sh
