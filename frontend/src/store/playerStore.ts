@@ -183,7 +183,7 @@ interface PlayerState {
    * 他要的是「还有吗」，答案是没有，那就继续放着当前这首。
    *
    * `skipping`：引擎跳过一首放不了的歌，传的是它判过的那首。还是当前这首才跳，
-   * 而且不受切歌防抖拦（见 canSwitch）；单曲循环也照样往下走。
+   * 而且不受切歌防抖拦（见 canSwitch）；单曲循环也照样往下走。播放 / 暂停状态不动。
    */
   next: (options?: { auto?: boolean; skipping?: Song }) => void
   /**
@@ -388,7 +388,12 @@ export const usePlayerStore = create<PlayerState>()(
         set({
           currentSong: queue[nextIndex],
           queueIndex: nextIndex,
-          isPlaying: true,
+          /*
+           * 引擎跳过放不了的歌（skipping）不改播放意图：在放就接着放，暂停着就还暂停着。
+           * 原来一律开播——启动时恢复了上次的队列、还没点播放，当前曲的音源没连上，
+           * 被跳到下一首的同时自己响了起来。用户按「下一首」照旧开播。
+           */
+          isPlaying: options?.skipping ? state.isPlaying : true,
           currentTime: 0,
           playVersion: state.playVersion + 1,
           ...(nextOrder ? { shuffledIndexes: nextOrder } : null),

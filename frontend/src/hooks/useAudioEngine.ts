@@ -24,6 +24,7 @@
  *    用「近结尾 + 缓冲已到尾 + 时间久不前进」检测并调用 next()，避免 UI 假死、也不自动下一首。
  */
 
+import { log } from '@/lib/log'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePlayerStore } from '@/store/playerStore'
@@ -35,7 +36,7 @@ import { describeError, pluginErrorCode } from '@/services/errors'
 import { collectSourceRefs, resolveSourceOrder } from '@/hooks/useSourceQueries'
 import { bestMatchFor } from '@/plugins/match'
 import { toast } from '@/components/ui/use-toast'
-import type { Song } from '@/api/types'
+import type { ServerConfig, Song } from '@/api/types'
 import { computeReplayGainScalar } from '@/utils/replayGain'
 import { isMeteredConnection, onConnectionChange } from '@/lib/network'
 import { clearPauseReason, notePauseReason, readPauseContext, recordPause } from '@/lib/playbackTrail'
@@ -87,7 +88,7 @@ function abortPendingImageLoads() {
     aborted++
   })
   if (aborted > 0) {
-    console.info('[AudioEngine] aborted', aborted, 'pending image loads to free connections')
+    log.info('AudioEngine', 'aborted', aborted, 'pending image loads to free connections')
   }
 }
 
@@ -125,6 +126,42 @@ function songServerId(song: Pick<Song, 'serverId'>): string {
 /** 在途请求表（阶段 3.10）：同一 (serverId, songId, quality) 的并发解析只发一次 */
 const inflightStreams = new Map<string, Promise<ResolvedStream>>()
 
+/**
+ * 每台服务器的流缓存「代」：地址 / 凭据一变就 +1（见下方 useServerStore 订阅）。
+ * 换代之前发出去的解析晚到时照常交给调用方，但不再写回缓存——那是按旧地址 / 旧令牌拼的。
+ */
+const streamCacheEpoch = new Map<string, number>()
+
+/** 流地址由服务器的哪些字段决定：类型、地址、账号、令牌 / salt / userId、插件与插件凭据 */
+function streamIdentityOf(server: ServerConfig): string {
+  return JSON.stringify([
+    server.type, server.url, server.username, server.token,
+    server.salt ?? '', server.userId ?? '', server.pluginId ?? '', server.credentials ?? '',
+  ])
+}
+
+/** 作废某台服务器名下的流地址缓存与在途解析（key 以 `${serverId}:` 开头，见 buildStreamCacheKey） */
+function dropStreamsOfServer(serverId: string) {
+  const prefix = `${serverId}:`
+  for (const key of [...streamCache.keys()]) if (key.startsWith(prefix)) streamCache.delete(key)
+  for (const key of [...inflightStreams.keys()]) if (key.startsWith(prefix)) inflightStreams.delete(key)
+  streamCacheEpoch.set(serverId, (streamCacheEpoch.get(serverId) ?? 0) + 1)
+}
+
+/*
+ * 服务器改了地址（updateServerUrl 保持 id 不变）、重新登录换了令牌 / 凭据、或者被删了：
+ * 它名下缓存的流地址全部作废。原来缓存只认 (serverId, songId, quality)，同一次运行里
+ * 刚放过的歌仍命中旧地址，播不出来，错误恢复重载的也是同一个死地址。
+ * 在模块级挂一次（与 audioEl 同生命周期）：挂在 hook 里会随 MainLayout 挂卸重复订阅。
+ */
+useServerStore.subscribe((state, prev) => {
+  if (state.servers === prev.servers) return
+  const now = new Map(state.servers.map(server => [server.id, streamIdentityOf(server)]))
+  for (const server of prev.servers) {
+    if (now.get(server.id) !== streamIdentityOf(server)) dropStreamsOfServer(server.id)
+  }
+})
+
 async function resolveStream(
   song: Song,
   quality: AudioQuality,
@@ -138,6 +175,7 @@ async function resolveStream(
     const inflight = inflightStreams.get(key)
     if (inflight) return inflight
   }
+  const epoch = streamCacheEpoch.get(serverId) ?? 0
   const request = (async () => {
     const resolved = await resolveStreamFromAdapter(
       getAdapterFor(serverId),
@@ -150,6 +188,8 @@ async function resolveStream(
         suffix: song.suffix,
       }
     )
+    // 解析期间这台服务器换了地址 / 凭据：结果给这一次用，不进缓存
+    if ((streamCacheEpoch.get(serverId) ?? 0) !== epoch) return resolved
     if (streamCache.size >= STREAM_CACHE_MAX) {
       const oldest = streamCache.keys().next().value
       if (oldest !== undefined) streamCache.delete(oldest)
@@ -214,11 +254,26 @@ const MAX_AUTO_SKIPS = 5
  */
 let fallbackChain: { index: number; tried: Set<string> } | null = null
 /**
- * 上一次因「音源已断开」跳过的曲目。
- * 断开动作本身会裁队列，走到这里的都是漏网的；万一整条队列都属于那个源，
- * 逐首跳过时不该对每一首各弹一次提示——说一次就够了。
+ * 「音源已断开」连跳的这一轮。
+ * 断开动作本身会裁队列，走到这里的都是漏网的（或启动时就没连上的源）；万一整条
+ * 队列都属于那个源，逐首跳过时不该对每一首各弹一次提示——一轮只说一次。
+ *
+ * 这一轮还得有个头：开着列表循环时 next 绕回队首，effect 重跑又判断开，原来就这样
+ * 无限空转、每首弹一次提示。连跳满 MAX_AUTO_SKIPS 首、或绕回这一轮走过的队列位置，
+ * 就停在原地（halted）。
+ * - version：这一轮最后处理过的 playVersion。同版本重跑是无关依赖变了，不再处理；
+ * - next：跳完之后的 playVersion。effect 带着它回来才算这一轮接着跳，
+ *   其余（用户点歌、按播放重载……）都是新的一轮。
  */
-let disconnectedNoticeKey: string | null = null
+let disconnectedRun: {
+  version: number
+  next: number
+  skips: number
+  visited: Set<number>
+  halted: boolean
+  noticed: boolean
+  notice?: ReturnType<typeof toast>
+} | null = null
 
 /**
  * 在不改变任何状态的前提下算出「下一首是谁」。
@@ -788,16 +843,45 @@ export function useAudioEngine() {
       audioEl.src = ''
       loadedKey = null
       usePlayerStore.getState().setStreamBuffering(false)
-      const noticeKey = `${songServer}:${songId}`
-      if (disconnectedNoticeKey !== noticeKey) {
-        disconnectedNoticeKey = noticeKey
-        toast({ title: t('player.sourceDisconnected'), variant: 'destructive' })
+      // 同版本重跑（主库连上 / 断开这类无关依赖变了）：这首已经处理过，别再提示、别再跳
+      if (disconnectedRun && disconnectedRun.version === playVersion) return
+      const run =
+        disconnectedRun && !disconnectedRun.halted && disconnectedRun.next === playVersion
+          ? disconnectedRun
+          : { version: playVersion, next: playVersion, skips: 0, visited: new Set<number>(), halted: false, noticed: false }
+      disconnectedRun = run
+      run.version = playVersion
+      const player = usePlayerStore.getState()
+      if (run.skips >= MAX_AUTO_SKIPS || run.visited.has(player.queueIndex)) {
+        // 连跳到头 / 绕了一整圈：停在这首上，不再空转
+        run.halted = true
+        /* 元素已清空：之后按播放得重走加载（复审 A9 的标记），不然按了没反应；源若已重连就能放了。
+           只在停下时置位——跳歌途中置位的话，同一次提交里的播放 effect 会拿它去 reloadCurrent，
+           平白多 bump 一次 playVersion */
+        needsReloadOnPlay = true
+        if (player.isPlaying) {
+          notePauseReason('error', 'source disconnected: auto-skip halted')
+          player.pause()
+        }
+        // 只提示一次：把这一轮开头那条「已断开、已跳到下一首」原地改成「已停止自动跳歌」
+        run.notice?.update({ id: run.notice.id, title: t('player.queueHalted'), variant: 'destructive' })
+        return
       }
-      // auto:true：到队尾就停下（那是「放完了」），不要在死队列上空转
-      usePlayerStore.getState().next({ auto: true, skipping: activeSong })
+      // 这一跳接管了：之前停下时留的「按播放需重载」标记作废（同 doLoad 开头）
+      needsReloadOnPlay = false
+      run.visited.add(player.queueIndex)
+      run.skips += 1
+      if (!run.noticed) {
+        run.noticed = true
+        run.notice = toast({ title: t('player.sourceDisconnected'), variant: 'destructive' })
+      }
+      // auto:true：到队尾就停下（那是「放完了」），不要在死队列上空转；
+      // skipping：暂停着跳过去也还是暂停着（见 playerStore.next）
+      player.next({ auto: true, skipping: activeSong })
+      run.next = usePlayerStore.getState().playVersion
       return
     }
-    disconnectedNoticeKey = null
+    disconnectedRun = null
 
     const currentKey = buildLoadedKey(songServer, songId, effectiveQuality, playVersion)
 
@@ -856,12 +940,22 @@ export function useAudioEngine() {
         return !!now && now.id === capturedSongId && songServerId(now) === songServerId(capturedSong)
       }
       let resolved: ResolvedStream
+      /*
+       * 同 key 重挂监听（reattach）且元素还活着（有 src、没报错）：流就在元素手里，
+       * 沿用它，不再取流。原来照样 resolveStream——插件源的地址缓存过了期（约 20 分钟）
+       * 就真去问插件，这一下失败会走下面整条失败分支：网络类直接暂停、denied 降档
+       * 从头重载、not-found 换源、其余跳歌——正在出声的歌被一次多余的取流打断。
+       * 元素已死（无 src / 错误态）照旧取流，交给后面的「保位重载」。
+       */
+      const liveSrc = reattachOnly && audioEl.error === null ? audioEl.getAttribute('src') || '' : ''
       try {
-        resolved = await resolveStream(capturedSong, loadQuality)
+        resolved = liveSrc
+          ? { url: audioEl.currentSrc || liveSrc, expiresAt: Infinity, resolvedAt: Date.now(), async: false }
+          : await resolveStream(capturedSong, loadQuality)
       } catch (e) {
         // 过期的失败不该碰任何全局状态：缓冲标记、提示、换源、失败计数都跳过
         if (!stillCurrent()) return
-        console.error('[AudioEngine] resolveStream failed:', e)
+        log.error('AudioEngine', 'resolveStream failed:', e)
         usePlayerStore.getState().setStreamBuffering(false)
         // 静默失败在用户眼里就是「点了没反应」——VIP/付费曲至少要说明原因
         const detail = e instanceof Error ? e.message : String(e)
@@ -1069,7 +1163,7 @@ export function useAudioEngine() {
        */
       const reloadForRecovery = (retryUrl: string, delayMs: number, reason: string) => {
         rideOut = null
-        console.warn('[AudioEngine]', reason, '— reloading in', delayMs, 'ms')
+        log.warn('AudioEngine', reason, '— reloading in', delayMs, 'ms')
         const doReload = () => {
           // 延迟期间若已切歌/换加载，放弃本次恢复，避免覆盖新歌的 src
           if (loadedKey !== capturedKey) return
@@ -1148,8 +1242,9 @@ export function useAudioEngine() {
           playSubmitted = false
           const backoffMs = Math.min(60_000, 2_000 * 2 ** (scrobbleAttempts - 1))
           scrobbleRetryAt = performance.now() + backoffMs
-          console.warn(
-            `[AudioEngine] scrobble submission failed (${scrobbleAttempts}/${MAX_SCROBBLE_ATTEMPTS});`,
+          log.warn(
+            'AudioEngine',
+            `scrobble submission failed (${scrobbleAttempts}/${MAX_SCROBBLE_ATTEMPTS});`,
             `retrying in ${Math.round(backoffMs / 1000)}s:`, error)
         })
         persistListeningSession('qualified')
@@ -1235,7 +1330,7 @@ export function useAudioEngine() {
           }).catch(e => {
             // AbortError 通常是因为紧接着又切歌了，忽略
             if (e.name !== 'AbortError') {
-              console.error('[AudioEngine] play() rejected:', e.message)
+              log.error('AudioEngine', 'play() rejected:', e.message)
             }
           })
         }
@@ -1271,7 +1366,7 @@ export function useAudioEngine() {
           } else {
             void getAdapterFor(capturedServerId).scrobble(capturedSongId, false).catch(error => {
               nowPlayingSent = false
-              console.warn('[AudioEngine] now-playing report failed; will retry:', error)
+              log.warn('AudioEngine', 'now-playing report failed; will retry:', error)
             })
           }
         } else if (nowPlayingSent && preciseReporter) {
@@ -1384,6 +1479,19 @@ export function useAudioEngine() {
         const endedSnapshot = captureListeningSession()
         maybeSubmitPlay()
         resetListeningSession()
+        /*
+         * 计数也在这里清零（快照已拍、阈值提交已做完，清了不丢东西）：
+         * 队列最后一首放完（repeat=none）停下后再按播放，元素从头重放、不走 doLoad——
+         * 不清的话新会话继承上一遍整首的 listenedSec，听几秒就切走也记成「完整听完」，
+         * 而且 now-playing / scrobble 都当成已经发过，这一遍再也不报。
+         * 单曲循环倒带（onRepeatRewind）本来还会再清一遍；音质切换续播不经过这里。
+         */
+        listenedSec = 0
+        listenedPrevT = -1
+        nowPlayingSent = false
+        playSubmitted = false
+        scrobbleAttempts = 0
+        scrobbleRetryAt = 0
         usePlayerStore.getState().advanceOnEnded()
         persistSessionSnapshot(endedSnapshot, 'completed')
       }
@@ -1446,8 +1554,9 @@ export function useAudioEngine() {
 
         // 仅在「有可靠时长且接近结尾」时才允许自动推进，避免 duration 缺失导致误判从头播
         if (isNearEndOfTrack(t, refDur)) {
-          console.warn(
-            '[AudioEngine] Stalled at buffer tail near end (metadata longer than stream); advancing next()',
+          log.warn(
+            'AudioEngine',
+            'Stalled at buffer tail near end (metadata longer than stream); advancing next()',
             { currentTime: t, songDur, audioDur }
           )
           clearStallWatch()
@@ -1530,7 +1639,7 @@ export function useAudioEngine() {
         if (code === 2 && !rideOut && !audio.paused && bufferedAheadSec(audio, audio.currentTime) >= RIDE_OUT_MIN_SEC) {
           const at = audio.currentTime
           rideOut = { code: rawCode, lastT: at, lastMoveAt: performance.now() }
-          console.warn('[AudioEngine] network error with', Math.round(bufferedAheadSec(audio, at)), 's still buffered — playing on, reconnecting near the end of it')
+          log.warn('AudioEngine', 'network error with', Math.round(bufferedAheadSec(audio, at)), 's still buffered — playing on, reconnecting near the end of it')
           return
         }
         if (rideOut) return
@@ -1600,7 +1709,7 @@ export function useAudioEngine() {
                     capturedSong.path,
                     capturedSong.suffix
                   )
-                  console.warn('[AudioEngine] Retrying with format=flac (first URL had no format param)')
+                  log.warn('AudioEngine', 'Retrying with format=flac (first URL had no format param)')
                 } else if (fmt === 'flac' && (code === 4 || code === 3)) {
                   retryUrl = adapter.getStreamUrl(
                     capturedSongId,
@@ -1610,8 +1719,9 @@ export function useAudioEngine() {
                     capturedSong.path,
                     capturedSong.suffix
                   )
-                  console.warn(
-                    '[AudioEngine] Retrying as MP3: browser rejected FLAC transcode (Network may still show 206)'
+                  log.warn(
+                    'AudioEngine',
+                    'Retrying as MP3: browser rejected FLAC transcode (Network may still show 206)'
                   )
                 }
               } else if (recoverAttempts === 1 && fmt === 'flac' && (code === 4 || code === 3)) {
@@ -1623,7 +1733,7 @@ export function useAudioEngine() {
                   capturedSong.path,
                   capturedSong.suffix
                 )
-                console.warn('[AudioEngine] Second recovery: MP3 after FLAC transcode failed')
+                log.warn('AudioEngine', 'Second recovery: MP3 after FLAC transcode failed')
               }
             }
           } catch {
@@ -1648,7 +1758,7 @@ export function useAudioEngine() {
         }[code] ?? t('error.unknown')
         // 流地址带着 t= / s=（密码 MD5 与 salt），原样打进控制台等于把凭据
         // 留在那里——用户复制日志求助时会一起带出去。
-        console.error('[AudioEngine] audio error:', rawCode, err?.message, '| URL:', redactUrl(streamUrl))
+        log.error('AudioEngine', 'audio error:', rawCode, err?.message, '| URL:', redactUrl(streamUrl))
         toast({
           title: t('player.error.title', { message: errMsg }),
           // 标题抽了 i18n、说明句留着中文模板，等于给英文用户一条半中半英的报错。
@@ -1938,7 +2048,7 @@ export function useAudioEngine() {
       }
       audioEl.play().catch(e => {
         if (e.name !== 'AbortError') {
-          console.warn('[AudioEngine] play rejected:', e.message)
+          log.warn('AudioEngine', 'play rejected:', e.message)
         }
       })
     } else if (!audioEl.paused) {

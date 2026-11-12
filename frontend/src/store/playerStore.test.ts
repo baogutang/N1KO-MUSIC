@@ -1191,3 +1191,45 @@ describe('patchSong', () => {
     expect(state().queue.map(s => s.starred)).toEqual([true, undefined, undefined])
   })
 })
+
+describe('引擎跳过放不了的歌不改播放 / 暂停（skipping）', () => {
+  it('暂停着（启动恢复了队列、没点播放）被跳过：到了下一首，仍然暂停', () => {
+    const queue = seedQueue(3, 0, { isPlaying: false })
+    passSwitchDebounce()
+
+    state().next({ auto: true, skipping: queue[0] })
+
+    expect(currentId()).toBe('s1')
+    expect(state().isPlaying).toBe(false)
+  })
+
+  it('取流失败那条路（advanceOnEnded + skipping）同样不自己开播', () => {
+    const queue = seedQueue(3, 0, { isPlaying: false })
+    passSwitchDebounce()
+
+    state().advanceOnEnded({ skipping: queue[0] })
+
+    expect(currentId()).toBe('s1')
+    expect(state().isPlaying).toBe(false)
+  })
+
+  it('原本在放：跳过去接着放', () => {
+    const queue = seedQueue(3, 0)
+    passSwitchDebounce()
+
+    state().next({ auto: true, skipping: queue[0] })
+
+    expect(currentId()).toBe('s1')
+    expect(state().isPlaying).toBe(true)
+  })
+
+  it('用户暂停时按「下一首」：照旧开播', () => {
+    seedQueue(3, 0, { isPlaying: false })
+    passSwitchDebounce()
+
+    state().next()
+
+    expect(currentId()).toBe('s1')
+    expect(state().isPlaying).toBe(true)
+  })
+})
