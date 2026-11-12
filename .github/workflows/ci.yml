@@ -79,6 +79,9 @@ jobs:
             apt: true
           - os: macos-latest
             apt: false
+          # Windows 此前只在打 tag 的 release.yml 里才编译，PR 里改坏了要到发版才发现
+          - os: windows-latest
+            apt: false
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -93,3 +96,29 @@ jobs:
           workspaces: './frontend/src-tauri -> target'
       - run: cargo check --locked
         working-directory: frontend/src-tauri
+
+  # 安卓：只编译自写的 Java（WebDavProxy、LanMediaProxy 等约 1300 行、没有测试），
+  # 不签名、不出包、不上传产物；完整打包仍只在 mobile.yml（打 tag）里做。
+  # 前置步骤照 mobile.yml 的 android 任务：cap sync 会把网页资源与插件拷进 android/，缺了编不过
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build:mobile
+        working-directory: frontend
+      - run: npx cap sync android
+        working-directory: frontend
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: '21' # Capacitor 8 Android 要求 JDK 21，与 mobile.yml 一致
+      - name: Compile Java
+        working-directory: frontend/android
+        run: ./gradlew :app:compileDebugJavaWithJavac --no-daemon

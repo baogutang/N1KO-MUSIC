@@ -1,22 +1,77 @@
 version: 2
+
+# 共同原则：
+#  - 名额曾被 20 个未处理的大版本 PR 占满，新更新开不出来。所以 minor / patch 合成
+#    每个生态一个分组 PR（一周最多一个，而不是一包一个），大版本交给维护者手动排期。
+#  - 这里的分组只管版本更新（groups 不写 applies-to 时默认如此）；安全更新照旧单独开 PR。
 updates:
+  # ---- 前端（npm）----
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # minor + patch 合并成一个 PR，CI 一次跑完、合并一次
+      npm-minor-patch:
+        patterns: ['*']
+        # Tauri 的 JS 与 Rust 两侧必须同 major.minor：`tauri build` 一开头就核对 Rust crate
+        # `tauri` 与 @tauri-apps/api，不一致四个桌面平台直接失败。所以不进分组
+        exclude-patterns: ['@tauri-apps/*']
+        update-types: [minor, patch]
+    ignore:
+      # 大版本（react 19、eslint 10、zustand 5、typescript 7……）可能带破坏性变更，
+      # 由维护者手动安排，不让机器人自动开 PR
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+      # @tauri-apps/*：只收 patch；minor 要与 Cargo.toml 里的 tauri 一起手动升
+      - dependency-name: '@tauri-apps/*'
+        update-types: ['version-update:semver-minor']
+
+  # ---- 同步后端（npm）----
   - package-ecosystem: npm
     directory: /backend
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      backend-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # better-sqlite3 是原生模块，大版本要对着 Node 版本与 Docker 镜像手动验证
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  # ---- 桌面壳（cargo）----
   - package-ecosystem: cargo
     directory: /frontend/src-tauri
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      cargo-minor-patch:
+        patterns: ['*']
+        # tauri / tauri-build / tauri-plugin-* 要与前端 @tauri-apps/api 同 major.minor，
+        # 不能被自动升 minor，所以不进分组
+        exclude-patterns: ['tauri*']
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+      # tauri*：只收 patch；minor 与 @tauri-apps/* 一起手动升
+      - dependency-name: 'tauri*'
+        update-types: ['version-update:semver-minor']
+
+  # ---- 工作流里的 action ----
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # 不忽略大版本：action 的大版本多半只是 Node 运行时升级，
+    # 但所有 action 钉在提交 SHA 上，升级 PR 本身就是审阅点，所以只分组、不拦截
+    groups:
+      actions:
+        patterns: ['*']
+        update-types: [minor, patch]
