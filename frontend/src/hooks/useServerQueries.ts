@@ -846,6 +846,70 @@ export function useToggleStar() {
   })
 }
 
+/** 批量收藏的网络并发上限：够快，又不会把几千个请求同时压给服务器 */
+export const BATCH_STAR_CONCURRENCY = 4
+
+export interface BatchStarResult {
+  succeeded: Song[]
+  failed: Song[]
+}
+
+/**
+ * 批量收藏。
+ *
+ * 逐首 mutate 的问题：几千首 = 几千个并发请求，而且每个成功后都各扫一遍
+ * 整个查询缓存、各失效 6 次。这里网络限并发，结果**全部落定后一次性**处理：
+ * 缓存只按来源扫一遍、每个来源只失效一次、播放器按 id + 来源打补丁。
+ * 仍按每首歌自己的来源取适配器（与 useToggleStar 一致）。
+ * 不做乐观更新：失败的不能误显示成已收藏，成功的结果一次到位即可。
+ */
+export function useBatchStar() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ songs }: { songs: Song[] }): Promise<BatchStarResult> => {
+      const succeeded: Song[] = []
+      const failed: Song[] = []
+      let cursor = 0
+      const worker = async () => {
+        while (cursor < songs.length) {
+          const song = songs[cursor++]
+          try {
+            const adapter = adapterForSource(song.serverId)
+            if (!adapter.star) throw new Error(t('error.favoritesUnsupported'))
+            await adapter.star(song.id, 'song')
+            void mirrorFavorite(song.id, true, song)
+            succeeded.push(song)
+          } catch {
+            failed.push(song)
+          }
+        }
+      }
+      await Promise.all(
+        Array.from({ length: Math.min(BATCH_STAR_CONCURRENCY, songs.length) }, worker)
+      )
+      return { succeeded, failed }
+    },
+    onSuccess: ({ succeeded }) => {
+      // 按来源归组：一个来源只扫一遍缓存、只失效一次
+      const bySource = new Map<string, Set<string>>()
+      for (const song of succeeded) {
+        const sid = bareServerId(song.serverId ?? serverKey())
+        const ids = bySource.get(sid) ?? new Set<string>()
+        ids.add(song.id)
+        bySource.set(sid, ids)
+        usePlayerStore.getState().patchSong(song.id, song.serverId, { starred: true })
+      }
+      for (const [sid, ids] of bySource) {
+        patchStarredIdsInCache(queryClient, sid, ids, true)
+        queryClient.invalidateQueries({ predicate: sourceFamilyFilter(sid, 'starred') })
+        for (const family of ['songs', 'albums', 'artists', 'search', 'playlists'] as const) {
+          queryClient.invalidateQueries({ predicate: sourceFamilyFilter(sid, family), refetchType: 'none' })
+        }
+      }
+    },
+  })
+}
+
 /** 就地改写缓存里某一条的任意字段，覆盖裸数组 / {items} / {songs} / {pages} 四种形状 */
 function patchFieldInCache(data: unknown, id: string, field: string, value: unknown): unknown {
   const patchItem = (item: unknown): unknown => {
@@ -883,10 +947,20 @@ function patchStarredInCache(
   id: string,
   starred: boolean
 ) {
+  patchStarredIdsInCache(queryClient, sid, new Set([id]), starred)
+}
+
+/** 一次扫描补上一批 id（批量收藏用：扫描次数与歌曲数无关） */
+function patchStarredIdsInCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  sid: string,
+  ids: ReadonlySet<string>,
+  starred: boolean
+) {
   const patchItem = (item: unknown): unknown => {
     if (!item || typeof item !== 'object') return item
     const record = item as { id?: string; starred?: boolean }
-    if (record.id !== id || record.starred === starred) return item
+    if (record.id === undefined || !ids.has(record.id) || record.starred === starred) return item
     return { ...record, starred }
   }
 

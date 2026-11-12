@@ -38,7 +38,7 @@ import { useServerStore } from '@/store/serverStore'
 import { findAdapterFor } from '@/api'
 import { formatDuration } from '@/utils/formatters'
 import { spaceCJK } from '@/utils/cjkTypography'
-import { useToggleStar } from '@/hooks/useServerQueries'
+import { useToggleStar, useBatchStar } from '@/hooks/useServerQueries'
 import { useServerCapabilities } from '@/hooks/useServerCapabilities'
 import { useSourceCapabilities } from '@/hooks/useSourceQueries'
 import { rowCapsOf } from '@/services/capabilities'
@@ -227,6 +227,10 @@ export function SongList({
   const toggleStar = useToggleStar()
   const toggleStarRef = React.useRef(toggleStar)
   toggleStarRef.current = toggleStar
+  // 多选条的批量收藏：限并发 + 结果一次性落缓存（逐首 mutate 在几千首时会卡死主线程）
+  const batchStar = useBatchStar()
+  const batchStarRef = React.useRef(batchStar)
+  batchStarRef.current = batchStar
   // 回滚由 mutation 自身的 onError 通过缓存完成，这里不再传每次调用的回调——
   // 共享 observer 下后一次调用会把前一次的回调顶掉，导致回滚丢失。
   const handleToggleStar = useCallback((song: Song, nextStarred: boolean) => {
@@ -317,14 +321,18 @@ export function SongList({
             toast({ title: t('song.favoriteSkipped', { count: skipped }) })
             return
           }
-          for (const song of supported) {
-            toggleStarRef.current.mutate({
-              id: song.id, type: 'song', isStarred: false, song, serverId: song.serverId,
-            })
-          }
           // 没跳过就什么也不说：一句「已跳过 0 首」只会让人以为出了事
           if (skipped > 0) toast({ title: t('song.favoriteSkipped', { count: skipped }) })
           clearSelection()
+          void batchStarRef.current.mutateAsync({ songs: supported }).then(({ succeeded, failed }) => {
+            // 部分失败要如实说：成功几首、失败几首
+            if (failed.length > 0) {
+              toast({
+                title: t('song.favoritePartial', { ok: succeeded.length, failed: failed.length }),
+                variant: 'destructive',
+              })
+            }
+          }, () => {})
         },
       },
       {
@@ -366,7 +374,7 @@ export function SongList({
         onToggleStar={handleToggleStar}
         canFavorite={rowCaps ? rowCaps.favorites : primaryFavorites}
         onShare={isPrimaryRow && primaryShares ? handleShare : undefined}
-        onRemove={onRemove ? () => onRemove(index) : undefined}
+        onRemove={onRemove}
         onRadio={(rowCaps ? rowCaps.radio : primaryRadio) ? handleRadio : undefined}
         canRate={isPrimaryRow && primaryRating}
         selected={isSelected(songIdentity(song, index))}
@@ -589,7 +597,8 @@ interface SongRowProps {
   canFavorite?: boolean
   /** 服务器不支持时为 undefined，对应菜单项直接不出现 */
   onShare?: (song: Song) => void
-  onRemove?: () => void
+  /** 稳定引用；行内带上自己的 index 调用，避免每次渲染都造新闭包废掉 memo */
+  onRemove?: (index: number) => void
   onRadio?: (song: Song) => void
   canRate?: boolean
   selected?: boolean
@@ -990,7 +999,7 @@ const SongRow = React.memo(function SongRow({
               )}
               {onRemove && (
                 <DropdownMenuItem
-                  onClick={(e) => { e.stopPropagation(); onRemove() }}
+                  onClick={(e) => { e.stopPropagation(); onRemove(index) }}
                   className="gap-2 text-destructive focus:text-destructive"
                 >
                   <Trash className="w-4 h-4" />
