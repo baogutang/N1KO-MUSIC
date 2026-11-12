@@ -20,6 +20,7 @@ import { syncNotes } from './services/notes'
 import { useSyncStore } from './store/syncStore'
 import { installWindowDrag } from '@/lib/windowDrag'
 import { tvDeviceKnownNow, whenTvDeviceKnown } from '@/lib/tv'
+import { whenLocaleReady } from '@/i18n'
 
 // 清掉旧版每 30 秒新增一条、从不回收的推荐缓存键：已被撑满配额的用户
 // 加载一次即可自愈。（persist 适配器本身也会在写入失败时回收，此处是提前腾空间。）
@@ -105,15 +106,19 @@ function Bootstrap({ children }: { children: React.ReactNode }) {
 // 桌面版窗口拖拽的可靠实现（原因见 lib/windowDrag.ts）
 installWindowDrag()
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <QueryClientProvider client={queryClient}>
-    {/* 系统开了「减弱动态效果」：layoutId 滑块、弹簧位移一律瞬时，只留透明度（motion 的 user 档） */}
-    <MotionConfig reducedMotion="user">
-      <Bootstrap>
-        <App />
-      </Bootstrap>
-      {/* 开屏盖在最上面，和启动守卫并排：不论落在登录页还是主界面，它都第一时间出现 */}
-      <Splash />
-    </MotionConfig>
-  </QueryClientProvider>,
-)
+// 英文语言包是按需加载的：英文用户要等它到位再渲染，否则会先闪一屏中文。
+// 加载失败时 whenLocaleReady 内部已回落中文，这里不会 reject，启动不会白屏。
+void whenLocaleReady().then(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <QueryClientProvider client={queryClient}>
+      {/* 系统开了「减弱动态效果」：layoutId 滑块、弹簧位移一律瞬时，只留透明度（motion 的 user 档） */}
+      <MotionConfig reducedMotion="user">
+        <Bootstrap>
+          <App />
+        </Bootstrap>
+        {/* 开屏盖在最上面，和启动守卫并排：不论落在登录页还是主界面，它都第一时间出现 */}
+        <Splash />
+      </MotionConfig>
+    </QueryClientProvider>,
+  )
+})

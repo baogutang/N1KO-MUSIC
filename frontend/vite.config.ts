@@ -1,4 +1,5 @@
-import { defineConfig, type Plugin } from 'vite'
+import type { Plugin } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'node:fs'
@@ -6,6 +7,8 @@ import dns from 'node:dns'
 import http from 'node:http'
 import https from 'node:https'
 import { VitePWA } from 'vite-plugin-pwa'
+import { phosphorWeightStripPlugin } from './vite.phosphor'
+import { webCspPlugin } from './vite.csp'
 import { isHostAllowed, isPrivateHost } from './src/plugins/host/whitelist'
 
 /**
@@ -350,11 +353,19 @@ function n1koBundlePlugins(): Plugin {
 
 export default defineConfig(({ mode }) => ({
   base: './',
+  test: {
+    // IS_REACT_ACT_ENVIRONMENT 与英文语言包预加载（原因见 setup.ts）
+    setupFiles: ['./src/test/setup.ts'],
+  },
   plugins: [
     react(),
     n1koPluginProxyMiddleware(),
     n1koPluginCatalogMiddleware(),
     n1koBundlePlugins(),
+    // 图标库只带 regular / fill / bold 三种字重（原因见 vite.phosphor.ts）
+    phosphorWeightStripPlugin(),
+    // 纯网页构建才换成完整 CSP（原因见 vite.csp.ts 与 index.html 的注释）
+    webCspPlugin(mode),
     // Capacitor 原生壳内禁用 PWA/Service Worker（WebView 内 SW 缓存会导致资源陈旧）
     ...(mode === 'capacitor'
       ? []
@@ -509,7 +520,8 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('@tanstack/')) return 'react-query'
           if (id.includes('@radix-ui')) return 'radix-ui'
           if (/node_modules\/(motion|motion-dom|motion-utils|framer-motion)\//.test(id)) return 'motion'
-          return 'vendor'
+          // 不再有 `return 'vendor'` 兜底：它会把只在懒加载页面用的库（如 qrcode）
+          // 也拉进首屏必载的包。没命中的交给 Rollup 按实际引用关系分。
         },
       },
     },

