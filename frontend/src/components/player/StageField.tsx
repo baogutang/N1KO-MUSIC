@@ -7,14 +7,20 @@
  * 成本控制：画布只有显示尺寸的 1/4，CSS 拉伸后本来就是柔的；30fps；
  * 页面隐藏、浮层关掉就停；减弱动态效果时只在换歌时画一帧静止的光。
  * 没有 WebGL（或上下文丢了）时退回 CSS 渐变（.stage-fallback）。
+ *
+ * 三档：deep 是舞台本来的暗场；cover 是沉浸样式——底色是封面上中下三段颜色连成的竖向渐变
+ * （保留真实明暗、没有游走的光，见 coverField.ts）；这首歌的封面取不到三段色时 cover 退回 mid
+ * （原来的中间档：只有色相跟封面）。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { cn } from '@/lib/utils'
 import { oklchToRgb } from '@/lib/oklch'
 import { prefersReducedMotion } from '@/lib/motion'
+import { log } from '@/lib/log'
 import { useArtLightStore } from '@/store/artLightStore'
 import type { ArtPalette } from '@/services/artLight'
+import { bandStops, coverField, rgbCss, type ArtPlacement } from './coverField'
 
 const VERT = `
 attribute vec2 aPos;
@@ -28,51 +34,61 @@ const FRAG = `
 precision mediump float;
 uniform vec2 uRes;
 uniform float uTime;
-uniform vec3 uA[5];
-uniform vec3 uB[5];
+uniform vec3 uA[7];
+uniform vec3 uB[7];
+uniform vec2 uFlat;
+uniform vec3 uStops;
 uniform float uReveal;
 uniform vec2 uOrigin;
 varying vec2 vUv;
 
-vec3 field(vec3 base, vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec2 uv, float t, float aspect) {
+vec3 lights(vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec2 uv, float t, float aspect) {
   vec2 p = vec2(uv.x * aspect, uv.y);
   vec2 p0 = vec2(aspect * (0.22 + 0.10 * sin(t * 0.21)), 0.80 + 0.08 * cos(t * 0.17));
   vec2 p1 = vec2(aspect * (0.82 + 0.09 * cos(t * 0.19)), 0.72 + 0.10 * sin(t * 0.23));
   vec2 p2 = vec2(aspect * (0.30 + 0.12 * cos(t * 0.13)), 0.16 + 0.09 * sin(t * 0.29));
   vec2 p3 = vec2(aspect * (0.76 + 0.11 * sin(t * 0.11)), 0.24 + 0.10 * cos(t * 0.15));
-  vec3 col = base;
-  col += c0 * exp(-dot(p - p0, p - p0) / 0.20);
-  col += c1 * exp(-dot(p - p1, p - p1) / 0.15);
-  col += c2 * exp(-dot(p - p2, p - p2) / 0.14);
-  col += c3 * exp(-dot(p - p3, p - p3) / 0.11);
-  return col;
+  return c0 * exp(-dot(p - p0, p - p0) / 0.20)
+       + c1 * exp(-dot(p - p1, p - p1) / 0.15)
+       + c2 * exp(-dot(p - p2, p - p2) / 0.14)
+       + c3 * exp(-dot(p - p3, p - p3) / 0.11);
+}
+
+// 底色：上 / 中 / 下三个颜色按 uStops 的位置连成竖向渐变（暗场和中间档三个颜色相同，就是一片）。
+// asIs = 1 是封面色场：颜色原样上屏；否则照旧过一次色调映射，光叠多了不会过曝。
+// （参数不能叫 flat：GLSL 的保留字，着色器会编译失败）
+vec3 scene(vec3 top, vec3 mid, vec3 bot, vec3 l, float asIs, float y) {
+  vec3 base = mix(top, mid, clamp((y - uStops.x) / max(0.001, uStops.y - uStops.x), 0.0, 1.0));
+  base = mix(base, bot, clamp((y - uStops.y) / max(0.001, uStops.z - uStops.y), 0.0, 1.0));
+  vec3 col = base + l;
+  return mix(col / (1.0 + col * 0.4), col, asIs);
 }
 
 void main() {
   float aspect = uRes.x / uRes.y;
   float t = uTime;
+  float y = 1.0 - vUv.y;
   vec2 uv = vUv + 0.03 * vec2(sin(vUv.y * 3.1 + t * 0.30), cos(vUv.x * 2.7 - t * 0.25));
-  vec3 a = field(uA[0], uA[1], uA[2], uA[3], uA[4], uv, t, aspect);
-  vec3 b = field(uB[0], uB[1], uB[2], uB[3], uB[4], uv, t, aspect);
+  vec3 a = scene(uA[0], uA[1], uA[2], lights(uA[3], uA[4], uA[5], uA[6], uv, t, aspect), uFlat.x, y);
+  vec3 b = scene(uB[0], uB[1], uB[2], lights(uB[3], uB[4], uB[5], uB[6], uv, t, aspect), uFlat.y, y);
   vec2 d = vec2((vUv.x - uOrigin.x) * aspect, vUv.y - uOrigin.y);
   float rad = uReveal * length(vec2(aspect, 1.0)) * 1.1;
   float m = 1.0 - smoothstep(rad - 0.22, rad, length(d));
   vec3 col = mix(b, a, m);
-  col = col / (1.0 + col * 0.4);
   float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
   col += (n - 0.5) * (2.0 / 255.0);
   gl_FragColor = vec4(col, 1.0);
 }`
 
-/** deep：舞台本来的暗场；mid：沉浸样式（大封面融进背景）用的中间一档，更像封面颜色的延续 */
-export type StageTone = 'deep' | 'mid'
+/** deep：舞台本来的暗场；mid：亮一档、只有色相跟封面；cover：封面三段颜色连成的渐变（沉浸样式） */
+export type StageTone = 'deep' | 'mid' | 'cover'
 
 /** 调色板 → 5 个 vec3：底色 + 四盏光（亮度压暗、饱和封顶，白字在上面始终读得清）。
  *  光的亮度封在 0.36–0.5：再亮，顶上的分段标签和歌手行就掉到 4.5:1 以下——
  *  要保住对比，降的是光的亮度，不是颜色的饱和。
  *  中间档整体抬亮：底色 0.40（index.css 的 --stage-mid，白字 7:1 以上），光封在 0.5–0.64、增益收一点，
  *  最亮处压过色调映射后仍在 0.55 上下 */
-export function paletteToUniform(p: ArtPalette, tone: StageTone = 'deep'): Float32Array {
+export function paletteToUniform(p: ArtPalette, tone: 'deep' | 'mid' = 'deep'): Float32Array {
   const out = new Float32Array(15)
   const mid = tone === 'mid'
   // 底色压到很暗、带一点主色相：光打在上面才通透，不发闷
@@ -99,12 +115,41 @@ export function paletteToUniform(p: ArtPalette, tone: StageTone = 'deep'): Float
   return out
 }
 
+export interface FieldUniform {
+  /** 7 个 vec3：上 / 中 / 下三段底色 + 四盏光 */
+  u: Float32Array
+  /** 1 = 封面色场（不过色调映射）；0 = 暗场 / 中间档 */
+  flat: 0 | 1
+  /** 实际画出来的是哪一档：要 cover 而这张封面没有三段色时是 mid */
+  tone: StageTone
+}
+
+/** 一档光场要喂给着色器的全部数：封面色场没有游走的光，另两档三段底色相同 */
+export function fieldUniform(p: ArtPalette, tone: StageTone, placement: ArtPlacement = 'side'): FieldUniform {
+  const u = new Float32Array(21)
+  const cover = tone === 'cover' ? coverField(p, placement) : null
+  if (cover) {
+    cover.bases.forEach((rgb, i) => u.set(rgb, i * 3))
+    return { u, flat: 1, tone: 'cover' }
+  }
+  const actual = tone === 'cover' ? 'mid' : tone
+  const v = paletteToUniform(p, actual)
+  const base = v.subarray(0, 3)
+  u.set(base, 0)
+  u.set(base, 3)
+  u.set(base, 6)
+  u.set(v.subarray(3), 9)
+  return { u, flat: 0, tone: actual }
+}
+
 function compile(gl: WebGLRenderingContext, type: number, src: string) {
   const sh = gl.createShader(type)
   if (!sh) return null
   gl.shaderSource(sh, src)
   gl.compileShader(sh)
   if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    // 编译失败会悄悄退回 CSS 渐变，画面看着差不多、其实光场没了：留一条日志，改着色器时才发现得了
+    log.warn('stage', '光场着色器编译失败', gl.getShaderInfoLog(sh))
     gl.deleteShader(sh)
     return null
   }
@@ -121,16 +166,24 @@ export function StageField({
   originRef,
   active = true,
   tone = 'deep',
+  placement = 'side',
 }: {
   className?: string
   originRef?: RefObject<HTMLElement>
   active?: boolean
   tone?: StageTone
+  /** cover 档：封面贴左（side）还是贴顶（top），决定左右两半的权重 */
+  placement?: ArtPlacement
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const palette = useArtLightStore(s => s.palette)
   const toneRef = useRef(tone)
   toneRef.current = tone
+  const placementRef = useRef(placement)
+  placementRef.current = placement
+  const originElRef = useRef(originRef)
+  originElRef.current = originRef
+  const field = fieldUniform(palette, tone, placement)
   const [failed, setFailed] = useState(false)
   const [painted, setPainted] = useState(false)
   const stateRef = useRef<{
@@ -138,9 +191,13 @@ export function StageField({
     uniforms: Record<string, WebGLUniformLocation | null>
     a: Float32Array
     b: Float32Array
+    flat: [number, number]
+    stops: [number, number, number]
     revealFrom: number
     origin: [number, number]
     draw: () => void
+    measure: () => void
+    kick: () => void
   } | null>(null)
 
   /* 初始化：一次。拿不到 WebGL 就退回 CSS */
@@ -179,10 +236,12 @@ export function StageField({
       uTime: gl.getUniformLocation(prog, 'uTime'),
       uA: gl.getUniformLocation(prog, 'uA'),
       uB: gl.getUniformLocation(prog, 'uB'),
+      uFlat: gl.getUniformLocation(prog, 'uFlat'),
+      uStops: gl.getUniformLocation(prog, 'uStops'),
       uReveal: gl.getUniformLocation(prog, 'uReveal'),
       uOrigin: gl.getUniformLocation(prog, 'uOrigin'),
     }
-    const initial = paletteToUniform(useArtLightStore.getState().palette, toneRef.current)
+    const initial = fieldUniform(useArtLightStore.getState().palette, toneRef.current, placementRef.current)
     const reduce = prefersReducedMotion()
     const start = performance.now()
     let frame = 0
@@ -192,12 +251,31 @@ export function StageField({
     const state = {
       gl,
       uniforms,
-      a: initial,
-      b: initial,
+      a: initial.u,
+      b: initial.u,
+      flat: [initial.flat, initial.flat] as [number, number],
+      stops: bandStops(0, 0),
       revealFrom: -1,
       origin: [0.5, 0.6] as [number, number],
       draw: () => {},
+      measure: () => {},
+      kick: () => {},
     }
+
+    /* 封面框在画面里的位置：扩散从它的中心起，三段底色也按它的高度摆 */
+    const measure = () => {
+      const origin = originElRef.current?.current
+      if (!origin) return
+      const c = canvas.getBoundingClientRect()
+      const o = origin.getBoundingClientRect()
+      if (c.width < 1 || c.height < 1 || o.height < 1) return
+      state.origin = [
+        (o.left + o.width / 2 - c.left) / c.width,
+        1 - (o.top + o.height / 2 - c.top) / c.height,
+      ]
+      state.stops = bandStops((o.top - c.top) / c.height, o.height / c.height)
+    }
+    state.measure = measure
 
     const draw = (now: number) => {
       const t = reduce ? 0 : (now - start) / 1000
@@ -212,6 +290,8 @@ export function StageField({
       gl.uniform1f(uniforms.uTime, t)
       gl.uniform3fv(uniforms.uA, state.a)
       gl.uniform3fv(uniforms.uB, state.b)
+      gl.uniform2f(uniforms.uFlat, state.flat[0], state.flat[1])
+      gl.uniform3f(uniforms.uStops, state.stops[0], state.stops[1], state.stops[2])
       gl.uniform1f(uniforms.uReveal, reveal)
       gl.uniform2f(uniforms.uOrigin, state.origin[0], state.origin[1])
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
@@ -221,10 +301,17 @@ export function StageField({
     // 30fps：慢慢游走的光不需要更多帧；扩散中按满帧画，边缘才顺。
     // 平时隔 30ms 才要下一帧，而不是每帧都要、再跳过不画：一直挂着 requestAnimationFrame，
     // WebKit 就每一帧都做一次渲染更新，ProMotion 屏也被拴在最高刷新率上（App 开着 120Hz 时就是 120 次 / 秒）
+    // 封面色场没有游走的光，是一张静止的画：扩散转场走完就停，换歌、改尺寸时再画（state.kick）
     const schedule = () => {
       if (!running) return
       if (state.revealFrom >= 0) frame = requestAnimationFrame(loop)
+      else if (state.flat[0] === 1) return
       else timer = window.setTimeout(() => { frame = requestAnimationFrame(loop) }, 30)
+    }
+    state.kick = () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(timer)
+      schedule()
     }
     const loop = (now: number) => {
       frame = 0
@@ -240,6 +327,7 @@ export function StageField({
         canvas.width = w
         canvas.height = h
       }
+      measure()
       draw(performance.now())
     }
     const ro = new ResizeObserver(resize)
@@ -272,40 +360,44 @@ export function StageField({
   useEffect(() => {
     const state = stateRef.current
     if (!state) return
-    const next = paletteToUniform(palette, tone)
+    const next = fieldUniform(palette, tone, placement)
     state.b = state.a
-    state.a = next
-    const canvas = canvasRef.current
-    const origin = originRef?.current
-    if (canvas && origin) {
-      const c = canvas.getBoundingClientRect()
-      const o = origin.getBoundingClientRect()
-      state.origin = [
-        (o.left + o.width / 2 - c.left) / Math.max(1, c.width),
-        1 - (o.top + o.height / 2 - c.top) / Math.max(1, c.height),
-      ]
-    }
+    state.flat = [next.flat, state.flat[0]]
+    state.a = next.u
+    state.measure()
     if (prefersReducedMotion()) {
-      state.b = next
+      state.b = next.u
+      state.flat = [next.flat, next.flat]
       state.draw()
       return
     }
     state.revealFrom = performance.now()
-  }, [palette, tone, originRef])
+    state.kick()
+  }, [palette, tone, placement])
+
+  /* 没有 WebGL 时垫在底下的 CSS 渐变：封面色场直接用三段颜色，另两档照旧走 .stage-fallback */
+  const fallbackStyle = field.tone === 'cover'
+    ? { background: `linear-gradient(180deg, ${rgbCss(field.u.subarray(0, 3))} 14%, ${rgbCss(field.u.subarray(3, 6))} 42%, ${rgbCss(field.u.subarray(6, 9))} 71%)` }
+    : undefined
 
   return (
     <div aria-hidden="true" className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)}>
       {/* 底下一直铺着 CSS 渐变：WebGL 还没开（开场动画期间）或拿不到时就是它 */}
-      <div className="stage-fallback absolute inset-0" data-tone={tone} />
+      <div className="stage-fallback absolute inset-0" data-tone={field.tone} style={fallbackStyle} />
       {!failed && (
         <canvas
           ref={canvasRef}
           className={cn('absolute inset-0 h-full w-full transition-opacity duration-5 ease-out motion-reduce:transition-none', active && painted ? 'opacity-100' : 'opacity-0')}
         />
       )}
-      {/* 顶上、底部各压暗一档：分段标签、控制区的白字始终站得住（中间档压得轻一些，不然又回到暗场） */}
-      <div className={cn('absolute inset-x-0 top-0 h-48 bg-gradient-to-b to-stage-deep/0', tone === 'mid' ? 'from-stage-deep/30' : 'from-stage-deep/45')} />
-      <div className={cn('absolute inset-x-0 bottom-0 bg-gradient-to-t to-stage-deep/0', tone === 'mid' ? 'h-2/5 from-stage-deep/45' : 'h-1/2 from-stage-deep/55')} />
+      {/* 顶上、底部各压暗一档：分段标签、控制区的白字始终站得住（中间档压得轻一些，不然又回到暗场）。
+          封面色场不压：底色就是封面的颜色，文字深浅跟着底色换（FullscreenPlayer 的 stage-ink-*） */}
+      {field.tone !== 'cover' && (
+        <>
+          <div className={cn('absolute inset-x-0 top-0 h-48 bg-gradient-to-b to-stage-deep/0', field.tone === 'mid' ? 'from-stage-deep/30' : 'from-stage-deep/45')} />
+          <div className={cn('absolute inset-x-0 bottom-0 bg-gradient-to-t to-stage-deep/0', field.tone === 'mid' ? 'h-2/5 from-stage-deep/45' : 'h-1/2 from-stage-deep/55')} />
+        </>
+      )}
     </div>
   )
 }

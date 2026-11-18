@@ -6,16 +6,34 @@
  * 颜色本身由 token 拼出来，组件里不出现任何字面颜色。
  *
  * 取色在主线程做，但只读一张 40×40 的缩略图（约 1ms），且排在空闲时段。
- * 封面服务器不给 CORS 时画布会被污染、读不出像素：这时退回默认的「场灯」青柠，不报错。
+ * 封面服务器不给 CORS 时直接加载读不出像素：改走应用自己的取图通道（原生壳里不受 CORS 限制）
+ * 取回同源的地址再读一次；还读不出才退回默认的「场灯」青柠，并记一条日志。
+ *
+ * 除了色相，还取封面上、中、下三段的平均色（bands）：沉浸样式的播放页用它们连成
+ * 一条竖向渐变，底色就是封面颜色的延续（见 components/player/coverField.ts）。
  */
 
 import { rgbToOklch, hueDistance } from '@/lib/oklch'
+import { log } from '@/lib/log'
+import { fetchExternalImage } from '@/services/externalFetch'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 
 export interface ArtSwatch {
   l: number
   c: number
   h: number
+}
+
+/** 封面上、中、下三段的平均色（真实明暗，不是只有色相） */
+export type ArtBandTriple = [ArtSwatch, ArtSwatch, ArtSwatch]
+
+/**
+ * 左半边、右半边分开存：横屏时封面贴左，右缘要融进背景，右半边的权重大一些；
+ * 竖屏封面顶满屏宽，两边一样重。怎么合由用的地方定。
+ */
+export interface ArtBands {
+  left: ArtBandTriple
+  right: ArtBandTriple
 }
 
 export interface ArtPalette {
@@ -31,6 +49,11 @@ export interface ArtPalette {
   swatches: ArtSwatch[]
   /** 近乎黑白的封面：房间只留极淡的一点颜色 */
   neutral: boolean
+  /**
+   * 上中下三段的平均色。可选：场灯没有（没有封面可取），旧版本存在本机的缓存里也没有——
+   * 缓存里缺这一项的条目当作没算过，重新取一次。
+   */
+  bands?: ArtBands
 }
 
 /** 没有封面、或读不到像素时的「场灯」：品牌青柠，与 index.css 的默认值一致 */
@@ -105,7 +128,17 @@ function remember(key: string, palette: ArtPalette) {
 export function peekPalette(url: string | undefined): ArtPalette | undefined {
   if (!url) return undefined
   loadDisk()
-  return memory.get(cacheKey(url))
+  const hit = memory.get(cacheKey(url))
+  return hit?.bands ? hit : undefined
+}
+
+/** 一串候选地址里第一张算过的：换回听过的歌，首帧就是它的颜色 */
+export function peekPaletteOf(urls: readonly string[]): { palette: ArtPalette; url: string } | undefined {
+  for (const url of urls) {
+    const palette = peekPalette(url)
+    if (palette) return { palette, url }
+  }
+  return undefined
 }
 
 /* ---------------- 取色 ---------------- */
@@ -113,7 +146,8 @@ export function peekPalette(url: string | undefined): ArtPalette | undefined {
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
-    img.crossOrigin = 'anonymous'
+    // blob: / data: 本来就是同源的；带上 crossOrigin 反而会让个别 WebView 拒绝加载
+    if (!/^(blob|data):/i.test(url)) img.crossOrigin = 'anonymous'
     img.decoding = 'async'
     img.onload = () => resolve(img)
     img.onerror = () => reject(new Error('cover load failed'))
@@ -196,40 +230,130 @@ function round(v: number, digits = 1) {
   return Math.round(v * f) / f
 }
 
-const inflight = new Map<string, Promise<ArtPalette>>()
+/** 纯函数：一块 size×size 的 RGBA 像素 → 上中下三段、左右两半的平均色（在 OKLab 里平均，再转回 LCH） */
+export function bandsFromPixels(data: Uint8ClampedArray, size: number = SAMPLE): ArtBands | undefined {
+  if (size < 3 || data.length < size * size * 4) return undefined
+  const half = size / 2
+  // [左右][上中下] → L、a、b 的和与像素数
+  const acc = [0, 1].map(() => [0, 1, 2].map(() => [0, 0, 0, 0]))
+  for (let y = 0; y < size; y++) {
+    const band = Math.min(2, Math.floor((y * 3) / size))
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4
+      if (data[i + 3] < 128) continue
+      const [L, C, H] = rgbToOklch(data[i], data[i + 1], data[i + 2])
+      const rad = (H * Math.PI) / 180
+      const cell = acc[x < half ? 0 : 1][band]
+      cell[0] += L
+      cell[1] += C * Math.cos(rad)
+      cell[2] += C * Math.sin(rad)
+      cell[3]++
+    }
+  }
+  const swatch = ([L, a, b, n]: number[]): ArtSwatch | null => {
+    if (!n) return null
+    let h = (Math.atan2(b, a) * 180) / Math.PI
+    if (h < 0) h += 360
+    return { l: round(L / n, 3), c: round(Math.hypot(a, b) / n, 3), h: round(h) }
+  }
+  const sides = acc.map(side => side.map(swatch))
+  // 整段都是透明像素（极少见）：这张封面不出三段色，用的地方退回原来的光场
+  if (sides.some(side => side.some(sw => !sw))) return undefined
+  return { left: sides[0] as ArtBandTriple, right: sides[1] as ArtBandTriple }
+}
 
-/** 取一张封面的调色板；失败时返回场灯，永不抛错 */
-export function getPalette(url: string | undefined): Promise<ArtPalette> {
-  if (!url) return Promise.resolve(HOUSE_LIGHTS)
+function readPixels(img: HTMLImageElement): Uint8ClampedArray | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = SAMPLE
+  canvas.height = SAMPLE
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return null
+  ctx.drawImage(img, 0, 0, SAMPLE, SAMPLE)
+  return ctx.getImageData(0, 0, SAMPLE, SAMPLE).data
+}
+
+/**
+ * 读出一张封面的像素；读不出返回 null。
+ * 先直接加载（跨域要服务器给 CORS 头）。不行就走应用自己的取图通道：
+ * 原生壳里它不受 CORS 限制，取回来的是 data: / blob: 地址，同源，画布读得出。
+ */
+async function loadPixels(url: string): Promise<Uint8ClampedArray | null> {
+  try {
+    const direct = readPixels(await loadImage(url))
+    if (direct) return direct
+  } catch {
+    /* 没有 CORS 头、404、解码失败：往下试 */
+  }
+  if (!/^https?:/i.test(url)) return null
+  let local: string | null = null
+  try {
+    local = await fetchExternalImage(url)
+    if (!local) return null
+    return readPixels(await loadImage(local))
+  } catch {
+    return null
+  } finally {
+    if (local?.startsWith('blob:')) URL.revokeObjectURL(local)
+  }
+}
+
+/** 地址的种类（日志用：不记地址本身，里面有服务器地址和鉴权参数） */
+function urlKind(url: string): string {
+  if (/^blob:/i.test(url)) return 'blob'
+  if (/^data:/i.test(url)) return 'data'
+  try {
+    return new URL(url, location.href).origin === location.origin ? 'same-origin' : 'cross-origin'
+  } catch {
+    return 'unknown'
+  }
+}
+
+const inflight = new Map<string, Promise<ArtPalette | null>>()
+
+/** 取一张封面的调色板；读不出像素返回 null（不缓存：下次还会再试） */
+function readPalette(url: string): Promise<ArtPalette | null> {
   loadDisk()
   const key = cacheKey(url)
   const hit = memory.get(key)
-  if (hit) return Promise.resolve(hit)
+  if (hit?.bands) return Promise.resolve(hit)
   const running = inflight.get(key)
   if (running) return running
 
   const job = (async () => {
     try {
-      const img = await loadImage(url)
-      const canvas = document.createElement('canvas')
-      canvas.width = SAMPLE
-      canvas.height = SAMPLE
-      const ctx = canvas.getContext('2d', { willReadFrequently: true })
-      if (!ctx) return HOUSE_LIGHTS
-      ctx.drawImage(img, 0, 0, SAMPLE, SAMPLE)
-      const { data } = ctx.getImageData(0, 0, SAMPLE, SAMPLE)
-      const palette = paletteFromPixels(data)
+      const data = await loadPixels(url)
+      if (!data) return null
+      const palette: ArtPalette = { ...paletteFromPixels(data), bands: bandsFromPixels(data) }
       remember(key, palette)
       return palette
     } catch {
-      // 跨域污染、404、解码失败：房间保持场灯
-      return HOUSE_LIGHTS
+      return null
     } finally {
       inflight.delete(key)
     }
   })()
   inflight.set(key, job)
   return job
+}
+
+/** 取一张封面的调色板；失败时返回场灯，永不抛错 */
+export async function getPalette(url: string | undefined): Promise<ArtPalette> {
+  if (!url) return HOUSE_LIGHTS
+  return (await readPalette(url)) ?? HOUSE_LIGHTS
+}
+
+/**
+ * 按顺序试一串候选地址（屏幕上那张封面可能来自钉住的图、服务器、第三方接口），
+ * 用第一张读得出像素的。全都读不出才是场灯，并记一条日志——
+ * 此前只试一个地址、失败了一声不吭，表现就是「底色永远是同一个绿」。
+ */
+export async function getPaletteOf(urls: readonly string[]): Promise<{ palette: ArtPalette; url: string | null }> {
+  for (const url of urls) {
+    const palette = await readPalette(url)
+    if (palette) return { palette, url }
+  }
+  if (urls.length) log.info('artLight', '封面读不出像素，底色退回场灯', urls.map(urlKind))
+  return { palette: HOUSE_LIGHTS, url: null }
 }
 
 /** 把调色板写进根元素：外壳里所有 --wash / --stage 都从这里派生 */

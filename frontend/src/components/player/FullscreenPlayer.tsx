@@ -10,14 +10,16 @@
  *   tv         电视模式（lib/tv）：左边大封面、右边歌词，底下一条进度和一排控制，焦点一开始就在播放键上；
  *              再往下是藏着的「接下来」那一排；八秒不按键控制淡出（components/tv/TvPlayerParts）
  *
- * 舞台：背景是 StageField（封面取色的光场，换歌时新颜色从封面向外漫开），永远是暗场、白字，
- * 与外壳的亮暗主题无关（.stage 在这一层重新声明了中性 token）。
+ * 舞台：背景是 StageField（封面取色的光场，换歌时新颜色从封面向外漫开），暗场、白字，
+ * 与外壳的亮暗主题无关（.stage 在这一层重新声明了中性 token）。只有沉浸样式例外，见下。
  * 封面区只放正在放的这一张（甩封面切歌）。挑下一首是另一件事：横过来就是卡片叠（接下来 / 推荐 / 专辑 / 歌单 / 收藏），
  * 竖着的正在播放不挂任何「去挑歌」的按钮。
  * 想要唱片感时用设置里的圆形封面（随播放慢慢转），不做拟物的 3D 黑胶。
  * 沉浸（设置里的第三种封面样式，参考 QQ 音乐）：封面不再是卡片而是画面本身（ImmersiveArt）——
  *   横屏贴左、高度等于整屏，右边是歌名和左对齐的歌词，底下整宽一条进度和控制；
- *   竖屏顶满屏宽、贴到最上面，看歌词时退成淡淡的底。色场抬亮一档（StageField tone="mid"）。
+ *   竖屏顶满屏宽、贴到最上面，看歌词时退成淡淡的底。
+ *   底色是封面上中下三段颜色连成的渐变（StageField tone="cover"，算法在 coverField.ts），
+ *   文字深浅跟着底色换（.stage-ink-dark / .stage-ink-light）；取不到封面颜色时退回亮一档的暗场（tone="mid"）。
  *   只在 stack / portrait / landscape 生效，而且要有封面：没有封面、或封面都加载失败，这首歌退回方形。
  *   选了沉浸，横屏卡片叠的「自动」让位给它（「总是」照旧是卡片叠）。
  * 开合：打开时舞台淡入、封面从迷你条的位置飞过来，其余内容错开升起；收起原路飞回（共享元素，FLIP）。
@@ -38,7 +40,7 @@ import {
   CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork, Moon,
   ListPlus, FileText, Queue,
 } from '@phosphor-icons/react'
-import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
+import { animate, motion, useMotionValue, useReducedMotion, type MotionStyle } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { usePlayerStore, type RepeatMode } from '@/store/playerStore'
@@ -56,6 +58,8 @@ import { useCoverUrl, usePinnedCover } from '@/hooks/useCoverUrl'
 import { LyricDisplay } from './LyricDisplay'
 import { UpNextList } from './UpNextList'
 import { StageField } from './StageField'
+import { coverField, rgbCss, type StageInk } from './coverField'
+import { useArtLightStore } from '@/store/artLightStore'
 import { CurrentCover } from './CurrentCover'
 import { ImmersiveArt, artKey } from './ImmersiveArt'
 import { CardStage, CardTabs, type CardTab } from './CardStage'
@@ -111,6 +115,13 @@ function useMedia(query: string) {
 const softBtnBase =
   'press-pop grid flex-none place-items-center rounded-pill text-ink-2 ' +
   'hover:bg-ink/10 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40'
+/**
+ * 全屏歌词的字号是设置值的几倍。手机一列窄，用 LyricDisplay 的默认 1.4；
+ * 平板和电脑的歌词栏宽，字大一档、一屏少放几行，当前行才压得住场（沉浸横屏那一栏最宽，再大一点）。
+ */
+const LYRIC_SCALE_WIDE = 1.6
+const LYRIC_SCALE_SIDE = 1.75
+
 /** 开关类按下是青柠；收藏按下只是亮白（叶绿 / 青柠只给播放、进度和「当前」） */
 const softBtn = `${softBtnBase} aria-pressed:text-leaf`
 
@@ -397,6 +408,26 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   }, [])
   const immersive = wantsImmersive && hasArt && !!currentSong && !failedArt.has(artKey(currentSong))
     && (layout === 'stack' || layout === 'portrait' || layout === 'landscape')
+  /* 沉浸的底色：封面上中下三段颜色连成的渐变（coverField）。这首的封面取不到颜色时是 null，退回原来的中间档。
+     文字深浅跟着底色定；换歌时晚 0.4 秒再换——新颜色是从封面那里漫开的，字先变会有一瞬压在旧底色上 */
+  const artPalette = useArtLightStore(s => s.palette)
+  const cover = useMemo(
+    () => (immersive ? coverField(artPalette, layout === 'landscape' ? 'side' : 'top') : null),
+    [immersive, artPalette, layout],
+  )
+  const inkTarget = `${cover?.ink ?? 'light'}:${cover?.footInk ?? 'light'}`
+  const [inkPair, setInkPair] = useState(inkTarget)
+  useEffect(() => {
+    if (prefersReducedMotion()) {
+      setInkPair(inkTarget)
+      return
+    }
+    const id = window.setTimeout(() => setInkPair(inkTarget), 400)
+    return () => window.clearTimeout(id)
+  }, [inkTarget])
+  const [ink, footInk] = inkPair.split(':') as [StageInk, StageInk]
+  /** 底下进度与控制那一带自己的文字深浅：封面上浅下深（或反过来）时和上面不一样 */
+  const footInkClass = cover ? (footInk === 'dark' ? 'stage-ink-dark' : 'stage-ink-light') : undefined
   const toggleStar = useToggleStar()
   const caps = useSourceCapabilities()
   const canFavoriteCurrent = sourceSupportsFavorites(caps, currentSong?.serverId)
@@ -885,7 +916,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const pane = (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-fs-reveal="">
       {viewTabs(['lyrics', 'queue'], 'pane')}
-      {paneView === 'queue' ? queueList : lyricsSheet('flex-1')}
+      {paneView === 'queue' ? queueList : lyricsSheet('flex-1', LYRIC_SCALE_WIDE)}
     </div>
   )
 
@@ -965,7 +996,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
 
   const header = (
     <header
-      className="relative z-10 flex flex-none items-center gap-2 px-4 pb-2 regular:px-6"
+      className={cn('relative z-10 flex flex-none items-center gap-2 px-4 pb-2 regular:px-6', cover && 'stage-ink-light')}
       style={{ paddingTop: needsTrafficLightInset ? 40 : 'calc(env(safe-area-inset-top) + 10px)' }}
       data-fs-reveal=""
       {...dragHandlers}
@@ -1035,12 +1066,12 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
                 </div>
                 {songActions}
               </div>
-              {mobileView === 'queue' ? queueList : lyricsSheet('flex-1')}
+              {mobileView === 'queue' ? queueList : lyricsSheet('flex-1', tall ? LYRIC_SCALE_WIDE : undefined)}
             </div>
           )}
         </div>
-        {mobileView === 'cover' && <div className={cn('flex-none', tall ? 'pt-8' : 'pt-5')}>{titleBlock(tall ? 'lg' : 'md')}</div>}
-        <div className={cn('flex flex-none flex-col pt-6', tall ? 'gap-5' : 'gap-4')} data-fs-reveal="">
+        {mobileView === 'cover' && <div className={cn('flex-none', tall ? 'pt-8' : 'pt-5', footInkClass)}>{titleBlock(tall ? 'lg' : 'md')}</div>}
+        <div className={cn('flex flex-none flex-col pt-6', tall ? 'gap-5' : 'gap-4', footInkClass)} data-fs-reveal="">
           <FSProgressBar />
           {tall && quality}
           {transport(false)}
@@ -1094,11 +1125,11 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
           <div className={cn('flex min-h-0 min-w-0 max-w-[760px] flex-1 flex-col pr-10 wide:pr-16', short ? 'gap-1' : 'gap-5')}>
             {titleBlock(short ? 'md' : wc === 'wide' ? 'xl' : 'lg')}
             <div className="flex min-h-0 flex-1 flex-col" data-fs-reveal="">
-              {paneView === 'queue' ? queueList : lyricsSheet('flex-1', short ? 1.1 : undefined)}
+              {paneView === 'queue' ? queueList : lyricsSheet('flex-1', short ? 1.1 : LYRIC_SCALE_SIDE)}
             </div>
           </div>
         </div>
-        <div className={cn('flex flex-none flex-col px-10 wide:px-16', short ? 'pt-1' : 'gap-1 pt-3')} data-fs-reveal="">
+        <div className={cn('flex flex-none flex-col px-10 wide:px-16', short ? 'pt-1' : 'gap-1 pt-3', footInkClass)} data-fs-reveal="">
           <FSProgressBar />
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,440px)_minmax(0,1fr)] items-center gap-4">
             <p className="flex min-w-0 gap-3 truncate text-[12.5px] font-medium text-ink-3">
@@ -1341,36 +1372,59 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
           <ImmersiveArt song={currentSong} placement={side ? 'side' : 'top'} dim={artDim} onFailed={handleArtFailed} />
         </div>
       </div>
-      {/* 右栏底下压一层色场的底色：歌词那一侧不管封面多亮都读得清 */}
-      {side && (
+      {/* 右栏底下压一层色场的底色：歌词那一侧不管封面多亮都读得清。
+          封面色场：压的是同一条竖向渐变（每一行都和背后的底色同色），压到封面右缘最浓、过了右缘再慢慢退掉，不留竖着的硬边 */}
+      {side && (cover ? (
+        <div
+          aria-hidden="true"
+          className="stage-cover-wash pointer-events-none absolute inset-y-0 left-0"
+          style={{
+            width: 'calc(var(--imm-art) * 1.3)',
+            WebkitMaskImage: 'linear-gradient(90deg, transparent calc(var(--imm-art) * 0.8), rgb(0 0 0 / 0.84) var(--imm-art), transparent calc(var(--imm-art) * 1.3))',
+            maskImage: 'linear-gradient(90deg, transparent calc(var(--imm-art) * 0.8), rgb(0 0 0 / 0.84) var(--imm-art), transparent calc(var(--imm-art) * 1.3))',
+          }}
+        />
+      ) : (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
           style={{ background: 'linear-gradient(90deg, transparent calc(var(--imm-art) * 0.8), oklch(var(--stage-mid) / 0.84) var(--imm-art))' }}
         />
-      )}
-      {/* 竖屏看歌词 / 接下来：淡下去的封面上再罩一层底色，白字不靠封面的颜色 */}
+      ))}
+      {/* 竖屏看歌词 / 接下来：淡下去的封面上再罩一层底色，文字不靠封面的颜色 */}
       {!side && (
         <div
           aria-hidden="true"
-          className={cn('pointer-events-none absolute inset-0 bg-stage-mid/70 transition-opacity duration-5 ease-smooth', artDim ? 'opacity-100' : 'opacity-0')}
+          className={cn(
+            'pointer-events-none absolute inset-0 transition-opacity duration-5 ease-smooth',
+            cover ? 'stage-cover-wash' : 'bg-stage-mid',
+            artDim ? 'opacity-70' : 'opacity-0',
+          )}
         />
       )}
-      {/* 顶栏的圆钮压在封面上：上沿压暗一档 */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-stage-deep/40 to-stage-deep/0" />
+      {/* 顶栏的圆钮压在封面上：上沿压暗一档。横屏的封面色场不压——圆钮自己垫着底，压了反而把封面顶上和右栏的歌名一起弄脏 */}
+      {!(side && cover) && (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-stage-deep/40 to-stage-deep/0" />
+      )}
     </>
   )
 
   return (
     <motion.div
       ref={rootRef}
-      className={cn('stage fixed inset-0 z-50 flex flex-col overflow-hidden', immersive && 'stage-mid')}
-      style={{ y: dragY }}
+      className={cn(
+        'stage fixed inset-0 z-50 flex flex-col overflow-hidden',
+        immersive && (cover ? 'stage-cover' : 'stage-mid'),
+        cover && ink === 'dark' && 'stage-ink-dark',
+      )}
+      style={cover
+        ? ({ y: dragY, '--cover-top': rgbCss(cover.bases[0]), '--cover-mid': rgbCss(cover.bases[1]), '--cover-bot': rgbCss(cover.bases[2]) } as MotionStyle)
+        : { y: dragY }}
       data-immersive={immersive ? (side ? 'side' : 'top') : undefined}
     >
       {/* 背景单独一层：开合时只有它淡入淡出，封面和文字各走各的 */}
       <div ref={bgRef} className="pointer-events-none absolute inset-0">
-        <StageField originRef={coverBoxRef} active={settled} tone={immersive ? 'mid' : 'deep'} />
+        <StageField originRef={coverBoxRef} active={settled} tone={immersive ? 'cover' : 'deep'} placement={side ? 'side' : 'top'} />
       </div>
 
       {/* 正在播放这一层；转屏换排法（或这首没有封面、沉浸退回方形）时淡进来（打开那一下由开场动画管）。

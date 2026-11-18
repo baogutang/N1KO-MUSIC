@@ -1,0 +1,1140 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>沉浸播放页 Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geologica:wght@400;500;600;700&display=swap">
+<style>
+/* 布局：上面一条选项栏（demo 自己的外壳），下面是播放页舞台。
+   舞台按容器尺寸排：横屏封面贴左上、歌词在右；竖屏封面退成一层底，歌词铺满。
+   只有一种外观（暗的选项栏 + 舞台），不分亮暗主题。 */
+:root {
+  color-scheme: dark;
+  /* demo 外壳 */
+  --chrome-bg: oklch(19% 0.012 150);
+  --chrome-fg: oklch(93% 0.01 150);
+  --chrome-muted: oklch(72% 0.015 150);
+  --chrome-rule: oklch(31% 0.014 150);
+  --chrome-chip: oklch(27% 0.014 150);
+  --chrome-chip-on: oklch(93% 0.01 150);
+  --chrome-chip-on-ink: oklch(19% 0.012 150);
+  --focus: oklch(80% 0.14 230);
+  /* 播放页的 token，取自 App（v6 舞台光） */
+  --accent: oklch(89.5% 0.2 127);
+  --on-accent: oklch(22% 0.05 127);
+  --ink-light: oklch(97% 0.006 127);
+  --ink-dark: oklch(21% 0.02 100);
+  --stage-deep: oklch(14% 0.02 127);
+  --shade: oklch(14% 0.02 127 / 0.3);
+  --shade-strong: oklch(14% 0.02 127 / 0.45);
+  --shade-none: oklch(14% 0.02 127 / 0);
+  --chip-on-dark: oklch(14% 0.02 127 / 0.3);
+  --chip-on-light: oklch(97% 0.006 127 / 0.5);
+  --font-display: 'Geologica', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* ---------- 选项栏 ---------- */
+.panel {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  padding-block: 8px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--chrome-rule);
+  font-size: 12.5px;
+}
+.group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.label { color: var(--chrome-muted); font-weight: 600; letter-spacing: 0.04em; white-space: nowrap; }
+.seg { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: 9px; background: var(--chrome-chip); }
+.seg button {
+  border: 0; border-radius: 7px; padding: 5px 10px;
+  background: none; font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+.seg button[aria-checked="true"] { background: var(--chrome-chip-on); color: var(--chrome-chip-on-ink); }
+.covers { display: flex; gap: 6px; }
+.covers button {
+  width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px;
+  background-color: var(--chrome-chip); background-size: cover; background-position: center; cursor: pointer;
+}
+.covers button[aria-checked="true"] { outline: 2px solid var(--chrome-fg); outline-offset: 2px; }
+.pick, .plain {
+  position: relative; border: 0; border-radius: 7px; padding: 6px 10px;
+  background: var(--chrome-chip); font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+.pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.pick:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.hide { margin-left: auto; }
+.note { flex-basis: 100%; margin: 0; color: var(--chrome-muted); font-size: 12px; line-height: 1.55; }
+.show {
+  position: fixed; z-index: 5; left: 50%; translate: -50% 0;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  border: 0; border-radius: 999px; padding: 6px 14px;
+  background: var(--chrome-bg); color: var(--chrome-fg); font-size: 12.5px; font-weight: 500; cursor: pointer;
+}
+
+/* ---------- 舞台 ---------- */
+.stage {
+  position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden;
+  container-type: size;
+  background: var(--stage-deep);
+  --ink: var(--ink-light);
+  --ink-inverse: var(--ink-dark);
+  --chip-bg: var(--chip-on-dark);
+  --ctl: var(--accent);
+  --on-ctl: var(--on-accent);
+  --imm-art: min(100cqh - 9rem, 62cqw);
+  --pad: clamp(20px, 4cqw, 64px);
+  --f-top: var(--stage-deep); --f-mid: var(--stage-deep); --f-bot: var(--stage-deep);
+  --ly-base: clamp(17px, 2.35cqh, 26px);
+  --ly-size: var(--ly-base);
+  --ly-gap: 0.55em;
+  --ly-lh: 1.28;
+  --ly-next: 0.66;
+  --ly-past: 0.54;
+  color: var(--ink);
+}
+.stage[data-ink="dark"] { --ink: var(--ink-dark); --ink-inverse: var(--ink-light); --chip-bg: var(--chip-on-light); }
+.stage[data-ctl="mono"] { --ctl: var(--ink); --on-ctl: var(--ink-inverse); }
+.stage:not([data-ly="now"]) {
+  --ly-size: calc(var(--ly-base) * 1.25);
+  --ly-gap: 0.62em;
+  --ly-lh: 1.3;
+  --ly-next: 0.2;
+  --ly-past: 0.16;
+}
+
+.field, .field-css, .field canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.field-css { background: linear-gradient(180deg, var(--f-top), var(--f-mid), var(--f-bot)); }
+.field canvas { opacity: 0; transition: opacity 0.5s var(--ease-out); }
+.field canvas.on { opacity: 1; }
+.shade { position: absolute; left: 0; right: 0; pointer-events: none; transition: opacity 0.5s var(--ease-out); }
+.shade-top { top: 0; height: 12rem; background: linear-gradient(180deg, var(--shade), var(--shade-none)); }
+.shade-bottom { bottom: 0; height: 40%; background: linear-gradient(0deg, var(--shade-strong), var(--shade-none)); }
+.stage[data-bg="qq"] .shade { opacity: 0; }
+
+.art {
+  position: absolute; left: 0; top: 0; width: var(--imm-art); height: var(--imm-art);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 76%, transparent 100%), linear-gradient(180deg, #000 0%, #000 80%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, #000 0%, #000 76%, transparent 100%), linear-gradient(180deg, #000 0%, #000 80%, transparent 100%);
+  mask-composite: intersect;
+}
+.art img {
+  position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover;
+  opacity: 0; transform: scale(1.06); transform-origin: 30% 40%;
+  transition: opacity 0.8s ease-out, transform 1.4s cubic-bezier(0.2, 0.7, 0.2, 1);
+  pointer-events: none;
+}
+.art img.on { opacity: 1; transform: none; }
+/* 封面右缘那一条再压一层色场的颜色：歌名、歌词左缘压在封面的渐隐区上也读得清 */
+.art-scrim {
+  position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--imm-art) * 1.3); pointer-events: none;
+  background: linear-gradient(180deg, var(--f-top), var(--f-mid), var(--f-bot));
+  /* 压到封面右缘最浓，过了右缘再慢慢退掉：不留一道竖着的硬边 */
+  -webkit-mask-image: linear-gradient(90deg, transparent calc(var(--imm-art) * 0.8), rgb(0 0 0 / 0.84) var(--imm-art), transparent calc(var(--imm-art) * 1.3));
+  mask-image: linear-gradient(90deg, transparent calc(var(--imm-art) * 0.8), rgb(0 0 0 / 0.84) var(--imm-art), transparent calc(var(--imm-art) * 1.3));
+}
+
+.chip {
+  position: absolute; top: 18px; width: 40px; height: 40px; border: 0; border-radius: 50%;
+  display: grid; place-items: center; background: var(--chip-bg); color: var(--ink); cursor: pointer;
+}
+.chip-back { left: max(18px, env(safe-area-inset-left, 0px)); }
+.chip-more { right: max(18px, env(safe-area-inset-right, 0px)); }
+svg.i { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+svg.i .f { fill: currentColor; stroke: none; }
+
+.col {
+  position: absolute; top: 0; bottom: 9rem; right: 0; left: calc(var(--imm-art) * 0.94);
+  display: flex; flex-direction: column; min-width: 0;
+  padding-top: clamp(3.4rem, 9cqh, 5.4rem);
+  padding-right: max(var(--pad), env(safe-area-inset-right, 0px));
+}
+.head { flex: none; display: flex; align-items: flex-start; gap: 12px; }
+.titles { flex: 1; min-width: 0; }
+.titles h1 {
+  margin: 0; font: 600 clamp(26px, 3.9cqh, 40px)/1.08 var(--font-display); letter-spacing: -0.03em;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-wrap: balance;
+}
+.by { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 16px; font-weight: 500; opacity: 0.88; }
+.by span { min-width: 0; overflow-wrap: anywhere; }
+.head-actions { flex: none; display: flex; gap: 2px; margin-top: 2px; }
+.icon {
+  width: 40px; height: 40px; border: 0; border-radius: 50%; padding: 0;
+  display: grid; place-items: center; background: none; color: var(--ink); opacity: 0.92; cursor: pointer;
+}
+
+.lyrics {
+  position: relative; flex: 1; min-height: 0; margin-top: 14px;
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 6%, #000 74%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 6%, #000 74%, transparent);
+}
+.lyrics::-webkit-scrollbar { display: none; }
+.stage[data-ly="now"] .lyrics { scroll-behavior: smooth; }
+.lines {
+  display: flex; flex-direction: column; gap: var(--ly-gap);
+  padding: 7cqh 8px 62cqh 2px; font-size: var(--ly-size);
+}
+.line {
+  margin: 0; font: 700 1em/var(--ly-lh) var(--font-display); letter-spacing: -0.02em;
+  transform-origin: left center; scale: 0.97; opacity: var(--ly-next);
+  transition: opacity 0.5s var(--ease-out), scale 0.5s var(--ease-out);
+  cursor: pointer; -webkit-user-select: none; user-select: none; text-wrap: pretty;
+}
+.line.past { opacity: var(--ly-past); }
+.line.active { opacity: 1; scale: 1; }
+
+/* 逐字：每个字（词）叠两层，亮的那层由一个遮罩从左往右揭开。
+   遮罩往右走、里面的字往左抵回去，两个都只动 transform，不触发重绘 */
+.w { position: relative; display: inline-block; white-space: pre; }
+.w-dim { transition: opacity 0.3s var(--ease-out); }
+.w-clip { position: absolute; inset: 0; overflow: hidden; transform: translateX(-101%); pointer-events: none; display: none; }
+.w-lit { display: block; transform: translateX(101%); }
+.stage[data-ly="word"] .w-clip { display: block; }
+.stage[data-ly="word"] .line.active .w-dim { opacity: 0.5; }
+
+/* 间奏：三个呼吸的点（只在新滚动里出现） */
+.line.gap { display: flex; align-items: center; gap: 0.42em; height: 1.3em; cursor: default; }
+.line.gap i { width: 0.4em; height: 0.4em; border-radius: 50%; background: currentColor; opacity: 0.5; }
+.line.gap.active i { animation: dot 1.4s var(--ease-in-out) infinite alternate; }
+.line.gap.active i:nth-child(2) { animation-delay: 0.22s; }
+.line.gap.active i:nth-child(3) { animation-delay: 0.44s; }
+.stage[data-ly="now"] .line.gap { display: none; }
+@keyframes dot { from { opacity: 0.35; transform: scale(0.82); } to { opacity: 1; transform: scale(1); } }
+
+.foot {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 9rem;
+  display: flex; flex-direction: column;
+  padding-left: max(var(--pad), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--pad), env(safe-area-inset-right, 0px));
+}
+.bar { position: relative; height: 22px; cursor: pointer; touch-action: none; }
+.bar-track {
+  position: absolute; left: 0; right: 0; top: 9px; height: 4px; border-radius: 2px; overflow: hidden;
+  background: color-mix(in oklch, var(--ink) 24%, transparent);
+}
+.bar-fill { position: absolute; inset: 0; background: var(--ctl); transform-origin: left center; transform: scaleX(0); }
+.bar-knob { position: absolute; left: -7px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); }
+.times { display: flex; justify-content: space-between; margin-top: 2px; font-size: 12px; font-variant-numeric: tabular-nums; opacity: 0.8; }
+.ctl { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; margin-top: 4px; }
+.spec { margin: 0; font-size: 12.5px; font-weight: 500; opacity: 0.74; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.transport { display: flex; align-items: center; gap: clamp(10px, 2.6cqw, 34px); }
+.side { display: flex; justify-content: flex-end; gap: 4px; }
+.skip svg.i { width: 30px; height: 30px; }
+.play {
+  width: 64px; height: 64px; border: 0; border-radius: 50%; padding: 0;
+  display: grid; place-items: center; background: var(--ctl); color: var(--on-ctl); cursor: pointer;
+  transition: transform 0.16s var(--ease-out);
+}
+.play:active { transform: scale(0.97); }
+.play svg.i { width: 30px; height: 30px; }
+
+.drop {
+  position: absolute; inset: 12px; z-index: 4; display: grid; place-items: center; pointer-events: none;
+  border: 2px dashed var(--ink); border-radius: 18px; background: color-mix(in oklch, var(--stage-deep) 70%, transparent);
+  font: 600 20px var(--font-display); color: var(--ink-light);
+}
+
+/* 竖屏 / 窄窗口：封面退成一层淡淡的底，歌词铺满宽度 */
+@container (max-aspect-ratio: 1/1) {
+  .art {
+    left: 50%; translate: -50% 0; width: min(100cqw, 70cqh); height: min(100cqw, 70cqh); opacity: 0.34;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 100%); -webkit-mask-composite: source-over;
+    mask-image: linear-gradient(180deg, #000 0%, transparent 100%); mask-composite: add;
+  }
+  .art-scrim { display: none; }
+  .col { left: 0; padding-top: 4.4rem; padding-left: max(var(--pad), env(safe-area-inset-left, 0px)); }
+  .ctl { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .spec, .side { display: none; }
+}
+
+/* 手机宽度：说明文字太占地方，收掉，把高度留给舞台 */
+@media (max-width: 600px) {
+  .note { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art img { transform: none; transition: opacity 0.3s ease; }
+  .line { scale: 1; transition: opacity 0.2s ease; }
+  .line.gap.active i { animation: none; opacity: 0.9; }
+  .play { transition: none; }
+}
+</style>
+
+<div id="app">
+  <header class="panel" id="panel">
+    <div class="group">
+      <span class="label">封面</span>
+      <div class="covers" id="covers" role="radiogroup" aria-label="封面"></div>
+      <label class="pick">自选图片<input id="file" type="file" accept="image/*"></label>
+    </div>
+    <div class="group">
+      <span class="label">底色</span>
+      <div class="seg" id="seg-bg" role="radiogroup" aria-label="底色">
+        <button type="button" role="radio" data-v="now">现在</button>
+        <button type="button" role="radio" data-v="fixed">只修取色</button>
+        <button type="button" role="radio" data-v="qq">QQ 式</button>
+        <button type="button" role="radio" data-v="dusk">暗场渐变</button>
+      </div>
+    </div>
+    <div class="group">
+      <span class="label">歌词</span>
+      <div class="seg" id="seg-ly" role="radiogroup" aria-label="歌词">
+        <button type="button" role="radio" data-v="now">现在</button>
+        <button type="button" role="radio" data-v="flow">新滚动</button>
+        <button type="button" role="radio" data-v="word">新滚动 + 逐字</button>
+      </div>
+    </div>
+    <div class="group">
+      <span class="label">控件</span>
+      <div class="seg" id="seg-ctl" role="radiogroup" aria-label="控件配色">
+        <button type="button" role="radio" data-v="lime">青柠</button>
+        <button type="button" role="radio" data-v="mono">单色</button>
+      </div>
+    </div>
+    <button type="button" class="plain hide" id="hide">收起这栏</button>
+    <p class="note" id="note"></p>
+  </header>
+  <button type="button" class="show" id="show" hidden>显示选项</button>
+
+  <main class="stage" id="stage" data-bg="qq" data-ly="word" data-ctl="lime" data-ink="light">
+    <div class="field" aria-hidden="true">
+      <div class="field-css"></div>
+      <canvas id="field"></canvas>
+      <div class="shade shade-top"></div>
+      <div class="shade shade-bottom"></div>
+    </div>
+    <div class="art" id="art" aria-hidden="true"></div>
+    <div class="art-scrim" aria-hidden="true"></div>
+
+    <button type="button" class="chip chip-back" aria-label="收起播放页"><svg class="i" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></svg></button>
+    <button type="button" class="chip chip-more" aria-label="更多"><svg class="i" viewBox="0 0 24 24"><circle class="f" cx="5.5" cy="12" r="1.6"/><circle class="f" cx="12" cy="12" r="1.6"/><circle class="f" cx="18.5" cy="12" r="1.6"/></svg></button>
+
+    <section class="col">
+      <div class="head">
+        <div class="titles">
+          <h1 id="title"></h1>
+          <p class="by"><span id="artist"></span><span id="album"></span></p>
+        </div>
+        <div class="head-actions">
+          <button type="button" class="icon" aria-label="加入歌单"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h12M4 12h8M4 17h8M18 14v6M15 17h6"/></svg></button>
+          <button type="button" class="icon" aria-label="收藏"><svg class="i" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg></button>
+        </div>
+      </div>
+      <div class="lyrics" id="lyrics" tabindex="0" aria-label="歌词"><div class="lines" id="lines"></div></div>
+    </section>
+
+    <footer class="foot">
+      <div class="bar" id="bar" role="slider" tabindex="0" aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+        <div class="bar-knob" id="barKnob"></div>
+      </div>
+      <div class="times"><span id="tCur">0:00</span><span id="tLeft">-0:00</span></div>
+      <div class="ctl">
+        <p class="spec">FLAC · 5892 kbps</p>
+        <div class="transport">
+          <button type="button" class="icon" aria-label="播放顺序"><svg class="i" viewBox="0 0 24 24"><path d="M8 4.5V19m0 0l-3.2-3.2M8 19l3.2-3.2M16 19.5V5m0 0l-3.2 3.2M16 5l3.2 3.2"/></svg></button>
+          <button type="button" class="icon skip" id="prev" aria-label="上一首"><svg class="i" viewBox="0 0 24 24"><path class="f" d="M18.5 5.2v13.6a.8.8 0 0 1-1.24.67L8 13.4v5.1a1 1 0 0 1-2 0v-13a1 1 0 0 1 2 0v5.1l9.26-6.07a.8.8 0 0 1 1.24.67z"/></svg></button>
+          <button type="button" class="play" id="play" aria-label="暂停"></button>
+          <button type="button" class="icon skip" id="next" aria-label="下一首"><svg class="i" viewBox="0 0 24 24"><g transform="translate(24 0) scale(-1 1)"><path class="f" d="M18.5 5.2v13.6a.8.8 0 0 1-1.24.67L8 13.4v5.1a1 1 0 0 1-2 0v-13a1 1 0 0 1 2 0v5.1l9.26-6.07a.8.8 0 0 1 1.24.67z"/></g></svg></button>
+          <button type="button" class="icon" aria-label="循环"><svg class="i" viewBox="0 0 24 24"><path d="M17 3.5l3 3-3 3M4 11.5v-1a4 4 0 0 1 4-4h12M7 20.5l-3-3 3-3M20 12.5v1a4 4 0 0 1-4 4H4"/></svg></button>
+        </div>
+        <div class="side">
+          <button type="button" class="icon" aria-label="音量"><svg class="i" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 3.8V5.7L7.5 9.5H4zM16 9a4.2 4.2 0 0 1 0 6"/></svg></button>
+          <button type="button" class="icon" aria-label="播放队列"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h14M4 12h9M4 17h7M16 14.2v5.6l4.6-2.8-4.6-2.8z"/></svg></button>
+          <button type="button" class="icon" aria-label="睡眠定时"><svg class="i" viewBox="0 0 24 24"><path d="M19.5 14.2A7.8 7.8 0 0 1 9.8 4.5a7.8 7.8 0 1 0 9.7 9.7z"/></svg></button>
+        </div>
+      </div>
+    </footer>
+    <div class="drop" id="drop" hidden>松手换成这张封面</div>
+  </main>
+</div>
+
+<script>
+(() => {
+  'use strict'
+  const $ = id => document.getElementById(id)
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
+  const reduceQuery = matchMedia('(prefers-reduced-motion: reduce)')
+  const reduced = () => reduceQuery.matches
+
+  const stage = $('stage')
+  const state = { cover: 0, bg: 'qq', ly: 'word', ctl: 'lime', playing: !reduced(), pos: 0 }
+
+  /* ============ 颜色：OKLCH，和 App 的 lib/oklch 同一套公式 ============ */
+  const toLinear = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+  const toGamma = v => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055)
+  function rgbToOklab(r, g, b) {
+    const R = toLinear(r), G = toLinear(g), B = toLinear(b)
+    const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B)
+    const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B)
+    const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B)
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ]
+  }
+  const labToLch = ([L, a, b]) => {
+    let H = (Math.atan2(b, a) * 180) / Math.PI
+    if (H < 0) H += 360
+    return { L, C: Math.hypot(a, b), H }
+  }
+  /** → sRGB（已加伽马）0–1 */
+  function oklchToRgb(L, C, H) {
+    const h = (H * Math.PI) / 180
+    const a = C * Math.cos(h), b = C * Math.sin(h)
+    const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+    return [
+      4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+      -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+      -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+    ].map(v => clamp(toGamma(Math.max(0, v)), 0, 1))
+  }
+  const hueDistance = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d }
+  const css = rgb => `rgb(${rgb.map(v => Math.round(v * 255)).join(' ')})`
+
+  /* 「现在」的取色：照搬 services/artLight.ts 的 paletteFromPixels（只取色相，按饱和与居中亮度加权） */
+  const HOUSE = { h: 127, c: 0.12, l: 0.62, h2: 158, c2: 0.08, swatches: [{ l: 0.62, c: 0.12, h: 127 }, { l: 0.5, c: 0.08, h: 158 }], neutral: false }
+  function paletteFromPixels(data) {
+    const BINS = 24
+    const weight = new Float64Array(BINS), sumL = new Float64Array(BINS), sumC = new Float64Array(BINS)
+    const sumX = new Float64Array(BINS), sumY = new Float64Array(BINS)
+    let vivid = 0, counted = 0
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 128) continue
+      counted++
+      const { L, C, H } = labToLch(rgbToOklab(data[i], data[i + 1], data[i + 2]))
+      if (C < 0.025) continue
+      const mid = Math.max(0.12, 1 - Math.abs(L - 0.62) * 1.4)
+      const w = Math.pow(C, 1.4) * mid
+      const bin = Math.floor(H / (360 / BINS)) % BINS
+      weight[bin] += w; sumL[bin] += L * w; sumC[bin] += C * w
+      const rad = (H * Math.PI) / 180
+      sumX[bin] += Math.cos(rad) * w; sumY[bin] += Math.sin(rad) * w
+      vivid += w
+    }
+    if (counted === 0 || vivid < counted * 0.0015) return { ...HOUSE, c: 0.012, c2: 0.01, neutral: true }
+    const smooth = new Float64Array(BINS)
+    for (let b = 0; b < BINS; b++) smooth[b] = weight[b] * 2 + weight[(b + BINS - 1) % BINS] + weight[(b + 1) % BINS]
+    const binColor = b => {
+      const w = weight[b] || 1e-9
+      let h = (Math.atan2(sumY[b], sumX[b]) * 180) / Math.PI
+      if (h < 0) h += 360
+      return { l: sumL[b] / w, c: sumC[b] / w, h }
+    }
+    const order = [...smooth.keys()].sort((a, b) => smooth[b] - smooth[a])
+    const swatches = []
+    for (const b of order) {
+      if (weight[b] <= 0) continue
+      const sw = binColor(b)
+      if (swatches.every(s => hueDistance(s.h, sw.h) >= 30)) swatches.push(sw)
+      if (swatches.length === 4) break
+    }
+    const smoothOf = s => smooth[Math.floor(s.h / (360 / BINS)) % BINS]
+    const main = swatches[0]
+    const second = swatches.find(s => hueDistance(s.h, main.h) >= 40 && smoothOf(s) >= smooth[order[0]] * 0.12)
+    const c = clamp(main.c, 0.03, 0.2)
+    return {
+      h: main.h, c, l: main.l,
+      h2: second ? second.h : (main.h + 38) % 360,
+      c2: second ? clamp(second.c, 0.03, 0.18) : c * 0.7,
+      swatches, neutral: false,
+    }
+  }
+
+  /* 新取法：封面上、中、下三段各取平均色（右半边权重加倍，横屏时封面右缘要融进背景） */
+  const SAMPLE = 48
+  function bandsFromPixels(data) {
+    const out = []
+    for (let k = 0; k < 3; k++) {
+      const acc = [0, 0, 0]
+      let w = 0
+      for (let y = (SAMPLE / 3) * k; y < (SAMPLE / 3) * (k + 1); y++) {
+        for (let x = 0; x < SAMPLE; x++) {
+          const i = (y * SAMPLE + x) * 4
+          const g = x >= SAMPLE / 2 ? 2 : 1
+          const lab = rgbToOklab(data[i], data[i + 1], data[i + 2])
+          acc[0] += lab[0] * g; acc[1] += lab[1] * g; acc[2] += lab[2] * g
+          w += g
+        }
+      }
+      out.push(labToLch(acc.map(v => v / w)))
+    }
+    return out
+  }
+  function analyze(source) {
+    const c = document.createElement('canvas')
+    c.width = SAMPLE; c.height = SAMPLE
+    const ctx = c.getContext('2d', { willReadFrequently: true })
+    ctx.drawImage(source, 0, 0, SAMPLE, SAMPLE)
+    const { data } = ctx.getImageData(0, 0, SAMPLE, SAMPLE)
+    return { palette: paletteFromPixels(data), bands: bandsFromPixels(data) }
+  }
+
+  /* 四种底色 → 光场的参数：上 / 中 / 下三个底色 + 四盏光，外加文字用深色还是浅色 */
+  function lightsOf(p, gains, lo, hi) {
+    const lights = [...p.swatches]
+    while (lights.length < 4) {
+      const k = lights.length
+      lights.push(k % 2 ? { l: 0.58, c: p.c * 0.9, h: (p.h + 18) % 360 } : { l: 0.44, c: p.c2 * 0.9, h: (p.h2 + 360 - 14) % 360 })
+    }
+    return lights.slice(0, 4).map((sw, i) => oklchToRgb(clamp(sw.l, lo, hi), Math.min(0.19, sw.c * 1.2), sw.h).map(v => v * gains[i]))
+  }
+  function fieldFor(variant, an) {
+    const u = new Float32Array(21)
+    let tone = 1, ink = 'light', bases
+    if (variant === 'now' || variant === 'fixed') {
+      // App 现在的公式（StageField 的 mid 档）：底色亮度锁 0.40、饱和封顶 0.06，只有色相跟封面
+      const p = variant === 'now' ? HOUSE : an.palette
+      const base = oklchToRgb(0.4, Math.min(p.c * 0.5, 0.06), p.h)
+      bases = [base, base, base]
+      lightsOf(p, [0.6, 0.48, 0.4, 0.34], 0.5, 0.64).forEach((rgb, i) => u.set(rgb, 9 + i * 3))
+    } else if (variant === 'qq') {
+      // 保留真实明暗：亮度只略压一点（对着 QQ 截图的实测值校过），不加游走的光
+      tone = 0
+      const lch = an.bands.map(b => ({ L: clamp(b.L * 0.92, 0.2, 0.8), C: Math.min(b.C * 1.1, 0.12), H: b.H }))
+      bases = lch.map(b => oklchToRgb(b.L, b.C, b.H))
+      if ((lch[0].L + lch[1].L) / 2 >= 0.56) ink = 'dark'
+    } else {
+      // 暗场渐变：同样的三段颜色，亮度压进 0.29–0.47（白字始终 4.5:1 以上），光保留但收一半
+      bases = an.bands.map(b => oklchToRgb(clamp(0.25 + b.L * 0.27, 0.29, 0.47), Math.min(b.C * 1.3, 0.1), b.H))
+      lightsOf(an.palette, [0.3, 0.24, 0.2, 0.16], 0.5, 0.64).forEach((rgb, i) => u.set(rgb, 9 + i * 3))
+    }
+    bases.forEach((rgb, i) => u.set(rgb, i * 3))
+    const map = v => (tone ? v / (1 + v * 0.4) : v)
+    return { u, tone, ink, css: bases.map(rgb => css(rgb.map(map))) }
+  }
+
+  /* ============ 光场：App 的 StageField 着色器，底色从一个颜色改成上中下三段 ============ */
+  const Field = (() => {
+    const canvas = $('field')
+    const VERT = 'attribute vec2 aPos; varying vec2 vUv; void main(){ vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }'
+    const FRAG = `
+precision mediump float;
+uniform vec2 uRes; uniform float uTime;
+uniform vec3 uA[7]; uniform vec3 uB[7];
+uniform float uToneA; uniform float uToneB;
+uniform float uReveal; uniform vec2 uOrigin;
+varying vec2 vUv;
+vec3 lights(vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec2 uv, float t, float aspect) {
+  vec2 p = vec2(uv.x * aspect, uv.y);
+  vec2 p0 = vec2(aspect * (0.22 + 0.10 * sin(t * 0.21)), 0.80 + 0.08 * cos(t * 0.17));
+  vec2 p1 = vec2(aspect * (0.82 + 0.09 * cos(t * 0.19)), 0.72 + 0.10 * sin(t * 0.23));
+  vec2 p2 = vec2(aspect * (0.30 + 0.12 * cos(t * 0.13)), 0.16 + 0.09 * sin(t * 0.29));
+  vec2 p3 = vec2(aspect * (0.76 + 0.11 * sin(t * 0.11)), 0.24 + 0.10 * cos(t * 0.15));
+  return c0 * exp(-dot(p - p0, p - p0) / 0.20) + c1 * exp(-dot(p - p1, p - p1) / 0.15)
+       + c2 * exp(-dot(p - p2, p - p2) / 0.14) + c3 * exp(-dot(p - p3, p - p3) / 0.11);
+}
+vec3 scene(vec3 top, vec3 mid, vec3 bot, vec3 l, float tone, float y) {
+  vec3 base = y > 0.5 ? mix(mid, top, (y - 0.5) * 2.0) : mix(bot, mid, y * 2.0);
+  vec3 col = base + l;
+  return mix(col, col / (1.0 + col * 0.4), tone);
+}
+void main() {
+  float aspect = uRes.x / uRes.y;
+  float t = uTime;
+  vec2 uv = vUv + 0.03 * vec2(sin(vUv.y * 3.1 + t * 0.30), cos(vUv.x * 2.7 - t * 0.25));
+  vec3 a = scene(uA[0], uA[1], uA[2], lights(uA[3], uA[4], uA[5], uA[6], uv, t, aspect), uToneA, vUv.y);
+  vec3 b = scene(uB[0], uB[1], uB[2], lights(uB[3], uB[4], uB[5], uB[6], uv, t, aspect), uToneB, vUv.y);
+  vec2 d = vec2((vUv.x - uOrigin.x) * aspect, vUv.y - uOrigin.y);
+  float rad = uReveal * length(vec2(aspect, 1.0)) * 1.1;
+  float m = 1.0 - smoothstep(rad - 0.22, rad, length(d));
+  vec3 col = mix(b, a, m);
+  float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+  col += (n - 0.5) * (2.0 / 255.0);
+  gl_FragColor = vec4(col, 1.0);
+}`
+    let gl = null, U = null
+    let a = new Float32Array(21), b = a, toneA = 1, toneB = 1
+    let revealFrom = -1, origin = [0.3, 0.6], first = true
+    const start = performance.now()
+
+    function compile(type, src) {
+      const sh = gl.createShader(type)
+      gl.shaderSource(sh, src)
+      gl.compileShader(sh)
+      return gl.getShaderParameter(sh, gl.COMPILE_STATUS) ? sh : null
+    }
+    function init() {
+      try {
+        gl = canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' })
+      } catch { gl = null }
+      if (!gl) return false
+      const vs = compile(gl.VERTEX_SHADER, VERT), fs = compile(gl.FRAGMENT_SHADER, FRAG)
+      const prog = gl.createProgram()
+      if (!vs || !fs) { gl = null; return false }
+      gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog)
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { gl = null; return false }
+      gl.useProgram(prog)
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
+      const loc = gl.getAttribLocation(prog, 'aPos')
+      gl.enableVertexAttribArray(loc)
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
+      U = {}
+      for (const k of ['uRes', 'uTime', 'uA', 'uB', 'uToneA', 'uToneB', 'uReveal', 'uOrigin']) U[k] = gl.getUniformLocation(prog, k)
+      canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); gl = null; canvas.classList.remove('on') })
+      return true
+    }
+    function draw(now) {
+      if (!gl) return
+      const w = Math.max(1, Math.round(canvas.clientWidth / 4)), h = Math.max(1, Math.round(canvas.clientHeight / 4))
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
+      let reveal = 1
+      if (revealFrom >= 0) {
+        const k = Math.min(1, (now - revealFrom) / 1500)
+        reveal = 1 - (1 - k) ** 3
+        if (k >= 1) revealFrom = -1
+      }
+      gl.viewport(0, 0, w, h)
+      gl.uniform2f(U.uRes, w, h)
+      gl.uniform1f(U.uTime, reduced() ? 0 : (now - start) / 1000)
+      gl.uniform3fv(U.uA, a); gl.uniform3fv(U.uB, b)
+      gl.uniform1f(U.uToneA, toneA); gl.uniform1f(U.uToneB, toneB)
+      gl.uniform1f(U.uReveal, reveal)
+      gl.uniform2f(U.uOrigin, origin[0], origin[1])
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+    }
+    /* 平时 30 帧（慢慢游走的光不需要更多），扩散转场期间按满帧画 */
+    function loop(now) {
+      if (!document.hidden) draw(now)
+      if (revealFrom >= 0) requestAnimationFrame(loop)
+      else setTimeout(() => requestAnimationFrame(loop), 30)
+    }
+    function set(next, originXY) {
+      b = a; toneB = toneA
+      a = next.u; toneA = next.tone
+      if (originXY) origin = originXY
+      if (first || reduced()) { b = a; toneB = toneA; first = false; revealFrom = -1 }
+      else revealFrom = performance.now()
+      draw(performance.now())
+    }
+    if (init()) {
+      canvas.classList.add('on')
+      requestAnimationFrame(loop)
+    }
+    return {
+      set,
+      draw: () => draw(performance.now()),
+      /** 跳过扩散转场，直接画成最终颜色（后台标签页里动画帧不跑，验证时用） */
+      finish() { b = a; toneB = toneA; revealFrom = -1; draw(performance.now()) },
+    }
+  })()
+
+  /* ============ 封面 ============ */
+  const covers = []
+  function synth(paint) {
+    const s = 640
+    const c = document.createElement('canvas')
+    c.width = s; c.height = s
+    paint(c.getContext('2d'), s)
+    return c.toDataURL('image/jpeg', 0.9)
+  }
+  const rnd = seed => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296)
+  const SYNTH = [
+    { title: '落日公路', artist: '橘子汽水乐队', album: '傍晚六点', paint(g, s) {
+      const grd = g.createLinearGradient(0, 0, 0, s)
+      grd.addColorStop(0, '#ffb347'); grd.addColorStop(0.46, '#ff5e62'); grd.addColorStop(1, '#3a1c71')
+      g.fillStyle = grd; g.fillRect(0, 0, s, s)
+      g.fillStyle = '#ffe29a'; g.beginPath(); g.arc(s * 0.5, s * 0.5, s * 0.21, 0, 7); g.fill()
+      g.fillStyle = '#3a1c71'
+      for (let i = 0; i < 6; i++) g.fillRect(0, s * (0.54 + i * 0.062), s, s * (0.01 + i * 0.007))
+      g.fillStyle = '#1d0f3f'; g.fillRect(0, s * 0.88, s, s * 0.12)
+    } },
+    { title: '蓝调时刻', artist: '深夜电台', album: '零点以后', paint(g, s) {
+      const grd = g.createLinearGradient(0, 0, 0, s)
+      grd.addColorStop(0, '#8fd6e8'); grd.addColorStop(0.5, '#2a6fb5'); grd.addColorStop(1, '#0a1640')
+      g.fillStyle = grd; g.fillRect(0, 0, s, s)
+      g.fillStyle = '#f4f1de'; g.beginPath(); g.arc(s * 0.7, s * 0.28, s * 0.13, 0, 7); g.fill()
+      g.fillStyle = '#0a1640'
+      g.beginPath(); g.moveTo(0, s * 0.78); g.lineTo(s * 0.3, s * 0.6); g.lineTo(s * 0.55, s * 0.76); g.lineTo(s * 0.8, s * 0.58); g.lineTo(s, s * 0.7); g.lineTo(s, s); g.lineTo(0, s); g.fill()
+    } },
+    { title: '蜜桃苏打', artist: '夏天合唱团', album: '冰块融化之前', paint(g, s) {
+      g.fillStyle = '#ffd9c7'; g.fillRect(0, 0, s, s)
+      g.fillStyle = '#e63946'; g.beginPath(); g.arc(s * 0.36, s * 0.62, s * 0.27, 0, 7); g.fill()
+      g.fillStyle = '#fff3e6'; g.beginPath(); g.arc(s * 0.68, s * 0.34, s * 0.19, 0, 7); g.fill()
+      g.strokeStyle = '#f4978e'; g.lineWidth = s * 0.03
+      for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(s * 0.68, s * 0.34, s * (0.24 + i * 0.06), 0.2, 1.9); g.stroke() }
+    } },
+    { title: '黑白默片', artist: '无名三重奏', album: '第二幕', paint(g, s) {
+      g.fillStyle = '#e8e8e4'; g.fillRect(0, 0, s, s)
+      g.fillStyle = '#161616'; g.beginPath(); g.moveTo(0, s * 0.62); g.lineTo(s, s * 0.38); g.lineTo(s, s); g.lineTo(0, s); g.fill()
+      g.strokeStyle = '#8c8c88'; g.lineWidth = s * 0.012
+      for (let i = 1; i < 6; i++) { g.beginPath(); g.arc(s * 0.5, s * 0.5, s * 0.07 * i, 0, 7); g.stroke() }
+    } },
+    { title: '蕨', artist: '温室', album: '向光', paint(g, s) {
+      g.fillStyle = '#0f3d2e'; g.fillRect(0, 0, s, s)
+      const leaf = (x, y, r, rot, col) => { g.save(); g.translate(x, y); g.rotate(rot); g.fillStyle = col; g.beginPath(); g.ellipse(0, 0, r, r * 0.36, 0, 0, 7); g.fill(); g.restore() }
+      for (let i = 0; i < 7; i++) {
+        leaf(s * 0.5 - s * 0.14, s * (0.2 + i * 0.1), s * (0.2 - i * 0.012), -0.6, i % 2 ? '#3fa66b' : '#b6f23c')
+        leaf(s * 0.5 + s * 0.14, s * (0.25 + i * 0.1), s * (0.2 - i * 0.012), 0.6 + Math.PI, i % 2 ? '#b6f23c' : '#3fa66b')
+      }
+    } },
+    { title: '白噪音', artist: '纸飞机', album: '空房间', paint(g, s) {
+      g.fillStyle = '#f6f5f1'; g.fillRect(0, 0, s, s)
+      const r = rnd(7)
+      g.fillStyle = '#1b1b1b'
+      for (let i = 0; i < 46; i++) { const h = s * (0.06 + r() * 0.42); g.fillRect(s * (0.1 + i * 0.0175), s * 0.5 - h / 2, s * 0.008, h) }
+      g.fillStyle = '#e63946'; g.beginPath(); g.arc(s * 0.86, s * 0.14, s * 0.025, 0, 7); g.fill()
+    } },
+  ]
+  for (const c of SYNTH) covers.push({ title: c.title, artist: c.artist, album: c.album, src: synth(c.paint) })
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error('load'))
+      img.src = src
+    })
+  }
+  async function prepare(cover) {
+    if (cover.analysis) return cover
+    cover.img = await loadImage(cover.src)
+    cover.analysis = analyze(cover.img)
+    return cover
+  }
+
+  const coverBox = $('covers')
+  function renderCoverChips() {
+    coverBox.textContent = ''
+    covers.forEach((c, i) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.setAttribute('role', 'radio')
+      b.setAttribute('aria-label', c.title)
+      b.title = c.title
+      b.setAttribute('aria-checked', String(i === state.cover))
+      b.style.backgroundImage = `url("${c.src}")`
+      b.addEventListener('click', () => selectCover(i))
+      coverBox.appendChild(b)
+    })
+  }
+
+  const art = $('art')
+  let coverToken = 0
+  async function selectCover(i) {
+    state.cover = (i + covers.length) % covers.length
+    const token = ++coverToken
+    const cover = await prepare(covers[state.cover])
+    if (token !== coverToken) return
+    for (const b of coverBox.children) b.setAttribute('aria-checked', 'false')
+    coverBox.children[state.cover]?.setAttribute('aria-checked', 'true')
+    $('title').textContent = cover.title
+    $('artist').textContent = cover.artist
+    $('album').textContent = cover.album
+    // 新旧两张交叉淡化
+    const img = document.createElement('img')
+    img.alt = ''
+    img.src = cover.src
+    art.appendChild(img)
+    const old = [...art.querySelectorAll('img.on')]
+    requestAnimationFrame(() => requestAnimationFrame(() => img.classList.add('on')))
+    setTimeout(() => img.classList.add('on'), 60) // 标签页在后台时 rAF 不跑，兜一下
+    for (const o of old) { o.classList.remove('on'); setTimeout(() => o.remove(), 900) }
+    applyField(true)
+  }
+  async function addCover(src, title) {
+    covers.push({ title, artist: '自选封面', album: '拖进来的图', src })
+    renderCoverChips()
+    await selectCover(covers.length - 1)
+  }
+
+  function applyField(fromCover) {
+    const cover = covers[state.cover]
+    if (!cover?.analysis) return
+    const f = fieldFor(state.bg, cover.analysis)
+    stage.dataset.bg = state.bg
+    stage.dataset.ink = f.ink
+    stage.style.setProperty('--f-top', f.css[0])
+    stage.style.setProperty('--f-mid', f.css[1])
+    stage.style.setProperty('--f-bot', f.css[2])
+    // 换歌时新颜色从封面中心向外漫开
+    let origin
+    if (fromCover) {
+      const s = stage.getBoundingClientRect(), a = art.getBoundingClientRect()
+      origin = [(a.left + a.width / 2 - s.left) / Math.max(1, s.width), 1 - (a.top + a.height / 2 - s.top) / Math.max(1, s.height)]
+    }
+    Field.set(f, origin)
+  }
+
+  /* ============ 歌词：占位句（我写的，不是原词）+ 按字数估出来的逐字时间 ============ */
+  const RAW = [
+    ['Static on the dial, the city hums below'],
+    ['指针划过一格一格的夜'],
+    ['Somewhere past the bridge a signal finds its way'],
+    ['I turn it up until the windows start to glow'],
+    ['把音量拧到月亮也听得见'],
+    ['Every station fades but this one stays'],
+    ['红灯数到三，我们就出发', 7],
+    ['Hands out the window, counting streetlights as they pass, one more mile and then another'],
+    ['副歌还没来，风先到了'],
+    ['Hold the note, hold the road'],
+    ['让这一段再循环一遍'],
+    ['Neon on the hood like a second sunrise'],
+    ['谁在后座轻轻跟着哼'],
+    ['We were never lost, just early'],
+    ['天线朝着你说话的方向'],
+    ['Play it back, play it louder', 6],
+    ['末班车开走，歌还剩半首'],
+    ['Leave the engine running till the last chord lands'],
+    ['明天的事，留给明天的频道'],
+    ['Good night to the static, good night to the glow'],
+  ]
+  const CJK = /[぀-ヿ㐀-䶿一-鿿]/
+  function tokenize(text) {
+    // 西文按词、中文按字；标点跟着前一个
+    const out = []
+    const re = /[぀-ヿ㐀-䶿一-鿿][，。、！？…]*|[^\s぀-ヿ㐀-䶿一-鿿]+/g
+    let m
+    while ((m = re.exec(text))) {
+      const t = m[0]
+      const weight = CJK.test(t[0]) ? 2.2 : t.replace(/[^A-Za-z0-9]/g, '').length || 1
+      const spaceAfter = text[re.lastIndex] === ' '
+      out.push({ text: t, weight, spaceAfter })
+    }
+    return out
+  }
+  const entries = []
+  {
+    let t = 2
+    for (const [text, pause] of RAW) {
+      const words = tokenize(text)
+      const total = words.reduce((s, w) => s + w.weight, 0)
+      const sing = clamp(0.9 + total * 0.075, 1.8, 7.5)
+      let at = t
+      for (const w of words) { w.s = at; at += (sing * w.weight) / total; w.e = at }
+      entries.push({ t, end: t + sing, text, words })
+      t += sing + 0.45
+      if (pause) { entries.push({ gap: true, t: t - 0.1, end: t + pause }); t += pause }
+    }
+  }
+  const TOTAL = entries[entries.length - 1].end + 4
+
+  const box = $('lyrics'), linesEl = $('lines')
+  const rows = entries.map((e, i) => {
+    const p = document.createElement('p')
+    p.className = 'line'
+    if (e.gap) {
+      p.classList.add('gap')
+      p.setAttribute('aria-hidden', 'true')
+      p.append(document.createElement('i'), document.createElement('i'), document.createElement('i'))
+      linesEl.appendChild(p)
+      return { el: p, words: [] }
+    }
+    const words = e.words.map(w => {
+      const span = document.createElement('span'); span.className = 'w'
+      const dim = document.createElement('span'); dim.className = 'w-dim'; dim.textContent = w.text
+      const clip = document.createElement('span'); clip.className = 'w-clip'; clip.setAttribute('aria-hidden', 'true')
+      const lit = document.createElement('span'); lit.className = 'w-lit'; lit.textContent = w.text
+      clip.appendChild(lit)
+      span.append(dim, clip)
+      p.appendChild(span)
+      if (w.spaceAfter) p.appendChild(document.createTextNode(' '))
+      return { clip, lit }
+    })
+    p.addEventListener('click', () => { unlockFollow(); seek(e.t + 0.01) })
+    linesEl.appendChild(p)
+    return { el: p, words }
+  })
+
+  /* 换行滚动的弹簧：不回弹（临界阻尼），感知时长 0.6s；浏览器不认 linear() 就退回强 ease-out */
+  const SPRING = (() => {
+    if (!CSS.supports('animation-timing-function', 'linear(0, 1)')) return { easing: 'cubic-bezier(0.23, 1, 0.32, 1)', ms: 700 }
+    const w = (2 * Math.PI) / 0.6, T = 9.2 / w, n = 28, pts = []
+    for (let i = 0; i <= n; i++) { const t = (T * i) / n; pts.push((1 - (1 + w * t) * Math.exp(-w * t)).toFixed(4)) }
+    pts[n] = '1'
+    return { easing: `linear(${pts.join(', ')})`, ms: Math.round(T * 1000) }
+  })()
+  const STAGGER = 40
+  const NEAR = { next: [0, 0.48, 0.36, 0.28], past: [0, 0.36, 0.28, 0.22] }
+
+  let current = -2 // 当前行在 entries 里的下标；-1 = 第一句之前
+  let lockUntil = 0, resumeTimer = 0
+  let wordAnims = []
+
+  function indexAt(pos) {
+    let lo = 0, hi = entries.length - 1, res = -1
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1
+      if (entries[mid].t <= pos) { res = mid; lo = mid + 1 } else hi = mid - 1
+    }
+    // 「现在」没有间奏行：间奏期间上一句保持高亮
+    if (state.ly === 'now') while (res >= 0 && entries[res].gap) res--
+    return res
+  }
+
+  function paintLines(idx) {
+    rows.forEach((r, i) => {
+      r.el.classList.toggle('active', i === idx)
+      r.el.classList.toggle('past', i < idx)
+      let o = ''
+      if (state.ly !== 'now' && idx >= 0 && i !== idx) {
+        const d = Math.abs(i - idx)
+        if (d <= 3) o = String(i < idx ? NEAR.past[d] : NEAR.next[d])
+      }
+      if (r.el.style.opacity !== o) r.el.style.opacity = o
+    })
+  }
+
+  function targetTop(idx) {
+    if (idx < 0) return 0
+    const el = rows[idx].el
+    const anchor = state.ly === 'now' ? 0.32 : 0.3
+    return clamp(el.offsetTop + el.offsetHeight / 2 - box.clientHeight * anchor, 0, box.scrollHeight - box.clientHeight)
+  }
+
+  /** 滚到当前行。instant：换模式 / 改尺寸时直接到位，不做动画 */
+  function follow(instant) {
+    if (Date.now() < lockUntil) return
+    const to = targetTop(current)
+    if (state.ly === 'now') {
+      box.scrollTo({ top: to, behavior: instant || reduced() ? 'auto' : 'smooth' })
+      return
+    }
+    const from = box.scrollTop
+    box.scrollTop = to
+    const delta = box.scrollTop - from
+    if (instant || reduced() || Math.abs(delta) < 0.5) return
+    // 滚动位置一步到位，再让每一行从原来的位置带着弹性滑过来：只动 transform，
+    // 叠加式动画——上一次还没落定就来了下一次，两段位移自然相加，不会跳
+    const h = box.clientHeight
+    const far = Math.abs(delta) > h * 1.2
+    const top = box.scrollTop - Math.abs(delta) - 60, bottom = box.scrollTop + h + Math.abs(delta) + 60
+    rows.forEach((r, i) => {
+      const y = r.el.offsetTop
+      if (y + r.el.offsetHeight < top || y > bottom) return
+      const delay = far ? 0 : Math.min(8, Math.max(0, i - current)) * STAGGER
+      r.el.animate(
+        [{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }],
+        { duration: SPRING.ms, easing: SPRING.easing, delay, fill: 'backwards', composite: 'add' },
+      )
+    })
+  }
+
+  function scheduleWords(immediate) {
+    const old = wordAnims
+    wordAnims = []
+    // 刚唱完的那行正在退淡：亮的那层晚一点再撤，不然会闪一下
+    if (immediate) old.forEach(a => a.cancel())
+    else setTimeout(() => old.forEach(a => a.cancel()), 700)
+    if (state.ly !== 'word' || current < 0 || entries[current].gap || reduced()) return
+    const e = entries[current]
+    e.words.forEach((w, k) => {
+      const { clip, lit } = rows[current].words[k]
+      const opt = { duration: Math.max(60, (w.e - w.s) * 1000), delay: (w.s - state.pos) * 1000, easing: 'linear', fill: 'both' }
+      const a1 = clip.animate([{ transform: 'translateX(-101%)' }, { transform: 'translateX(0)' }], opt)
+      const a2 = lit.animate([{ transform: 'translateX(101%)' }, { transform: 'translateX(0)' }], opt)
+      if (!state.playing) { a1.pause(); a2.pause() }
+      wordAnims.push(a1, a2)
+    })
+  }
+
+  function unlockFollow() {
+    lockUntil = 0
+    clearTimeout(resumeTimer)
+  }
+  /* 手动滚开：8 秒内不跟随，停手满 8 秒自己滚回当前行（和 App 现在一样） */
+  function userScrolled() {
+    lockUntil = Date.now() + 8000
+    clearTimeout(resumeTimer)
+    resumeTimer = setTimeout(() => { lockUntil = 0; follow(false) }, 8000)
+  }
+  box.addEventListener('wheel', userScrolled, { passive: true })
+  box.addEventListener('touchmove', userScrolled, { passive: true })
+
+  /* ============ 播放时钟（没有声音，只推进时间） ============ */
+  const barFill = $('barFill'), barKnob = $('barKnob'), bar = $('bar')
+  const tCur = $('tCur'), tLeft = $('tLeft')
+  const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+  let barWidth = 0, lastLabel = -1
+
+  function render(force) {
+    const p = clamp(state.pos / TOTAL, 0, 1)
+    barFill.style.transform = `scaleX(${p})`
+    barKnob.style.transform = `translateX(${p * barWidth}px)`
+    const sec = Math.floor(state.pos)
+    if (sec !== lastLabel) {
+      lastLabel = sec
+      tCur.textContent = fmt(state.pos)
+      tLeft.textContent = '-' + fmt(TOTAL - state.pos)
+      bar.setAttribute('aria-valuenow', String(Math.round(p * 100)))
+      bar.setAttribute('aria-valuetext', fmt(state.pos))
+    }
+    const idx = indexAt(state.pos)
+    if (idx !== current || force) {
+      const changed = idx !== current
+      current = idx
+      paintLines(idx)
+      follow(force === 'instant')
+      scheduleWords(!changed || force)
+    }
+  }
+  function seek(pos) {
+    state.pos = clamp(pos, 0, TOTAL - 0.05)
+    render(true)
+  }
+  let lastTick = performance.now()
+  function tick(now) {
+    const dt = Math.min(0.25, (now - lastTick) / 1000)
+    lastTick = now
+    if (state.playing) {
+      state.pos += dt
+      if (state.pos >= TOTAL) { state.pos = 0; render(true) }
+      else render(false)
+    }
+    requestAnimationFrame(tick)
+  }
+
+  const playBtn = $('play')
+  const ICON_PAUSE = '<svg class="i" viewBox="0 0 24 24"><rect class="f" x="6.4" y="5" width="4" height="14" rx="1.2"/><rect class="f" x="13.6" y="5" width="4" height="14" rx="1.2"/></svg>'
+  const ICON_PLAY = '<svg class="i" viewBox="0 0 24 24"><path class="f" d="M8.6 5.3v13.4a.9.9 0 0 0 1.38.76l10.6-6.7a.9.9 0 0 0 0-1.52L9.98 4.54A.9.9 0 0 0 8.6 5.3z"/></svg>'
+  function setPlaying(v) {
+    state.playing = v
+    playBtn.innerHTML = v ? ICON_PAUSE : ICON_PLAY
+    playBtn.setAttribute('aria-label', v ? '暂停' : '播放')
+    lastTick = performance.now()
+    wordAnims.forEach(a => (v ? a.play() : a.pause()))
+  }
+  playBtn.addEventListener('click', () => setPlaying(!state.playing))
+  $('prev').addEventListener('click', () => { selectCover(state.cover - 1); seek(0) })
+  $('next').addEventListener('click', () => { selectCover(state.cover + 1); seek(0) })
+
+  function seekFromPointer(e) {
+    const r = bar.getBoundingClientRect()
+    unlockFollow()
+    seek(clamp((e.clientX - r.left) / Math.max(1, r.width), 0, 1) * TOTAL)
+  }
+  bar.addEventListener('pointerdown', e => { bar.setPointerCapture(e.pointerId); seekFromPointer(e) })
+  bar.addEventListener('pointermove', e => { if (bar.hasPointerCapture(e.pointerId)) seekFromPointer(e) })
+  bar.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); unlockFollow(); seek(state.pos + (e.key === 'ArrowRight' ? 5 : -5)) }
+  })
+
+  /* ============ 选项栏 ============ */
+  const NOTES = {
+    bg: {
+      now: '底色 · 现在：取色失败后的默认青柠，你 iPad 上每首歌都是这个颜色。',
+      fixed: '底色 · 只修取色：现有算法正常工作时的样子。只取封面的色相，亮度和饱和度锁死，所以总是偏暗的单色。',
+      qq: '底色 · QQ 式：封面上、中、下三段的平均色连成竖向渐变，保留真实明暗；底色浅的时候文字自动换成深色。',
+      dusk: '底色 · 暗场渐变：同样按上中下取色，但压到白字始终清楚的亮度，保留慢慢游走的光。',
+    },
+    ly: {
+      now: '歌词 · 现在：浏览器自带的平滑滚动，其余行的不透明度是 0.54 / 0.66。',
+      flow: '歌词 · 新滚动：字大一档，离当前行越远越淡；换行时每一行带弹性、依次跟上；间奏有呼吸的点。',
+      word: '歌词 · 逐字：在新滚动之上按字填色。demo 里的逐字时间是按字数估的，真数据要从 QQ / 网易取。',
+    },
+  }
+  const HELP = '空格播放 / 暂停，← → 换封面，点歌词行或进度条跳转，H 收起这栏；任意封面图可以直接拖进来。歌词是占位句，不是原词。'
+  function renderNote() {
+    $('note').textContent = `${NOTES.bg[state.bg]}　${NOTES.ly[state.ly]}　${HELP}`
+  }
+  function bindSeg(id, key, onChange) {
+    const seg = $(id)
+    const paint = () => { for (const b of seg.children) b.setAttribute('aria-checked', String(b.dataset.v === state[key])) }
+    seg.addEventListener('click', e => {
+      const b = e.target.closest('button')
+      if (!b || b.dataset.v === state[key]) return
+      state[key] = b.dataset.v
+      paint(); renderNote(); onChange()
+    })
+    paint()
+    return paint
+  }
+  const paintBg = bindSeg('seg-bg', 'bg', () => applyField(false))
+  const paintLy = bindSeg('seg-ly', 'ly', () => {
+    stage.dataset.ly = state.ly
+    for (const r of rows) r.el.getAnimations().forEach(a => a.cancel())
+    unlockFollow()
+    current = -2
+    render('instant')
+  })
+  const paintCtl = bindSeg('seg-ctl', 'ctl', () => { stage.dataset.ctl = state.ctl })
+
+  const panel = $('panel'), showBtn = $('show')
+  function togglePanel(open) {
+    panel.hidden = !open
+    showBtn.hidden = open
+  }
+  $('hide').addEventListener('click', () => togglePanel(false))
+  showBtn.addEventListener('click', () => togglePanel(true))
+
+  /* 自选封面：选文件、拖进来、粘贴 */
+  function readFile(file) {
+    if (!file || !file.type.startsWith('image/')) return
+    const fr = new FileReader()
+    fr.onload = () => addCover(String(fr.result), file.name.replace(/\.[^.]+$/, '') || '自选封面')
+    fr.readAsDataURL(file)
+  }
+  $('file').addEventListener('change', e => { readFile(e.target.files[0]); e.target.value = '' })
+  const drop = $('drop')
+  let dragDepth = 0
+  addEventListener('dragenter', e => { if (e.dataTransfer?.types.includes('Files')) { dragDepth++; drop.hidden = false } })
+  addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; drop.hidden = true } })
+  addEventListener('dragover', e => e.preventDefault())
+  addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; drop.hidden = true; readFile(e.dataTransfer?.files[0]) })
+  addEventListener('paste', e => { const f = [...(e.clipboardData?.files ?? [])].find(x => x.type.startsWith('image/')); if (f) readFile(f) })
+
+  addEventListener('keydown', e => {
+    if (e.target instanceof HTMLInputElement) return
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!state.playing) }
+    else if (e.key === 'ArrowLeft') selectCover(state.cover - 1)
+    else if (e.key === 'ArrowRight') selectCover(state.cover + 1)
+    else if (e.key === 'h' || e.key === 'H') togglePanel(panel.hidden)
+  })
+
+  new ResizeObserver(() => {
+    barWidth = bar.clientWidth
+    current = -2
+    render('instant')
+    Field.draw()
+  }).observe(stage)
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastTick = performance.now(); render(true) } })
+  // 字体到了行高会变：重新对一次位置
+  document.fonts?.ready.then(() => { current = -2; render('instant') })
+
+  /* ============ 启动 ============ */
+  async function boot() {
+    // 本机才有的真实封面（从截图还原的那张）：目录被 .gitignore 挡住，别人克隆下来没有，就只用画出来的那几张
+    try {
+      const res = await fetch('demo-covers.local/covers.json')
+      if (res.ok) covers.unshift(...(await res.json()))
+    } catch { /* 没有就算了 */ }
+    renderCoverChips()
+    renderNote()
+    setPlaying(state.playing)
+    barWidth = bar.clientWidth
+    await selectCover(0)
+    seek(reduced() ? entries[2].t + 1 : 0)
+    requestAnimationFrame(tick)
+  }
+  boot()
+
+  // 调试用：后台标签页里 rAF 不跑，验证时手动拨时间
+  window.__demo = { state, seek, setPlaying, selectCover, entries, flush: () => Field.finish(), set(key, v) { state[key] = v; ({ bg: paintBg, ly: paintLy, ctl: paintCtl })[key](); renderNote(); if (key === 'bg') applyField(false); else if (key === 'ctl') stage.dataset.ctl = v; else { stage.dataset.ly = v; current = -2; render('instant') } } }
+})()
+</script>

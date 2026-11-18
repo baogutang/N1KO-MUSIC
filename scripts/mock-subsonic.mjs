@@ -177,6 +177,29 @@ const LYRICS = [
   [136, '风吹过处 皆留痕'], [150, '而我们 仍在路上'],
 ]
 
+/**
+ * 第一张专辑（so-1-*）的歌词带逐字时间：把每个字的开始时间写成增强 LRC 的 <mm:ss.xx> 标签
+ * 塞在 value 里——Navidrome 对内嵌了增强 LRC 的歌就是这么交回来的。验收播放页的逐字填色用；
+ * 其余专辑只有行级时间，两条路都留着。每个字 0.42 秒，一句最多唱到下一句开始前的八成。
+ */
+const wordTag = sec => {
+  const cs = Math.round(sec * 100)
+  return `<${String(Math.floor(cs / 6000)).padStart(2, '0')}:${String(Math.floor((cs % 6000) / 100)).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}>`
+}
+function withWordTags(start, value, nextStart) {
+  const chars = [...value]
+  const voiced = chars.filter(c => c.trim()).length
+  const step = Math.min(0.42, ((nextStart - start) * 0.8) / voiced)
+  let t = start
+  let out = ''
+  for (const c of chars) {
+    if (!c.trim()) { out += c; continue }
+    out += wordTag(t) + c
+    t += step
+  }
+  return out + wordTag(t)
+}
+
 /* ============================================================
    封面：内联 SVG，与 docs/redesign 的设计 demo 同一套构图
    ============================================================ */
@@ -459,7 +482,10 @@ const handlers = {
         structuredLyrics: [{
           displayArtist: song.artist, displayTitle: song.title, lang: 'zho',
           offset: 0, synced: true,
-          line: LYRICS.map(([start, value]) => ({ start: start * 1000, value })),
+          line: LYRICS.map(([start, value], i) => ({
+            start: start * 1000,
+            value: song.id.startsWith('so-1-') ? withWordTags(start, value, LYRICS[i + 1]?.[0] ?? start + 8) : value,
+          })),
         }],
       },
     })

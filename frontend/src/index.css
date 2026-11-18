@@ -1049,13 +1049,132 @@ body {
     oklch(var(--stage-mid));
 }
 
-/* 沉浸样式（FullscreenPlayer + ImmersiveArt）：色场亮一档，次要文字跟着提一点，
-   没唱到的歌词行不能淡到读不出（压在中间档的底上，不透明度要比暗场高） */
+/* 沉浸样式取不到封面颜色时的退路（StageField tone="mid"）：色场亮一档，次要文字跟着提一点 */
 .stage.stage-mid {
   --ink-2: 91% 0.01 var(--art-h);
   --ink-3: 84% 0.014 var(--art-h);
-  --lyric-past: 0.54;
-  --lyric-next: 0.66;
+}
+
+/* 沉浸样式的封面色场（StageField tone="cover"）：底色是封面上中下三段颜色连成的竖向渐变，
+   --cover-top / -mid / -bot 由 FullscreenPlayer 写在舞台根节点上（算法见 components/player/coverField.ts）。
+   这个类给压在封面上的那几层用：和背后的色场同一条渐变——三段颜色摆在封面框的 1/6、1/2、5/6 处，
+   与着色器里的 uStops 同一个数——每一行都和底色同色，压上去只挡住封面、不改底色 */
+.stage-cover-wash {
+  background: linear-gradient(
+    180deg,
+    var(--cover-top) calc(var(--imm-art) / 6),
+    var(--cover-mid) calc(var(--imm-art) / 2),
+    var(--cover-bot) calc(var(--imm-art) * 5 / 6)
+  );
+}
+
+/* 封面色场上文字的深浅跟着底色换。两个类把墨色这一组整组重写，连同引用它们的别名：
+   引用型 token 在声明它的那个元素上就解析掉了，只改 --ink 的话 --foreground 之类拿到的还是旧值。
+   stage-ink-dark：底色浅，换深色字。叶绿（写字用的强调色）跟着压深；青柠的实底（播放键、进度）不变，
+   所以 --accent / --primary 不在这里重写。
+   stage-ink-light：回到浅色字——垫着暗底的顶栏圆钮，或者封面上浅下深时底下那排控制 */
+.stage-ink-dark {
+  --ink: 19% 0.02 var(--art-h);
+  --ink-2: 27% 0.022 var(--art-h);
+  --ink-3: 33% 0.024 var(--art-h);
+  --stage-ink: 19% 0.02 var(--art-h);
+  --leaf: 33% 0.1 145;
+  --leaf-deep: 28% 0.09 146;
+  --ring-hair: inset 0 0 0 0.5px oklch(var(--ink) / 0.2);
+  --ink-soft: var(--ink-2);
+  --ink-faint: var(--ink-3);
+  --foreground: var(--ink);
+  --muted-foreground: var(--ink-3);
+  --sem-playing: var(--leaf);
+  --sem-fav: var(--ink);
+  color: oklch(var(--ink));
+}
+
+.stage-ink-light {
+  --ink: 97% 0.006 var(--art-h);
+  --ink-2: 91% 0.01 var(--art-h);
+  --ink-3: 84% 0.014 var(--art-h);
+  --stage-ink: 97% 0.006 var(--art-h);
+  --leaf: var(--lime);
+  --leaf-deep: var(--lime-deep);
+  --ring-hair: inset 0 0 0 0.5px oklch(var(--ink) / 0.14);
+  --ink-soft: var(--ink-2);
+  --ink-faint: var(--ink-3);
+  --foreground: var(--ink);
+  --muted-foreground: var(--ink-3);
+  --sem-playing: var(--leaf);
+  --sem-fav: var(--ink);
+  color: oklch(var(--ink));
+}
+
+/* 逐字歌词（LyricDisplay 全屏）：每个字 / 词一个行内块，唱到这一行时里面叠一层亮的。
+   亮的那层由遮罩从左往右揭开：遮罩（lyric-w-clip）往右移、里面的字（lyric-w-lit）往左抵回去，
+   两个都只动 transform，不重绘。没有动画时（还没挂上、已经摘掉）遮罩停在字的左边外面，什么都不露 */
+.lyric-w {
+  position: relative;
+  display: inline-block;
+  white-space: pre;
+}
+
+/* 唱到这一行：没唱到的字退到一半，和下一行差不多亮；进来时过渡，离开时不过渡
+   （离开那一刻整行都唱完了，底下这层直接回到全亮，和刚摘掉的亮层接得上） */
+.lyric-line.is-wiping .lyric-w {
+  color: oklch(var(--ink) / 0.5);
+  transition: color var(--dur-5) var(--ease-smooth);
+}
+
+.lyric-w-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  transform: translateX(-101%);
+  pointer-events: none;
+}
+
+.lyric-w-lit {
+  display: block;
+  color: oklch(var(--ink));
+  transform: translateX(101%);
+}
+
+/* 间奏：三个点，轮到它时一个接一个地呼吸 */
+.lyric-gap {
+  display: flex;
+  align-items: center;
+  gap: 0.42em;
+  height: 1.3em;
+}
+
+.lyric-gap i {
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.lyric-gap.is-active i {
+  animation: lyric-gap-dot 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+
+.lyric-gap.is-active i:nth-child(2) {
+  animation-delay: 0.22s;
+}
+
+.lyric-gap.is-active i:nth-child(3) {
+  animation-delay: 0.44s;
+}
+
+@keyframes lyric-gap-dot {
+  from { opacity: 0.35; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyric-gap.is-active i {
+    animation: none;
+    opacity: 0.9;
+  }
 }
 
 /* 大封面：渐隐用遮罩，不用模糊（WebKit 上大面积模糊每一帧都重画）。
