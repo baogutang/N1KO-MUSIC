@@ -260,6 +260,20 @@ export interface PlaylistDetail extends Playlist {
 // 歌词
 // ===================================================
 
+/**
+ * 逐字时间：一行里的一个字 / 词（QQ 的 QRC、网易的 YRC、增强 LRC 的 <mm:ss.xx> 都落到这里）。
+ * 西文词之间的空格留在前一个词的末尾，所以一行的 words 的 text 直接连起来、
+ * 再收一下首尾空白，就等于这一行的 text。
+ */
+export interface LyricWord {
+  /** 开始时间（毫秒，绝对时间，已经应用过 [offset:]）*/
+  time: number
+  /** 持续时长（毫秒，至少 1）*/
+  duration: number
+  /** 文字，保留词尾空格 */
+  text: string
+}
+
 /** 单行歌词 */
 export interface LyricLine {
   /** 时间戳（毫秒）*/
@@ -268,6 +282,8 @@ export interface LyricLine {
   text: string
   /** 翻译（可选）*/
   translation?: string
+  /** 逐字时间（可选）：有才做逐字填色，没有就整行高亮 */
+  words?: LyricWord[]
 }
 
 /** 歌词结构 */

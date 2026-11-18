@@ -661,6 +661,87 @@ var QUALITY_LEVEL = { low: 'standard', medium: 'higher', high: 'exhigh', lossles
 /** 流地址有效期：经验值 20 分钟（过期由宿主的重取逻辑兜底） */
 var STREAM_TTL_MS = 20 * 60 * 1000
 
+/* ---------- YRC 逐字歌词 → 增强 LRC（A2） ----------
+ * lyric/v1 可能带 yrc.lyric：每行形如
+ * 「[行开始毫秒,行时长毫秒](开始毫秒,时长毫秒,0)文字(开始毫秒,时长毫秒,0)文字…」，
+ * 时间是绝对毫秒、时间标记在文字前面；开头可能有若干 JSON 行（制作人员信息）。
+ * 宿主的 LRC 解析器认增强 LRC 的 <mm:ss.xxx> 逐字标签，这里转成那个形态塞进
+ * 原来的 rawLrc，插件协议不变。 */
+
+/** 毫秒 → mm:ss.xxx */
+function lrcTimeTag(ms) {
+  var t = Math.max(0, Math.round(ms))
+  var min = Math.floor(t / 60000)
+  var sec = Math.floor((t % 60000) / 1000)
+  var milli = t % 1000
+  return (min < 10 ? '0' : '') + min + ':' + (sec < 10 ? '0' : '') + sec + '.' +
+    (milli < 100 ? (milli < 10 ? '00' : '0') : '') + milli
+}
+
+/** YRC 的一行歌词（行首是「[数字,数字]」） */
+var YRC_LINE = /^\[(\d+),(\d+)\](.*)$/
+/** 逐字时间标记「(开始,时长,0)」：只认三段数字，文字本身的括号不算 */
+var YRC_WORD = /\((\d+),(\d+),-?\d+\)/g
+
+/**
+ * YRC 文本 → 增强 LRC 文本。转不出一行有效歌词时返回 null（调用方据此退回 lrc）。
+ * JSON 制作人员行转成普通的 [mm:ss.xxx]文字 行，解析失败的 JSON 行跳过；
+ * 其它认不出的行（元数据等）原样保留。
+ */
+function yrcToLrc(yrc) {
+  var rows = String(yrc || '').split(/\r?\n/)
+  var out = []
+  var lyricLines = 0
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i].trim()
+    if (!row) continue
+    if (row.charAt(0) === '{') {
+      try {
+        var info = JSON.parse(row)
+        var credit = (Array.isArray(info.c) ? info.c : []).map(function (c) {
+          return c && c.tx !== undefined && c.tx !== null ? String(c.tx) : ''
+        }).join('')
+        if (credit.trim()) out.push('[' + lrcTimeTag(Number(info.t) || 0) + ']' + credit)
+      } catch (e) { /* 解析失败的 JSON 行直接跳过 */ }
+      continue
+    }
+    var lm = YRC_LINE.exec(row)
+    if (!lm) {
+      out.push(row)
+      continue
+    }
+    var body = lm[3]
+    var tags = []
+    var wm
+    YRC_WORD.lastIndex = 0
+    while ((wm = YRC_WORD.exec(body)) !== null) {
+      tags.push({ index: wm.index, end: wm.index + wm[0].length, start: Number(wm[1]), dur: Number(wm[2]) })
+    }
+    var line = '[' + lrcTimeTag(Number(lm[1])) + ']'
+    if (!tags.length) {
+      /* 没有逐字标记的行：当普通行 */
+      if (!body.trim()) continue
+      lyricLines += 1
+      out.push(line + body)
+      continue
+    }
+    /* 第一个标记之前的文字（不规范）照样放在行首，宿主按行开始时间计 */
+    line += body.slice(0, tags[0].index)
+    var plain = body.slice(0, tags[0].index)
+    var end = 0
+    for (var j = 0; j < tags.length; j++) {
+      var text = body.slice(tags[j].end, j + 1 < tags.length ? tags[j + 1].index : body.length)
+      line += '<' + lrcTimeTag(tags[j].start) + '>' + text
+      plain += text
+      end = Math.max(end, tags[j].start + tags[j].dur)
+    }
+    if (!plain.trim()) continue
+    lyricLines += 1
+    out.push(line + '<' + lrcTimeTag(end) + '>')
+  }
+  return lyricLines ? out.join('\n') : null
+}
+
 /* ============================================================
  * 插件主体
  * ============================================================ */
@@ -672,7 +753,7 @@ module.exports = {
   author: 'N1KO',
   description: '网易云音乐（用自己的账号听自己有权听的）',
 
-  _crypto: { weapi: weapi, eapi: eapi, credentialFingerprint: credentialFingerprint },
+  _crypto: { weapi: weapi, eapi: eapi, credentialFingerprint: credentialFingerprint, yrcToLrc: yrcToLrc },
 
   /* ---------- 搜索（cloudsearch） ---------- */
   async search(query, page, type) {
@@ -753,8 +834,20 @@ module.exports = {
       id: musicItem.id,
       cp: false, tv: 0, lv: 0, rv: 0, kv: 0, yv: 0, ytv: 0, yrv: 0,
     }, deviceId)
+    /* yv / ytv / yrv 是「我手里的版本号」不是开关，响应里本来就可能带 yrc（逐字）：
+       有就转成增强 LRC，转换失败或转不出有效行就照旧用 lrc */
+    var lrc = (res.body.lrc && res.body.lrc.lyric) || ''
+    var rawLrc = lrc
+    var yrc = res.body.yrc && res.body.yrc.lyric
+    if (yrc) {
+      try {
+        rawLrc = yrcToLrc(yrc) || lrc
+      } catch (e) {
+        rawLrc = lrc
+      }
+    }
     return {
-      rawLrc: (res.body.lrc && res.body.lrc.lyric) || '',
+      rawLrc: rawLrc,
       translation: (res.body.tlyric && res.body.tlyric.lyric) || '',
     }
   },

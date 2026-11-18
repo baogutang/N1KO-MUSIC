@@ -331,6 +331,30 @@ describe('OpenSubsonic structured lyrics 的 offset 符号（B16）', () => {
     const lyrics = await adapter.getLyrics('s1')
     expect(lyrics?.lines[0].time).toBe(10_000)
   })
+
+  it('value 里残留的逐字标签 <mm:ss.xx> 解析成 words（offset 同样生效），text 用干净文本', async () => {
+    const adapter = makeLyricsAdapter({
+      structuredLyrics: [{
+        synced: true,
+        offset: 500,
+        line: [
+          { start: 10_000, value: '<00:10.000>He <00:10.300>made<00:10.800>' },
+          { start: 12_000, value: '普通行' },
+        ],
+      }],
+    })
+    const lyrics = await adapter.getLyrics('s1')
+    expect(lyrics?.lines[0]).toEqual({
+      time: 9_500,
+      text: 'He made',
+      words: [
+        { time: 9_500, duration: 300, text: 'He ' },
+        { time: 9_800, duration: 500, text: 'made' },
+      ],
+    })
+    expect(lyrics?.lines[1]).toEqual({ time: 11_500, text: '普通行' })
+    expect('words' in (lyrics?.lines[1] ?? {})).toBe(false)
+  })
 })
 
 /**

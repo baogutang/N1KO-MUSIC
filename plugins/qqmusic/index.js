@@ -1070,6 +1070,96 @@ async function qrcDecrypt(hexText) {
   }
 }
 
+/* ---------- QRC 逐字歌词 → 增强 LRC（A2） ----------
+ * 请求带 qrc: 1 时，解密出来的是 XML：<QrcInfos>…<Lyric_1 LyricType="1" LyricContent="…"/>，
+ * LyricContent 每行形如「[行开始毫秒,行时长毫秒]文字(开始毫秒,时长毫秒)文字(开始毫秒,时长毫秒)…」，
+ * 时间是绝对毫秒、时间标记跟在文字后面。宿主的 LRC 解析器认增强 LRC 的 <mm:ss.xxx>
+ * 逐字标签，这里转成那个形态塞进原来的 rawLrc，插件协议不变。 */
+
+/** 毫秒 → mm:ss.xxx */
+function lrcTimeTag(ms) {
+  var t = Math.max(0, Math.round(ms))
+  var min = Math.floor(t / 60000)
+  var sec = Math.floor((t % 60000) / 1000)
+  var milli = t % 1000
+  return (min < 10 ? '0' : '') + min + ':' + (sec < 10 ? '0' : '') + sec + '.' +
+    (milli < 100 ? (milli < 10 ? '00' : '0') : '') + milli
+}
+
+/** XML 属性值里的实体：五个预定义实体 + 数字实体（&#10; / &#x0A;） */
+function decodeXmlEntities(s) {
+  var named = { apos: "'", quot: '"', amp: '&', lt: '<', gt: '>' }
+  return s.replace(/&(#[xX][0-9a-fA-F]+|#\d+|apos|quot|amp|lt|gt);/g, function (all, name) {
+    if (name.charAt(0) !== '#') return named[name]
+    var code = name.charAt(1) === 'x' || name.charAt(1) === 'X'
+      ? parseInt(name.slice(2), 16)
+      : parseInt(name.slice(1), 10)
+    return code >= 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : all
+  })
+}
+
+/** 解密结果是不是 QRC 的 XML 包装（没有 QRC 的歌解出来就是普通 LRC） */
+function isQrcXml(text) {
+  return /<QrcInfos[\s>]|LyricContent\s*=/.test(text)
+}
+
+/** QRC 的一行歌词（行首是「[数字,数字]」） */
+var QRC_LINE = /^\[(\d+),(\d+)\](.*)$/
+/** 逐字时间标记：只认「(数字,数字)」，文字本身的括号（如 "(Dum-Dum)"）不算 */
+var QRC_WORD = /\((\d+),(\d+)\)/g
+
+/**
+ * QRC XML → 增强 LRC 文本。转不出一行有效歌词时返回 null（调用方据此退回普通 LRC）。
+ * [ti:] [ar:] [offset:] 这类元数据行原样保留。
+ */
+function qrcToLrc(xml) {
+  var m = /LyricContent\s*=\s*"([^"]*)"/.exec(xml)
+  if (!m) return null
+  var rows = decodeXmlEntities(m[1]).split(/\r?\n/)
+  var out = []
+  var lyricLines = 0
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i].trim()
+    if (!row) continue
+    var lm = QRC_LINE.exec(row)
+    if (!lm) {
+      /* 元数据或认不出的行：原样交给宿主的 LRC 解析器 */
+      out.push(row)
+      continue
+    }
+    var lineStart = Number(lm[1])
+    var body = lm[3]
+    var words = []
+    var cursor = 0
+    var wm
+    QRC_WORD.lastIndex = 0
+    while ((wm = QRC_WORD.exec(body)) !== null) {
+      words.push({ text: body.slice(cursor, wm.index), start: Number(wm[1]), dur: Number(wm[2]) })
+      cursor = wm.index + wm[0].length
+    }
+    var tail = body.slice(cursor)
+    var plain = words.map(function (w) { return w.text }).join('') + tail
+    if (!plain.trim()) continue
+    lyricLines += 1
+    if (!words.length) {
+      /* 没有逐字标记的行：当普通行 */
+      out.push('[' + lrcTimeTag(lineStart) + ']' + body)
+      continue
+    }
+    var line = '[' + lrcTimeTag(lineStart) + ']'
+    var end = 0
+    for (var j = 0; j < words.length; j++) {
+      var w = words[j]
+      line += '<' + lrcTimeTag(w.start) + '>' + w.text
+      end = Math.max(end, w.start + w.dur)
+    }
+    /* 最后一个时间标记之后还剩文字（不规范）：并进最后一个词 */
+    line += tail
+    out.push(line + '<' + lrcTimeTag(end) + '>')
+  }
+  return lyricLines ? out.join('\n') : null
+}
+
 /* 2026-09 起 do_search_v2 各分节从数组改成 { items: [...] } 对象（estimate_sum
    等元数据挪进对象里）；两种形态都要认 */
 function sectionItems(v) {
@@ -1122,7 +1212,7 @@ module.exports = {
   author: 'N1KO',
   description: 'QQ 音乐（用自己的账号听自己有权听的）',
 
-  _crypto: { hash33: hash33, zzcSign: zzcSign, parsePtuiArgs: parsePtuiArgs, queryValue: queryValue, qrcDecrypt: qrcDecrypt, parseWxPoll: parseWxPoll },
+  _crypto: { hash33: hash33, zzcSign: zzcSign, parsePtuiArgs: parsePtuiArgs, queryValue: queryValue, qrcDecrypt: qrcDecrypt, parseWxPoll: parseWxPoll, qrcToLrc: qrcToLrc, decodeXmlEntities: decodeXmlEntities },
 
   /* ---------- 搜索（music.adaptor.SearchAdaptor.do_search_v2） ---------- */
   async search(query, page, type) {
@@ -1187,19 +1277,36 @@ module.exports = {
 
   /* ---------- 歌词（GetPlayLyricInfo：base64 → 3DES-ECB → zlib → LRC） ---------- */
   async getLyric(musicItem) {
-    var data = await cgi('music.musichallSong.PlayLyricInfo', 'GetPlayLyricInfo', {
-      crypt: 1,
-      lrc_t: 0,
-      qrc: 0,
-      qrc_t: 0,
-      roma: 0,
-      roma_t: 0,
-      trans: 0,
-      trans_t: 0,
-      type: 1,
-      songMid: musicItem.id,
-    })
-    var rawLrc = await qrcDecrypt(data && data.lyric)
+    function requestLyric(qrc) {
+      return cgi('music.musichallSong.PlayLyricInfo', 'GetPlayLyricInfo', {
+        crypt: 1,
+        lrc_t: 0,
+        qrc: qrc,
+        qrc_t: 0,
+        roma: 0,
+        roma_t: 0,
+        trans: 0,
+        trans_t: 0,
+        type: 1,
+        songMid: musicItem.id,
+      })
+    }
+    /* 先要逐字的 QRC（qrc: 1）；没有 QRC 的歌解出来就是普通 LRC，原样用 */
+    var data = null
+    var rawLrc = null
+    try {
+      data = await requestLyric(1)
+      var decoded = await qrcDecrypt(data && data.lyric)
+      rawLrc = decoded !== null && isQrcXml(decoded) ? qrcToLrc(decoded) : decoded
+    } catch (e) {
+      rawLrc = null
+    }
+    /* 逐字这条路任何一步没走通（请求失败、解密失败、转不出有效行、空歌词），
+       都用 qrc: 0 再取一次普通 LRC：绝不能因为逐字解析失败让歌词整个没了 */
+    if (!rawLrc) {
+      data = await requestLyric(0)
+      rawLrc = await qrcDecrypt(data && data.lyric)
+    }
     /* null = 解密失败（区别于 '' 的「这首歌没有歌词」）：明确报 not-found，
        让宿主显示「取不到歌词」而不是一片空白 */
     if (rawLrc === null) throw pluginError('not-found', '歌词解密失败（QRC 格式可能已变）')

@@ -6,7 +6,7 @@
  */
 
 import axios, { type AxiosInstance } from 'axios'
-import { parseLrc } from '@/utils/lrc'
+import { parseLrc, parseWordTags } from '@/utils/lrc'
 import { lanMediaUrl } from '@/lib/lanMedia'
 import { httpStatus, pluginErrorCode } from '@/services/errors'
 import md5 from 'md5'
@@ -606,12 +606,23 @@ export class SubsonicAdapter implements MusicServerAdapter {
         // 优先取 synced=true 的歌词，否则取第一个
         const preferred = list.find(l => l.synced) ?? list[0]
         const offset = preferred.offset ?? 0
-        const lines: LyricLine[] = (preferred.line ?? []).map(l => ({
+        const rawLines = preferred.line ?? []
+        const lines: LyricLine[] = rawLines.map((l, i) => {
+          const start = l.start !== undefined && l.start !== null ? l.start : undefined
+          const value = l.value ?? ''
           // start 单位是毫秒；offset 正值表示歌词提前显示 → 时间戳**减去**偏移
           // （阶段 4.2 修正符号：原先的加号把「提前」唱成了「推后」）
-          time: l.start !== undefined && l.start !== null ? Math.max(0, l.start - offset) : 0,
-          text: l.value ?? '',
-        })).filter(l => l.text)
+          const line: LyricLine = { time: start !== undefined ? Math.max(0, start - offset) : 0, text: value }
+          // value 里可能残留增强 LRC 的逐字标签 <mm:ss.xx>：解析成 words，text 换成干净文本；
+          // 不带标签的行保持原样
+          if (!/<\d{1,3}:\d/.test(value)) return line
+          let j = i + 1
+          while (j < rawLines.length && !((rawLines[j].start ?? -1) > (start ?? 0))) j++
+          const parsed = parseWordTags(value, start ?? 0, rawLines[j]?.start ?? undefined)
+          line.text = parsed.text
+          if (parsed.words) line.words = parsed.words.map(w => ({ ...w, time: Math.max(0, w.time - offset) }))
+          return line
+        }).filter(l => l.text)
         return {
           songId,
           title: preferred.displayTitle,
