@@ -37,7 +37,7 @@ import {
   SkipBack, SkipForward,
   Repeat, RepeatOnce, Shuffle, ArrowsDownUp,
   SpeakerHigh, SpeakerX, SpeakerLow,
-  CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork, Moon,
+  CaretDown, DotsThree, Info, Clock, MusicNote, VinylRecord, MicrophoneStage, SteeringWheel, ShareNetwork, Moon, Faders,
   ListPlus, FileText, Queue,
 } from '@phosphor-icons/react'
 import { animate, motion, useMotionValue, useReducedMotion, type MotionStyle } from 'motion/react'
@@ -81,6 +81,8 @@ import { useServerStore } from '@/store/serverStore'
 import { SourceBadge } from '@/components/sources/SourceBadge'
 import { AddToPlaylistDialog } from '@/components/music/AddToPlaylistDialog'
 import { ShareDialog } from '@/components/music/ShareDialog'
+import { EffectsDialog } from '@/components/settings/EffectsSettings'
+import { fxPlatformSupported } from '@/audio/effects/runtime'
 import { PRESETS } from '@/components/player/SleepTimerMenu'
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -343,6 +345,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
   const [playlistSong, setPlaylistSong] = useState<Song | null>(null)
   const [shareSong, setShareSong] = useState<Song | null>(null)
   const [sleepOpen, setSleepOpen] = useState(false)
+  const [effectsOpen, setEffectsOpen] = useState(false)
   const sleepTimerAt = usePlayerStore(s => s.sleepTimerAt)
   const setSleepTimer = usePlayerStore(s => s.setSleepTimer)
   const capabilities = useServerCapabilities()
@@ -953,6 +956,12 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
           {t('share.link')}
         </DropdownMenuItem>
       )}
+      {fxPlatformSupported() && (
+        <DropdownMenuItem onSelect={e => { e.preventDefault(); setEffectsOpen(true) }} className="gap-2">
+          <Faders size={16} />
+          {t('player.effects')}
+        </DropdownMenuItem>
+      )}
       {/* 睡眠定时最常用的场景是「躺着用手机听着睡」：手机上的入口在这里 */}
       <DropdownMenuItem onSelect={e => { e.preventDefault(); setSleepOpen(true) }} className="gap-2">
         <Moon size={16} />
@@ -1446,6 +1455,7 @@ export function FullscreenPlayer({ onExited }: { onExited?: () => void } = {}) {
       </motion.div>
 
       {/* 睡眠定时的选择面板。播放条上那个是 DropdownMenu，嵌进另一个菜单会打架，所以这里用对话框 */}
+      <EffectsDialog open={effectsOpen} onOpenChange={setEffectsOpen} />
       <Dialog open={sleepOpen} onOpenChange={setSleepOpen}>
         <DialogContent className="regular:max-w-xs">
           <DialogHeader>

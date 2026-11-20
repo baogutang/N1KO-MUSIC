@@ -8,6 +8,7 @@ import { persist } from 'zustand/middleware'
 import { createPersistStorage } from '@/store/persistStorage'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 import { PREAMP_MAX_DB, PREAMP_MIN_DB, type ReplayGainMode } from '@/utils/replayGain'
+import { FX_BAND_COUNT, FX_BAND_MAX_DB, FX_BAND_MIN_DB, FX_LEVEL_MAX, FX_PRESETS, RETIRED_FX_PRESETS, type FxPresetId } from '@/audio/effects/model'
 import { t } from '@/i18n'
 
 /** 封面图来源优先级 */
@@ -50,6 +51,22 @@ export { QUALITY_LABEL_KEYS, QUALITY_MAX_BITRATE }
  * 'track' 上一首下一首，'seek' 快退快进，'both' 两组都放（系统按容量取舍）。
  */
 export type NotificationActions = 'track' | 'seek' | 'both'
+
+/** 内置预设对应的那几项设置；自定义（或不认识的名字）返回空对象，什么都不覆盖 */
+function presetTuning(id: unknown): Partial<Pick<SettingsState, 'fxBands' | 'fxBass' | 'fxClarity' | 'fxWidth' | 'fxLoudness'>> {
+  if (typeof id !== 'string' || !(id in FX_PRESETS)) return {}
+  const preset = FX_PRESETS[id as FxPresetId]
+  return {
+    fxBands: preset.bands.slice(),
+    fxBass: preset.bass,
+    fxClarity: preset.clarity,
+    fxWidth: preset.width,
+    fxLoudness: preset.loudness,
+  }
+}
+
+/** 音效里 0–10 档的那几项 */
+export type FxLevelKey = 'fxBass' | 'fxClarity' | 'fxWidth' | 'fxLoudness'
 
 interface SettingsState {
   // --- 自定义 API 全局设置 ---
@@ -115,6 +132,25 @@ interface SettingsState {
   cellularAudioQuality: AudioQuality
   /** 按网络类型自动切换音质 */
   adaptiveQuality: boolean
+  /** 网速供不上当前码率（同一首连着两次停下缓冲）时，临时改用低一档的转码流 */
+  starveDowngrade: boolean
+
+  // --- 音效（audio/effects）---
+  /** 音效总开关。开着时能过处理链的流才有音效（服务器要允许跨域读取） */
+  fxEnabled: boolean
+  /** 当前套用的预设；手动动过任何一项就是 custom */
+  fxPreset: FxPresetId | 'custom'
+  /** 十段均衡器各段增益（dB） */
+  fxBands: number[]
+  /** 低音 / 清晰度 / 声场 / 响度，都是 0–10 的档位 */
+  fxBass: number
+  fxClarity: number
+  fxWidth: number
+  fxLoudness: number
+  setFxEnabled: (v: boolean) => void
+  applyFxPreset: (id: FxPresetId) => void
+  setFxBand: (index: number, db: number) => void
+  setFxLevel: (key: FxLevelKey, value: number) => void
 
   // --- 音量归一化 ---
   replayGainMode: ReplayGainMode
@@ -173,6 +209,7 @@ interface SettingsState {
   setAudioQuality: (q: AudioQuality) => void
   setCellularAudioQuality: (q: AudioQuality) => void
   setAdaptiveQuality: (v: boolean) => void
+  setStarveDowngrade: (v: boolean) => void
   setReplayGainMode: (m: ReplayGainMode) => void
   setReplayGainPreamp: (db: number) => void
   setPlaybackRate: (rate: number) => void
@@ -216,6 +253,28 @@ export const useSettingsStore = create<SettingsState>()(
       audioQuality: 'lossless',
       cellularAudioQuality: 'medium',
       adaptiveQuality: true,
+      starveDowngrade: true,
+      fxEnabled: false,
+      // 第一次打开音效就该听得出区别：默认套「现场」（用户试下来最喜欢的一套），不是什么都不动的「原声」
+      fxPreset: 'live',
+      fxBands: FX_PRESETS.live.bands.slice(),
+      fxBass: FX_PRESETS.live.bass,
+      fxClarity: FX_PRESETS.live.clarity,
+      fxWidth: FX_PRESETS.live.width,
+      fxLoudness: FX_PRESETS.live.loudness,
+      setFxEnabled: (v) => set({ fxEnabled: v }),
+      applyFxPreset: (id) => set({ fxPreset: id, ...presetTuning(id) }),
+      setFxBand: (index, db) => set(state => {
+        if (index < 0 || index >= FX_BAND_COUNT) return state
+        // 存档里的数组可能是旧长度：按现在的段数补齐再改
+        const bands = Array.from({ length: FX_BAND_COUNT }, (_, i) => state.fxBands[i] ?? 0)
+        bands[index] = Math.max(FX_BAND_MIN_DB, Math.min(FX_BAND_MAX_DB, Math.round(db)))
+        return { fxBands: bands, fxPreset: 'custom' }
+      }),
+      setFxLevel: (key, value) => set({
+        [key]: Math.max(0, Math.min(FX_LEVEL_MAX, Math.round(value))),
+        fxPreset: 'custom',
+      } as Pick<SettingsState, 'fxPreset'>),
       replayGainMode: 'auto',
       replayGainPreamp: 0,
       playbackRate: 1,
@@ -263,6 +322,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAudioQuality: (q) => set({ audioQuality: q }),
       setCellularAudioQuality: (q) => set({ cellularAudioQuality: q }),
       setAdaptiveQuality: (v) => set({ adaptiveQuality: v }),
+      setStarveDowngrade: (v) => set({ starveDowngrade: v }),
       setReplayGainMode: (m) => set({ replayGainMode: m }),
       setReplayGainPreamp: (db) =>
         set({ replayGainPreamp: Math.max(PREAMP_MIN_DB, Math.min(PREAMP_MAX_DB, db)) }),
@@ -280,6 +340,15 @@ export const useSettingsStore = create<SettingsState>()(
       // 体积小、纯用户主动变更，同步写入避免丢配置
       storage: createPersistStorage({ debounceMs: 0 }),
       version: 2,
+      /*
+       * 选着内置预设的人，音效参数跟着预设本身的定义走：预设在新版本里调过（2026-11-20「高清增强」拿掉了会失真的谐波生成），
+       * 存档里还是旧数值的话，界面亮着「高清增强」、听到的却是旧的那套。手动调过的（custom）原样保留。
+       */
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<SettingsState>) }
+        const preset = RETIRED_FX_PRESETS[merged.fxPreset] ?? merged.fxPreset
+        return { ...merged, fxPreset: preset, ...presetTuning(preset) }
+      },
       // v0 -> v1：会员体系移除。旧版免费用户被强制锁定在 low（非主动选择），
       // 迁移为无损默认；之后用户在设置里的选择正常持久化
       migrate: (persisted, version) => {

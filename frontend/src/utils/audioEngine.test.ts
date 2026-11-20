@@ -14,6 +14,11 @@ import {
   isStreamExpired,
   parseLoadedKey,
   resolveStreamFromAdapter,
+  createStarveGuard,
+  stepStarveGuard,
+  noteStarveSeek,
+  lowerQuality,
+  type StarveInput,
 } from '@/utils/audioEngine'
 
 function audioWithDuration(duration: number): Pick<HTMLAudioElement, 'duration'> {
@@ -382,5 +387,144 @@ describe('classifyStreamFailure 的 unsupported（复审 A9：不再当瞬态暂
     expect(classifyStreamFailure('unsupported', '做不到')).toBe('not-found')
     // 无码时文本兜底不受影响
     expect(classifyStreamFailure(undefined, 'Network Error')).toBe('transient')
+  })
+})
+
+describe('供不上码率时先攒缓冲（stepStarveGuard）', () => {
+  /** 一轮看门狗：默认在播、元素没停、没在拖动、离结尾还远 */
+  const tick = (now: number, aheadSec: number, over: Partial<StarveInput> = {}): StarveInput => ({
+    now,
+    wantPlaying: true,
+    elementPaused: false,
+    seeking: false,
+    aheadSec,
+    remainingSec: 200,
+    ...over,
+  })
+
+  /** 已经见过健康缓冲、宽限期也过了的看守 */
+  function armedGuard() {
+    const guard = createStarveGuard(0)
+    expect(stepStarveGuard(guard, tick(3000, 30))).toBe('none')
+    return guard
+  }
+
+  it('从没见过往后有缓冲的流不动它（buffered 不可信）', () => {
+    const guard = createStarveGuard(0)
+    for (let now = 3000; now < 20_000; now += 900) {
+      expect(stepStarveGuard(guard, tick(now, 0))).toBe('none')
+    }
+    expect(guard.holds).toBe(0)
+  })
+
+  it('正在播、往后没货持续 1.5 秒：停下攒缓冲', () => {
+    const guard = armedGuard()
+    expect(stepStarveGuard(guard, tick(4000, 0))).toBe('none')
+    expect(stepStarveGuard(guard, tick(4900, 0.1))).toBe('none')
+    expect(stepStarveGuard(guard, tick(5800, 0))).toBe('hold')
+    expect(guard.holding).toBe(true)
+    expect(guard.holds).toBe(1)
+  })
+
+  it('中间来过一批数据就重新计时：一拍没货不算', () => {
+    const guard = armedGuard()
+    expect(stepStarveGuard(guard, tick(4000, 0))).toBe('none')
+    expect(stepStarveGuard(guard, tick(4900, 3.5))).toBe('none')
+    expect(stepStarveGuard(guard, tick(5800, 0))).toBe('none')
+    expect(stepStarveGuard(guard, tick(6700, 0))).toBe('none')
+    expect(stepStarveGuard(guard, tick(7600, 0))).toBe('hold')
+  })
+
+  it('刚加载、刚拖动的宽限期内不判断', () => {
+    const fresh = createStarveGuard(0)
+    stepStarveGuard(fresh, tick(100, 2))
+    expect(stepStarveGuard(fresh, tick(1000, 0))).toBe('none')
+    expect(stepStarveGuard(fresh, tick(2400, 0)), '加载后 2.5 秒内').toBe('none')
+
+    const guard = armedGuard()
+    stepStarveGuard(guard, tick(4000, 0))
+    noteStarveSeek(guard, 4500)
+    expect(stepStarveGuard(guard, tick(4900, 0))).toBe('none')
+    expect(stepStarveGuard(guard, tick(6900, 0)), '宽限里的不算数，过了才开始计时').toBe('none')
+    expect(stepStarveGuard(guard, tick(7200, 0)), '宽限过后重新计时').toBe('none')
+    expect(stepStarveGuard(guard, tick(8800, 0))).toBe('hold')
+  })
+
+  it('元素自己报着拖动中：不判断', () => {
+    const guard = armedGuard()
+    for (let now = 4000; now < 9000; now += 900) {
+      expect(stepStarveGuard(guard, tick(now, 0, { seeking: true }))).toBe('none')
+    }
+  })
+
+  it('快放完的最后两秒没货是正常的', () => {
+    const guard = armedGuard()
+    for (let now = 4000; now < 9000; now += 900) {
+      expect(stepStarveGuard(guard, tick(now, 0, { remainingSec: 1.5 }))).toBe('none')
+    }
+  })
+
+  function heldGuard() {
+    const guard = armedGuard()
+    stepStarveGuard(guard, tick(4000, 0))
+    expect(stepStarveGuard(guard, tick(5800, 0))).toBe('hold')
+    return guard
+  }
+
+  it('停着攒够 8 秒就接着放', () => {
+    const guard = heldGuard()
+    expect(stepStarveGuard(guard, tick(6700, 2, { elementPaused: true }))).toBe('none')
+    expect(stepStarveGuard(guard, tick(7600, 5, { elementPaused: true }))).toBe('none')
+    expect(stepStarveGuard(guard, tick(8500, 8.2, { elementPaused: true }))).toBe('release')
+    expect(guard.holding).toBe(false)
+  })
+
+  it('快到结尾：剩下的全缓冲完了就放，不死等 8 秒', () => {
+    const guard = heldGuard()
+    expect(stepStarveGuard(guard, tick(6700, 3.6, { elementPaused: true, remainingSec: 4 }))).toBe('release')
+  })
+
+  it('停着 8 秒一点没涨：连接死了，保位重载', () => {
+    const guard = heldGuard()
+    expect(stepStarveGuard(guard, tick(9000, 0.1, { elementPaused: true }))).toBe('none')
+    expect(stepStarveGuard(guard, tick(13_900, 0.1, { elementPaused: true }))).toBe('reload')
+    expect(guard.holding).toBe(false)
+  })
+
+  it('一直在涨但很慢：最多停 30 秒就放', () => {
+    const guard = heldGuard()
+    let action = 'none'
+    let ahead = 0
+    for (let now = 6700; now < 40_000 && action === 'none'; now += 900) {
+      ahead += 0.21
+      action = stepStarveGuard(guard, tick(now, ahead, { elementPaused: true }))
+    }
+    expect(action).toBe('release')
+  })
+
+  it('停着的时候用户按了暂停、或者别处让它播起来了：交还，不再插手', () => {
+    const paused = heldGuard()
+    expect(stepStarveGuard(paused, tick(6700, 1, { wantPlaying: false, elementPaused: true }))).toBe('cancel')
+    expect(paused.holding).toBe(false)
+
+    const resumed = heldGuard()
+    expect(stepStarveGuard(resumed, tick(6700, 1, { elementPaused: false }))).toBe('cancel')
+    expect(stepStarveGuard(resumed, tick(7600, 0)), '交还后带宽限').toBe('none')
+  })
+
+  it('每停一回计一次数（第二回起引擎会考虑降档）', () => {
+    const guard = heldGuard()
+    expect(stepStarveGuard(guard, tick(8500, 9, { elementPaused: true }))).toBe('release')
+    stepStarveGuard(guard, tick(12_000, 0))
+    expect(stepStarveGuard(guard, tick(13_600, 0))).toBe('hold')
+    expect(guard.holds).toBe(2)
+  })
+})
+
+describe('lowerQuality', () => {
+  it('取两个档位里更省流量的那个', () => {
+    expect(lowerQuality('lossless', 'high')).toBe('high')
+    expect(lowerQuality('medium', 'high')).toBe('medium')
+    expect(lowerQuality('low', 'low')).toBe('low')
   })
 })

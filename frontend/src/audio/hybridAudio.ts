@@ -1,5 +1,6 @@
 import { WebDavNative, NATIVE_FLAC_PREFIX, type FlacEvent } from '@/api/adapters/webdavNative'
 import { isNativePlatform, nativeOS } from '@/lib/platform'
+import { RoutedAudio } from './routedAudio'
 
 /**
  * 安卓 WebView 的 audio 标签不解码 FLAC。
@@ -341,7 +342,11 @@ function ranges(end: number): TimeRanges {
   return { length: 1, start: () => 0, end: () => end }
 }
 
+/**
+ * 引擎的音频元素。安卓原生壳用 HybridAudio（FLAC 转系统解码器）；
+ * 其余环境用 RoutedAudio：音效没开时它就是原来那个 <audio>，开了才按流改走带处理链的元素。
+ */
 export function createEngineAudio(): HTMLAudioElement {
-  if (!isNativePlatform || nativeOS !== 'android') return new Audio()
-  return new HybridAudio() as unknown as HTMLAudioElement
+  if (isNativePlatform && nativeOS === 'android') return new HybridAudio() as unknown as HTMLAudioElement
+  return new RoutedAudio() as unknown as HTMLAudioElement
 }

@@ -37,12 +37,13 @@ import { collectSourceRefs, resolveSourceOrder } from '@/hooks/useSourceQueries'
 import { bestMatchFor } from '@/plugins/match'
 import { toast } from '@/components/ui/use-toast'
 import type { ServerConfig, Song } from '@/api/types'
-import { computeReplayGainScalar } from '@/utils/replayGain'
+import { computeReplayGainScalar, isAlbumContext } from '@/utils/replayGain'
 import { isMeteredConnection, onConnectionChange } from '@/lib/network'
 import { clearPauseReason, notePauseReason, readPauseContext, recordPause } from '@/lib/playbackTrail'
 import { t } from '@/i18n'
 import { isNativeFlacUrl } from '@/api/adapters/webdavNative'
 import { createEngineAudio } from '@/audio/hybridAudio'
+import { fxPlatformSupported, fxWanted, prepareFxRoute, wouldRouteFx } from '@/audio/effects/runtime'
 import {
   createListeningEventId,
   deriveListeningOutcome,
@@ -64,7 +65,13 @@ import {
   isStreamExpired,
   parseLoadedKey,
   resolveStreamFromAdapter,
+  createStarveGuard,
+  stepStarveGuard,
+  noteStarveSeek,
+  lowerQuality,
+  QUALITY_STEP_DOWN,
   type ResolvedStream,
+  type StarveGuard,
 } from '@/utils/audioEngine'
 
 /**
@@ -453,6 +460,17 @@ let offlineResumeToken = 0
 let engineInitiatedPause = false
 
 /**
+ * 「供不上码率」的看守状态（逻辑见 utils/audioEngine 的 stepStarveGuard）。
+ * 放模块级：reattach 会重建 doLoad 闭包，正停着攒缓冲时闭包一换，就没人把它放开了。
+ */
+let starveGuard: StarveGuard | null = null
+/** 元素是我们为了攒缓冲停下的：这一下 pause 不是用户 / 系统停的，别同步进 store，canplay 也别急着放 */
+let starveHold = false
+/** 供不上码率后的临时降档管到什么时候（毫秒时间戳）；到点后在下一次换歌时切回原档 */
+let starveDowngradeUntil = 0
+const STARVE_DOWNGRADE_MS = 15 * 60 * 1000
+
+/**
  * 当前音频元素的真实播放位置（秒）。
  * audioEl 是模块级的 new Audio()，从不挂进 DOM，因此 document.querySelector('audio')
  * 找不到它——需要读取实际位置的调用方必须走这里。
@@ -470,6 +488,12 @@ export function seekHowl(time: number) {
   lastPlaybackPos = time
   lastPlaybackKey = loadedKey
   pendingRecoverTime = null
+  // 拖到别处了：新位置的缓冲要一会儿才报出来，之前攒缓冲的等待也作废（下面会让它直接放）
+  if (starveGuard) noteStarveSeek(starveGuard, performance.now())
+  if (starveHold) {
+    starveHold = false
+    usePlayerStore.getState().setStreamBuffering(false)
+  }
   // seek 后确保继续播放（流媒体 seek 可能导致 audio 暂停）
   if (usePlayerStore.getState().isPlaying && audioEl.paused) {
     audioEl.play().catch(() => {})
@@ -500,14 +524,38 @@ export function useAudioEngine() {
 
   // 网络类型变化时重新求值（插拔 Wi-Fi、开关省流量模式）
   const [metered, setMetered] = useState(() => isMeteredConnection())
-  useEffect(() => onConnectionChange(() => setMetered(isMeteredConnection())), [])
+  useEffect(() => onConnectionChange(() => {
+    setMetered(isMeteredConnection())
+    // 换了网络：之前「供不上」的结论不再作数，下一首按原档重新试
+    starveDowngradeUntil = 0
+  }), [])
+
+  /**
+   * 供不上码率后的临时降档（看守连着停下攒了两回缓冲才会触发，见 considerStarveDowngrade）。
+   * 放到一半不会自己切回去——那又是一次重载；到点之后等换歌那一刻再回原档。
+   */
+  const starveDowngrade = useSettingsStore(s => s.starveDowngrade)
+  const [starvedQuality, setStarvedQuality] = useState<AudioQuality | null>(null)
+  const [starveCheckedFor, setStarveCheckedFor] = useState(playbackIdentity)
+  if (starveCheckedFor !== playbackIdentity) {
+    // 渲染期间按「换歌了」调整 state：赶在加载 effect 之前，这一首直接按原档取流
+    setStarveCheckedFor(playbackIdentity)
+    if (starvedQuality && Date.now() >= starveDowngradeUntil) setStarvedQuality(null)
+  }
 
   /**
    * 实际使用的音质档。
    * 这里此前是一句 `const effectiveQuality = audioQuality` —— 会员体系移除后
    * 留下的空转指向，正好是插入网络自适应的地方。
    */
-  const effectiveQuality = adaptiveQuality && metered ? cellularAudioQuality : audioQuality
+  const baseQuality = adaptiveQuality && metered ? cellularAudioQuality : audioQuality
+  const effectiveQuality = starveDowngrade && starvedQuality ? lowerQuality(baseQuality, starvedQuality) : baseQuality
+  /**
+   * 加载 key 里「音质」那一格。音效开关也算进去：开 / 关音效要换一个音频元素来放
+   * （见 audio/routedAudio），和换音质一样是「同一首、保位重载」，直接借那条现成的路。
+   */
+  const fxEnabled = useSettingsStore(s => s.fxEnabled)
+  const loadVariant = fxEnabled && fxPlatformSupported() ? `${effectiveQuality}+fx` : effectiveQuality
 
   // TanStack Query 客户端 — 用于在加载音频时取消 pending 的封面请求，释放连接池
   const queryClient = useQueryClient()
@@ -542,13 +590,7 @@ export function useAudioEngine() {
     const base = volumeRef.current * (Number.isFinite(fade) ? fade : 1)
     const { mode, preamp } = gainCtxRef.current
     if (mode === 'off') return base
-    // auto 模式判断是否「按顺序放整张专辑」：随机开着就不是
-    const st = usePlayerStore.getState()
-    const albumContext =
-      !st.shuffle &&
-      st.queue.length > 1 &&
-      !!st.currentSong?.albumId &&
-      st.queue.every(item => item.albumId === st.currentSong?.albumId)
+    const albumContext = isAlbumContext(usePlayerStore.getState())
     const scalar = computeReplayGainScalar(currentSongRef.current, {
       mode,
       preampDb: preamp,
@@ -710,7 +752,8 @@ export function useAudioEngine() {
      * 不清的话它会把「下一首」整首拉完——切蜂窝后用户没点任何东西，
      * 流量却在一首一首地走。
      */
-    if (!preloadNext || !isPlaying || metered) {
+    // 降档期间也不预热：带宽本来就不够，别让下一首来抢
+    if (!preloadNext || !isPlaying || metered || starvedQuality !== null) {
       if (preloadEl.getAttribute('src')) {
         preloadEl.pause()
         preloadEl.removeAttribute('src')
@@ -765,6 +808,8 @@ export function useAudioEngine() {
           const laterNext = peekNextSong(laterState)
           if (!laterNext || playbackKey(laterState.playVersion, songServerId(laterNext), laterNext.id) !== nextKey) return
           if (isNativeFlacUrl(resolved.url)) return
+          // 正式播放要是走带处理链的元素（跨域模式），预热也得用同一种请求方式，缓存才对得上
+          preloadEl.crossOrigin = wouldRouteFx(resolved.url) ? 'anonymous' : null
           preloadEl.src = resolved.url
           preloadEl.load()
         })
@@ -776,7 +821,7 @@ export function useAudioEngine() {
       clearInterval(timer)
       clearInterval(resolveAheadTimer)
     }
-  }, [preloadNext, isPlaying, metered, effectiveQuality])
+  }, [preloadNext, isPlaying, metered, effectiveQuality, starvedQuality])
 
   // --- 核心：歌曲变化 / 连接就绪 / 音质变化 时加载音频 ---
   useEffect(() => {
@@ -883,7 +928,7 @@ export function useAudioEngine() {
     }
     disconnectedRun = null
 
-    const currentKey = buildLoadedKey(songServer, songId, effectiveQuality, playVersion)
+    const currentKey = buildLoadedKey(songServer, songId, loadVariant, playVersion)
 
     // 捕获当前歌曲 id，供 debounce 内校验
     const capturedSongId = songId
@@ -902,9 +947,7 @@ export function useAudioEngine() {
      * 先在同一个源逐档降（lossless→high→medium→low），全部失败才换源、
      * 最后才跳歌——换源会离开用户的「首选源」，跳歌直接打断收听。
      */
-    const QUALITY_LADDER: Record<AudioQuality, AudioQuality | null> = {
-      lossless: 'high', high: 'medium', medium: 'low', low: null,
-    }
+    const QUALITY_LADDER: Record<AudioQuality, AudioQuality | null> = QUALITY_STEP_DOWN
 
     // 首次播放不需要 debounce（没有旧音频要中断），后续切歌才 debounce 吸收连续点击
     // reattachOnly=true：同 key 重挂监听（依赖变化触发过 cleanup 后），
@@ -1083,6 +1126,14 @@ export function useAudioEngine() {
         return
       }
       if (!stillCurrent()) return
+      /*
+       * 音效开着：设 src 之前把处理链备好，并问清这个源站的流能不能过处理链
+       * （不能的照旧用不接处理链的元素放）。没开音效时这里不 await，加载时序和从前一样。
+       */
+      if (!reattachOnly && fxWanted()) {
+        await prepareFxRoute(resolved.url)
+        if (!stillCurrent()) return
+      }
       // 取到流即视为这次连续失败被打断
       consecutiveResolveFailures = 0
       // 这一首放成了：换源链作废（重听同一首时应当能重新走一遍降级）
@@ -1090,6 +1141,11 @@ export function useAudioEngine() {
       const streamUrl = resolved.url
       // 取到流才认领这个加载 key：被作废的加载不能抢走属于别人的 key
       loadedKey = capturedKey
+      // 新的一次加载从头观察；reattach 接着用原来的（可能正停着攒缓冲）
+      if (!reattachOnly || !starveGuard) {
+        starveGuard = createStarveGuard(performance.now())
+        starveHold = false
+      }
 
       const audio = audioEl
       /** 无损最多 2 次恢复（无 format→FLAC→MP3）；有损仅 1 次同 URL 重试 */
@@ -1322,6 +1378,8 @@ export function useAudioEngine() {
         updateDuration()
         // 恢复中断位置（带 seekable 就绪检查，未就绪会在后续事件里重试）
         applyPendingRecover()
+        // 正停着攒缓冲：canplay 只说明「有一点数据了」，攒够由看守放行
+        if (starveHold) return
         // 音频已就绪，恢复图片加载
         usePlayerStore.getState().setStreamBuffering(false)
         if (usePlayerStore.getState().isPlaying && audio.paused) {
@@ -1377,6 +1435,8 @@ export function useAudioEngine() {
       }
 
       const onPause = () => {
+        // 为了攒缓冲自己停的：不是谁按了暂停，播放意图不变
+        if (starveHold) return
         // 「放完存货」途中元素停了：存货真的见底（或已放完）才是要重连；
         // 存货还多却停了，是系统（来电、Siri、AirPods 摘下）或用户停的——照常同步暂停，等恢复播放后看门狗接着盯
         if (rideOut && usePlayerStore.getState().isPlaying && (audio.ended || bufferedAheadSec(audio, audio.currentTime) < RIDE_OUT_RECONNECT_SEC)) {
@@ -1496,8 +1556,92 @@ export function useAudioEngine() {
         persistSessionSnapshot(endedSnapshot, 'completed')
       }
 
+      /** 这一首已经问过能不能降档了（不按码率转码的源，问一次就够） */
+      let starveDowngradeAsked = false
+      /**
+       * 连着两回供不上：问一下低一档是不是另一条流，是就临时降档（15 分钟，期间的歌都按低一档取）。
+       * 状态一变，加载 effect 按「同曲换音质」保位重载。
+       */
+      const considerStarveDowngrade = () => {
+        if (starveDowngradeAsked || !useSettingsStore.getState().starveDowngrade) return
+        const lower = QUALITY_STEP_DOWN[loadQuality]
+        if (!lower) return
+        starveDowngradeAsked = true
+        void resolveStream(capturedSong, lower)
+          .then(alt => {
+            if (loadedKey !== capturedKey) return
+            // 地址没变：这个源不按码率转码（WebDAV 直链之类），降档只是白重载一次
+            if (alt.url === streamUrl) return
+            log.warn('AudioEngine', 'bandwidth cannot keep up with this stream — stepping down to', lower)
+            starveDowngradeUntil = Date.now() + STARVE_DOWNGRADE_MS
+            toast({ title: t('player.starvedDowngrade', { quality: t(`audio.quality.${lower}`) }) })
+            setStarvedQuality(lower)
+          })
+          .catch(() => { /* 问不到就算了：继续按原档攒缓冲 */ })
+      }
+
+      /**
+       * 供不上码率的看守（每轮看门狗先过它）。返回 true：正停着攒缓冲，这一轮别的检查都不用做。
+       * 系统解码器那条路（安卓 FLAC）自己会等数据，不归它管；「放完存货」进行中也不插手。
+       */
+      const starveTick = (st: ReturnType<typeof usePlayerStore.getState>): boolean => {
+        if (rideOut || audio.ended || isNativeFlacUrl(streamUrl)) return false
+        const guard = starveGuard ?? (starveGuard = createStarveGuard(performance.now()))
+        const at = audio.currentTime
+        const fullDur = getFiniteDuration(audio) ?? capturedSong.duration ?? 0
+        const action = stepStarveGuard(guard, {
+          now: performance.now(),
+          wantPlaying: st.isPlaying,
+          elementPaused: audio.paused,
+          // 恢复点还没落位时元素也在「找位置」，和拖动一样对待
+          seeking: audio.seeking === true || pendingRecoverTime !== null,
+          aheadSec: bufferedAheadSec(audio, at),
+          remainingSec: fullDur > 0 ? fullDur - at : Infinity,
+        })
+        if (action === 'hold') {
+          starveHold = true
+          log.warn('AudioEngine', `nothing buffered ahead at t=${Math.round(at)}s while playing — holding to rebuffer (#${guard.holds})`)
+          st.setStreamBuffering(true)
+          audio.pause()
+          if (guard.holds >= 2) considerStarveDowngrade()
+          return true
+        }
+        if (action === 'release') {
+          starveHold = false
+          st.setStreamBuffering(false)
+          audio.play().catch(e => {
+            if (e.name !== 'AbortError') log.warn('AudioEngine', 'play after rebuffer rejected:', e.message)
+          })
+          return false
+        }
+        if (action === 'reload') {
+          starveHold = false
+          if (recoverAttempts < maxRecoverAttempts) {
+            recoverAttempts += 1
+            healthyPlaySec = 0
+            reloadForRecovery(audio.currentSrc || streamUrl, 0, `Rebuffering made no progress (t=${Math.round(at)}s)`)
+            return true
+          }
+          // 重载次数用完了：有多少放多少，别一直静着
+          st.setStreamBuffering(false)
+          audio.play().catch(() => {})
+          return false
+        }
+        if (action === 'cancel') {
+          starveHold = false
+          st.setStreamBuffering(false)
+          return false
+        }
+        return guard.holding
+      }
+
       const stallTick = () => {
         const st = usePlayerStore.getState()
+        if (st.currentSong?.id === capturedSongId && starveTick(st)) {
+          stallPrevT = -1
+          stallSinceMs = null
+          return
+        }
         if (!st.isPlaying || audio.paused || audio.ended) {
           stallPrevT = -1
           stallSinceMs = null
@@ -1925,7 +2069,7 @@ export function useAudioEngine() {
         parsed &&
         parsed.base === `${songServer}:${songId}` &&
         parsed.version === String(playVersion) &&
-        parsed.quality !== effectiveQuality
+        parsed.quality !== loadVariant
       ) {
         const st = usePlayerStore.getState()
         qualitySwitchResumeAt = Math.max(
@@ -1995,7 +2139,7 @@ export function useAudioEngine() {
 
     // 依赖歌曲 id 而非对象引用：patchSong（如收藏切换）只替换引用不换歌，
     // 不应触发本 effect，否则会 cleanup 后重载导致从头重播
-  }, [currentSongId, playVersion, isConnected, activeServerId, startupConnectSettled, effectiveQuality, queryClient, targetVolume])
+  }, [currentSongId, playVersion, isConnected, activeServerId, startupConnectSettled, effectiveQuality, loadVariant, queryClient, targetVolume])
 
   // MainLayout 卸载（登出/断开连接）时模块级 Audio 仍会存活，必须显式停止。
   useEffect(() => () => {

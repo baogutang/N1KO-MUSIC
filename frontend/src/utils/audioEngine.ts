@@ -241,3 +241,158 @@ export function isNearEndOfTrack(currentTime: number, refDuration: number): bool
     (refDuration > 60 && currentTime / refDuration >= NEAR_END_RATIO)
   )
 }
+
+/*
+ * 「供不上」看守：网速跟不上码率时，先停下攒缓冲，而不是放碎片。
+ *
+ * 实测（192kHz / 24bit 的 WAV，9216 kbps，带宽压到码率附近）：WebKit 不会停下来等数据——
+ * currentTime 照走、readyState 还是 4，送去出声的却是一段有一段没有的碎片，再往后干脆全是零。
+ * 用户听到的是先一阵刺耳的杂音、然后「进度在走但没声音」；停滞看门狗只认「时间不动」，看不见这种情况。
+ *
+ * 判据只有一条：正在播，当前位置往后却几乎没有缓冲，而且持续了一小会儿。
+ * `buffered` 不是处处可信（有的流根本不报），所以要先见过它报出「往后有货」才启用；
+ * 拖动之后它会短暂为空，给一段宽限。
+ */
+
+/** 见过往后至少这么多秒的缓冲，才相信这条流的 buffered */
+const STARVE_ARM_SEC = 1
+/** 往后不足这么多秒算「没货」 */
+const STARVE_EMPTY_SEC = 0.25
+/** 「没货」持续这么久才动手（看门狗 900ms 一轮，约两轮） */
+const STARVE_CONFIRM_MS = 1500
+/** 停下之后攒够这么多秒再放 */
+const STARVE_TARGET_SEC = 8
+/** 停着的时候缓冲这么久一点没涨：连接多半已经死了，交给保位重载 */
+const STARVE_DEAD_MS = 8000
+/** 最多停这么久；涨得再慢也先放出来 */
+const STARVE_MAX_HOLD_MS = 30_000
+/** 加载 / 拖动 / 放行之后这么久内不判断 */
+const STARVE_GRACE_MS = 2500
+
+export interface StarveGuard {
+  armed: boolean
+  /** 连续「在播却没货」的起点；null 表示当前有货 */
+  emptySince: number | null
+  /** 正停着攒缓冲 */
+  holding: boolean
+  holdSince: number
+  /** 停着期间见过的最多缓冲，和它上一次变多的时刻 */
+  heldAhead: number
+  heldGrewAt: number
+  /** 这次加载里已经停下攒过几回 */
+  holds: number
+  graceUntil: number
+}
+
+export interface StarveInput {
+  now: number
+  /** store 里是「播放中」 */
+  wantPlaying: boolean
+  /** 元素自己是不是停着 */
+  elementPaused: boolean
+  seeking: boolean
+  /** 当前位置往后缓冲着多少秒（bufferedAheadSec） */
+  aheadSec: number
+  /** 离曲终还有多少秒；时长不可靠时给 Infinity */
+  remainingSec: number
+}
+
+/**
+ * - hold：把元素停下，亮出缓冲中
+ * - release：攒够了（或等太久了），接着放
+ * - reload：停着也不见涨，保位重载
+ * - cancel：别人已经接手（用户暂停了、拖动了、重载了），只收掉缓冲中的标记
+ */
+export type StarveAction = 'none' | 'hold' | 'release' | 'reload' | 'cancel'
+
+export function createStarveGuard(now: number): StarveGuard {
+  return {
+    armed: false,
+    emptySince: null,
+    holding: false,
+    holdSince: 0,
+    heldAhead: 0,
+    heldGrewAt: 0,
+    holds: 0,
+    graceUntil: now + STARVE_GRACE_MS,
+  }
+}
+
+/** 用户拖动了进度：之前的观察作废，给新位置一点时间把缓冲报出来 */
+export function noteStarveSeek(guard: StarveGuard, now: number): void {
+  guard.emptySince = null
+  guard.graceUntil = now + STARVE_GRACE_MS
+}
+
+export function stepStarveGuard(guard: StarveGuard, input: StarveInput): StarveAction {
+  const { now } = input
+  if (guard.holding) {
+    if (!input.wantPlaying || !input.elementPaused) {
+      guard.holding = false
+      noteStarveSeek(guard, now)
+      return 'cancel'
+    }
+    if (input.aheadSec > guard.heldAhead + 0.2) {
+      guard.heldAhead = input.aheadSec
+      guard.heldGrewAt = now
+    }
+    // 快到结尾时剩下的不够目标量：有多少算多少
+    const target = Math.min(STARVE_TARGET_SEC, Math.max(0.5, input.remainingSec - 0.5))
+    const enough = input.aheadSec >= target
+    const waitedTooLong = now - guard.holdSince >= STARVE_MAX_HOLD_MS
+    if (enough || waitedTooLong) {
+      guard.holding = false
+      noteStarveSeek(guard, now)
+      return 'release'
+    }
+    if (now - guard.heldGrewAt >= STARVE_DEAD_MS) {
+      guard.holding = false
+      noteStarveSeek(guard, now)
+      return 'reload'
+    }
+    return 'none'
+  }
+
+  if (input.aheadSec >= STARVE_ARM_SEC) guard.armed = true
+  if (input.seeking) noteStarveSeek(guard, now)
+  if (
+    !guard.armed ||
+    !input.wantPlaying ||
+    input.elementPaused ||
+    input.seeking ||
+    now < guard.graceUntil ||
+    // 最后两秒本来就该没货
+    input.remainingSec <= 2 ||
+    input.aheadSec > STARVE_EMPTY_SEC
+  ) {
+    guard.emptySince = null
+    return 'none'
+  }
+  if (guard.emptySince === null) {
+    guard.emptySince = now
+    return 'none'
+  }
+  if (now - guard.emptySince < STARVE_CONFIRM_MS) return 'none'
+  guard.emptySince = null
+  guard.holding = true
+  guard.holdSince = now
+  guard.heldAhead = input.aheadSec
+  guard.heldGrewAt = now
+  guard.holds += 1
+  return 'hold'
+}
+
+/** 音质档位从高到低；供不上码率、或这一档无权播放时往下走一档 */
+export const QUALITY_STEP_DOWN: Record<'lossless' | 'high' | 'medium' | 'low', 'high' | 'medium' | 'low' | null> = {
+  lossless: 'high',
+  high: 'medium',
+  medium: 'low',
+  low: null,
+}
+
+const QUALITY_RANK = { low: 0, medium: 1, high: 2, lossless: 3 } as const
+
+/** 两个档位里更省流量的那个 */
+export function lowerQuality<Q extends keyof typeof QUALITY_RANK>(a: Q, b: Q): Q {
+  return QUALITY_RANK[a] <= QUALITY_RANK[b] ? a : b
+}

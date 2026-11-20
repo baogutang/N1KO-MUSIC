@@ -47,6 +47,7 @@ import {
 import { SyncSettings } from '@/components/settings/SyncSettings'
 import { ScrobbleSettings } from '@/components/settings/ScrobbleSettings'
 import { PlaybackDiagnostics } from '@/components/settings/PlaybackDiagnostics'
+import { EffectsSection } from '@/components/settings/EffectsSettings'
 import { importListeningEvents, readListeningEvents } from '@/services/listeningHistory'
 import { capImport, parseHistoryFile } from '@/services/historyImport'
 import { clearProfileCache } from '@/services/musicbrainz'
@@ -308,7 +309,7 @@ export default function Settings() {
     lyricsRemoteTemplate, lyricsConfirmTemplate, lyricsUseRemote, lyricsPreferRemote, lyricsFontSize,
     songDetailTemplate, songDetailPathReplace,
     translateTargetLang, translateType,
-    audioQuality, cellularAudioQuality, adaptiveQuality,
+    audioQuality, cellularAudioQuality, adaptiveQuality, starveDowngrade,
     replayGainMode, replayGainPreamp,
     playbackRate, smoothTransitions, preloadNext, autoContinueQueue,
     notificationActions, seekStepSeconds, resumeAfterInterruption, musicBrainzEnabled,
@@ -318,7 +319,7 @@ export default function Settings() {
     setLyricsRemoteTemplate, setLyricsConfirmTemplate, setLyricsUseRemote, setLyricsPreferRemote, setLyricsFontSize,
     setSongDetailTemplate, setSongDetailPathReplace,
     setTranslateTargetLang, setTranslateType,
-    setAudioQuality, setCellularAudioQuality, setAdaptiveQuality,
+    setAudioQuality, setCellularAudioQuality, setAdaptiveQuality, setStarveDowngrade,
     setReplayGainMode, setReplayGainPreamp,
     setPlaybackRate, setSmoothTransitions, setPreloadNext, setAutoContinueQueue,
     setNotificationActions, setSeekStepSeconds, setResumeAfterInterruption, setMusicBrainzEnabled,
@@ -712,6 +713,13 @@ export default function Settings() {
             />
           )}
 
+          <Row
+            name={t('settings.starveDowngrade.name')}
+            desc={t('settings.starveDowngrade.desc')}
+          >
+            <Toggle checked={starveDowngrade} onChange={setStarveDowngrade} label={t('settings.starveDowngrade.name')} />
+          </Row>
+
           <ChoiceRow
             inline
             name={t('settings.replayGain.name')}
@@ -828,6 +836,8 @@ export default function Settings() {
             <Toggle checked={smoothTransitions} onChange={setSmoothTransitions} label={t('settings.smooth.name')} />
           </Row>
         </Section>
+
+        <EffectsSection />
 
         {/* 自定义 API */}
         <Section title={t('settings.customApi')}>

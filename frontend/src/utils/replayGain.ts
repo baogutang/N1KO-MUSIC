@@ -32,6 +32,19 @@ interface GainContext {
   preampDb: number
 }
 
+/** 判断「是不是在按顺序放整张专辑」要看的那几项播放状态 */
+export interface AlbumContextInput {
+  shuffle: boolean
+  queue: ReadonlyArray<{ albumId?: string | null }>
+  currentSong: { albumId?: string | null } | null
+}
+
+/** auto 模式据此在 album / track 增益之间选：随机开着就不是；队列里得全是同一张专辑 */
+export function isAlbumContext(st: AlbumContextInput): boolean {
+  const albumId = st.currentSong?.albumId
+  return !st.shuffle && st.queue.length > 1 && !!albumId && st.queue.every(item => item.albumId === albumId)
+}
+
 /**
  * 计算应当乘在 volume 上的线性系数。
  *
